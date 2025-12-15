@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+  <title>Teleprompter Plus</title>
+  <desc>Professional teleprompter with smart navigation and Stream Deck integration</desc>
+
+  <!-- Top line (fading) - represents scrolling text that has passed -->
+  <line x1="6" y1="6" x2="18" y2="6" opacity="0.4"/>
+
+  <!-- Middle line (full strength) - represents current reading position -->
+  <line x1="5" y1="12" x2="19" y2="12"/>
+
+  <!-- Bottom line (fading) - represents text coming up -->
+  <line x1="7" y1="18" x2="17" y2="18" opacity="0.4"/>
+
+  <!-- Upward arrow (motion indicator) - shows scrolling direction -->
+  <path d="M12 20 L12 8 M9 11 L12 8 L15 11"/>
+</svg>

@@ -1,0 +1,167 @@
+/* Teleprompter Plus - Global Plugin Styles */
+
+/* Settings Tab - Quick Setup Container */
+.quick-setup-container {
+  margin-bottom: 2rem;
+  padding: 1.5rem;
+  background: var(--background-secondary);
+  border-radius: 8px;
+  border: 1px solid var(--background-modifier-border);
+}
+
+.quick-setup-presets {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 1rem;
+  margin-top: 1rem;
+}
+
+.quick-setup-button {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 0.75rem;
+  padding: 1.75rem 1.25rem;
+  background: var(--background-primary);
+  border: 2px solid var(--background-modifier-border);
+  border-radius: 12px;
+  cursor: pointer;
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  text-align: center;
+  min-height: 160px;
+  overflow: hidden;
+}
+
+.quick-setup-button:hover {
+  border-color: var(--interactive-accent);
+  transform: translateY(-4px);
+  box-shadow: 0 8px 20px rgba(0,0,0,0.15);
+  background: var(--background-primary-alt);
+}
+
+.quick-setup-button:active {
+  transform: translateY(-2px);
+}
+
+.quick-setup-icon {
+  width: 32px;
+  height: 32px;
+  min-height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--interactive-accent);
+  flex-shrink: 0;
+  margin-bottom: 0.5rem;
+}
+
+.quick-setup-icon svg,
+.quick-setup-icon .svg-icon {
+  width: 24px !important;
+  height: 24px !important;
+  stroke-width: 2;
+  display: block;
+}
+
+.quick-setup-name {
+  font-weight: 600;
+  font-size: 1.05rem;
+  color: var(--text-normal);
+  margin-bottom: 0.25rem;
+}
+
+.quick-setup-desc {
+  font-size: 0.875rem;
+  color: var(--text-muted);
+  line-height: 1.4;
+  max-width: 200px;
+}
+
+/* Settings Tab - Preset Buttons */
+.preset-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 1rem;
+  border-radius: 6px;
+  transition: all 0.2s ease;
+}
+
+.preset-button:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+}
+
+.preset-button .svg-icon {
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+}
+
+.preset-label {
+  font-weight: 500;
+  font-size: 0.9rem;
+  white-space: nowrap;
+}
+
+.color-presets-container,
+.font-presets-container {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+  margin-top: 0.75rem;
+}
+
+/* Settings Tab - Tab Navigation */
+.teleprompter-tabs {
+  display: flex;
+  gap: 0.25rem;
+  margin-bottom: 1.5rem;
+  border-bottom: 2px solid var(--background-modifier-border);
+  padding-bottom: 0;
+}
+
+.teleprompter-tab {
+  background: transparent;
+  border: none;
+  border-bottom: 2px solid transparent;
+  padding: 0.75rem 1.5rem;
+  font-size: 0.95rem;
+  font-weight: 500;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  margin-bottom: -2px;
+  border-radius: 0;
+}
+
+.teleprompter-tab:hover {
+  color: var(--text-normal);
+  background: var(--background-modifier-hover);
+  border-bottom-color: var(--text-muted);
+}
+
+.teleprompter-tab.active {
+  color: var(--interactive-accent);
+  border-bottom-color: var(--interactive-accent);
+  font-weight: 600;
+}
+
+.teleprompter-tab-content {
+  margin-top: 1rem;
+  animation: fadeIn 0.2s ease-in;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(-5px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
