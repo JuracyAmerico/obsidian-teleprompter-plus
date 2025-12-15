@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+  <title>Teleprompter Plus</title>
+  <desc>Professional teleprompter with monitor and glass</desc>
+
+  <!-- Monitor/Screen with text -->
+  <rect x="4" y="6" width="16" height="12" rx="1" stroke-width="2"/>
+
+  <!-- Text lines on screen (horizontal lines) -->
+  <line x1="7" y1="10" x2="17" y2="10" stroke-width="1.5" opacity="0.6"/>
+  <line x1="7" y1="13" x2="17" y2="13" stroke-width="1.5" opacity="0.8"/>
+  <line x1="7" y1="16" x2="14" y2="16" stroke-width="1.5" opacity="0.6"/>
+
+  <!-- Angled glass/mirror (the iconic teleprompter element) -->
+  <path d="M12 18 L12 21" stroke-width="2"/>
+  <line x1="8" y1="21" x2="16" y2="21" stroke-width="2" stroke-linecap="round"/>
+
+  <!-- Play indicator (small triangle to show it's active/scrolling) -->
+  <path d="M9 10 L9 16 L14 13 Z" fill="currentColor" opacity="0.3" stroke="none"/>
+</svg>

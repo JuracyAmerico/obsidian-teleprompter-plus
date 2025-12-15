@@ -1,0 +1,10 @@
+{
+  "id": "obsidian-teleprompter-plus",
+  "name": "Teleprompter Plus",
+  "version": "0.7.0",
+  "minAppVersion": "1.0.0",
+  "description": "Professional teleprompter with Stream Deck integration, speed presets, custom hotkeys, double-click editing, diagram placeholders, and advanced playback control",
+  "author": "Americo",
+  "authorUrl": "https://github.com/americo",
+  "isDesktopOnly": true
+}
