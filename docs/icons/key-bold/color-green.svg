@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="72" height="72" viewBox="0 0 72 72">
+  <!-- Green terminal: terminal prompt style -->
+  <rect x="8" y="8" width="56" height="56" rx="8" fill="none" stroke="#00FF00" stroke-width="6"/>
+  <text x="20" y="50" font-family="monospace" font-size="36" font-weight="bold" fill="#00FF00">&gt;_</text>
+</svg>

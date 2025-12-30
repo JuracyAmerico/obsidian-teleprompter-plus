@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="72" height="72" viewBox="0 0 72 72">
+  <!-- Dark mode: yin-yang style half circle with blue accent -->
+  <circle cx="36" cy="36" r="28" fill="#FFFFFF"/>
+  <path d="M36,8 A28,28 0 0,1 36,64" fill="#333333"/>
+  <circle cx="36" cy="36" r="4" fill="#4A90E2"/>
+</svg>

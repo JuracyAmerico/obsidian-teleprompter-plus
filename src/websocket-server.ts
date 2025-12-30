@@ -14,6 +14,15 @@
 
 import type { Plugin } from 'obsidian'
 import { loadWebSocketModule, getDiagnostics } from './websocket-loader'
+import { REMOTE_INTERFACE_HTML } from './remote-interface'
+
+// Declare require for runtime module loading (Obsidian/Electron environment)
+declare function require(name: string): any
+
+// HTTP types for type safety
+type HttpServer = ReturnType<typeof import('http').createServer>
+type IncomingMessage = import('http').IncomingMessage
+type ServerResponse = import('http').ServerResponse
 
 // Load WebSocket module at startup
 const wsModule = loadWebSocketModule()
@@ -58,6 +67,7 @@ export type TeleprompterCommand =
 	| { command: 'countdown-increase' }
 	| { command: 'countdown-decrease' }
 	| { command: 'set-countdown'; seconds: number }
+	| { command: 'start-countdown' }
 	| { command: 'toggle-pin' }
 	| { command: 'pin-note' }
 	| { command: 'unpin-note' }
@@ -69,6 +79,9 @@ export type TeleprompterCommand =
 	| { command: 'enable-fullscreen' }
 	| { command: 'disable-fullscreen' }
 	| { command: 'toggle-eyeline' }
+	| { command: 'toggle-focus-mode' }
+	| { command: 'enable-focus-mode' }
+	| { command: 'disable-focus-mode' }
 	| { command: 'cycle-speed-preset' }
 	| { command: 'next-speed-preset' }
 	| { command: 'prev-speed-preset' }
@@ -76,6 +89,11 @@ export type TeleprompterCommand =
 	| { command: 'cycle-progress-indicator' }
 	| { command: 'broadcast-state' }
 	| { command: 'get-state' } // Request current state
+	// Voice tracking commands
+	| { command: 'voice-start' }
+	| { command: 'voice-stop' }
+	| { command: 'voice-toggle' }
+	| { command: 'get-voice-status' }
 
 /**
  * State updates sent FROM the teleprompter TO external devices
@@ -102,6 +120,7 @@ export interface TeleprompterState {
 	pinnedNotePath?: string | null
 	isKeepAwake?: boolean
 	isFullScreen?: boolean
+	focusMode?: boolean
 	eyelineVisible?: boolean
 	speedPresets?: number[]
 	currentSpeedPresetIndex?: number
@@ -109,6 +128,9 @@ export interface TeleprompterState {
 	doubleClickToEdit?: boolean
 	autoPauseOnEdit?: boolean
 	progressIndicatorStyle?: string
+	// Voice tracking state
+	voiceTrackingActive?: boolean
+	voiceTrackingStatus?: 'off' | 'initializing' | 'listening' | 'error'
 	timestamp: number // When this state was captured
 }
 
@@ -138,6 +160,8 @@ export interface WebSocketServerConfig {
 	host?: string
 	maxClients?: number
 	heartbeatInterval?: number
+	authToken?: string // Optional authentication token
+	rateLimitPerSecond?: number // Max messages per second per client
 }
 
 /**
@@ -145,6 +169,7 @@ export interface WebSocketServerConfig {
  */
 export class TeleprompterWebSocketServer {
 	private wss: WebSocketServer | null = null
+	private httpServer: HttpServer | null = null
 	private clients: Set<WebSocket> = new Set()
 	private plugin: Plugin
 	private config: Required<WebSocketServerConfig>
@@ -152,6 +177,8 @@ export class TeleprompterWebSocketServer {
 	private currentState: TeleprompterState
 	private heartbeatInterval: NodeJS.Timeout | null = null
 	private isShuttingDown = false
+	private clientRateLimits: Map<WebSocket, { count: number; resetTime: number }> = new Map()
+	private authenticatedClients: Set<WebSocket> = new Set()
 
 	// Server version for compatibility tracking
 	private readonly SERVER_VERSION = '1.0.0'
@@ -169,6 +196,7 @@ export class TeleprompterWebSocketServer {
 		'speed-presets',
 		'text-alignment',
 		'progress-indicator',
+		'voice-control',
 	]
 
 	constructor(plugin: Plugin, config: WebSocketServerConfig) {
@@ -178,6 +206,14 @@ export class TeleprompterWebSocketServer {
 			host: config.host || '127.0.0.1', // Only bind to localhost for security
 			maxClients: config.maxClients || 10,
 			heartbeatInterval: config.heartbeatInterval || 30000, // 30 seconds
+			authToken: config.authToken || '', // Empty = no auth required
+			rateLimitPerSecond: config.rateLimitPerSecond || 50, // Max 50 messages/second
+		}
+
+		// Warn if binding to non-localhost (security risk)
+		if (this.config.host !== '127.0.0.1' && this.config.host !== 'localhost') {
+			console.warn('[TeleprompterWS] WARNING: Server binding to non-localhost address. ' +
+				'Communication is unencrypted. Consider using localhost or a secure proxy.')
 		}
 
 		// Initialize with default state
@@ -185,37 +221,44 @@ export class TeleprompterWebSocketServer {
 	}
 
 	/**
-	 * Start the WebSocket server
+	 * Start the WebSocket server with HTTP support for Remote Interface
 	 */
 	async start(): Promise<void> {
 		if (this.wss) {
-			console.warn('[TeleprompterWS] Server already running')
 			return
 		}
 
 		return new Promise((resolve, reject) => {
 			try {
+				// Load http module at runtime (works in Obsidian's Electron environment)
+				const http = require('http')
+
+				// Create HTTP server first to handle both HTTP and WebSocket
+				this.httpServer = http.createServer((req: IncomingMessage, res: ServerResponse) => {
+					this.handleHttpRequest(req, res)
+				})
+
+				// Create WebSocket server using HTTP server
 				this.wss = new WebSocketServer({
-					host: this.config.host,
-					port: this.config.port,
+					server: this.httpServer,
 				})
 
 				this.wss.on('connection', this.handleConnection.bind(this))
 
-				this.wss.on('listening', () => {
-					console.log(
-						`[TeleprompterWS] Server listening on ${this.config.host}:${this.config.port}`
-					)
+				this.wss.on('error', (error) => {
+					console.error('[TeleprompterWS] WebSocket server error:', error)
+				})
+
+				// Start listening on HTTP server
+				this.httpServer.listen(this.config.port, this.config.host, () => {
+					console.log(`[TeleprompterWS] Server running on http://${this.config.host}:${this.config.port}`)
 					this.startHeartbeat()
 					resolve()
 				})
 
-				this.wss.on('error', (error) => {
-					console.error('[TeleprompterWS] Server error:', error)
-					// If server hasn't started yet, reject the promise
-					if (!this.wss || this.clients.size === 0) {
-						reject(error)
-					}
+				this.httpServer.on('error', (error) => {
+					console.error('[TeleprompterWS] HTTP server error:', error)
+					reject(error)
 				})
 			} catch (error) {
 				console.error('[TeleprompterWS] Failed to start server:', error)
@@ -225,10 +268,68 @@ export class TeleprompterWebSocketServer {
 	}
 
 	/**
+	 * Handle HTTP requests for Remote Interface
+	 */
+	private handleHttpRequest(req: IncomingMessage, res: ServerResponse): void {
+		// CORS headers for cross-origin requests
+		res.setHeader('Access-Control-Allow-Origin', '*')
+		res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS')
+		res.setHeader('Access-Control-Allow-Headers', 'Content-Type')
+
+		// Handle OPTIONS (preflight)
+		if (req.method === 'OPTIONS') {
+			res.writeHead(204)
+			res.end()
+			return
+		}
+
+		// Only handle GET requests
+		if (req.method !== 'GET') {
+			res.writeHead(405, { 'Content-Type': 'text/plain' })
+			res.end('Method Not Allowed')
+			return
+		}
+
+		const url = req.url || '/'
+
+		// Serve Remote Interface HTML
+		if (url === '/' || url === '/remote' || url === '/remote/') {
+			res.writeHead(200, {
+				'Content-Type': 'text/html; charset=utf-8',
+				'Cache-Control': 'no-cache',
+			})
+			res.end(REMOTE_INTERFACE_HTML)
+			return
+		}
+
+		// Health check endpoint
+		if (url === '/health' || url === '/api/health') {
+			res.writeHead(200, { 'Content-Type': 'application/json' })
+			res.end(JSON.stringify({
+				status: 'ok',
+				clients: this.clients.size,
+				version: this.SERVER_VERSION,
+			}))
+			return
+		}
+
+		// State endpoint (REST fallback)
+		if (url === '/api/state') {
+			res.writeHead(200, { 'Content-Type': 'application/json' })
+			res.end(JSON.stringify(this.currentState))
+			return
+		}
+
+		// 404 for everything else
+		res.writeHead(404, { 'Content-Type': 'text/plain' })
+		res.end('Not Found')
+	}
+
+	/**
 	 * Stop the WebSocket server and cleanup resources
 	 */
 	async stop(): Promise<void> {
-		if (!this.wss) return
+		if (!this.wss && !this.httpServer) return
 
 		this.isShuttingDown = true
 
@@ -259,19 +360,122 @@ export class TeleprompterWebSocketServer {
 
 		this.clients.clear()
 
-		// Close the server
-		return new Promise((resolve) => {
-			if (this.wss) {
-				this.wss.close(() => {
-					console.log('[TeleprompterWS] Server stopped')
+		// Close the WebSocket server
+		if (this.wss) {
+			await new Promise<void>((resolve) => {
+				this.wss!.close(() => {
 					this.wss = null
 					resolve()
 				})
-			} else {
-				resolve()
-			}
-		})
+			})
+		}
+
+		// Close the HTTP server
+		if (this.httpServer) {
+			await new Promise<void>((resolve) => {
+				this.httpServer!.close(() => {
+					this.httpServer = null
+					resolve()
+				})
+			})
+		}
 	}
+
+	// ============================================================================
+	// Security Helper Methods
+	// ============================================================================
+
+	/**
+	 * Check if client is within rate limit
+	 */
+	private checkRateLimit(ws: WebSocket): boolean {
+		const now = Date.now()
+		const limit = this.clientRateLimits.get(ws)
+
+		if (!limit || now > limit.resetTime) {
+			this.clientRateLimits.set(ws, { count: 1, resetTime: now + 1000 })
+			return true
+		}
+
+		if (limit.count >= this.config.rateLimitPerSecond) {
+			return false
+		}
+
+		limit.count++
+		return true
+	}
+
+	/**
+	 * Validate command parameters
+	 */
+	private validateCommand(command: TeleprompterCommand): { valid: boolean; error?: string } {
+		// Validate numeric parameters
+		if ('speed' in command && typeof command.speed === 'number') {
+			if (command.speed < 0.1 || command.speed > 100) {
+				return { valid: false, error: 'Speed must be between 0.1 and 100' }
+			}
+		}
+		if ('fontSize' in command && typeof command.fontSize === 'number') {
+			if (command.fontSize < 8 || command.fontSize > 200) {
+				return { valid: false, error: 'Font size must be between 8 and 200' }
+			}
+		}
+		if ('seconds' in command && typeof command.seconds === 'number') {
+			if (command.seconds < 0 || command.seconds > 3600) {
+				return { valid: false, error: 'Countdown must be between 0 and 3600 seconds' }
+			}
+		}
+		if ('amount' in command && typeof command.amount === 'number') {
+			if (command.amount < -10000 || command.amount > 10000) {
+				return { valid: false, error: 'Scroll amount must be between -10000 and 10000' }
+			}
+		}
+		if ('index' in command && typeof command.index === 'number') {
+			if (command.index < 0 || command.index > 1000) {
+				return { valid: false, error: 'Index must be between 0 and 1000' }
+			}
+		}
+
+		// Validate string parameters
+		if ('headerId' in command && typeof command.headerId === 'string') {
+			if (command.headerId.length > 200) {
+				return { valid: false, error: 'Header ID too long (max 200 chars)' }
+			}
+			// Check for potentially dangerous characters
+			if (/[<>'"&\\]/.test(command.headerId)) {
+				return { valid: false, error: 'Header ID contains invalid characters' }
+			}
+		}
+
+		return { valid: true }
+	}
+
+	/**
+	 * Sanitize string for safe use
+	 */
+	private sanitizeString(str: string, maxLength: number = 200): string {
+		if (typeof str !== 'string') return ''
+		return str
+			.slice(0, maxLength)
+			.replace(/[<>'"&\\]/g, '') // Remove potential XSS/injection chars
+			.trim()
+	}
+
+	/**
+	 * Sanitize error message to avoid leaking internal info
+	 */
+	private sanitizeErrorMessage(error: Error): string {
+		const safeErrors: Record<string, string> = {
+			'SyntaxError': 'Invalid JSON format',
+			'TypeError': 'Invalid message structure',
+			'RangeError': 'Value out of range',
+		}
+		return safeErrors[error.name] || 'Message processing error'
+	}
+
+	// ============================================================================
+	// Connection Handling
+	// ============================================================================
 
 	/**
 	 * Handle new client connection
@@ -283,7 +487,36 @@ export class TeleprompterWebSocketServer {
 			return
 		}
 
-		console.log('[TeleprompterWS] Client connected')
+		// If auth is required, wait for auth message
+		if (this.config.authToken) {
+			const authTimeout = setTimeout(() => {
+				ws.close(4001, 'Authentication timeout')
+			}, 5000)
+
+			ws.once('message', (data: Buffer) => {
+				clearTimeout(authTimeout)
+				try {
+					const msg = JSON.parse(data.toString())
+					if (msg.type !== 'auth' || msg.token !== this.config.authToken) {
+						ws.close(4002, 'Invalid authentication')
+						return
+					}
+					this.authenticatedClients.add(ws)
+					this.completeConnection(ws)
+				} catch {
+					ws.close(4003, 'Invalid auth message')
+				}
+			})
+			return
+		}
+
+		this.completeConnection(ws)
+	}
+
+	/**
+	 * Complete client connection after optional auth
+	 */
+	private completeConnection(ws: WebSocket): void {
 		this.clients.add(ws)
 
 		// Send welcome message with server info
@@ -314,6 +547,16 @@ export class TeleprompterWebSocketServer {
 	 * Handle message from client
 	 */
 	private handleClientMessage(ws: WebSocket, data: Buffer): void {
+		// Check rate limit
+		if (!this.checkRateLimit(ws)) {
+			this.sendToClient(ws, {
+				type: 'error',
+				message: `Rate limit exceeded. Max ${this.config.rateLimitPerSecond} messages per second.`,
+				code: 'RATE_LIMIT',
+			})
+			return
+		}
+
 		try {
 			const message: ClientMessage = JSON.parse(data.toString())
 
@@ -329,28 +572,25 @@ export class TeleprompterWebSocketServer {
 			// Handle subscribe
 			if (message.type === 'subscribe') {
 				// Future: Handle event subscriptions
-				console.log('[TeleprompterWS] Client subscribed to events:', message.events)
 				return
 			}
 
 			// Handle command
 			if ('command' in message) {
-				this.handleCommand(message)
+				this.handleCommand(message, ws)
 				return
 			}
 
 			// If we get here, it's an unrecognized message format
-			console.warn('[TeleprompterWS] Unrecognized message format:', message)
 			this.sendToClient(ws, {
 				type: 'error',
 				message: 'Unrecognized message format. Expected: {"command": "..."} or {"type": "ping"}',
 				code: 'INVALID_MESSAGE',
 			})
 		} catch (error) {
-			console.error('[TeleprompterWS] Invalid message:', error)
 			this.sendToClient(ws, {
 				type: 'error',
-				message: `Invalid JSON or message format. Error: ${error.message}`,
+				message: this.sanitizeErrorMessage(error as Error),
 				code: 'PARSE_ERROR',
 			})
 		}
@@ -360,42 +600,53 @@ export class TeleprompterWebSocketServer {
 	 * Handle client disconnect
 	 */
 	private handleClientDisconnect(ws: WebSocket): void {
-		console.log('[TeleprompterWS] Client disconnected')
 		this.clients.delete(ws)
+		this.clientRateLimits.delete(ws)
+		this.authenticatedClients.delete(ws)
 	}
 
 	/**
 	 * Handle client error
 	 */
 	private handleClientError(ws: WebSocket, error: Error): void {
-		console.error('[TeleprompterWS] Client error:', error)
+		console.error('[TeleprompterWS] Client error:', error.message)
 		this.clients.delete(ws)
+		this.clientRateLimits.delete(ws)
+		this.authenticatedClients.delete(ws)
 	}
 
 	/**
 	 * Handle command from client
 	 */
-	private async handleCommand(command: TeleprompterCommand): Promise<void> {
-		console.log(`[TeleprompterWS] 📥 Received command: ${command.command}`)
+	private async handleCommand(command: TeleprompterCommand, ws: WebSocket): Promise<void> {
+		// Validate command parameters
+		const validation = this.validateCommand(command)
+		if (!validation.valid) {
+			this.sendToClient(ws, {
+				type: 'error',
+				message: validation.error || 'Invalid command parameters',
+				code: 'VALIDATION_ERROR',
+			})
+			return
+		}
+
 		const handler = this.commandHandlers.get(command.command)
 
 		if (handler) {
 			try {
 				await handler(command)
-				console.log(`[TeleprompterWS] ✅ Executed command: ${command.command}`)
 			} catch (error) {
-				console.error(`[TeleprompterWS] Command handler error for '${command.command}':`, error)
-				this.broadcast({
+				console.error(`[TeleprompterWS] Command error '${command.command}':`, (error as Error).message)
+				this.sendToClient(ws, {
 					type: 'error',
 					message: `Failed to execute command: ${command.command}`,
 					code: 'COMMAND_ERROR',
 				})
 			}
 		} else {
-			console.warn(`[TeleprompterWS] Unknown command: ${command.command}`)
-			this.broadcast({
+			this.sendToClient(ws, {
 				type: 'error',
-				message: `Unknown command: ${command.command}`,
+				message: `Unknown command: ${this.sanitizeString(command.command, 50)}`,
 				code: 'UNKNOWN_COMMAND',
 			})
 		}
@@ -515,7 +766,6 @@ export class TeleprompterWebSocketServer {
 
 			// Remove dead connections
 			deadClients.forEach((ws) => {
-				console.log('[TeleprompterWS] Removing dead client')
 				this.clients.delete(ws)
 				ws.terminate()
 			})
@@ -549,12 +799,43 @@ export class TeleprompterWebSocketServer {
 		clientCount: number
 		port: number
 		host: string
+		remoteUrl: string
 	} {
 		return {
 			running: this.wss !== null && !this.isShuttingDown,
 			clientCount: this.clients.size,
 			port: this.config.port,
 			host: this.config.host,
+			remoteUrl: `http://${this.config.host}:${this.config.port}/`,
 		}
+	}
+
+	/**
+	 * Get the URL for the Remote Web Interface
+	 */
+	getRemoteUrl(): string {
+		return `http://${this.config.host}:${this.config.port}/`
+	}
+
+	/**
+	 * Get the local network URL (for phone access on same WiFi)
+	 */
+	getLocalNetworkUrl(): string | null {
+		try {
+			const os = require('os')
+			const interfaces = os.networkInterfaces()
+
+			for (const name of Object.keys(interfaces)) {
+				for (const iface of interfaces[name]) {
+					// Skip loopback and non-IPv4
+					if (iface.internal || iface.family !== 'IPv4') continue
+					// Return first non-internal IPv4 address
+					return `http://${iface.address}:${this.config.port}/`
+				}
+			}
+		} catch (e) {
+			console.error('[TeleprompterWS] Failed to get local network IP:', e)
+		}
+		return null
 	}
 }

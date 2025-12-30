@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="72" height="72" viewBox="0 0 72 72" fill="none" stroke="#FFFFFF" stroke-width="6" stroke-linecap="round" stroke-linejoin="round">
+  <title>Pin Window</title>
+  <desc>Keep teleprompter on top - Stream Deck 72x72</desc>
+  <!-- Pushpin head -->
+  <circle cx="36" cy="24" r="10" fill="#FFFFFF" stroke="none"/>
+  <!-- Pushpin body -->
+  <rect x="32" y="32" width="8" height="16" fill="#FFFFFF" stroke="none"/>
+  <!-- Pushpin point -->
+  <path d="M36 48 L36 58" stroke-width="4"/>
+</svg>

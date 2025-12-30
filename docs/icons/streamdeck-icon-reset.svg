@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="72" height="72" viewBox="0 0 72 72" fill="none" stroke="#FFFFFF" stroke-width="6" stroke-linecap="round" stroke-linejoin="round">
+  <title>Reset</title>
+  <desc>Return to top of document - Stream Deck 72x72</desc>
+  <!-- Curved reset arrow -->
+  <path d="M20 36 A16 16 0 1 1 36 52"/>
+  <!-- Arrow head pointing up-left -->
+  <path d="M20 28 L20 36 L28 36"/>
+</svg>

@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="72" height="72" viewBox="0 0 72 72" fill="none" stroke="#2C3E50" stroke-width="6" stroke-linecap="round" stroke-linejoin="round">
+  <title>Light Theme</title>
+  <desc>Switch to light color theme - Stream Deck 72x72</desc>
+  <!-- Light background circle -->
+  <circle cx="36" cy="36" r="26" fill="#FFFFFF" stroke="#2C3E50"/>
+  <!-- Sun rays -->
+  <circle cx="36" cy="36" r="10" fill="#F1C40F" stroke="none"/>
+</svg>

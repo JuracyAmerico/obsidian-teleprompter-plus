@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="72" height="72" viewBox="0 0 72 72" fill="none" stroke="#FFFFFF" stroke-width="6" stroke-linecap="round" stroke-linejoin="round">
+  <title>Align Left</title>
+  <desc>Align text to left - Stream Deck 72x72</desc>
+  <!-- Left-aligned text lines -->
+  <line x1="12" y1="18" x2="60" y2="18"/>
+  <line x1="12" y1="30" x2="48" y2="30"/>
+  <line x1="12" y1="42" x2="56" y2="42"/>
+  <line x1="12" y1="54" x2="40" y2="54"/>
+</svg>

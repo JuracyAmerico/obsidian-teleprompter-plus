@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="72" height="72" viewBox="0 0 72 72" fill="none" stroke="#FFFFFF" stroke-width="6" stroke-linecap="round" stroke-linejoin="round">
+  <title>Readable Font</title>
+  <desc>Switch to highly readable typeface - Stream Deck 72x72</desc>
+  <!-- Eye symbol for readability -->
+  <ellipse cx="36" cy="28" rx="16" ry="10"/>
+  <circle cx="36" cy="28" r="5" fill="#FFFFFF" stroke="none"/>
+  <!-- Aa below -->
+  <text x="18" y="60" font-family="Verdana, sans-serif" font-size="24" font-weight="bold" fill="#FFFFFF" stroke="none">Aa</text>
+</svg>

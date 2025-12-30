@@ -23,6 +23,8 @@ export default defineConfig({
           obsidian: 'obsidian',
         },
         assetFileNames: 'styles.css',
+        // Inline everything into single main.js for Obsidian compatibility
+        inlineDynamicImports: true,
       },
     },
     outDir: 'dist',

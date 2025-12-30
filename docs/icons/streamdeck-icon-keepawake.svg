@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="72" height="72" viewBox="0 0 72 72" fill="none" stroke="#FFFFFF" stroke-width="6" stroke-linecap="round" stroke-linejoin="round">
+  <title>Keep Awake</title>
+  <desc>Prevent screen from sleeping - Stream Deck 72x72</desc>
+  <!-- Sun circle -->
+  <circle cx="36" cy="36" r="12" fill="#FFFFFF" stroke="none"/>
+  <!-- Sun rays -->
+  <line x1="36" y1="12" x2="36" y2="18"/>
+  <line x1="36" y1="54" x2="36" y2="60"/>
+  <line x1="12" y1="36" x2="18" y2="36"/>
+  <line x1="54" y1="36" x2="60" y2="36"/>
+  <!-- Diagonal rays -->
+  <line x1="19" y1="19" x2="23" y2="23"/>
+  <line x1="49" y1="49" x2="53" y2="53"/>
+  <line x1="53" y1="19" x2="49" y2="23"/>
+  <line x1="23" y1="49" x2="19" y2="53"/>
+</svg>

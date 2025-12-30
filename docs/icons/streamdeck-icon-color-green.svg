@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="72" height="72" viewBox="0 0 72 72" fill="none" stroke="#FFFFFF" stroke-width="6" stroke-linecap="round" stroke-linejoin="round">
+  <title>Green Theme</title>
+  <desc>Switch to green color theme - Stream Deck 72x72</desc>
+  <!-- Green background circle -->
+  <circle cx="36" cy="36" r="26" fill="#27AE60"/>
+  <!-- Check mark for "go" -->
+  <path d="M24 36 L32 44 L48 28" stroke="#FFFFFF" stroke-width="5" fill="none"/>
+</svg>

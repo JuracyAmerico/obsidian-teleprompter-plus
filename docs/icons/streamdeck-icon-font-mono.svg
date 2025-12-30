@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="72" height="72" viewBox="0 0 72 72" fill="none" stroke="#FFFFFF" stroke-width="6" stroke-linecap="round" stroke-linejoin="round">
+  <title>Monospace Font</title>
+  <desc>Switch to monospace typeface - Stream Deck 72x72</desc>
+  <!-- Monospace Aa with code brackets -->
+  <text x="18" y="48" font-family="Courier, monospace" font-size="32" font-weight="bold" fill="#FFFFFF" stroke="none">Aa</text>
+  <!-- Code bracket hints -->
+  <path d="M12 20 L8 36 L12 52" stroke-width="3"/>
+  <path d="M60 20 L64 36 L60 52" stroke-width="3"/>
+</svg>

@@ -16,10 +16,55 @@ export type HotkeyAction =
 	| 'cycleSpeedPreset'
 	| 'toggleFullscreen'
 	| 'toggleEyeline'
+	| 'toggleVoiceTracking'
 
 // Hotkey configuration (key -> action)
 export interface HotkeyConfig {
 	[key: string]: HotkeyAction
+}
+
+// Voice tracking pace presets
+export type VoiceTrackingPacePreset = 'conservative' | 'balanced' | 'responsive' | 'custom'
+
+export interface VoiceTrackingPresetConfig {
+	confidenceThreshold: number
+	maxJumpDistance: number
+	minJumpDistance: number
+	windowSize: number
+	updateFrequencyMs: number
+	animationBaseMs: number
+	description: string
+}
+
+// Preset configurations for different speaking paces
+export const VOICE_TRACKING_PRESETS: Record<Exclude<VoiceTrackingPacePreset, 'custom'>, VoiceTrackingPresetConfig> = {
+	conservative: {
+		confidenceThreshold: 0.25,   // Higher confidence required
+		maxJumpDistance: 2,          // Smaller jumps
+		minJumpDistance: 1,          // Respond to small matches
+		windowSize: 4,               // Smaller look-ahead
+		updateFrequencyMs: 600,      // Less frequent updates
+		animationBaseMs: 500,        // Slower, smoother animation
+		description: 'Best for non-native speakers or careful reading. Follows closely, small smooth movements.'
+	},
+	balanced: {
+		confidenceThreshold: 0.20,   // Balanced confidence
+		maxJumpDistance: 3,          // Moderate jumps
+		minJumpDistance: 2,          // Balanced responsiveness
+		windowSize: 6,               // Moderate look-ahead
+		updateFrequencyMs: 500,      // Balanced updates
+		animationBaseMs: 400,        // Balanced animation
+		description: 'Default setting. Works well for most speakers at normal pace.'
+	},
+	responsive: {
+		confidenceThreshold: 0.15,   // Lower threshold = more responsive
+		maxJumpDistance: 5,          // Larger jumps allowed
+		minJumpDistance: 2,          // Quick response
+		windowSize: 8,               // Larger look-ahead
+		updateFrequencyMs: 400,      // More frequent updates
+		animationBaseMs: 300,        // Faster animation
+		description: 'For experienced speakers or fast pace. More responsive, larger movements.'
+	}
 }
 
 export interface TeleprompterSettings {
@@ -27,6 +72,17 @@ export interface TeleprompterSettings {
 	wsHost: string
 	autoStartWebSocket: boolean
 	showConnectionNotifications: boolean
+	// Network Broadcast (multi-device sync)
+	networkBroadcastEnabled: boolean
+	networkBroadcastInterval: number // ms between broadcasts during playback
+	// OBS Integration settings
+	obsEnabled: boolean
+	obsHost: string
+	obsPort: number
+	obsPassword: string
+	obsAutoConnect: boolean
+	obsSyncRecording: boolean // Start/stop OBS recording with teleprompter play/pause
+	obsSyncStreaming: boolean // Start/stop OBS streaming with teleprompter play/pause
 	fontSize: number
 	minFontSize: number
 	maxFontSize: number
@@ -44,6 +100,10 @@ export interface TeleprompterSettings {
 	defaultCountdown: number
 	showEyeline: boolean
 	eyelinePosition: number
+	// Focus mode settings
+	focusMode: boolean
+	focusModeOpacity: number // 0.1-0.5 opacity for dimmed text
+	focusModeRange: number // Lines above/below eyeline to keep bright (1-10)
 	autoFullScreen: boolean
 	// Advanced playback settings
 	defaultScrollSpeed: number
@@ -58,6 +118,7 @@ export interface TeleprompterSettings {
 	speakingPaceWPM: number // Words per minute (default 150)
 	showTimeEstimation: boolean
 	showElapsedTime: boolean
+	timeDisplayStyle: 'compact' | 'full' // compact = toggle, full = both times
 	// Transparency settings
 	backgroundOpacity: number // 0-100 (0 = fully transparent, 100 = opaque)
 	enableBackgroundTransparency: boolean
@@ -65,8 +126,54 @@ export interface TeleprompterSettings {
 	customHotkeys: HotkeyConfig
 	// Double-click to edit
 	doubleClickToEdit: boolean
+	// Auto-pause when clicking outside teleprompter (to edit source note)
+	autoPauseOnEdit: boolean
 	// Developer settings
 	debugMode: boolean
+	// Voice tracking settings
+	voiceTrackingEnabled: boolean
+	voiceTrackingLanguage: string
+	voiceTrackingShowIndicator: boolean
+	voiceTrackingScrollBehavior: 'instant' | 'smooth'
+	voiceTrackingPacePreset: VoiceTrackingPacePreset  // Preset for speaking pace
+	voiceTrackingConfidenceThreshold: number
+	voiceTrackingWindowSize: number          // Look-ahead window size (default: 6)
+	// Voice tracking tuning parameters (for adjusting to speaking pace)
+	voiceTrackingMaxJumpDistance: number     // Max words to scroll at once (default: 3)
+	voiceTrackingMinJumpDistance: number     // Min words before scrolling (default: 2)
+	voiceTrackingUpdateFrequencyMs: number   // How often to check matches (default: 500ms)
+	voiceTrackingAnimationBaseMs: number     // Base scroll animation time (default: 350ms)
+	voiceTrackingAnimationPerWordMs: number  // Extra ms per word jumped (default: 50ms)
+	voiceTrackingPauseDetection: boolean     // Enable pause detection (default: true)
+	voiceTrackingPauseThresholdMs: number    // Time without speech to pause scrolling (default: 1500ms)
+	voiceTrackingScrollPosition: number      // Where current word appears on screen (0-100%, default: 30)
+	// NEW: Toolbar configuration
+	toolbarLayout: {
+		primary: string[]    // Button IDs in order
+		secondary: string[]  // Overflow menu items
+		hidden: string[]     // Disabled buttons
+	}
+	// NEW: Profiles
+	profiles: {
+		active: string       // Active profile ID
+		custom: Profile[]    // User-created profiles
+	}
+	// NEW: UI preferences
+	settingsUI: {
+		expandedCards: string[]  // Which feature cards are expanded
+		recentSettings: string[] // Last 5 changed settings
+	}
+}
+
+// Profile interface
+export interface Profile {
+	id: string
+	name: string
+	icon: string
+	description: string
+	settings: Partial<TeleprompterSettings>
+	createdAt: number
+	isBuiltIn: boolean
 }
 
 export const DEFAULT_SETTINGS: TeleprompterSettings = {
@@ -74,6 +181,17 @@ export const DEFAULT_SETTINGS: TeleprompterSettings = {
 	wsHost: '127.0.0.1',
 	autoStartWebSocket: true,
 	showConnectionNotifications: true,
+	// Network Broadcast defaults
+	networkBroadcastEnabled: false,
+	networkBroadcastInterval: 100, // 100ms = 10 updates per second
+	// OBS Integration defaults
+	obsEnabled: false,
+	obsHost: '127.0.0.1',
+	obsPort: 4455, // OBS WebSocket v5 default port
+	obsPassword: '',
+	obsAutoConnect: false,
+	obsSyncRecording: false,
+	obsSyncStreaming: false,
 	fontSize: 24,
 	minFontSize: 12,
 	maxFontSize: 72,
@@ -91,6 +209,10 @@ export const DEFAULT_SETTINGS: TeleprompterSettings = {
 	defaultCountdown: 5,
 	showEyeline: true,
 	eyelinePosition: 50,
+	// Focus mode defaults
+	focusMode: false,
+	focusModeOpacity: 0.3, // 30% opacity for dimmed text
+	focusModeRange: 3, // 3 lines above/below eyeline stay bright
 	autoFullScreen: false,
 	// Advanced playback settings
 	defaultScrollSpeed: 2,
@@ -105,6 +227,7 @@ export const DEFAULT_SETTINGS: TeleprompterSettings = {
 	speakingPaceWPM: 150, // Average speaking pace
 	showTimeEstimation: true,
 	showElapsedTime: true,
+	timeDisplayStyle: 'compact', // compact = toggle between elapsed/remaining, full = show both
 	// Transparency settings
 	backgroundOpacity: 100, // Fully opaque by default
 	enableBackgroundTransparency: false,
@@ -123,17 +246,206 @@ export const DEFAULT_SETTINGS: TeleprompterSettings = {
 		'p': 'cycleSpeedPreset',
 		'f': 'toggleFullscreen',
 		'e': 'toggleEyeline',
+		'v': 'toggleVoiceTracking',
+		'V': 'toggleVoiceTracking',
 	},
 	// Double-click to edit
 	doubleClickToEdit: true,
+	// Auto-pause when clicking outside teleprompter (to edit source note)
+	autoPauseOnEdit: true, // Default: enabled
 	// Developer settings
 	debugMode: false,
+	// Voice tracking settings
+	voiceTrackingEnabled: false,
+	voiceTrackingLanguage: 'en-US',
+	voiceTrackingShowIndicator: true,
+	voiceTrackingScrollBehavior: 'smooth',
+	voiceTrackingPacePreset: 'balanced',    // Default to balanced preset
+	voiceTrackingConfidenceThreshold: 0.20, // From balanced preset
+	voiceTrackingWindowSize: 6,             // From balanced preset
+	// Voice tracking tuning parameters - use balanced preset defaults
+	voiceTrackingMaxJumpDistance: 3,        // From balanced preset
+	voiceTrackingMinJumpDistance: 2,        // From balanced preset
+	voiceTrackingUpdateFrequencyMs: 500,    // From balanced preset
+	voiceTrackingAnimationBaseMs: 400,      // From balanced preset
+	voiceTrackingAnimationPerWordMs: 60,    // Extra time for longer jumps
+	voiceTrackingPauseDetection: true,      // Pause when user stops speaking
+	voiceTrackingPauseThresholdMs: 1200,    // Faster pause detection (1.2 seconds)
+	voiceTrackingScrollPosition: 20,        // Current word at 20% from top (more runway below)
+	// NEW: Toolbar configuration
+	toolbarLayout: {
+		primary: ['play-pause', 'speed', 'countdown', 'reset', 'font-size', 'line-height', 'letter-spacing', 'font-family', 'opacity', 'padding', 'text-color', 'bg-color'],
+		secondary: ['eyeline', 'focus-mode', 'navigation', 'fullscreen', 'flip-h', 'flip-v', 'minimap', 'auto-pause', 'progress-indicator', 'alignment', 'keep-awake', 'pin', 'detach', 'quick-presets', 'time-display'],
+		hidden: []
+	},
+	// NEW: Profiles
+	profiles: {
+		active: 'professional',
+		custom: []
+	},
+	// NEW: UI preferences
+	settingsUI: {
+		expandedCards: ['playback'],  // Start with Playback expanded
+		recentSettings: []
+	}
 }
+
+// Built-in profile presets
+const BUILT_IN_PROFILES: Profile[] = [
+	{
+		id: 'professional',
+		name: 'Professional',
+		icon: 'monitor',
+		description: 'Corporate presentations, clean look',
+		settings: {
+			fontSize: 24,
+			textColor: '#e0e0e0',
+			backgroundColor: '#1e1e1e',
+			fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif',
+			lineHeight: 1.8,
+			paddingVertical: 20,
+			paddingHorizontal: 40,
+			defaultScrollSpeed: 2,
+		},
+		createdAt: 0,
+		isBuiltIn: true
+	},
+	{
+		id: 'broadcast',
+		name: 'Broadcast',
+		icon: 'radio-tower',
+		description: 'News anchor, professional video',
+		settings: {
+			fontSize: 36,
+			textColor: '#ffffff',
+			backgroundColor: '#000000',
+			fontFamily: 'Verdana, Tahoma, "DejaVu Sans", sans-serif',
+			lineHeight: 2.0,
+			paddingVertical: 30,
+			paddingHorizontal: 60,
+			defaultScrollSpeed: 1.5,
+		},
+		createdAt: 0,
+		isBuiltIn: true
+	},
+	{
+		id: 'stream',
+		name: 'Stream',
+		icon: 'wifi',
+		description: 'Twitch/YouTube streaming',
+		settings: {
+			fontSize: 28,
+			textColor: '#ffffff',
+			backgroundColor: '#000000',
+			fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif',
+			lineHeight: 1.7,
+			paddingVertical: 20,
+			paddingHorizontal: 40,
+			defaultScrollSpeed: 2.5,
+		},
+		createdAt: 0,
+		isBuiltIn: true
+	},
+	{
+		id: 'practice',
+		name: 'Practice',
+		icon: 'timer',
+		description: 'Rehearsal, easy on eyes',
+		settings: {
+			fontSize: 20,
+			textColor: '#5c4a2f',
+			backgroundColor: '#f4ecd8',
+			fontFamily: 'inherit',
+			lineHeight: 1.6,
+			paddingVertical: 15,
+			paddingHorizontal: 30,
+			defaultScrollSpeed: 1,
+		},
+		createdAt: 0,
+		isBuiltIn: true
+	},
+	{
+		id: 'accessibility',
+		name: 'Accessibility',
+		icon: 'accessibility',
+		description: 'High contrast, large text',
+		settings: {
+			fontSize: 40,
+			textColor: '#ffffff',
+			backgroundColor: '#000000',
+			fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif',
+			lineHeight: 2.2,
+			paddingVertical: 35,
+			paddingHorizontal: 70,
+			defaultScrollSpeed: 1,
+		},
+		createdAt: 0,
+		isBuiltIn: true
+	},
+	{
+		id: 'cinema',
+		name: 'Cinema',
+		icon: 'film',
+		description: 'Film credits, dramatic reading',
+		settings: {
+			fontSize: 32,
+			textColor: '#ffffff',
+			backgroundColor: '#000000',
+			fontFamily: 'Georgia, "Times New Roman", Times, serif',
+			lineHeight: 1.9,
+			paddingVertical: 25,
+			paddingHorizontal: 50,
+			defaultScrollSpeed: 0.5,
+		},
+		createdAt: 0,
+		isBuiltIn: true
+	}
+]
+
+// Toolbar control definitions
+const TOOLBAR_CONTROLS = [
+	// Core playback controls
+	{ id: 'play-pause', name: 'Play/Pause', icon: 'tp-play' },
+	{ id: 'speed', name: 'Speed Controls', icon: 'tp-speed-up' },
+	{ id: 'countdown', name: 'Countdown', icon: 'tp-countdown-up' },
+	{ id: 'reset', name: 'Reset Position', icon: 'tp-reset-top' },
+	// Display controls
+	{ id: 'font-size', name: 'Font Size', icon: 'tp-font-up' },
+	{ id: 'line-height', name: 'Line Height', icon: 'tp-line-height' },
+	{ id: 'letter-spacing', name: 'Letter Spacing', icon: 'tp-letter-spacing' },
+	{ id: 'font-family', name: 'Font Family', icon: 'tp-font-system' },
+	{ id: 'opacity', name: 'Opacity', icon: 'tp-opacity' },
+	{ id: 'padding', name: 'Padding', icon: 'tp-padding' },
+	{ id: 'text-color', name: 'Text Color', icon: 'tp-text-color' },
+	{ id: 'bg-color', name: 'Background Color', icon: 'tp-bg-color' },
+	// Feature toggles
+	{ id: 'eyeline', name: 'Eyeline', icon: 'tp-eyeline' },
+	{ id: 'focus-mode', name: 'Focus Mode', icon: 'focus' },
+	{ id: 'navigation', name: 'Navigation Panel', icon: 'tp-navigation' },
+	{ id: 'fullscreen', name: 'Fullscreen', icon: 'tp-fullscreen' },
+	{ id: 'flip-h', name: 'Flip Horizontal', icon: 'tp-flip-h' },
+	{ id: 'flip-v', name: 'Flip Vertical', icon: 'tp-flip-v' },
+	{ id: 'minimap', name: 'Minimap', icon: 'tp-minimap' },
+	// Utility controls
+	{ id: 'auto-pause', name: 'Auto-Pause on Edit', icon: 'tp-auto-pause' },
+	{ id: 'progress-indicator', name: 'Progress Indicator', icon: 'tp-progress-bar' },
+	{ id: 'alignment', name: 'Text Alignment', icon: 'tp-align-center' },
+	{ id: 'keep-awake', name: 'Keep Awake', icon: 'tp-keep-awake' },
+	{ id: 'pin', name: 'Pin Note', icon: 'tp-pin' },
+	{ id: 'detach', name: 'Open in Window', icon: 'tp-detach' },
+	{ id: 'quick-presets', name: 'Quick Presets', icon: 'tp-quick-presets' },
+	// Info displays
+	{ id: 'time-display', name: 'Time Display', icon: 'clock' },
+	// Voice tracking
+	{ id: 'voice-tracking', name: 'Voice Tracking', icon: 'mic' },
+]
 
 export class TeleprompterSettingTab extends PluginSettingTab {
 	plugin: TeleprompterPlusPlugin
 	private statusInterval: NodeJS.Timeout | null = null
-	private activeTab: string = 'appearance'
+	private obsStatusInterval: NodeJS.Timeout | null = null
+	private activeTab: string = 'dashboard'
+	private searchQuery: string = ''
 
 	constructor(app: App, plugin: TeleprompterPlusPlugin) {
 		super(app, plugin)
@@ -145,24 +457,44 @@ export class TeleprompterSettingTab extends PluginSettingTab {
 
 		containerEl.empty()
 
-		// Header
-		containerEl.createEl('h2', { text: 'Teleprompter Plus Settings' })
+		// Header with search
+		const header = containerEl.createDiv('tp-settings-header')
+		header.createEl('h2', { text: 'Teleprompter Plus', cls: 'tp-settings-title' })
 
-		// Tab navigation
-		const tabContainer = containerEl.createDiv('teleprompter-tabs')
+		// Search box
+		const searchContainer = header.createDiv('tp-search-container')
+		const searchIcon = searchContainer.createDiv('tp-search-icon')
+		setIcon(searchIcon, 'search')
+		const searchInput = searchContainer.createEl('input', {
+			cls: 'tp-search-input',
+			type: 'text',
+			placeholder: 'Search settings...'
+		})
+		searchInput.value = this.searchQuery
+		searchInput.addEventListener('input', (e) => {
+			this.searchQuery = (e.target as HTMLInputElement).value
+			// TODO: Implement search filtering
+		})
+
+		// Tab navigation - 7 tabs
+		const tabContainer = containerEl.createDiv('tp-tabs')
 		const tabs = [
-			{ id: 'appearance', name: 'Appearance', icon: 'palette' },
-			{ id: 'playback', name: 'Playback', icon: 'play' },
-			{ id: 'display', name: 'Display', icon: 'monitor' },
-			{ id: 'advanced', name: 'Advanced', icon: 'settings' },
+			{ id: 'dashboard', name: 'Dashboard', icon: 'layout-dashboard' },
+			{ id: 'toolbar', name: 'Toolbar', icon: 'panel-top' },
+			{ id: 'features', name: 'Features', icon: 'sliders-horizontal' },
+			{ id: 'profiles', name: 'Profiles', icon: 'user-cog' },
+			{ id: 'connection', name: 'Connection', icon: 'wifi' },
+			{ id: 'obs', name: 'OBS', icon: 'video' },
 			{ id: 'about', name: 'About', icon: 'info' },
 		]
 
 		tabs.forEach((tab) => {
 			const tabButton = tabContainer.createEl('button', {
-				cls: this.activeTab === tab.id ? 'teleprompter-tab active' : 'teleprompter-tab',
-				text: tab.name,
+				cls: this.activeTab === tab.id ? 'tp-tab active' : 'tp-tab',
 			})
+			const tabIcon = tabButton.createDiv('tp-tab-icon')
+			setIcon(tabIcon, tab.icon)
+			tabButton.createSpan({ text: tab.name })
 			tabButton.addEventListener('click', () => {
 				this.activeTab = tab.id
 				this.display()
@@ -170,21 +502,27 @@ export class TeleprompterSettingTab extends PluginSettingTab {
 		})
 
 		// Tab content container
-		const contentContainer = containerEl.createDiv('teleprompter-tab-content')
+		const contentContainer = containerEl.createDiv('tp-tab-content')
 
 		// Render active tab content
 		switch (this.activeTab) {
-			case 'appearance':
-				this.displayAppearanceTab(contentContainer)
+			case 'dashboard':
+				this.displayDashboardTab(contentContainer)
 				break
-			case 'playback':
-				this.displayPlaybackTab(contentContainer)
+			case 'toolbar':
+				this.displayToolbarTab(contentContainer)
 				break
-			case 'display':
-				this.displayDisplayTab(contentContainer)
+			case 'features':
+				this.displayFeaturesTab(contentContainer)
 				break
-			case 'advanced':
-				this.displayAdvancedTab(contentContainer)
+			case 'profiles':
+				this.displayProfilesTab(contentContainer)
+				break
+			case 'connection':
+				this.displayConnectionTab(contentContainer)
+				break
+			case 'obs':
+				this.displayOBSTab(contentContainer)
 				break
 			case 'about':
 				this.displayAboutTab(contentContainer)
@@ -192,1189 +530,1955 @@ export class TeleprompterSettingTab extends PluginSettingTab {
 		}
 	}
 
-	private displayAppearanceTab(containerEl: HTMLElement): void {
-		containerEl.createEl('p', {
-			text: 'Customize the visual appearance of the teleprompter display',
-			cls: 'setting-item-description',
-		})
+	// ========================================
+	// Dashboard Tab - Live preview & quick profiles
+	// ========================================
+	private displayDashboardTab(containerEl: HTMLElement): void {
+		// Live Preview Panel
+		const livePreview = containerEl.createDiv('tp-live-preview')
 
-		// Quick Setup Presets Section
-		const quickSetupContainer = containerEl.createDiv('quick-setup-container')
-		quickSetupContainer.createEl('h3', { text: 'Quick Setup Presets' })
-		quickSetupContainer.createEl('p', {
-			text: 'One-click complete configurations for common use cases',
-			cls: 'setting-item-description',
-		})
+		// Preview frame
+		const previewFrame = livePreview.createDiv('tp-preview-frame')
+		const previewContent = previewFrame.createDiv('tp-preview-content')
+		previewContent.style.backgroundColor = this.plugin.settings.backgroundColor
+		previewContent.style.color = this.plugin.settings.textColor
+		previewContent.style.fontFamily = this.plugin.settings.fontFamily
+		previewContent.style.lineHeight = String(this.plugin.settings.lineHeight)
+		previewContent.setText('Sample teleprompter text that shows your current settings in real-time as you make changes...')
 
-		const presetsGrid = quickSetupContainer.createDiv('quick-setup-presets')
+		// Eyeline indicator in preview
+		if (this.plugin.settings.showEyeline) {
+			const eyeline = previewFrame.createDiv('tp-preview-eyeline')
+			eyeline.style.top = `${this.plugin.settings.eyelinePosition}%`
+		}
 
-		const completePresets = [
-			{
-				name: 'Professional',
-				icon: 'monitor',
-				desc: 'Corporate presentations',
-				config: {
-					fontSize: 24,
-					textColor: '#e0e0e0',
-					backgroundColor: '#1e1e1e',
-					fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif',
-					lineHeight: 1.8,
-					paddingVertical: 20,
-					paddingHorizontal: 40,
-				}
-			},
-			{
-				name: 'Broadcast',
-				icon: 'radio-tower',
-				desc: 'News anchor, professional video',
-				config: {
-					fontSize: 36,
-					textColor: '#ffffff',
-					backgroundColor: '#000000',
-					fontFamily: 'Verdana, Tahoma, "DejaVu Sans", sans-serif',
-					lineHeight: 2.0,
-					paddingVertical: 30,
-					paddingHorizontal: 60,
-				}
-			},
-			{
-				name: 'Presentation',
-				icon: 'presentation',
-				desc: 'Conference talks, large screens',
-				config: {
-					fontSize: 48,
-					textColor: '#2e2e2e',
-					backgroundColor: '#f5f5f5',
-					fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif',
-					lineHeight: 1.6,
-					paddingVertical: 40,
-					paddingHorizontal: 80,
-				}
-			},
-			{
-				name: 'Cinema',
-				icon: 'film',
-				desc: 'Film credits, dramatic reading',
-				config: {
-					fontSize: 32,
-					textColor: '#ffffff',
-					backgroundColor: '#000000',
-					fontFamily: 'Georgia, "Times New Roman", Times, serif',
-					lineHeight: 1.9,
-					paddingVertical: 25,
-					paddingHorizontal: 50,
-				}
-			},
-			{
-				name: 'Green Screen',
-				icon: 'square-dashed',
-				desc: 'Video production with chroma key',
-				config: {
-					fontSize: 32,
-					textColor: '#ffffff',
-					backgroundColor: '#00ff00',
-					fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif',
-					lineHeight: 1.8,
-					paddingVertical: 25,
-					paddingHorizontal: 45,
-				}
-			},
-			{
-				name: 'Stream',
-				icon: 'wifi',
-				desc: 'Twitch/YouTube streaming',
-				config: {
-					fontSize: 28,
-					textColor: '#ffffff',
-					backgroundColor: '#000000',
-					fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif',
-					lineHeight: 1.7,
-					paddingVertical: 20,
-					paddingHorizontal: 40,
-				}
-			},
-			{
-				name: 'Practice',
-				icon: 'timer',
-				desc: 'Rehearsal, easy on eyes',
-				config: {
-					fontSize: 20,
-					textColor: '#5c4a2f',
-					backgroundColor: '#f4ecd8',
-					fontFamily: 'inherit',
-					lineHeight: 1.6,
-					paddingVertical: 15,
-					paddingHorizontal: 30,
-				}
-			},
-			{
-				name: 'Accessibility',
-				icon: 'accessibility',
-				desc: 'High contrast, large text',
-				config: {
-					fontSize: 40,
-					textColor: '#ffffff',
-					backgroundColor: '#000000',
-					fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif',
-					lineHeight: 2.2,
-					paddingVertical: 35,
-					paddingHorizontal: 70,
-				}
-			},
-		]
+		// Preview info
+		const previewInfo = livePreview.createDiv('tp-preview-info')
+		previewInfo.createDiv({ text: 'LIVE PREVIEW', cls: 'tp-preview-label' })
+		previewInfo.createDiv({ text: 'Current Settings', cls: 'tp-preview-title' })
 
-		completePresets.forEach(preset => {
-			console.log('[Teleprompter] Creating quick setup button for:', preset.name)
+		// Quick profiles
+		const quickProfiles = previewInfo.createDiv('tp-quick-profiles')
+		const allProfiles = [...BUILT_IN_PROFILES, ...this.plugin.settings.profiles.custom]
 
-			const btn = presetsGrid.createEl('button', {
-				cls: 'quick-setup-button',
-				type: 'button',
+		allProfiles.slice(0, 4).forEach(profile => {
+			const chip = quickProfiles.createEl('button', {
+				cls: this.plugin.settings.profiles.active === profile.id ? 'tp-profile-chip active' : 'tp-profile-chip'
 			})
+			const chipIcon = chip.createDiv('tp-profile-chip-icon')
+			setIcon(chipIcon, profile.icon)
+			chip.createSpan({ text: profile.name })
 
-			const iconContainer = btn.createDiv({ cls: 'quick-setup-icon' })
-			setIcon(iconContainer, preset.icon)
-
-			btn.createDiv({ text: preset.name, cls: 'quick-setup-name' })
-			btn.createDiv({ text: preset.desc, cls: 'quick-setup-desc' })
-
-			btn.addEventListener('click', async () => {
-				console.log('[Teleprompter] ========================================')
-				console.log('[Teleprompter] Quick Setup Preset clicked:', preset.name)
-				console.log('[Teleprompter] Current settings BEFORE:', JSON.stringify({
-					fontSize: this.plugin.settings.fontSize,
-					textColor: this.plugin.settings.textColor,
-					backgroundColor: this.plugin.settings.backgroundColor,
-					fontFamily: this.plugin.settings.fontFamily,
-					lineHeight: this.plugin.settings.lineHeight,
-					paddingVertical: this.plugin.settings.paddingVertical,
-					paddingHorizontal: this.plugin.settings.paddingHorizontal,
-				}, null, 2))
-
-				console.log('[Teleprompter] Applying preset config:', JSON.stringify(preset.config, null, 2))
-
-				try {
-					Object.assign(this.plugin.settings, preset.config)
-					console.log('[Teleprompter] Settings object updated')
-
-					await this.plugin.saveSettings()
-					console.log('[Teleprompter] Settings saved to disk')
-
-					// Apply settings to all active teleprompter views
-					this.plugin.applyAllSettings()
-					console.log('[Teleprompter] Settings broadcast to all active teleprompter views')
-
-					console.log('[Teleprompter] Current settings AFTER:', JSON.stringify({
-						fontSize: this.plugin.settings.fontSize,
-						textColor: this.plugin.settings.textColor,
-						backgroundColor: this.plugin.settings.backgroundColor,
-						fontFamily: this.plugin.settings.fontFamily,
-						lineHeight: this.plugin.settings.lineHeight,
-						paddingVertical: this.plugin.settings.paddingVertical,
-						paddingHorizontal: this.plugin.settings.paddingHorizontal,
-					}, null, 2))
-
-					new Notice(`✓ Applied "${preset.name}" preset - Check your teleprompter view!`)
-					console.log('[Teleprompter] Notice displayed')
-
-					console.log('[Teleprompter] Refreshing settings display...')
-					this.display() // Refresh to show new values in settings UI
-					console.log('[Teleprompter] Settings UI refreshed')
-					console.log('[Teleprompter] ========================================')
-				} catch (error) {
-					console.error('[Teleprompter] ERROR applying preset:', error)
-					new Notice(`✗ Failed to apply "${preset.name}" preset`)
-				}
-			})
-		})
-
-		// Transparency Section
-		containerEl.createEl('h3', { text: 'Background Transparency' })
-		containerEl.createEl('p', {
-			text: 'Make the teleprompter background semi-transparent to see through to camera/audience',
-			cls: 'setting-item-description',
-		})
-
-		// Enable Transparency
-		new Setting(containerEl)
-			.setName('Enable background transparency')
-			.setDesc('Allow background to be semi-transparent (requires reloading teleprompter view)')
-			.addToggle((toggle) =>
-				toggle
-					.setValue(this.plugin.settings.enableBackgroundTransparency)
-					.onChange(async (value) => {
-						this.plugin.settings.enableBackgroundTransparency = value
-						await this.plugin.saveSettings()
-						this.plugin.applyAllSettings()
-					})
-			)
-
-		// Background Opacity
-		new Setting(containerEl)
-			.setName('Background opacity')
-			.setDesc('Background opacity level (0 = fully transparent, 100 = fully opaque)')
-			.addSlider((slider) =>
-				slider
-					.setLimits(0, 100, 5)
-					.setValue(this.plugin.settings.backgroundOpacity)
-					.setDynamicTooltip()
-					.onChange(async (value) => {
-						this.plugin.settings.backgroundOpacity = value
-						await this.plugin.saveSettings()
-						this.plugin.applyAllSettings()
-					})
-			)
-			.addExtraButton((button) =>
-				button
-					.setIcon('reset')
-					.setTooltip('Reset to default (100% opaque)')
-					.onClick(async () => {
-						this.plugin.settings.backgroundOpacity = DEFAULT_SETTINGS.backgroundOpacity
-						await this.plugin.saveSettings()
-						this.plugin.applyAllSettings()
-						this.display()
-					})
-			)
-
-		// Typography Section
-		containerEl.createEl('h3', { text: 'Typography' })
-
-		// Font Size
-		new Setting(containerEl)
-			.setName('Font size')
-			.setDesc('Text size for the teleprompter (12-72px)')
-			.addSlider((slider) =>
-				slider
-					.setLimits(this.plugin.settings.minFontSize, this.plugin.settings.maxFontSize, 1)
-					.setValue(this.plugin.settings.fontSize)
-					.setDynamicTooltip()
-					.onChange(async (value) => {
-						this.plugin.settings.fontSize = value
-						await this.plugin.saveSettings()
-						this.plugin.updateFontSize(value)
-					})
-			)
-			.addExtraButton((button) =>
-				button
-					.setIcon('reset')
-					.setTooltip('Reset to default (24px)')
-					.onClick(async () => {
-						this.plugin.settings.fontSize = DEFAULT_SETTINGS.fontSize
-						await this.plugin.saveSettings()
-						this.plugin.updateFontSize(DEFAULT_SETTINGS.fontSize)
-						this.display() // Refresh to update slider
-					})
-			)
-
-		// Line Height
-		new Setting(containerEl)
-			.setName('Line height')
-			.setDesc('Space between lines (1.0-3.0x)')
-			.addSlider((slider) =>
-				slider
-					.setLimits(1.0, 3.0, 0.1)
-					.setValue(this.plugin.settings.lineHeight)
-					.setDynamicTooltip()
-					.onChange(async (value) => {
-						this.plugin.settings.lineHeight = value
-						await this.plugin.saveSettings()
-					})
-			)
-			.addExtraButton((button) =>
-				button
-					.setIcon('reset')
-					.setTooltip('Reset to default (1.8x)')
-					.onClick(async () => {
-						this.plugin.settings.lineHeight = DEFAULT_SETTINGS.lineHeight
-						await this.plugin.saveSettings()
-						this.display()
-					})
-			)
-
-		// Vertical Padding
-		new Setting(containerEl)
-			.setName('Vertical padding')
-			.setDesc('Space above and below content (0-100px)')
-			.addSlider((slider) =>
-				slider
-					.setLimits(0, 100, 5)
-					.setValue(this.plugin.settings.paddingVertical)
-					.setDynamicTooltip()
-					.onChange(async (value) => {
-						this.plugin.settings.paddingVertical = value
-						await this.plugin.saveSettings()
-					})
-			)
-			.addExtraButton((button) =>
-				button
-					.setIcon('reset')
-					.setTooltip('Reset to default (20px)')
-					.onClick(async () => {
-						this.plugin.settings.paddingVertical = DEFAULT_SETTINGS.paddingVertical
-						await this.plugin.saveSettings()
-						this.display()
-					})
-			)
-
-		// Horizontal Padding
-		new Setting(containerEl)
-			.setName('Horizontal padding')
-			.setDesc('Space on left and right sides (0-200px)')
-			.addSlider((slider) =>
-				slider
-					.setLimits(0, 200, 10)
-					.setValue(this.plugin.settings.paddingHorizontal)
-					.setDynamicTooltip()
-					.onChange(async (value) => {
-						this.plugin.settings.paddingHorizontal = value
-						await this.plugin.saveSettings()
-					})
-			)
-			.addExtraButton((button) =>
-				button
-					.setIcon('reset')
-					.setTooltip('Reset to default (40px)')
-					.onClick(async () => {
-						this.plugin.settings.paddingHorizontal = DEFAULT_SETTINGS.paddingHorizontal
-						await this.plugin.saveSettings()
-						this.display()
-					})
-			)
-
-		// Text Color
-		const textColorSetting = new Setting(containerEl)
-			.setName('Text color')
-			.setDesc('Color for body text')
-			.addText((text) =>
-				text
-					.setValue(this.plugin.settings.textColor)
-					.setPlaceholder('#e0e0e0')
-					.onChange(async (value) => {
-						if (/^#[0-9A-Fa-f]{6}$/.test(value)) {
-							this.plugin.settings.textColor = value
-							await this.plugin.saveSettings()
-						}
-					})
-			)
-			.addExtraButton((button) =>
-				button
-					.setIcon('reset')
-					.setTooltip('Reset to default (#e0e0e0)')
-					.onClick(async () => {
-						this.plugin.settings.textColor = DEFAULT_SETTINGS.textColor
-						await this.plugin.saveSettings()
-						this.display()
-					})
-			)
-
-		// Add color picker
-		const textColorPicker = textColorSetting.controlEl.createEl('input', {
-			type: 'color',
-			value: this.plugin.settings.textColor,
-		})
-		textColorPicker.style.marginLeft = '8px'
-		textColorPicker.style.width = '50px'
-		textColorPicker.style.height = '30px'
-		textColorPicker.style.border = '2px solid var(--background-modifier-border)'
-		textColorPicker.style.borderRadius = '4px'
-		textColorPicker.style.cursor = 'pointer'
-		textColorPicker.addEventListener('input', async (e) => {
-			const value = (e.target as HTMLInputElement).value
-			this.plugin.settings.textColor = value
-			await this.plugin.saveSettings()
-			// Update the text input to show the new value
-			const textInput = textColorSetting.controlEl.querySelector('input[type="text"]') as HTMLInputElement
-			if (textInput) textInput.value = value
-		})
-
-		// Background Color
-		const bgColorSetting = new Setting(containerEl)
-			.setName('Background color')
-			.setDesc('Background color for content area')
-			.addText((text) =>
-				text
-					.setValue(this.plugin.settings.backgroundColor)
-					.setPlaceholder('#1e1e1e')
-					.onChange(async (value) => {
-						if (/^#[0-9A-Fa-f]{6}$/.test(value)) {
-							this.plugin.settings.backgroundColor = value
-							await this.plugin.saveSettings()
-						}
-					})
-			)
-			.addExtraButton((button) =>
-				button
-					.setIcon('reset')
-					.setTooltip('Reset to default (#1e1e1e)')
-					.onClick(async () => {
-						this.plugin.settings.backgroundColor = DEFAULT_SETTINGS.backgroundColor
-						await this.plugin.saveSettings()
-						this.display()
-					})
-			)
-
-		// Add color picker
-		const bgColorPicker = bgColorSetting.controlEl.createEl('input', {
-			type: 'color',
-			value: this.plugin.settings.backgroundColor,
-		})
-		bgColorPicker.style.marginLeft = '8px'
-		bgColorPicker.style.width = '50px'
-		bgColorPicker.style.height = '30px'
-		bgColorPicker.style.border = '2px solid var(--background-modifier-border)'
-		bgColorPicker.style.borderRadius = '4px'
-		bgColorPicker.style.cursor = 'pointer'
-		bgColorPicker.addEventListener('input', async (e) => {
-			const value = (e.target as HTMLInputElement).value
-			this.plugin.settings.backgroundColor = value
-			await this.plugin.saveSettings()
-			// Update the text input to show the new value
-			const textInput = bgColorSetting.controlEl.querySelector('input[type="text"]') as HTMLInputElement
-			if (textInput) textInput.value = value
-		})
-
-		// Color Presets
-		containerEl.createEl('h4', { text: 'Quick Color Presets' })
-		containerEl.createEl('p', {
-			text: 'One-click color schemes for different use cases',
-			cls: 'setting-item-description',
-		})
-		const presetsContainer = containerEl.createDiv('color-presets-container')
-
-		const presets = [
-			{ name: 'Dark', icon: 'tp-color-dark', text: '#e0e0e0', bg: '#1e1e1e', desc: 'Default dark theme' },
-			{ name: 'Light', icon: 'tp-color-light', text: '#2e2e2e', bg: '#f5f5f5', desc: 'Light background' },
-			{ name: 'Black', icon: 'tp-color-black', text: '#ffffff', bg: '#000000', desc: 'Pure black' },
-			{ name: 'Sepia', icon: 'tp-color-sepia', text: '#5c4a2f', bg: '#f4ecd8', desc: 'Easy on eyes' },
-			{ name: 'Green', icon: 'tp-color-green', text: '#33ff33', bg: '#000000', desc: 'Matrix style' },
-			{ name: 'Amber', icon: 'tp-color-amber', text: '#ffb000', bg: '#000000', desc: 'Amber terminal' },
-			{ name: 'High Contrast', icon: 'tp-color-high-contrast', text: '#ffffff', bg: '#000000', desc: 'Maximum contrast' },
-			{ name: 'News Anchor', icon: 'tp-color-news', text: '#ffeb3b', bg: '#0d47a1', desc: 'Professional broadcast' },
-			{ name: 'Green Screen', icon: 'tp-color-greenscreen', text: '#ffffff', bg: '#00ff00', desc: 'Chroma key ready' },
-		]
-
-		presets.forEach(preset => {
-			const button = presetsContainer.createEl('button', {
-				cls: 'mod-cta preset-button',
-				type: 'button',
-			})
-			setIcon(button, preset.icon)
-			const label = button.createSpan({ text: preset.name, cls: 'preset-label' })
-			button.addEventListener('click', async () => {
-				console.log('[Teleprompter] Color preset clicked:', preset.name, preset.text, preset.bg)
-				this.plugin.settings.textColor = preset.text
-				this.plugin.settings.backgroundColor = preset.bg
+			chip.addEventListener('click', async () => {
+				// Apply profile settings
+				Object.assign(this.plugin.settings, profile.settings)
+				this.plugin.settings.profiles.active = profile.id
 				await this.plugin.saveSettings()
-				console.log('[Teleprompter] Settings saved, refreshing display')
-
-				// Update the color pickers and text inputs immediately
-				const textColorPicker = containerEl.querySelector('input[type="color"]') as HTMLInputElement
-				const bgColorPicker = containerEl.querySelectorAll('input[type="color"]')[1] as HTMLInputElement
-				const textColorInput = textColorSetting.controlEl.querySelector('input[type="text"]') as HTMLInputElement
-				const bgColorInput = bgColorSetting.controlEl.querySelector('input[type="text"]') as HTMLInputElement
-
-				if (textColorPicker) textColorPicker.value = preset.text
-				if (bgColorPicker) bgColorPicker.value = preset.bg
-				if (textColorInput) textColorInput.value = preset.text
-				if (bgColorInput) bgColorInput.value = preset.bg
-			})
-		})
-
-		// Font Family
-		containerEl.createEl('h4', { text: 'Font Family' })
-		new Setting(containerEl)
-			.setName('Font family')
-			.setDesc('Choose a font family for the teleprompter')
-			.addDropdown((dropdown) =>
-				dropdown
-					.addOption('inherit', 'System Default')
-					.addOption('-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif', 'Sans-serif (Modern)')
-					.addOption('Georgia, "Times New Roman", Times, serif', 'Serif (Traditional)')
-					.addOption('"Courier New", Courier, Monaco, "Lucida Console", monospace', 'Monospace (Code)')
-					.addOption('Verdana, Tahoma, "DejaVu Sans", sans-serif', 'Readable (Verdana)')
-					.addOption('"Courier New", "Rockwell", "Courier", monospace', 'Slab Serif (Bold)')
-					.setValue(this.plugin.settings.fontFamily)
-					.onChange(async (value) => {
-						this.plugin.settings.fontFamily = value
-						await this.plugin.saveSettings()
-					})
-			)
-			.addExtraButton((button) =>
-				button
-					.setIcon('reset')
-					.setTooltip('Reset to default (System)')
-					.onClick(async () => {
-						this.plugin.settings.fontFamily = DEFAULT_SETTINGS.fontFamily
-						await this.plugin.saveSettings()
-						this.display()
-					})
-			)
-
-		// Font Presets
-		containerEl.createEl('h5', { text: 'Quick Presets' })
-		const fontPresetsContainer = containerEl.createDiv('font-presets-container')
-
-		const fontPresets = [
-			{ name: 'System', icon: 'tp-font-system', value: 'inherit' },
-			{ name: 'Sans', icon: 'tp-font-sans', value: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif' },
-			{ name: 'Serif', icon: 'tp-font-serif', value: 'Georgia, "Times New Roman", Times, serif' },
-			{ name: 'Mono', icon: 'tp-font-mono', value: '"Courier New", Courier, Monaco, "Lucida Console", monospace' },
-			{ name: 'Readable', icon: 'tp-font-readable', value: 'Verdana, Tahoma, "DejaVu Sans", sans-serif' },
-			{ name: 'Slab', icon: 'tp-font-slab', value: '"Courier New", "Rockwell", "Courier", monospace' },
-		]
-
-		fontPresets.forEach(preset => {
-			const button = fontPresetsContainer.createEl('button', {
-				cls: 'mod-cta preset-button',
-			})
-			setIcon(button, preset.icon)
-			const label = button.createSpan({ text: preset.name, cls: 'preset-label' })
-			button.style.marginRight = '8px'
-			button.style.marginBottom = '8px'
-			button.addEventListener('click', async () => {
-				this.plugin.settings.fontFamily = preset.value
-				await this.plugin.saveSettings()
+				this.plugin.applyAllSettings()
+				new Notice(`Applied "${profile.name}" profile`)
 				this.display()
 			})
 		})
 
-		// Flip Controls (stays in Appearance tab)
-		containerEl.createEl('h3', { text: 'Transform' })
-		containerEl.createEl('p', {
-			text: 'Mirror the display for teleprompter hardware or special setups',
-			cls: 'setting-item-description',
+		// Health Check Grid
+		const healthSection = containerEl.createDiv('tp-section-header')
+		const healthIcon = healthSection.createDiv('tp-section-header-icon')
+		setIcon(healthIcon, 'activity')
+		healthSection.createSpan({ text: 'System Status', cls: 'tp-section-header-title' })
+
+		const healthGrid = containerEl.createDiv('tp-health-grid')
+
+		// WebSocket status card
+		const wsInfo = this.plugin.getWebSocketInfo()
+		const wsCard = healthGrid.createDiv('tp-health-card')
+		const wsCardIcon = wsCard.createDiv('tp-health-card-icon')
+		setIcon(wsCardIcon, wsInfo.running ? 'wifi' : 'wifi-off')
+		wsCard.createDiv({ text: wsInfo.running ? 'Connected' : 'Offline', cls: 'tp-health-card-value' })
+		wsCard.createDiv({ text: 'WebSocket', cls: 'tp-health-card-label' })
+
+		// Clients card
+		const clientsCard = healthGrid.createDiv('tp-health-card')
+		const clientsIcon = clientsCard.createDiv('tp-health-card-icon')
+		setIcon(clientsIcon, 'users')
+		clientsCard.createDiv({ text: String(wsInfo.clientCount), cls: 'tp-health-card-value' })
+		clientsCard.createDiv({ text: 'Clients', cls: 'tp-health-card-label' })
+
+		// Speed card
+		const speedCard = healthGrid.createDiv('tp-health-card')
+		const speedIcon = speedCard.createDiv('tp-health-card-icon')
+		setIcon(speedIcon, 'gauge')
+		speedCard.createDiv({ text: `${this.plugin.settings.defaultScrollSpeed}x`, cls: 'tp-health-card-value' })
+		speedCard.createDiv({ text: 'Default Speed', cls: 'tp-health-card-label' })
+
+		// Font size card
+		const fontCard = healthGrid.createDiv('tp-health-card')
+		const fontIcon = fontCard.createDiv('tp-health-card-icon')
+		setIcon(fontIcon, 'type')
+		fontCard.createDiv({ text: `${this.plugin.settings.fontSize}px`, cls: 'tp-health-card-value' })
+		fontCard.createDiv({ text: 'Font Size', cls: 'tp-health-card-label' })
+
+		// Quick Actions Section
+		const actionsSection = containerEl.createDiv('tp-section-header')
+		const actionsIcon = actionsSection.createDiv('tp-section-header-icon')
+		setIcon(actionsIcon, 'zap')
+		actionsSection.createSpan({ text: 'Quick Actions', cls: 'tp-section-header-title' })
+
+		const actionsContainer = containerEl.createDiv()
+		actionsContainer.style.display = 'flex'
+		actionsContainer.style.gap = '0.75rem'
+		actionsContainer.style.flexWrap = 'wrap'
+
+		// Reset all settings button
+		const resetBtn = actionsContainer.createEl('button', { cls: 'tp-btn' })
+		const resetBtnIcon = resetBtn.createDiv('tp-btn-icon')
+		setIcon(resetBtnIcon, 'rotate-ccw')
+		resetBtn.createSpan({ text: 'Reset All' })
+		resetBtn.addEventListener('click', async () => {
+			if (confirm('Reset all settings to defaults?')) {
+				Object.assign(this.plugin.settings, DEFAULT_SETTINGS)
+				await this.plugin.saveSettings()
+				this.plugin.applyAllSettings()
+				new Notice('Settings reset to defaults')
+				this.display()
+			}
 		})
 
-		new Setting(containerEl)
-			.setName('Horizontal flip')
-			.setDesc('Mirror text left-to-right (for teleprompter mirrors)')
-			.addToggle((toggle) =>
-				toggle.setValue(this.plugin.settings.flipHorizontal).onChange(async (value) => {
-					this.plugin.settings.flipHorizontal = value
-					await this.plugin.saveSettings()
-				})
-			)
+		// Export settings button
+		const exportBtn = actionsContainer.createEl('button', { cls: 'tp-btn' })
+		const exportBtnIcon = exportBtn.createDiv('tp-btn-icon')
+		setIcon(exportBtnIcon, 'download')
+		exportBtn.createSpan({ text: 'Export' })
+		exportBtn.addEventListener('click', () => {
+			const settingsJSON = JSON.stringify(this.plugin.settings, null, 2)
+			const blob = new Blob([settingsJSON], { type: 'application/json' })
+			const url = URL.createObjectURL(blob)
+			const a = document.createElement('a')
+			a.href = url
+			a.download = `teleprompter-settings-${Date.now()}.json`
+			a.click()
+			URL.revokeObjectURL(url)
+			new Notice('Settings exported')
+		})
 
-		new Setting(containerEl)
-			.setName('Vertical flip')
-			.setDesc('Flip text upside-down (for ceiling-mounted displays)')
-			.addToggle((toggle) =>
-				toggle.setValue(this.plugin.settings.flipVertical).onChange(async (value) => {
-					this.plugin.settings.flipVertical = value
-					await this.plugin.saveSettings()
-				})
-			)
+		// Import settings button
+		const importBtn = actionsContainer.createEl('button', { cls: 'tp-btn' })
+		const importBtnIcon = importBtn.createDiv('tp-btn-icon')
+		setIcon(importBtnIcon, 'upload')
+		importBtn.createSpan({ text: 'Import' })
+		importBtn.addEventListener('click', () => {
+			const input = document.createElement('input')
+			input.type = 'file'
+			input.accept = '.json'
+			input.onchange = async (e) => {
+				const file = (e.target as HTMLInputElement).files?.[0]
+				if (!file) return
+				const reader = new FileReader()
+				reader.onload = async (event) => {
+					try {
+						const imported = JSON.parse(event.target?.result as string)
+						const validKeys = Object.keys(DEFAULT_SETTINGS)
+						const importedFiltered: Partial<TeleprompterSettings> = {}
+						for (const key of validKeys) {
+							if (key in imported) {
+								(importedFiltered as any)[key] = imported[key]
+							}
+						}
+						Object.assign(this.plugin.settings, importedFiltered)
+						await this.plugin.saveSettings()
+						new Notice('Settings imported')
+						this.display()
+					} catch {
+						new Notice('Failed to import settings')
+					}
+				}
+				reader.readAsText(file)
+			}
+			input.click()
+		})
 	}
 
-	private displayPlaybackTab(containerEl: HTMLElement): void {
+	// ========================================
+	// Toolbar Tab - Configure visible controls
+	// ========================================
+	private displayToolbarTab(containerEl: HTMLElement): void {
 		containerEl.createEl('p', {
-			text: 'Configure auto-scroll behavior, speed, and countdown settings',
+			text: 'Configure which controls appear in the teleprompter toolbar',
 			cls: 'setting-item-description',
 		})
 
-		// Countdown Settings
-		containerEl.createEl('h3', { text: 'Countdown' })
+		// Toolbar preview
+		const previewSection = containerEl.createDiv('tp-section-header')
+		const previewIcon = previewSection.createDiv('tp-section-header-icon')
+		setIcon(previewIcon, 'eye')
+		previewSection.createSpan({ text: 'Toolbar Preview', cls: 'tp-section-header-title' })
 
-		// Default Countdown Duration
-		new Setting(containerEl)
-			.setName('Default countdown duration')
-			.setDesc('Countdown seconds before auto-scroll starts (0-30 seconds)')
-			.addSlider((slider) =>
-				slider
-					.setLimits(0, 30, 1)
-					.setValue(this.plugin.settings.defaultCountdown)
-					.setDynamicTooltip()
+		const toolbarPreview = containerEl.createDiv('tp-toolbar-preview')
+
+		// Build ordered list of enabled controls for the preview
+		const enabledControls: typeof TOOLBAR_CONTROLS = []
+		const shownIds = new Set<string>()
+
+		// First add controls in primary order
+		this.plugin.settings.toolbarLayout.primary.forEach(controlId => {
+			if (this.plugin.settings.toolbarLayout.hidden.includes(controlId)) return
+			const control = TOOLBAR_CONTROLS.find(c => c.id === controlId)
+			if (control && !shownIds.has(controlId)) {
+				enabledControls.push(control)
+				shownIds.add(controlId)
+			}
+		})
+
+		// Then add secondary controls
+		this.plugin.settings.toolbarLayout.secondary.forEach(controlId => {
+			if (this.plugin.settings.toolbarLayout.hidden.includes(controlId)) return
+			const control = TOOLBAR_CONTROLS.find(c => c.id === controlId)
+			if (control && !shownIds.has(controlId)) {
+				enabledControls.push(control)
+				shownIds.add(controlId)
+			}
+		})
+
+		// Finally add any remaining enabled controls
+		TOOLBAR_CONTROLS.forEach(control => {
+			if (this.plugin.settings.toolbarLayout.hidden.includes(control.id)) return
+			if (!shownIds.has(control.id)) {
+				enabledControls.push(control)
+			}
+		})
+
+		// Track drag state
+		let draggedId: string | null = null
+
+		// Render draggable preview items
+		enabledControls.forEach((control, index) => {
+			const item = toolbarPreview.createDiv('tp-toolbar-item')
+			item.setAttribute('draggable', 'true')
+			item.dataset.controlId = control.id
+			item.dataset.index = String(index)
+
+			const itemIcon = item.createDiv('tp-toolbar-item-icon')
+			setIcon(itemIcon, control.icon)
+			item.title = `${control.name} (drag to reorder)`
+
+			// Drag events
+			item.addEventListener('dragstart', (e) => {
+				draggedId = control.id
+				item.classList.add('dragging')
+				if (e.dataTransfer) {
+					e.dataTransfer.effectAllowed = 'move'
+				}
+			})
+
+			item.addEventListener('dragend', () => {
+				draggedId = null
+				item.classList.remove('dragging')
+				toolbarPreview.querySelectorAll('.tp-toolbar-item').forEach(el => {
+					el.classList.remove('drag-over')
+				})
+			})
+
+			item.addEventListener('dragover', (e) => {
+				e.preventDefault()
+				if (e.dataTransfer) {
+					e.dataTransfer.dropEffect = 'move'
+				}
+				if (draggedId && draggedId !== control.id) {
+					item.classList.add('drag-over')
+				}
+			})
+
+			item.addEventListener('dragleave', () => {
+				item.classList.remove('drag-over')
+			})
+
+			item.addEventListener('drop', async (e) => {
+				e.preventDefault()
+				item.classList.remove('drag-over')
+
+				if (!draggedId || draggedId === control.id) return
+
+				// Reorder the controls
+				const allEnabled = [...enabledControls.map(c => c.id)]
+				const draggedIndex = allEnabled.indexOf(draggedId)
+				const dropIndex = allEnabled.indexOf(control.id)
+
+				if (draggedIndex !== -1 && dropIndex !== -1) {
+					// Remove from old position
+					allEnabled.splice(draggedIndex, 1)
+					// Insert at new position
+					allEnabled.splice(dropIndex, 0, draggedId)
+
+					// Update settings - all enabled controls go to primary in new order
+					this.plugin.settings.toolbarLayout.primary = allEnabled
+					this.plugin.settings.toolbarLayout.secondary = []
+
+					await this.plugin.saveSettings()
+					// Notify teleprompter view to update toolbar
+					activeDocument.dispatchEvent(new CustomEvent('teleprompter:toolbar-changed'))
+					this.display()
+				}
+			})
+		})
+
+		// Primary Controls Section
+		const primarySection = containerEl.createDiv('tp-section-header')
+		const primaryIcon = primarySection.createDiv('tp-section-header-icon')
+		setIcon(primaryIcon, 'layout-grid')
+		primarySection.createSpan({ text: 'Primary Controls', cls: 'tp-section-header-title' })
+
+		containerEl.createEl('p', {
+			text: 'Always visible in the main toolbar',
+			cls: 'setting-item-description',
+		})
+
+		const primaryControls = containerEl.createDiv('tp-toolbar-controls')
+
+		TOOLBAR_CONTROLS.forEach(control => {
+			const isPrimary = this.plugin.settings.toolbarLayout.primary.includes(control.id)
+			const isHidden = this.plugin.settings.toolbarLayout.hidden.includes(control.id)
+
+			const controlEl = primaryControls.createDiv('tp-toolbar-control')
+
+			const dragHandle = controlEl.createDiv('tp-toolbar-control-drag')
+			setIcon(dragHandle, 'grip-vertical')
+
+			const controlIcon = controlEl.createDiv('tp-toolbar-control-icon')
+			setIcon(controlIcon, control.icon)
+
+			controlEl.createSpan({ text: control.name, cls: 'tp-toolbar-control-name' })
+
+			// Toggle for visibility
+			const toggleContainer = controlEl.createDiv('tp-toolbar-control-toggle')
+			const toggle = new Setting(toggleContainer)
+				.addToggle(t => t
+					.setValue(!isHidden)
 					.onChange(async (value) => {
-						this.plugin.settings.defaultCountdown = value
+						if (value) {
+							// Remove from hidden
+							this.plugin.settings.toolbarLayout.hidden =
+								this.plugin.settings.toolbarLayout.hidden.filter(id => id !== control.id)
+							// Add to primary if not there
+							if (!this.plugin.settings.toolbarLayout.primary.includes(control.id)) {
+								this.plugin.settings.toolbarLayout.primary.push(control.id)
+							}
+						} else {
+							// Add to hidden
+							if (!this.plugin.settings.toolbarLayout.hidden.includes(control.id)) {
+								this.plugin.settings.toolbarLayout.hidden.push(control.id)
+							}
+							// Remove from primary
+							this.plugin.settings.toolbarLayout.primary =
+								this.plugin.settings.toolbarLayout.primary.filter(id => id !== control.id)
+						}
 						await this.plugin.saveSettings()
-					})
-			)
-			.addExtraButton((button) =>
-				button
-					.setIcon('reset')
-					.setTooltip('Reset to default (5 seconds)')
-					.onClick(async () => {
-						this.plugin.settings.defaultCountdown = DEFAULT_SETTINGS.defaultCountdown
-						await this.plugin.saveSettings()
+						// Notify teleprompter view to update toolbar
+						activeDocument.dispatchEvent(new CustomEvent('teleprompter:toolbar-changed'))
 						this.display()
 					})
-			)
-
-		// Scroll Speed Settings
-		containerEl.createEl('h3', { text: 'Scroll Speed' })
-
-		// Default Scroll Speed
-		new Setting(containerEl)
-			.setName('Default scroll speed')
-			.setDesc('Initial scroll speed when opening teleprompter (0.5-10)')
-			.addSlider((slider) =>
-				slider
-					.setLimits(0.5, 10, 0.5)
-					.setValue(this.plugin.settings.defaultScrollSpeed)
-					.setDynamicTooltip()
-					.onChange(async (value) => {
-						this.plugin.settings.defaultScrollSpeed = value
-						await this.plugin.saveSettings()
-					})
-			)
-			.addExtraButton((button) =>
-				button
-					.setIcon('reset')
-					.setTooltip('Reset to default (2)')
-					.onClick(async () => {
-						this.plugin.settings.defaultScrollSpeed = DEFAULT_SETTINGS.defaultScrollSpeed
-						await this.plugin.saveSettings()
-						this.display()
-					})
-			)
-
-		// Speed Increment
-		new Setting(containerEl)
-			.setName('Speed adjustment amount')
-			.setDesc('How much speed changes with each +/- button press (0.1-2)')
-			.addSlider((slider) =>
-				slider
-					.setLimits(0.1, 2, 0.1)
-					.setValue(this.plugin.settings.speedIncrement)
-					.setDynamicTooltip()
-					.onChange(async (value) => {
-						this.plugin.settings.speedIncrement = value
-						await this.plugin.saveSettings()
-					})
-			)
-			.addExtraButton((button) =>
-				button
-					.setIcon('reset')
-					.setTooltip('Reset to default (0.5)')
-					.onClick(async () => {
-						this.plugin.settings.speedIncrement = DEFAULT_SETTINGS.speedIncrement
-						await this.plugin.saveSettings()
-						this.display()
-					})
-			)
-
-		// Auto Start Playing
-		new Setting(containerEl)
-			.setName('Auto-start playback')
-			.setDesc('Automatically start playing when teleprompter opens')
-			.addToggle((toggle) =>
-				toggle
-					.setValue(this.plugin.settings.autoStartPlaying)
-					.onChange(async (value) => {
-						this.plugin.settings.autoStartPlaying = value
-						await this.plugin.saveSettings()
-					})
-			)
+				)
+			toggle.settingEl.style.border = 'none'
+			toggle.settingEl.style.padding = '0'
+		})
 	}
 
-	private displayDisplayTab(containerEl: HTMLElement): void {
+	// ========================================
+	// Features Tab - Collapsible feature cards
+	// ========================================
+	private displayFeaturesTab(containerEl: HTMLElement): void {
 		containerEl.createEl('p', {
-			text: 'Configure visual elements, reading aids, and navigation',
+			text: 'Configure all teleprompter features and their settings',
 			cls: 'setting-item-description',
 		})
 
-		// Eyeline Settings
-		containerEl.createEl('h3', { text: 'Eyeline Indicator' })
-
-		// Show Eyeline
-		new Setting(containerEl)
-			.setName('Show eyeline indicator')
-			.setDesc('Display a visual reading line at a fixed position')
-			.addToggle((toggle) =>
-				toggle
-					.setValue(this.plugin.settings.showEyeline)
-					.onChange(async (value) => {
-						this.plugin.settings.showEyeline = value
-						await this.plugin.saveSettings()
-					})
-			)
-
-		// Eyeline Position
-		new Setting(containerEl)
-			.setName('Eyeline position')
-			.setDesc('Vertical position of the eyeline indicator (0-100%)')
-			.addSlider((slider) =>
-				slider
-					.setLimits(0, 100, 5)
-					.setValue(this.plugin.settings.eyelinePosition)
-					.setDynamicTooltip()
-					.onChange(async (value) => {
-						this.plugin.settings.eyelinePosition = value
-						await this.plugin.saveSettings()
-					})
-			)
-			.addExtraButton((button) =>
-				button
-					.setIcon('reset')
-					.setTooltip('Reset to default (50% - middle)')
-					.onClick(async () => {
-						this.plugin.settings.eyelinePosition = DEFAULT_SETTINGS.eyelinePosition
-						await this.plugin.saveSettings()
-						this.display()
-					})
-			)
-
-		// Auto Full-Screen
-		new Setting(containerEl)
-			.setName('Auto full-screen on play')
-			.setDesc('Automatically enter full-screen mode when starting playback')
-			.addToggle((toggle) =>
-				toggle
-					.setValue(this.plugin.settings.autoFullScreen)
-					.onChange(async (value) => {
-						this.plugin.settings.autoFullScreen = value
-						await this.plugin.saveSettings()
-					})
-			)
-
-		// Keep Awake
-		new Setting(containerEl)
-			.setName('Keep screen awake')
-			.setDesc('Prevent screen sleep by default when teleprompter is open')
-			.addToggle((toggle) =>
-				toggle
-					.setValue(this.plugin.settings.keepAwake)
-					.onChange(async (value) => {
-						this.plugin.settings.keepAwake = value
-						await this.plugin.saveSettings()
-					})
-			)
-
-		// Navigation Panel Settings
-		containerEl.createEl('h3', { text: 'Navigation & Minimap' })
-
-		// Show Minimap
-		new Setting(containerEl)
-			.setName('Show minimap')
-			.setDesc('Display document minimap on right side with headers and current position')
-			.addToggle((toggle) =>
-				toggle.setValue(this.plugin.settings.showMinimap).onChange(async (value) => {
-					this.plugin.settings.showMinimap = value
-					await this.plugin.saveSettings()
-				})
-			)
-
-		// Scroll Synchronization
-		new Setting(containerEl)
-			.setName('Enable scroll sync')
-			.setDesc('When teleprompter scrolls to a section, editor scrolls to match')
-			.addToggle((toggle) =>
-				toggle.setValue(this.plugin.settings.scrollSyncEnabled).onChange(async (value) => {
-					this.plugin.settings.scrollSyncEnabled = value
-					await this.plugin.saveSettings()
-				})
-			)
-
-		// Default Navigation Width
-		new Setting(containerEl)
-			.setName('Default navigation width')
-			.setDesc('Initial width of navigation panel in pixels (150-500)')
-			.addSlider((slider) =>
-				slider
-					.setLimits(150, 500, 10)
-					.setValue(this.plugin.settings.defaultNavigationWidth)
-					.setDynamicTooltip()
-					.onChange(async (value) => {
-						this.plugin.settings.defaultNavigationWidth = value
-						await this.plugin.saveSettings()
-					})
-			)
-			.addExtraButton((button) =>
-				button
-					.setIcon('reset')
-					.setTooltip('Reset to default (250px)')
-					.onClick(async () => {
-						this.plugin.settings.defaultNavigationWidth = DEFAULT_SETTINGS.defaultNavigationWidth
-						await this.plugin.saveSettings()
-						this.display()
-					})
-			)
-
-		// Remember Navigation State
-		new Setting(containerEl)
-			.setName('Remember navigation state')
-			.setDesc('Remember if navigation panel was open/closed between sessions')
-			.addToggle((toggle) =>
-				toggle
-					.setValue(this.plugin.settings.rememberNavigationState)
-					.onChange(async (value) => {
-						this.plugin.settings.rememberNavigationState = value
-						await this.plugin.saveSettings()
-					})
-			)
-
-		// Time Estimation Settings
-		containerEl.createEl('h3', { text: 'Time Estimation & Timer' })
-
-		// Show Time Estimation
-		new Setting(containerEl)
-			.setName('Show time estimation')
-			.setDesc('Display estimated remaining time based on scroll speed and speaking pace')
-			.addToggle((toggle) =>
-				toggle
-					.setValue(this.plugin.settings.showTimeEstimation)
-					.onChange(async (value) => {
-						this.plugin.settings.showTimeEstimation = value
-						await this.plugin.saveSettings()
-					})
-			)
-
-		// Show Elapsed Time
-		new Setting(containerEl)
-			.setName('Show elapsed time')
-			.setDesc('Display chronometer showing time since playback started')
-			.addToggle((toggle) =>
-				toggle
-					.setValue(this.plugin.settings.showElapsedTime)
-					.onChange(async (value) => {
-						this.plugin.settings.showElapsedTime = value
-						await this.plugin.saveSettings()
-					})
-			)
-
-		// Speaking Pace WPM
-		new Setting(containerEl)
-			.setName('Speaking pace (WPM)')
-			.setDesc('Words per minute for time estimation (100-250, typical: 150)')
-			.addSlider((slider) =>
-				slider
-					.setLimits(100, 250, 10)
-					.setValue(this.plugin.settings.speakingPaceWPM)
-					.setDynamicTooltip()
-					.onChange(async (value) => {
-						this.plugin.settings.speakingPaceWPM = value
-						await this.plugin.saveSettings()
-					})
-			)
-			.addExtraButton((button) =>
-				button
-					.setIcon('reset')
-					.setTooltip('Reset to default (150 WPM)')
-					.onClick(async () => {
-						this.plugin.settings.speakingPaceWPM = DEFAULT_SETTINGS.speakingPaceWPM
-						await this.plugin.saveSettings()
-						this.display()
-					})
-			)
-	}
-
-	private displayAdvancedTab(containerEl: HTMLElement): void {
-		containerEl.createEl('p', {
-			text: 'WebSocket server and developer settings',
-			cls: 'setting-item-description',
-		})
-
-		// Developer Settings Section
-		containerEl.createEl('h3', { text: 'Developer' })
-		containerEl.createEl('p', {
-			text: 'Debug and troubleshooting options',
-			cls: 'setting-item-description',
-		})
-
-		// Debug Mode
-		new Setting(containerEl)
-			.setName('Debug mode')
-			.setDesc('Enable verbose console logging for troubleshooting (requires reload)')
-			.addToggle((toggle) =>
-				toggle
-					.setValue(this.plugin.settings.debugMode)
-					.onChange(async (value) => {
-						this.plugin.settings.debugMode = value
-						await this.plugin.saveSettings()
-					})
-			)
-
-		// WebSocket Server Section
-		containerEl.createEl('h3', { text: 'WebSocket Server' })
-		containerEl.createEl('p', {
-			text: 'Configure the WebSocket server for external control (e.g., Stream Deck integration)',
-			cls: 'setting-item-description',
-		})
-
-		// Auto-start WebSocket
-		new Setting(containerEl)
-			.setName('Auto-start WebSocket server')
-			.setDesc('Automatically start the WebSocket server when Obsidian loads')
-			.addToggle((toggle) =>
-				toggle
-					.setValue(this.plugin.settings.autoStartWebSocket)
-					.onChange(async (value) => {
-						this.plugin.settings.autoStartWebSocket = value
-						await this.plugin.saveSettings()
-					})
-			)
-
-		// WebSocket Port
-		new Setting(containerEl)
-			.setName('WebSocket port')
-			.setDesc('Port number for the WebSocket server (requires restart)')
-			.addText((text) =>
-				text
-					.setPlaceholder('8765')
-					.setValue(this.plugin.settings.wsPort.toString())
-					.onChange(async (value) => {
-						const port = parseInt(value)
-						if (port >= 1024 && port <= 65535) {
-							this.plugin.settings.wsPort = port
+		// Playback Feature Group
+		this.createFeatureGroup(containerEl, 'playback', 'Playback', 'play', [
+			{
+				id: 'countdown',
+				name: 'Countdown Timer',
+				icon: 'timer',
+				hasToggle: true,
+				toggleValue: this.plugin.settings.defaultCountdown > 0,
+				settings: [
+					{
+						name: 'Default countdown duration',
+						desc: 'Seconds before auto-scroll starts (0-30)',
+						type: 'slider',
+						min: 0, max: 30, step: 1,
+						value: this.plugin.settings.defaultCountdown,
+						onChange: async (value: number) => {
+							this.plugin.settings.defaultCountdown = value
 							await this.plugin.saveSettings()
 						}
-					})
-			)
+					},
+					{
+						name: 'Auto-start playback',
+						desc: 'Start playing when teleprompter opens',
+						type: 'toggle',
+						value: this.plugin.settings.autoStartPlaying,
+						onChange: async (value: boolean) => {
+							this.plugin.settings.autoStartPlaying = value
+							await this.plugin.saveSettings()
+						}
+					}
+				]
+			},
+			{
+				id: 'speed',
+				name: 'Speed Control',
+				icon: 'gauge',
+				hasToggle: false,
+				settings: [
+					{
+						name: 'Default scroll speed',
+						desc: 'Initial speed (0.5-10)',
+						type: 'slider',
+						min: 0.5, max: 10, step: 0.5,
+						value: this.plugin.settings.defaultScrollSpeed,
+						onChange: async (value: number) => {
+							this.plugin.settings.defaultScrollSpeed = value
+							await this.plugin.saveSettings()
+						}
+					},
+					{
+						name: 'Speed increment',
+						desc: 'Amount per +/- press (0.1-2)',
+						type: 'slider',
+						min: 0.1, max: 2, step: 0.1,
+						value: this.plugin.settings.speedIncrement,
+						onChange: async (value: number) => {
+							this.plugin.settings.speedIncrement = value
+							await this.plugin.saveSettings()
+						}
+					}
+				]
+			}
+		])
 
-		// WebSocket Host
-		new Setting(containerEl)
-			.setName('WebSocket host')
-			.setDesc('Host address for the WebSocket server (127.0.0.1 recommended for security)')
-			.addText((text) =>
-				text
-					.setPlaceholder('127.0.0.1')
-					.setValue(this.plugin.settings.wsHost)
-					.onChange(async (value) => {
-						this.plugin.settings.wsHost = value
-						await this.plugin.saveSettings()
-					})
-			)
+		// Display Feature Group
+		this.createFeatureGroup(containerEl, 'display', 'Display', 'monitor', [
+			{
+				id: 'eyeline',
+				name: 'Eyeline Indicator',
+				icon: 'eye',
+				hasToggle: true,
+				toggleValue: this.plugin.settings.showEyeline,
+				onToggle: async (value: boolean) => {
+					this.plugin.settings.showEyeline = value
+					await this.plugin.saveSettings()
+				},
+				settings: [
+					{
+						name: 'Position',
+						desc: 'Vertical position (0-100%)',
+						type: 'slider',
+						min: 0, max: 100, step: 5,
+						value: this.plugin.settings.eyelinePosition,
+						onChange: async (value: number) => {
+							this.plugin.settings.eyelinePosition = value
+							await this.plugin.saveSettings()
+						}
+					}
+				]
+			},
+			{
+				id: 'focus-mode',
+				name: 'Focus Mode',
+				icon: 'focus',
+				hasToggle: true,
+				toggleValue: this.plugin.settings.focusMode,
+				onToggle: async (value: boolean) => {
+					this.plugin.settings.focusMode = value
+					await this.plugin.saveSettings()
+				},
+				settings: [
+					{
+						name: 'Dim Opacity',
+						desc: 'How much to dim text outside the focus area (0.1-0.5)',
+						type: 'slider',
+						min: 0.1, max: 0.5, step: 0.05,
+						value: this.plugin.settings.focusModeOpacity,
+						onChange: async (value: number) => {
+							this.plugin.settings.focusModeOpacity = value
+							await this.plugin.saveSettings()
+						}
+					},
+					{
+						name: 'Focus Range',
+						desc: 'Lines above/below eyeline to keep bright (1-10)',
+						type: 'slider',
+						min: 1, max: 10, step: 1,
+						value: this.plugin.settings.focusModeRange,
+						onChange: async (value: number) => {
+							this.plugin.settings.focusModeRange = value
+							await this.plugin.saveSettings()
+						}
+					}
+				]
+			},
+			{
+				id: 'minimap',
+				name: 'Minimap',
+				icon: 'map',
+				hasToggle: true,
+				toggleValue: this.plugin.settings.showMinimap,
+				onToggle: async (value: boolean) => {
+					this.plugin.settings.showMinimap = value
+					await this.plugin.saveSettings()
+				},
+				settings: []
+			},
+			{
+				id: 'fullscreen',
+				name: 'Fullscreen',
+				icon: 'maximize',
+				hasToggle: true,
+				toggleValue: this.plugin.settings.autoFullScreen,
+				onToggle: async (value: boolean) => {
+					this.plugin.settings.autoFullScreen = value
+					await this.plugin.saveSettings()
+				},
+				settings: []
+			},
+			{
+				id: 'time',
+				name: 'Time Display',
+				icon: 'clock',
+				hasToggle: true,
+				toggleValue: this.plugin.settings.showTimeEstimation,
+				onToggle: async (value: boolean) => {
+					this.plugin.settings.showTimeEstimation = value
+					await this.plugin.saveSettings()
+				},
+				settings: [
+					{
+						name: 'Show elapsed time',
+						desc: 'Display chronometer since playback started',
+						type: 'toggle',
+						value: this.plugin.settings.showElapsedTime,
+						onChange: async (value: boolean) => {
+							this.plugin.settings.showElapsedTime = value
+							await this.plugin.saveSettings()
+						}
+					},
+					{
+						name: 'Display style',
+						desc: 'Compact: click to toggle. Full: show both times',
+						type: 'dropdown',
+						options: [
+							{ value: 'compact', label: 'Compact (toggle)' },
+							{ value: 'full', label: 'Full (both times)' }
+						],
+						value: this.plugin.settings.timeDisplayStyle,
+						onChange: async (value: string) => {
+							this.plugin.settings.timeDisplayStyle = value as 'compact' | 'full'
+							await this.plugin.saveSettings()
+						}
+					},
+					{
+						name: 'Speaking pace (WPM)',
+						desc: 'Words per minute for estimation (100-250)',
+						type: 'slider',
+						min: 100, max: 250, step: 10,
+						value: this.plugin.settings.speakingPaceWPM,
+						onChange: async (value: number) => {
+							this.plugin.settings.speakingPaceWPM = value
+							await this.plugin.saveSettings()
+						}
+					}
+				]
+			}
+		])
 
-		// Connection Notifications
-		new Setting(containerEl)
-			.setName('Show connection notifications')
-			.setDesc('Display notifications when WebSocket server starts/stops and when clients connect')
-			.addToggle((toggle) =>
-				toggle
-					.setValue(this.plugin.settings.showConnectionNotifications)
-					.onChange(async (value) => {
-						this.plugin.settings.showConnectionNotifications = value
-						await this.plugin.saveSettings()
-					})
-			)
+		// Typography Feature Group
+		this.createFeatureGroup(containerEl, 'typography', 'Typography', 'type', [
+			{
+				id: 'font-size',
+				name: 'Font Size',
+				icon: 'text',
+				hasToggle: false,
+				settings: [
+					{
+						name: 'Default font size',
+						desc: 'Text size in pixels (12-72)',
+						type: 'slider',
+						min: 12, max: 72, step: 1,
+						value: this.plugin.settings.fontSize,
+						onChange: async (value: number) => {
+							this.plugin.settings.fontSize = value
+							await this.plugin.saveSettings()
+							this.plugin.updateFontSize(value)
+						}
+					}
+				]
+			},
+			{
+				id: 'line-height',
+				name: 'Line Height',
+				icon: 'space',
+				hasToggle: false,
+				settings: [
+					{
+						name: 'Line spacing',
+						desc: 'Space between lines (1.0-3.0x)',
+						type: 'slider',
+						min: 1.0, max: 3.0, step: 0.1,
+						value: this.plugin.settings.lineHeight,
+						onChange: async (value: number) => {
+							this.plugin.settings.lineHeight = value
+							await this.plugin.saveSettings()
+						}
+					}
+				]
+			},
+			{
+				id: 'font-family',
+				name: 'Font Family',
+				icon: 'font',
+				hasToggle: false,
+				settings: [
+					{
+						name: 'Font',
+						desc: 'Choose a font family',
+						type: 'dropdown',
+						options: [
+							{ value: 'inherit', label: 'System Default' },
+							{ value: 'Arial, "Helvetica Neue", Helvetica, sans-serif', label: 'Arial' },
+							{ value: '"Courier New", Courier, Monaco, "Lucida Console", monospace', label: 'Courier New' },
+							{ value: 'Georgia, "Times New Roman", Times, serif', label: 'Georgia' },
+							{ value: 'Helvetica, "Helvetica Neue", Arial, sans-serif', label: 'Helvetica' },
+							{ value: 'Roboto, "Segoe UI", Arial, sans-serif', label: 'Roboto' },
+							{ value: 'Tahoma, "Segoe UI", Geneva, sans-serif', label: 'Tahoma' },
+							{ value: '"Times New Roman", Times, Georgia, serif', label: 'Times New Roman' },
+							{ value: '"Trebuchet MS", "Lucida Grande", "Lucida Sans Unicode", sans-serif', label: 'Trebuchet MS' },
+							{ value: 'Verdana, Geneva, Tahoma, sans-serif', label: 'Verdana' }
+						],
+						value: this.plugin.settings.fontFamily,
+						onChange: async (value: string) => {
+							this.plugin.settings.fontFamily = value
+							await this.plugin.saveSettings()
+						}
+					}
+				]
+			}
+		])
 
-		// Server Status Display
-		const statusSetting = new Setting(containerEl)
-			.setName('Server status')
-			.setDesc('Current WebSocket server status')
+		// Colors Feature Group
+		this.createFeatureGroup(containerEl, 'colors', 'Colors & Opacity', 'palette', [
+			{
+				id: 'colors',
+				name: 'Color Scheme',
+				icon: 'droplet',
+				hasToggle: false,
+				settings: [
+					{
+						name: 'Text color',
+						desc: 'Color for body text',
+						type: 'color',
+						value: this.plugin.settings.textColor,
+						onChange: async (value: string) => {
+							this.plugin.settings.textColor = value
+							await this.plugin.saveSettings()
+						}
+					},
+					{
+						name: 'Background color',
+						desc: 'Background color for content',
+						type: 'color',
+						value: this.plugin.settings.backgroundColor,
+						onChange: async (value: string) => {
+							this.plugin.settings.backgroundColor = value
+							await this.plugin.saveSettings()
+						}
+					}
+				]
+			},
+			{
+				id: 'transparency',
+				name: 'Transparency',
+				icon: 'layers',
+				hasToggle: true,
+				toggleValue: this.plugin.settings.enableBackgroundTransparency,
+				onToggle: async (value: boolean) => {
+					this.plugin.settings.enableBackgroundTransparency = value
+					await this.plugin.saveSettings()
+					this.plugin.applyAllSettings()
+				},
+				settings: [
+					{
+						name: 'Background opacity',
+						desc: 'Opacity level (0-100%)',
+						type: 'slider',
+						min: 0, max: 100, step: 5,
+						value: this.plugin.settings.backgroundOpacity,
+						onChange: async (value: number) => {
+							this.plugin.settings.backgroundOpacity = value
+							await this.plugin.saveSettings()
+							this.plugin.applyAllSettings()
+						}
+					}
+				]
+			}
+		])
 
-		const statusEl = statusSetting.descEl.createEl('div', {
-			cls: 'teleprompter-status',
+		// Layout Feature Group
+		this.createFeatureGroup(containerEl, 'layout', 'Layout', 'layout', [
+			{
+				id: 'padding',
+				name: 'Padding',
+				icon: 'square',
+				hasToggle: false,
+				settings: [
+					{
+						name: 'Vertical padding',
+						desc: 'Space above/below content (0-100px)',
+						type: 'slider',
+						min: 0, max: 100, step: 5,
+						value: this.plugin.settings.paddingVertical,
+						onChange: async (value: number) => {
+							this.plugin.settings.paddingVertical = value
+							await this.plugin.saveSettings()
+						}
+					},
+					{
+						name: 'Horizontal padding',
+						desc: 'Space on left/right sides (0-200px)',
+						type: 'slider',
+						min: 0, max: 200, step: 10,
+						value: this.plugin.settings.paddingHorizontal,
+						onChange: async (value: number) => {
+							this.plugin.settings.paddingHorizontal = value
+							await this.plugin.saveSettings()
+						}
+					}
+				]
+			},
+			{
+				id: 'flip',
+				name: 'Mirror/Flip',
+				icon: 'flip-horizontal',
+				hasToggle: false,
+				settings: [
+					{
+						name: 'Horizontal flip',
+						desc: 'Mirror text left-to-right',
+						type: 'toggle',
+						value: this.plugin.settings.flipHorizontal,
+						onChange: async (value: boolean) => {
+							this.plugin.settings.flipHorizontal = value
+							await this.plugin.saveSettings()
+						}
+					},
+					{
+						name: 'Vertical flip',
+						desc: 'Flip text upside-down',
+						type: 'toggle',
+						value: this.plugin.settings.flipVertical,
+						onChange: async (value: boolean) => {
+							this.plugin.settings.flipVertical = value
+							await this.plugin.saveSettings()
+						}
+					}
+				]
+			}
+		])
+
+		// Advanced Feature Group
+		this.createFeatureGroup(containerEl, 'advanced', 'Advanced', 'settings', [
+			{
+				id: 'keep-awake',
+				name: 'Keep Awake',
+				icon: 'sun',
+				hasToggle: true,
+				toggleValue: this.plugin.settings.keepAwake,
+				onToggle: async (value: boolean) => {
+					this.plugin.settings.keepAwake = value
+					await this.plugin.saveSettings()
+				},
+				settings: []
+			},
+			{
+				id: 'double-click',
+				name: 'Double-Click to Edit',
+				icon: 'mouse-pointer-click',
+				hasToggle: true,
+				toggleValue: this.plugin.settings.doubleClickToEdit,
+				onToggle: async (value: boolean) => {
+					this.plugin.settings.doubleClickToEdit = value
+					await this.plugin.saveSettings()
+				},
+				settings: []
+			},
+			{
+				id: 'auto-pause',
+				name: 'Auto-Pause on Edit',
+				icon: 'pause-circle',
+				hasToggle: true,
+				toggleValue: this.plugin.settings.autoPauseOnEdit,
+				onToggle: async (value: boolean) => {
+					this.plugin.settings.autoPauseOnEdit = value
+					await this.plugin.saveSettings()
+					// Dispatch event to notify teleprompter component
+					document.dispatchEvent(new CustomEvent('teleprompter:auto-pause-changed', { detail: { enabled: value } }))
+				},
+				settings: []
+			},
+			{
+				id: 'scroll-sync',
+				name: 'Scroll Sync',
+				icon: 'link',
+				hasToggle: true,
+				toggleValue: this.plugin.settings.scrollSyncEnabled,
+				onToggle: async (value: boolean) => {
+					this.plugin.settings.scrollSyncEnabled = value
+					await this.plugin.saveSettings()
+				},
+				settings: []
+			},
+			{
+				id: 'debug',
+				name: 'Debug Mode',
+				icon: 'bug',
+				hasToggle: true,
+				toggleValue: this.plugin.settings.debugMode,
+				onToggle: async (value: boolean) => {
+					this.plugin.settings.debugMode = value
+					await this.plugin.saveSettings()
+				},
+				settings: []
+			}
+		])
+
+		// Voice Tracking Feature Group
+		this.createFeatureGroup(containerEl, 'voice', 'Voice Tracking', 'mic', [
+			{
+				id: 'voice-tracking',
+				name: 'Voice-Activated Scrolling',
+				icon: 'mic',
+				hasToggle: true,
+				toggleValue: this.plugin.settings.voiceTrackingEnabled,
+				onToggle: async (value: boolean) => {
+					this.plugin.settings.voiceTrackingEnabled = value
+					await this.plugin.saveSettings()
+				},
+				settings: [
+					{
+						name: 'Language',
+						desc: 'Speech recognition language',
+						type: 'dropdown',
+						options: [
+							{ value: 'en-US', label: 'English (US)' }
+						],
+						value: this.plugin.settings.voiceTrackingLanguage,
+						onChange: async (value: string) => {
+							this.plugin.settings.voiceTrackingLanguage = value
+							await this.plugin.saveSettings()
+						}
+					},
+					{
+						name: 'Scroll behavior',
+						desc: 'How the teleprompter scrolls to match speech',
+						type: 'dropdown',
+						options: [
+							{ value: 'smooth', label: 'Smooth' },
+							{ value: 'instant', label: 'Instant' }
+						],
+						value: this.plugin.settings.voiceTrackingScrollBehavior,
+						onChange: async (value: string) => {
+							this.plugin.settings.voiceTrackingScrollBehavior = value as 'smooth' | 'instant'
+							await this.plugin.saveSettings()
+						}
+					},
+					{
+						name: 'Confidence threshold',
+						desc: 'Minimum match confidence (0.3-0.9)',
+						type: 'slider',
+						min: 0.3, max: 0.9, step: 0.1,
+						value: this.plugin.settings.voiceTrackingConfidenceThreshold,
+						onChange: async (value: number) => {
+							this.plugin.settings.voiceTrackingConfidenceThreshold = value
+							await this.plugin.saveSettings()
+						}
+					},
+					{
+						name: 'Show status indicator',
+						desc: 'Display recognized text overlay',
+						type: 'toggle',
+						value: this.plugin.settings.voiceTrackingShowIndicator,
+						onChange: async (value: boolean) => {
+							this.plugin.settings.voiceTrackingShowIndicator = value
+							await this.plugin.saveSettings()
+						}
+					}
+				]
+			},
+			{
+				id: 'voice-tuning',
+				name: 'Scroll Tuning',
+				icon: 'sliders-horizontal',
+				hasToggle: false,
+				settings: [
+					{
+						name: 'Max jump distance',
+						desc: 'Maximum words to scroll at once (smaller = smoother, 2-30)',
+						type: 'slider',
+						min: 2, max: 30, step: 1,
+						value: this.plugin.settings.voiceTrackingMaxJumpDistance,
+						onChange: async (value: number) => {
+							this.plugin.settings.voiceTrackingMaxJumpDistance = value
+							await this.plugin.saveSettings()
+						}
+					},
+					{
+						name: 'Min jump distance',
+						desc: 'Minimum words before scrolling (smaller = more frequent, 1-10)',
+						type: 'slider',
+						min: 1, max: 10, step: 1,
+						value: this.plugin.settings.voiceTrackingMinJumpDistance,
+						onChange: async (value: number) => {
+							this.plugin.settings.voiceTrackingMinJumpDistance = value
+							await this.plugin.saveSettings()
+						}
+					},
+					{
+						name: 'Update frequency',
+						desc: 'How often to match speech (lower = more responsive, 100-1000ms)',
+						type: 'slider',
+						min: 100, max: 1000, step: 50,
+						value: this.plugin.settings.voiceTrackingUpdateFrequencyMs,
+						onChange: async (value: number) => {
+							this.plugin.settings.voiceTrackingUpdateFrequencyMs = value
+							await this.plugin.saveSettings()
+						}
+					},
+					{
+						name: 'Animation base time',
+						desc: 'Base scroll animation duration (higher = smoother, 100-1500ms)',
+						type: 'slider',
+						min: 100, max: 1500, step: 50,
+						value: this.plugin.settings.voiceTrackingAnimationBaseMs,
+						onChange: async (value: number) => {
+							this.plugin.settings.voiceTrackingAnimationBaseMs = value
+							await this.plugin.saveSettings()
+						}
+					},
+					{
+						name: 'Animation per word',
+						desc: 'Extra time per word jumped (higher = smoother for big jumps, 10-200ms)',
+						type: 'slider',
+						min: 10, max: 200, step: 10,
+						value: this.plugin.settings.voiceTrackingAnimationPerWordMs,
+						onChange: async (value: number) => {
+							this.plugin.settings.voiceTrackingAnimationPerWordMs = value
+							await this.plugin.saveSettings()
+						}
+					}
+				]
+			},
+			{
+				id: 'voice-pause',
+				name: 'Pause Detection',
+				icon: 'pause-circle',
+				hasToggle: true,
+				toggleValue: this.plugin.settings.voiceTrackingPauseDetection,
+				onToggle: async (value: boolean) => {
+					this.plugin.settings.voiceTrackingPauseDetection = value
+					await this.plugin.saveSettings()
+				},
+				settings: [
+					{
+						name: 'Pause threshold',
+						desc: 'Time without speech before pausing scroll (500-3000ms)',
+						type: 'slider',
+						min: 500, max: 3000, step: 100,
+						value: this.plugin.settings.voiceTrackingPauseThresholdMs,
+						onChange: async (value: number) => {
+							this.plugin.settings.voiceTrackingPauseThresholdMs = value
+							await this.plugin.saveSettings()
+						}
+					}
+				]
+			},
+			{
+				id: 'voice-scroll-position',
+				name: 'Scroll Position',
+				icon: 'move-vertical',
+				hasToggle: false,
+				settings: [
+					{
+						name: 'Current word position',
+						desc: 'Where current word appears on screen (10% = near top with more text below, 50% = middle)',
+						type: 'slider',
+						min: 10, max: 60, step: 5,
+						value: this.plugin.settings.voiceTrackingScrollPosition,
+						onChange: async (value: number) => {
+							this.plugin.settings.voiceTrackingScrollPosition = value
+							await this.plugin.saveSettings()
+						}
+					}
+				]
+			}
+		])
+	}
+
+	// Helper to create feature groups with collapsible cards
+	private createFeatureGroup(
+		containerEl: HTMLElement,
+		groupId: string,
+		title: string,
+		icon: string,
+		features: Array<{
+			id: string
+			name: string
+			icon: string
+			hasToggle: boolean
+			toggleValue?: boolean
+			onToggle?: (value: boolean) => void
+			settings: Array<{
+				name: string
+				desc: string
+				type: 'slider' | 'toggle' | 'text' | 'color' | 'dropdown'
+				min?: number
+				max?: number
+				step?: number
+				value: any
+				options?: Array<{ value: string; label: string }>
+				onChange: (value: any) => void
+			}>
+		}>
+	): void {
+		const isExpanded = this.plugin.settings.settingsUI.expandedCards.includes(groupId)
+
+		const group = containerEl.createDiv(`tp-feature-group ${isExpanded ? '' : 'collapsed'}`)
+
+		// Group header
+		const groupHeader = group.createDiv('tp-feature-group-header')
+		const chevron = groupHeader.createDiv('tp-feature-group-chevron')
+		setIcon(chevron, 'chevron-down')
+		groupHeader.createSpan({ text: title, cls: 'tp-feature-group-title' })
+
+		groupHeader.addEventListener('click', async () => {
+			if (isExpanded) {
+				this.plugin.settings.settingsUI.expandedCards =
+					this.plugin.settings.settingsUI.expandedCards.filter(id => id !== groupId)
+			} else {
+				this.plugin.settings.settingsUI.expandedCards.push(groupId)
+			}
+			await this.plugin.saveSettings()
+			this.display()
 		})
 
-		this.updateServerStatus(statusEl)
+		// Group content
+		const groupContent = group.createDiv('tp-feature-group-content')
 
-		// Clean up previous interval if exists
+		features.forEach(feature => {
+			const card = groupContent.createDiv('tp-feature-card')
+
+			// Card header
+			const cardHeader = card.createDiv('tp-feature-card-header')
+			const cardLeft = cardHeader.createDiv('tp-feature-card-left')
+			const cardIcon = cardLeft.createDiv('tp-feature-card-icon')
+			setIcon(cardIcon, feature.icon)
+			cardLeft.createSpan({ text: feature.name, cls: 'tp-feature-card-name' })
+
+			// Master toggle if applicable
+			if (feature.hasToggle) {
+				const toggleContainer = cardHeader.createDiv('tp-feature-card-toggle')
+				new Setting(toggleContainer)
+					.addToggle(t => t
+						.setValue(feature.toggleValue ?? false)
+						.onChange(async (value) => {
+							if (feature.onToggle) {
+								feature.onToggle(value)
+							}
+						})
+					)
+					.settingEl.style.border = 'none'
+			}
+
+			// Card content (sub-settings)
+			if (feature.settings.length > 0) {
+				const cardContent = card.createDiv('tp-feature-card-content')
+
+				// Click header to expand
+				cardHeader.addEventListener('click', (e) => {
+					if (!(e.target as HTMLElement).closest('.checkbox-container')) {
+						card.classList.toggle('expanded')
+					}
+				})
+
+				feature.settings.forEach(setting => {
+					const settingEl = cardContent.createDiv('tp-feature-setting')
+					const settingInfo = settingEl.createDiv('tp-feature-setting-info')
+					settingInfo.createDiv({ text: setting.name, cls: 'tp-feature-setting-name' })
+					settingInfo.createDiv({ text: setting.desc, cls: 'tp-feature-setting-desc' })
+
+					const settingControl = settingEl.createDiv('tp-feature-setting-control')
+
+					switch (setting.type) {
+						case 'slider':
+							// Create value display element
+							const valueDisplay = settingControl.createSpan({
+								text: String(setting.value),
+								cls: 'tp-slider-value'
+							})
+							valueDisplay.style.minWidth = '45px'
+							valueDisplay.style.textAlign = 'right'
+							valueDisplay.style.marginRight = '8px'
+							valueDisplay.style.fontFamily = 'var(--font-monospace)'
+							valueDisplay.style.fontSize = '12px'
+							valueDisplay.style.opacity = '0.8'
+
+							// Add unit suffix for specific settings
+							const unit = setting.name.includes('time') || setting.name.includes('frequency') ? 'ms' : ''
+							valueDisplay.textContent = setting.value + unit
+
+							new Setting(settingControl)
+								.addSlider(s => s
+									.setLimits(setting.min!, setting.max!, setting.step!)
+									.setValue(setting.value)
+									.setDynamicTooltip()
+									.onChange((value) => {
+										valueDisplay.textContent = value + unit
+										setting.onChange(value)
+									})
+								)
+								.settingEl.style.border = 'none'
+							break
+						case 'toggle':
+							new Setting(settingControl)
+								.addToggle(t => t
+									.setValue(setting.value)
+									.onChange(setting.onChange)
+								)
+								.settingEl.style.border = 'none'
+							break
+						case 'color':
+							const colorInput = settingControl.createEl('input', {
+								type: 'color',
+								value: setting.value
+							})
+							colorInput.style.width = '50px'
+							colorInput.style.height = '30px'
+							colorInput.style.borderRadius = '4px'
+							colorInput.style.cursor = 'pointer'
+							colorInput.addEventListener('input', (e) => {
+								setting.onChange((e.target as HTMLInputElement).value)
+							})
+							break
+						case 'dropdown':
+							new Setting(settingControl)
+								.addDropdown(d => {
+									setting.options?.forEach(opt => {
+										d.addOption(opt.value, opt.label)
+									})
+									d.setValue(setting.value)
+									d.onChange(setting.onChange)
+								})
+								.settingEl.style.border = 'none'
+							break
+					}
+				})
+			}
+		})
+	}
+
+	// ========================================
+	// Profiles Tab - Save/load configurations
+	// ========================================
+	private displayProfilesTab(containerEl: HTMLElement): void {
+		containerEl.createEl('p', {
+			text: 'Save and manage complete configuration profiles',
+			cls: 'setting-item-description',
+		})
+
+		// Built-in profiles section
+		const builtInSection = containerEl.createDiv('tp-section-header')
+		const builtInIcon = builtInSection.createDiv('tp-section-header-icon')
+		setIcon(builtInIcon, 'bookmark')
+		builtInSection.createSpan({ text: 'Built-in Profiles', cls: 'tp-section-header-title' })
+
+		const builtInList = containerEl.createDiv('tp-profiles-list')
+
+		BUILT_IN_PROFILES.forEach(profile => {
+			const isActive = this.plugin.settings.profiles.active === profile.id
+			const profileEl = builtInList.createDiv(`tp-profile-item ${isActive ? 'active' : ''}`)
+
+			const profileIcon = profileEl.createDiv('tp-profile-icon')
+			setIcon(profileIcon, profile.icon)
+
+			const profileInfo = profileEl.createDiv('tp-profile-info')
+			profileInfo.createDiv({ text: profile.name, cls: 'tp-profile-name' })
+			profileInfo.createDiv({ text: profile.description, cls: 'tp-profile-desc' })
+
+			if (isActive) {
+				profileEl.createDiv({ text: 'ACTIVE', cls: 'tp-profile-badge' })
+			}
+
+			const actions = profileEl.createDiv('tp-profile-actions')
+			const applyBtn = actions.createEl('button', { cls: 'tp-profile-action' })
+			setIcon(applyBtn, 'check')
+			applyBtn.title = 'Apply profile'
+			applyBtn.addEventListener('click', async () => {
+				Object.assign(this.plugin.settings, profile.settings)
+				this.plugin.settings.profiles.active = profile.id
+				await this.plugin.saveSettings()
+				this.plugin.applyAllSettings()
+				new Notice(`Applied "${profile.name}" profile`)
+				this.display()
+			})
+		})
+
+		// Custom profiles section
+		const customSection = containerEl.createDiv('tp-section-header')
+		const customIcon = customSection.createDiv('tp-section-header-icon')
+		setIcon(customIcon, 'folder')
+		customSection.createSpan({ text: 'Custom Profiles', cls: 'tp-section-header-title' })
+
+		const customList = containerEl.createDiv('tp-profiles-list')
+
+		if (this.plugin.settings.profiles.custom.length === 0) {
+			const emptyState = customList.createDiv('tp-empty-state')
+			const emptyIcon = emptyState.createDiv('tp-empty-state-icon')
+			setIcon(emptyIcon, 'folder-plus')
+			emptyState.createDiv({ text: 'No custom profiles yet', cls: 'tp-empty-state-title' })
+			emptyState.createDiv({ text: 'Save your current settings as a profile', cls: 'tp-empty-state-desc' })
+		} else {
+			this.plugin.settings.profiles.custom.forEach(profile => {
+				const isActive = this.plugin.settings.profiles.active === profile.id
+				const profileEl = customList.createDiv(`tp-profile-item ${isActive ? 'active' : ''}`)
+
+				const profileIcon = profileEl.createDiv('tp-profile-icon')
+				setIcon(profileIcon, profile.icon)
+
+				const profileInfo = profileEl.createDiv('tp-profile-info')
+				profileInfo.createDiv({ text: profile.name, cls: 'tp-profile-name' })
+				profileInfo.createDiv({ text: profile.description || 'Custom profile', cls: 'tp-profile-desc' })
+
+				if (isActive) {
+					profileEl.createDiv({ text: 'ACTIVE', cls: 'tp-profile-badge' })
+				}
+
+				const actions = profileEl.createDiv('tp-profile-actions')
+
+				// Apply button
+				const applyBtn = actions.createEl('button', { cls: 'tp-profile-action' })
+				setIcon(applyBtn, 'check')
+				applyBtn.title = 'Apply profile'
+				applyBtn.addEventListener('click', async () => {
+					Object.assign(this.plugin.settings, profile.settings)
+					this.plugin.settings.profiles.active = profile.id
+					await this.plugin.saveSettings()
+					this.plugin.applyAllSettings()
+					new Notice(`Applied "${profile.name}" profile`)
+					this.display()
+				})
+
+				// Delete button
+				const deleteBtn = actions.createEl('button', { cls: 'tp-profile-action danger' })
+				setIcon(deleteBtn, 'trash-2')
+				deleteBtn.title = 'Delete profile'
+				deleteBtn.addEventListener('click', async () => {
+					if (confirm(`Delete profile "${profile.name}"?`)) {
+						this.plugin.settings.profiles.custom =
+							this.plugin.settings.profiles.custom.filter(p => p.id !== profile.id)
+						if (this.plugin.settings.profiles.active === profile.id) {
+							this.plugin.settings.profiles.active = 'professional'
+						}
+						await this.plugin.saveSettings()
+						new Notice('Profile deleted')
+						this.display()
+					}
+				})
+			})
+		}
+
+		// Actions
+		const actionsContainer = containerEl.createDiv()
+		actionsContainer.style.display = 'flex'
+		actionsContainer.style.gap = '0.75rem'
+		actionsContainer.style.marginTop = '1rem'
+
+		// Save current as new profile
+		const saveBtn = actionsContainer.createEl('button', { cls: 'tp-btn tp-btn-primary' })
+		const saveBtnIcon = saveBtn.createDiv('tp-btn-icon')
+		setIcon(saveBtnIcon, 'plus')
+		saveBtn.createSpan({ text: 'Save Current as Profile' })
+		saveBtn.addEventListener('click', async () => {
+			const name = prompt('Enter profile name:')
+			if (!name) return
+
+			const newProfile: Profile = {
+				id: `custom-${Date.now()}`,
+				name,
+				icon: 'user',
+				description: 'Custom profile',
+				settings: { ...this.plugin.settings },
+				createdAt: Date.now(),
+				isBuiltIn: false
+			}
+			// Remove circular references
+			delete (newProfile.settings as any).profiles
+			delete (newProfile.settings as any).settingsUI
+			delete (newProfile.settings as any).toolbarLayout
+
+			this.plugin.settings.profiles.custom.push(newProfile)
+			await this.plugin.saveSettings()
+			new Notice(`Profile "${name}" saved`)
+			this.display()
+		})
+
+		// Import profile
+		const importBtn = actionsContainer.createEl('button', { cls: 'tp-btn' })
+		const importBtnIcon = importBtn.createDiv('tp-btn-icon')
+		setIcon(importBtnIcon, 'upload')
+		importBtn.createSpan({ text: 'Import Profile' })
+		importBtn.addEventListener('click', () => {
+			const input = document.createElement('input')
+			input.type = 'file'
+			input.accept = '.json'
+			input.onchange = async (e) => {
+				const file = (e.target as HTMLInputElement).files?.[0]
+				if (!file) return
+				const reader = new FileReader()
+				reader.onload = async (event) => {
+					try {
+						const imported = JSON.parse(event.target?.result as string)
+						if (imported.name && imported.settings) {
+							imported.id = `custom-${Date.now()}`
+							imported.createdAt = Date.now()
+							imported.isBuiltIn = false
+							this.plugin.settings.profiles.custom.push(imported)
+							await this.plugin.saveSettings()
+							new Notice(`Profile "${imported.name}" imported`)
+							this.display()
+						} else {
+							new Notice('Invalid profile file')
+						}
+					} catch {
+						new Notice('Failed to import profile')
+					}
+				}
+				reader.readAsText(file)
+			}
+			input.click()
+		})
+	}
+
+	// ========================================
+	// Connection Tab - WebSocket settings
+	// ========================================
+	private displayConnectionTab(containerEl: HTMLElement): void {
+		containerEl.createEl('p', {
+			text: 'Configure WebSocket server for Stream Deck and external control',
+			cls: 'setting-item-description',
+		})
+
+		// Connection status
+		const wsInfo = this.plugin.getWebSocketInfo()
+		const statusEl = containerEl.createDiv('tp-connection-status')
+
+		const indicator = statusEl.createDiv(`tp-connection-indicator ${wsInfo.running ? 'connected' : 'disconnected'}`)
+
+		const statusInfo = statusEl.createDiv('tp-connection-info')
+		statusInfo.createDiv({
+			text: wsInfo.running ? 'Server Running' : 'Server Stopped',
+			cls: 'tp-connection-title'
+		})
+		statusInfo.createDiv({
+			text: wsInfo.running
+				? `ws://${wsInfo.host}:${wsInfo.port} • ${wsInfo.clientCount} client(s)`
+				: 'Not accepting connections',
+			cls: 'tp-connection-detail'
+		})
+
+		// Control buttons
+		const controlBtn = statusEl.createEl('button', {
+			cls: 'tp-btn tp-btn-primary',
+			text: wsInfo.running ? 'Restart' : 'Start'
+		})
+		controlBtn.addEventListener('click', async () => {
+			controlBtn.disabled = true
+			controlBtn.textContent = 'Restarting...'
+			await this.plugin.restartWebSocketServer()
+			this.display()
+		})
+
+		// Auto-refresh status
 		if (this.statusInterval) {
 			clearInterval(this.statusInterval)
 		}
-
-		// Refresh status every 2 seconds
 		this.statusInterval = setInterval(() => {
-			this.updateServerStatus(statusEl)
+			const newInfo = this.plugin.getWebSocketInfo()
+			indicator.className = `tp-connection-indicator ${newInfo.running ? 'connected' : 'disconnected'}`
 		}, 2000)
 
-		// Manual control buttons
+		// Server Settings
+		const serverSection = containerEl.createDiv('tp-section-header')
+		const serverIcon = serverSection.createDiv('tp-section-header-icon')
+		setIcon(serverIcon, 'server')
+		serverSection.createSpan({ text: 'Server Settings', cls: 'tp-section-header-title' })
+
 		new Setting(containerEl)
-			.setName('Manual control')
-			.setDesc('Manually start or stop the WebSocket server')
-			.addButton((button) =>
-				button.setButtonText('Restart server').onClick(async () => {
-					button.setDisabled(true)
-					button.setButtonText('Restarting...')
-					await this.plugin.restartWebSocketServer()
-					button.setButtonText('Restart server')
-					button.setDisabled(false)
-					this.updateServerStatus(statusEl)
+			.setName('Auto-start server')
+			.setDesc('Start WebSocket server when Obsidian loads')
+			.addToggle(t => t
+				.setValue(this.plugin.settings.autoStartWebSocket)
+				.onChange(async (value) => {
+					this.plugin.settings.autoStartWebSocket = value
+					await this.plugin.saveSettings()
 				})
 			)
+
+		new Setting(containerEl)
+			.setName('Port')
+			.setDesc('WebSocket server port (requires restart)')
+			.addText(t => t
+				.setPlaceholder('8765')
+				.setValue(this.plugin.settings.wsPort.toString())
+				.onChange(async (value) => {
+					const port = parseInt(value)
+					if (port >= 1024 && port <= 65535) {
+						this.plugin.settings.wsPort = port
+						await this.plugin.saveSettings()
+					}
+				})
+			)
+
+		new Setting(containerEl)
+			.setName('Host')
+			.setDesc('Server host address (127.0.0.1 recommended for security)')
+			.addText(t => t
+				.setPlaceholder('127.0.0.1')
+				.setValue(this.plugin.settings.wsHost)
+				.onChange(async (value) => {
+					// Validate host - only allow valid IP addresses or localhost
+					const hostPattern = /^(127\.0\.0\.1|localhost|0\.0\.0\.0|\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})$/
+					if (hostPattern.test(value.trim())) {
+						this.plugin.settings.wsHost = value.trim()
+						await this.plugin.saveSettings()
+						// Warn if not localhost
+						if (value !== '127.0.0.1' && value !== 'localhost') {
+							new Notice('Warning: Non-localhost binding exposes the server to the network.')
+						}
+					}
+				})
+			)
+
+		new Setting(containerEl)
+			.setName('Connection notifications')
+			.setDesc('Show notifications when clients connect/disconnect')
+			.addToggle(t => t
+				.setValue(this.plugin.settings.showConnectionNotifications)
+				.onChange(async (value) => {
+					this.plugin.settings.showConnectionNotifications = value
+					await this.plugin.saveSettings()
+				})
+			)
+
+		// Network Broadcast Section
+		const broadcastSection = containerEl.createDiv('tp-section-header')
+		const broadcastIcon = broadcastSection.createDiv('tp-section-header-icon')
+		setIcon(broadcastIcon, 'radio')
+		broadcastSection.createSpan({ text: 'Network Broadcast (Multi-Device Sync)', cls: 'tp-section-header-title' })
+
+		new Setting(containerEl)
+			.setName('Enable network broadcast')
+			.setDesc('Broadcast scroll position to connected devices for multi-device sync. Other devices can follow this teleprompter.')
+			.addToggle(t => t
+				.setValue(this.plugin.settings.networkBroadcastEnabled)
+				.onChange(async (value) => {
+					this.plugin.settings.networkBroadcastEnabled = value
+					await this.plugin.saveSettings()
+				})
+			)
+
+		new Setting(containerEl)
+			.setName('Broadcast interval (ms)')
+			.setDesc('How often to broadcast scroll position during playback. Lower = smoother sync but more network traffic. (50-500ms)')
+			.addSlider(s => s
+				.setLimits(50, 500, 50)
+				.setValue(this.plugin.settings.networkBroadcastInterval)
+				.setDynamicTooltip()
+				.onChange(async (value) => {
+					this.plugin.settings.networkBroadcastInterval = value
+					await this.plugin.saveSettings()
+				})
+			)
+
+		const broadcastInfo = containerEl.createDiv()
+		broadcastInfo.createEl('p', {
+			text: 'When enabled, this teleprompter becomes the "master" and broadcasts its scroll position. Other devices can connect via WebSocket and follow along in sync.',
+			cls: 'setting-item-description'
+		})
+		broadcastInfo.createEl('p', {
+			text: `Connect other devices to: ws://${this.plugin.settings.wsHost}:${this.plugin.settings.wsPort}`,
+			cls: 'setting-item-description'
+		})
+
+		// Remote Web Interface Section
+		const remoteSection = containerEl.createDiv('tp-section-header')
+		const remoteIcon = remoteSection.createDiv('tp-section-header-icon')
+		setIcon(remoteIcon, 'smartphone')
+		remoteSection.createSpan({ text: 'Remote Web Interface', cls: 'tp-section-header-title' })
+
+		const remoteStatus = containerEl.createDiv('tp-connection-status')
+		remoteStatus.style.marginBottom = '16px'
+
+		const remoteIndicator = remoteStatus.createDiv(`tp-connection-indicator ${wsInfo.running ? 'connected' : 'disconnected'}`)
+
+		const remoteInfo = remoteStatus.createDiv('tp-connection-info')
+		remoteInfo.createDiv({
+			text: wsInfo.running ? 'Remote Interface Available' : 'Server Not Running',
+			cls: 'tp-connection-title'
+		})
+
+		// Get local network URL for phone access
+		let localUrl = `http://${this.plugin.settings.wsHost}:${this.plugin.settings.wsPort}/`
+		const wsServerInfo = this.plugin.getWebSocketInfo()
+		if ((wsServerInfo as any).remoteUrl) {
+			localUrl = (wsServerInfo as any).remoteUrl
+		}
+
+		remoteInfo.createDiv({
+			text: wsInfo.running ? localUrl : 'Start the server to enable remote access',
+			cls: 'tp-connection-detail'
+		})
+
+		// Open Remote button
+		const openRemoteBtn = remoteStatus.createEl('button', {
+			cls: 'tp-btn tp-btn-primary',
+			text: 'Open Remote'
+		})
+		openRemoteBtn.disabled = !wsInfo.running
+		openRemoteBtn.addEventListener('click', () => {
+			if (wsInfo.running) {
+				window.open(localUrl, '_blank')
+			}
+		})
+
+		// Remote usage instructions
+		const remoteGuide = containerEl.createDiv()
+		remoteGuide.createEl('p', {
+			text: 'Control the teleprompter from your phone or tablet:',
+			cls: 'setting-item-description'
+		})
+
+		const remoteSteps = remoteGuide.createEl('ol')
+		remoteSteps.createEl('li', { text: 'Ensure your phone is on the same WiFi network as this computer' })
+		remoteSteps.createEl('li', { text: 'Open the URL above in your phone\'s browser' })
+		remoteSteps.createEl('li', { text: 'Use the big Play/Pause button to control playback' })
+		remoteSteps.createEl('li', { text: 'Adjust speed, jump to sections, and more from your phone' })
+
+		// Show local network IP hint
+		if (this.plugin.settings.wsHost === '127.0.0.1' || this.plugin.settings.wsHost === 'localhost') {
+			const ipHint = remoteGuide.createEl('p', {
+				cls: 'setting-item-description'
+			})
+			ipHint.innerHTML = '<strong>Tip:</strong> To access from your phone, change the Host setting above to <code>0.0.0.0</code> and use your computer\'s local IP address. On macOS: System Settings → Wi-Fi → Details... → TCP/IP → IP address. Or run <code>ipconfig getifaddr en0</code> in Terminal.'
+		}
+
+		// Stream Deck Guide
+		const guideSection = containerEl.createDiv('tp-section-header')
+		const guideIcon = guideSection.createDiv('tp-section-header-icon')
+		setIcon(guideIcon, 'help-circle')
+		guideSection.createSpan({ text: 'Stream Deck Setup', cls: 'tp-section-header-title' })
+
+		const guideEl = containerEl.createDiv()
+		guideEl.createEl('p', {
+			text: 'To control Teleprompter Plus from Stream Deck:',
+			cls: 'setting-item-description'
+		})
+
+		const steps = guideEl.createEl('ol')
+		steps.createEl('li', { text: 'Ensure the WebSocket server is running (see status above)' })
+		steps.createEl('li', { text: 'Install the Teleprompter Plus Stream Deck plugin' })
+		steps.createEl('li', { text: `Configure plugin to connect to ws://${this.plugin.settings.wsHost}:${this.plugin.settings.wsPort}` })
+		steps.createEl('li', { text: 'Add actions to your Stream Deck buttons' })
+
+		guideEl.createEl('p', {
+			text: 'The server only accepts connections from localhost (127.0.0.1) for security.',
+			cls: 'setting-item-description'
+		})
 	}
 
-	private displayAboutTab(containerEl: HTMLElement): void {
+	// ========================================
+	// OBS Tab - OBS Studio integration settings
+	// ========================================
+	private displayOBSTab(containerEl: HTMLElement): void {
 		containerEl.createEl('p', {
-			text: 'Plugin information, documentation, and Stream Deck integration',
+			text: 'Integrate with OBS Studio for recording and streaming sync',
 			cls: 'setting-item-description',
 		})
 
-		// Plugin Info
-		containerEl.createEl('h3', { text: 'About Teleprompter Plus' })
+		// OBS Connection Status
+		const obsInfo = this.plugin.getOBSInfo()
+		const statusEl = containerEl.createDiv('tp-connection-status')
 
-		const infoEl = containerEl.createDiv({ cls: 'setting-item-description' })
-		infoEl.createEl('p', {
-			text: 'Professional teleprompter solution for Obsidian with advanced features including:',
+		const indicator = statusEl.createDiv(`tp-connection-indicator ${obsInfo.status === 'connected' ? 'connected' : 'disconnected'}`)
+
+		const statusInfo = statusEl.createDiv('tp-connection-info')
+		statusInfo.createDiv({
+			text: obsInfo.status === 'connected' ? 'Connected to OBS' : obsInfo.status === 'connecting' ? 'Connecting...' : 'Not Connected',
+			cls: 'tp-connection-title'
 		})
 
-		const featureList = infoEl.createEl('ul')
-		featureList.createEl('li', { text: 'Auto-scroll with adjustable speed and countdown' })
-		featureList.createEl('li', { text: '46 custom icons for intuitive control' })
-		featureList.createEl('li', { text: 'Full-screen mode with persistent toolbar' })
-		featureList.createEl('li', { text: 'Document navigation and minimap' })
-		featureList.createEl('li', { text: 'Stream Deck integration via WebSocket' })
-		featureList.createEl('li', { text: 'Customizable typography, colors, and layout' })
-
-		// Stream Deck Integration Help
-		containerEl.createEl('h3', { text: 'Stream Deck Integration' })
-
-		const helpText = containerEl.createDiv({ cls: 'setting-item-description' })
-		helpText.createEl('p', {
-			text: 'Control Teleprompter Plus from your Elgato Stream Deck:',
+		let statusDetail = 'Click Connect to link with OBS'
+		if (obsInfo.status === 'connected') {
+			statusDetail = `ws://${this.plugin.settings.obsHost}:${this.plugin.settings.obsPort}`
+			if (obsInfo.isRecording) statusDetail += ' • Recording'
+			if (obsInfo.isStreaming) statusDetail += ' • Streaming'
+		} else if (obsInfo.status === 'error' && obsInfo.error) {
+			statusDetail = obsInfo.error
+		}
+		statusInfo.createDiv({
+			text: statusDetail,
+			cls: 'tp-connection-detail'
 		})
 
-		const helpList = helpText.createEl('ol')
-		helpList.createEl('li', { text: 'Enable WebSocket server in Advanced settings' })
-		helpList.createEl('li', { text: 'Ensure the server is running (check Advanced tab for status)' })
-		helpList.createEl('li', { text: 'Install the companion Stream Deck plugin' })
-		helpList.createEl('li', {
-			text: 'Stream Deck connects to ws://127.0.0.1:' + this.plugin.settings.wsPort,
+		// Connect/Disconnect button
+		const controlBtn = statusEl.createEl('button', {
+			cls: 'tp-btn tp-btn-primary',
+			text: obsInfo.status === 'connected' ? 'Disconnect' : 'Connect'
+		})
+		controlBtn.addEventListener('click', async () => {
+			controlBtn.disabled = true
+			if (obsInfo.status === 'connected') {
+				controlBtn.textContent = 'Disconnecting...'
+				await this.plugin.disconnectOBS()
+			} else {
+				controlBtn.textContent = 'Connecting...'
+				await this.plugin.connectOBS()
+			}
+			this.display()
 		})
 
-		helpText.createEl('p', {
-			text: '🔒 For security, the server only accepts connections from localhost (127.0.0.1).',
-		})
+		// Auto-refresh OBS status
+		if (this.obsStatusInterval) {
+			clearInterval(this.obsStatusInterval)
+		}
+		this.obsStatusInterval = setInterval(() => {
+			const newInfo = this.plugin.getOBSInfo()
+			// Update connection indicator
+			indicator.className = `tp-connection-indicator ${newInfo.status === 'connected' ? 'connected' : 'disconnected'}`
+			// Update status title
+			const titleEl = statusInfo.querySelector('.tp-connection-title')
+			if (titleEl) {
+				titleEl.textContent = newInfo.status === 'connected' ? 'Connected to OBS' : newInfo.status === 'connecting' ? 'Connecting...' : 'Not Connected'
+			}
+			// Update status detail
+			const detailEl = statusInfo.querySelector('.tp-connection-detail')
+			if (detailEl) {
+				let detail = 'Click Connect to link with OBS'
+				if (newInfo.status === 'connected') {
+					detail = `ws://${this.plugin.settings.obsHost}:${this.plugin.settings.obsPort}`
+					if (newInfo.isRecording) detail += ' • Recording'
+					if (newInfo.isStreaming) detail += ' • Streaming'
+				} else if (newInfo.status === 'error' && newInfo.error) {
+					detail = newInfo.error
+				}
+				detailEl.textContent = detail
+			}
+		}, 2000)
 
-		helpText.createEl('p', {
-			text: '💡 Tip: Stream Deck icons follow the same design as the in-app toolbar for consistency.',
-		})
-
-		// Documentation Links
-		containerEl.createEl('h3', { text: 'Documentation & Support' })
+		// Enable Integration Section
+		const enableSection = containerEl.createDiv('tp-section-header')
+		const enableIcon = enableSection.createDiv('tp-section-header-icon')
+		setIcon(enableIcon, 'power')
+		enableSection.createSpan({ text: 'Integration Settings', cls: 'tp-section-header-title' })
 
 		new Setting(containerEl)
-			.setName('View documentation')
-			.setDesc('Complete guide to using Teleprompter Plus')
-			.addButton((button) =>
-				button.setButtonText('Open docs').onClick(() => {
-					window.open(
-						'https://github.com/yourusername/obsidian-teleprompter-plus#readme'
-					)
+			.setName('Enable OBS integration')
+			.setDesc('Allow Teleprompter Plus to connect to OBS Studio')
+			.addToggle(t => t
+				.setValue(this.plugin.settings.obsEnabled)
+				.onChange(async (value) => {
+					this.plugin.settings.obsEnabled = value
+					await this.plugin.saveSettings()
+					if (!value) {
+						await this.plugin.disconnectOBS()
+					}
+					this.display()
 				})
 			)
 
 		new Setting(containerEl)
-			.setName('Stream Deck integration guide')
-			.setDesc('Learn how to control Teleprompter Plus from Stream Deck')
-			.addButton((button) =>
-				button.setButtonText('View guide').onClick(() => {
-					window.open(
-						'https://github.com/yourusername/obsidian-teleprompter-plus#stream-deck-integration'
-					)
+			.setName('Auto-connect on startup')
+			.setDesc('Automatically connect to OBS when Obsidian loads')
+			.addToggle(t => t
+				.setValue(this.plugin.settings.obsAutoConnect)
+				.onChange(async (value) => {
+					this.plugin.settings.obsAutoConnect = value
+					await this.plugin.saveSettings()
+				})
+			)
+
+		// Connection Settings Section
+		const connectionSection = containerEl.createDiv('tp-section-header')
+		const connectionIcon = connectionSection.createDiv('tp-section-header-icon')
+		setIcon(connectionIcon, 'server')
+		connectionSection.createSpan({ text: 'Connection Settings', cls: 'tp-section-header-title' })
+
+		new Setting(containerEl)
+			.setName('OBS Host')
+			.setDesc('OBS WebSocket server host (usually 127.0.0.1)')
+			.addText(t => t
+				.setPlaceholder('127.0.0.1')
+				.setValue(this.plugin.settings.obsHost)
+				.onChange(async (value) => {
+					this.plugin.settings.obsHost = value.trim() || '127.0.0.1'
+					await this.plugin.saveSettings()
 				})
 			)
 
 		new Setting(containerEl)
-			.setName('Report an issue')
-			.setDesc('Found a bug or have a feature request?')
-			.addButton((button) =>
-				button.setButtonText('GitHub Issues').onClick(() => {
-					window.open(
-						'https://github.com/yourusername/obsidian-teleprompter-plus/issues'
-					)
+			.setName('OBS Port')
+			.setDesc('OBS WebSocket server port (default: 4455 for OBS 28+)')
+			.addText(t => t
+				.setPlaceholder('4455')
+				.setValue(this.plugin.settings.obsPort.toString())
+				.onChange(async (value) => {
+					const port = parseInt(value)
+					if (port >= 1024 && port <= 65535) {
+						this.plugin.settings.obsPort = port
+						await this.plugin.saveSettings()
+					}
 				})
 			)
 
-		// Settings Management
-		containerEl.createEl('h3', { text: 'Settings Management' })
+		new Setting(containerEl)
+			.setName('OBS Password')
+			.setDesc('WebSocket server password (leave empty if not set in OBS)')
+			.addText(t => {
+				t.inputEl.type = 'password'
+				t.setPlaceholder('••••••••')
+				t.setValue(this.plugin.settings.obsPassword)
+				t.onChange(async (value) => {
+					this.plugin.settings.obsPassword = value
+					await this.plugin.saveSettings()
+				})
+				return t
+			})
+
+		// Sync Settings Section
+		const syncSection = containerEl.createDiv('tp-section-header')
+		const syncIcon = syncSection.createDiv('tp-section-header-icon')
+		setIcon(syncIcon, 'link')
+		syncSection.createSpan({ text: 'Playback Sync', cls: 'tp-section-header-title' })
 
 		new Setting(containerEl)
-			.setName('Export Settings')
-			.setDesc('Save your current settings configuration to a JSON file')
-			.addButton((button) =>
-				button
-					.setButtonText('Export')
-					.setCta()
-					.onClick(async () => {
-						const settingsJSON = JSON.stringify(this.plugin.settings, null, 2)
-						const blob = new Blob([settingsJSON], { type: 'application/json' })
-						const url = URL.createObjectURL(blob)
-
-						const a = document.createElement('a')
-						a.href = url
-						a.download = `teleprompter-settings-${Date.now()}.json`
-						a.click()
-						URL.revokeObjectURL(url)
-
-						new Notice('✓ Settings exported successfully')
-					})
+			.setName('Sync recording with teleprompter')
+			.setDesc('Start OBS recording when teleprompter plays, stop when reset')
+			.addToggle(t => t
+				.setValue(this.plugin.settings.obsSyncRecording)
+				.onChange(async (value) => {
+					this.plugin.settings.obsSyncRecording = value
+					await this.plugin.saveSettings()
+				})
 			)
 
 		new Setting(containerEl)
-			.setName('Import Settings')
-			.setDesc('Load settings from a previously exported JSON file')
-			.addButton((button) =>
-				button
-					.setButtonText('Import')
-					.onClick(() => {
-						const input = document.createElement('input')
-						input.type = 'file'
-						input.accept = '.json'
-						input.onchange = async (e) => {
-							const file = (e.target as HTMLInputElement).files?.[0]
-							if (!file) return
-
-							const reader = new FileReader()
-							reader.onload = async (event) => {
-								try {
-									const imported = JSON.parse(event.target?.result as string)
-
-									// Validate imported settings
-									const validKeys = Object.keys(DEFAULT_SETTINGS)
-									const importedFiltered: any = {}
-
-									for (const key of validKeys) {
-										if (key in imported) {
-											importedFiltered[key] = imported[key]
-										}
-									}
-
-									Object.assign(this.plugin.settings, importedFiltered)
-									await this.plugin.saveSettings()
-									this.display()
-
-									new Notice('✓ Settings imported successfully')
-								} catch (error) {
-									new Notice('✗ Failed to import settings: Invalid file format')
-									console.error('[Teleprompter] Import error:', error)
-								}
-							}
-							reader.readAsText(file)
-						}
-						input.click()
-					})
+			.setName('Sync streaming with teleprompter')
+			.setDesc('Start OBS streaming when teleprompter plays, stop when reset')
+			.addToggle(t => t
+				.setValue(this.plugin.settings.obsSyncStreaming)
+				.onChange(async (value) => {
+					this.plugin.settings.obsSyncStreaming = value
+					await this.plugin.saveSettings()
+				})
 			)
 
-		new Setting(containerEl)
-			.setName('Reset to Defaults')
-			.setDesc('Reset all settings to their default values')
-			.addButton((button) =>
-				button
-					.setButtonText('Reset All')
-					.setWarning()
-					.onClick(async () => {
-						if (confirm('Are you sure you want to reset ALL settings to defaults? This cannot be undone.')) {
-							Object.assign(this.plugin.settings, DEFAULT_SETTINGS)
-							await this.plugin.saveSettings()
-							this.display()
-							new Notice('✓ Settings reset to defaults')
-						}
-					})
-			)
+		// Manual Controls Section (only show when connected)
+		if (obsInfo.status === 'connected') {
+			const controlsSection = containerEl.createDiv('tp-section-header')
+			const controlsIcon = controlsSection.createDiv('tp-section-header-icon')
+			setIcon(controlsIcon, 'sliders-horizontal')
+			controlsSection.createSpan({ text: 'Manual Controls', cls: 'tp-section-header-title' })
 
-		// Credits
-		containerEl.createEl('h3', { text: 'Credits' })
-		const creditsEl = containerEl.createDiv({ cls: 'setting-item-description' })
-		creditsEl.createEl('p', {
-			text: 'Built with ❤️ for the Obsidian community',
+			const controlsContainer = containerEl.createDiv()
+			controlsContainer.style.display = 'flex'
+			controlsContainer.style.gap = '0.75rem'
+			controlsContainer.style.flexWrap = 'wrap'
+
+			// Toggle Recording button
+			const recordBtn = controlsContainer.createEl('button', {
+				cls: `tp-btn ${obsInfo.isRecording ? 'tp-btn-danger' : ''}`,
+			})
+			const recordBtnIcon = recordBtn.createDiv('tp-btn-icon')
+			setIcon(recordBtnIcon, obsInfo.isRecording ? 'square' : 'circle')
+			recordBtn.createSpan({ text: obsInfo.isRecording ? 'Stop Recording' : 'Start Recording' })
+			recordBtn.addEventListener('click', async () => {
+				await this.plugin.toggleOBSRecording()
+				// Brief delay then refresh
+				setTimeout(() => this.display(), 500)
+			})
+
+			// Toggle Streaming button
+			const streamBtn = controlsContainer.createEl('button', {
+				cls: `tp-btn ${obsInfo.isStreaming ? 'tp-btn-danger' : ''}`,
+			})
+			const streamBtnIcon = streamBtn.createDiv('tp-btn-icon')
+			setIcon(streamBtnIcon, obsInfo.isStreaming ? 'wifi-off' : 'wifi')
+			streamBtn.createSpan({ text: obsInfo.isStreaming ? 'Stop Streaming' : 'Start Streaming' })
+			streamBtn.addEventListener('click', async () => {
+				await this.plugin.toggleOBSStreaming()
+				// Brief delay then refresh
+				setTimeout(() => this.display(), 500)
+			})
+
+			// Current scene info
+			if (obsInfo.currentScene) {
+				const sceneInfo = containerEl.createDiv()
+				sceneInfo.style.marginTop = '1rem'
+				sceneInfo.createEl('p', {
+					text: `Current Scene: ${obsInfo.currentScene}`,
+					cls: 'setting-item-description'
+				})
+			}
+		}
+
+		// Setup Guide Section
+		const guideSection = containerEl.createDiv('tp-section-header')
+		const guideIcon = guideSection.createDiv('tp-section-header-icon')
+		setIcon(guideIcon, 'help-circle')
+		guideSection.createSpan({ text: 'Setup Guide', cls: 'tp-section-header-title' })
+
+		const guideEl = containerEl.createDiv()
+		guideEl.createEl('p', {
+			text: 'To enable OBS integration:',
+			cls: 'setting-item-description'
 		})
-		creditsEl.createEl('p', {
-			text: '🎨 46 custom icons designed for optimal clarity and usability',
+
+		const steps = guideEl.createEl('ol')
+		steps.createEl('li', { text: 'Open OBS Studio (version 28 or later)' })
+		steps.createEl('li', { text: 'Go to Tools → WebSocket Server Settings' })
+		steps.createEl('li', { text: 'Check "Enable WebSocket server"' })
+		steps.createEl('li', { text: 'Set a password if desired (optional)' })
+		steps.createEl('li', { text: 'Note the port number (default: 4455)' })
+		steps.createEl('li', { text: 'Click "Apply" and close the dialog' })
+		steps.createEl('li', { text: 'Enter the same settings above and click Connect' })
+
+		guideEl.createEl('p', {
+			text: 'OBS 28+ has the WebSocket server built-in. Earlier versions require the obs-websocket plugin.',
+			cls: 'setting-item-description'
 		})
-		creditsEl.createEl('p', {
-			text: '⚡ Powered by Svelte 5 and Obsidian Plugin API',
+	}
+
+	// Old appearance tab body removed
+
+	private displayAboutTab(containerEl: HTMLElement): void {
+		// About Header
+		const aboutHeader = containerEl.createDiv('tp-about-header')
+		const aboutLogo = aboutHeader.createDiv('tp-about-logo')
+		setIcon(aboutLogo, 'presentation')
+		aboutHeader.createDiv({ text: 'Teleprompter Plus', cls: 'tp-about-name' })
+		aboutHeader.createDiv({ text: 'Version 1.0.0', cls: 'tp-about-version' })
+
+		// Links row
+		const linksRow = aboutHeader.createDiv('tp-about-links')
+
+		const docsLink = linksRow.createEl('a', { cls: 'tp-about-link', href: '#' })
+		const docsIcon = docsLink.createDiv()
+		setIcon(docsIcon, 'book-open')
+		docsLink.createSpan({ text: 'Docs' })
+		docsLink.addEventListener('click', (e) => {
+			e.preventDefault()
+			window.open('https://github.com/yourusername/obsidian-teleprompter-plus#readme')
 		})
+
+		const issuesLink = linksRow.createEl('a', { cls: 'tp-about-link', href: '#' })
+		const issuesIcon = issuesLink.createDiv()
+		setIcon(issuesIcon, 'message-circle')
+		issuesLink.createSpan({ text: 'Support' })
+		issuesLink.addEventListener('click', (e) => {
+			e.preventDefault()
+			window.open('https://github.com/yourusername/obsidian-teleprompter-plus/issues')
+		})
+
+		// Features Section
+		const featuresSection = containerEl.createDiv('tp-section-header')
+		const featuresIcon = featuresSection.createDiv('tp-section-header-icon')
+		setIcon(featuresIcon, 'sparkles')
+		featuresSection.createSpan({ text: 'Features', cls: 'tp-section-header-title' })
+
+		const featuresGrid = containerEl.createDiv('tp-health-grid')
+
+		const features = [
+			{ icon: 'play', label: 'Auto-Scroll', desc: 'Adjustable speed' },
+			{ icon: 'palette', label: 'Custom Icons', desc: '46+ designs' },
+			{ icon: 'maximize', label: 'Fullscreen', desc: 'Persistent toolbar' },
+			{ icon: 'map', label: 'Navigation', desc: 'Minimap & sections' },
+			{ icon: 'wifi', label: 'Stream Deck', desc: 'WebSocket API' },
+			{ icon: 'user-cog', label: 'Profiles', desc: 'Save configurations' },
+		]
+
+		features.forEach(feature => {
+			const card = featuresGrid.createDiv('tp-health-card')
+			const cardIcon = card.createDiv('tp-health-card-icon')
+			setIcon(cardIcon, feature.icon)
+			card.createDiv({ text: feature.label, cls: 'tp-health-card-value' })
+			card.createDiv({ text: feature.desc, cls: 'tp-health-card-label' })
+		})
+
+		// Keyboard Shortcuts Section
+		const shortcutsSection = containerEl.createDiv('tp-section-header')
+		const shortcutsIcon = shortcutsSection.createDiv('tp-section-header-icon')
+		setIcon(shortcutsIcon, 'keyboard')
+		shortcutsSection.createSpan({ text: 'Keyboard Shortcuts', cls: 'tp-section-header-title' })
+
+		const shortcutsTable = containerEl.createEl('table', { cls: 'tp-shortcuts-table' })
+		const shortcutsHead = shortcutsTable.createEl('thead')
+		const headRow = shortcutsHead.createEl('tr')
+		headRow.createEl('th', { text: 'Key' })
+		headRow.createEl('th', { text: 'Action' })
+
+		const shortcutsBody = shortcutsTable.createEl('tbody')
+		const shortcuts = [
+			{ key: 'Space', action: 'Toggle play/pause' },
+			{ key: '↑ / ↓', action: 'Speed up/down' },
+			{ key: '← / →', action: 'Manual scroll' },
+			{ key: 'Home', action: 'Reset to top' },
+			{ key: 'N', action: 'Toggle navigation' },
+			{ key: 'J / K', action: 'Next/prev section' },
+			{ key: 'F', action: 'Toggle fullscreen' },
+			{ key: 'E', action: 'Toggle eyeline' },
+			{ key: 'P', action: 'Cycle speed preset' },
+			{ key: 'V', action: 'Toggle voice tracking' },
+		]
+
+		shortcuts.forEach(shortcut => {
+			const row = shortcutsBody.createEl('tr')
+			const keyCell = row.createEl('td')
+			keyCell.createEl('span', { text: shortcut.key, cls: 'tp-shortcut-key' })
+			row.createEl('td', { text: shortcut.action })
+		})
+
+		// Credits Section
+		const creditsSection = containerEl.createDiv('tp-section-header')
+		const creditsIcon = creditsSection.createDiv('tp-section-header-icon')
+		setIcon(creditsIcon, 'heart')
+		creditsSection.createSpan({ text: 'Credits', cls: 'tp-section-header-title' })
+
+		const creditsEl = containerEl.createDiv()
+		creditsEl.style.textAlign = 'center'
+		creditsEl.style.padding = '1rem'
+		creditsEl.style.color = 'var(--text-muted)'
+
+		creditsEl.createEl('p', { text: 'Built for the Obsidian community' })
+		creditsEl.createEl('p', { text: 'Powered by Svelte 5 & Obsidian Plugin API' })
 	}
 
 	/**
 	 * Called when the settings tab is hidden
 	 */
 	hide(): void {
-		// Clean up the status interval
+		// Clean up the status intervals
 		if (this.statusInterval) {
 			clearInterval(this.statusInterval)
 			this.statusInterval = null
+		}
+		if (this.obsStatusInterval) {
+			clearInterval(this.obsStatusInterval)
+			this.obsStatusInterval = null
 		}
 	}
 

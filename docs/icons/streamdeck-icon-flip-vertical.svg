@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="72" height="72" viewBox="0 0 72 72" fill="none" stroke="#FFFFFF" stroke-width="6" stroke-linecap="round" stroke-linejoin="round">
+  <title>Flip Vertical</title>
+  <desc>Mirror text vertically for teleprompter glass - Stream Deck 72x72</desc>
+  <!-- Horizontal center line -->
+  <line x1="12" y1="36" x2="60" y2="36" stroke-dasharray="6 6" opacity="0.5"/>
+  <!-- Up arrow -->
+  <path d="M36 24 L36 12"/>
+  <path d="M30 18 L36 12 L42 18"/>
+  <!-- Down arrow -->
+  <path d="M36 48 L36 60"/>
+  <path d="M30 54 L36 60 L42 54"/>
+</svg>

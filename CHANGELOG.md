@@ -5,6 +5,56 @@ All notable changes to Obsidian Teleprompter Plus will be documented in this fil
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.9.0] - 2025-12-30
+
+### Added
+- **Remote Web Interface** - Control teleprompter from any device on your network
+  - Mobile-optimized responsive design
+  - Real-time state sync via WebSocket
+  - Full playback controls (play/pause, speed, countdown)
+  - Section navigation with jump-to-header
+  - All settings accessible from phone/tablet
+
+### Fixed
+- **Section headers display** - Fixed headers showing as `[object Object]` in remote interface
+- **Countdown events** - Added missing countdown events to wsEvents array (`set-countdown`, `start-countdown`, `countdown-increase`, `countdown-decrease`)
+- **Mobile touch reliability** - Improved section tap handling during scroll with `touchend` events and `touch-action: manipulation`
+- **State broadcast on jump** - Remote interface now updates to show paused state when jumping to section
+
+### Technical
+- Added countdown events to window event listener registration
+- Bigger touch targets for mobile (16px padding, 16px font)
+- Visual feedback on section tap (red flash)
+- `preventDefault` and `stopPropagation` for reliable touch handling
+
+---
+
+## [0.7.1] - 2025-12-19
+
+### Security
+- **Rate limiting** - Added 50 messages/second per client limit to prevent DoS
+- **Input validation** - Added range validation for all numeric parameters (speed, fontSize, countdown, scroll amounts)
+- **String sanitization** - Added XSS prevention for string parameters (headerId)
+- **Optional authentication** - Added `authToken` config option with 5-second handshake timeout
+- **Error message sanitization** - Removed internal details from error responses
+- **Non-localhost warning** - Console warning when binding to non-localhost addresses
+- **URI protocol security** - Added path traversal prevention in `obsidian://teleprompter` handler
+- **Settings validation** - Added validation and clamping on settings load
+
+### Changed
+- Enhanced WebSocket server security configuration options
+- Improved settings UI with host validation feedback
+- Updated LICENSE year to 2024-2025
+
+### Technical
+- Added `validateCommand()` method in WebSocket server
+- Added `sanitizeString()` and `sanitizeErrorMessage()` helpers
+- Added `checkRateLimit()` with per-client tracking
+- Added `validateSettings()` and `clamp()` in main plugin
+- Added `sanitizeNotePath()` for URI protocol handler
+
+---
+
 ## [0.7.0] - 2025-12-15
 
 ### Added
@@ -57,6 +107,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Whisper (transformers.js): Electron detected as Node.js, causing ONNX runtime failures (see [GitHub Issue #1240](https://github.com/huggingface/transformers.js/issues/1240))
   - See `docs/voice-scroll-research.md` for full research notes and future options
 
+### Icon Design System
+- **Complete icon library** - 82 SVG icons (41 key icons + 41 action icons)
+- **Elgato compliant** - All icons follow official Stream Deck guidelines
+- **Consistent theme** - Brand color palette with Teleprompter Blue (#4A90E2) accent
+- **Action icons** - Monochrome white (#FFFFFF) for sidebar list display
+- **Key icons** - Full color support for Stream Deck button display
+- **PNG exports** - 164 PNG files at all required sizes (20×20, 40×40, 72×72, 144×144)
+- **Design tokens** - CSS and JSON tokens for consistent styling
+- **Documentation** - Complete design system docs in `docs/DESIGN-SYSTEM.md`
+
 ### Technical
 - Updated manifest to version 0.7.0
 - Added type-only imports for better tree-shaking
@@ -64,6 +124,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Removed `@huggingface/transformers` and `vosk-browser` dependencies
 - Added diagram block detection and replacement in markdown pipeline
 - Bundle size reduced from ~64MB to ~1.6MB
+- Added comprehensive icon design system with Elgato compliance
 
 ## [0.5.0] - 2024-10-15
 

@@ -3,6 +3,7 @@
   import { MarkdownView, setIcon } from 'obsidian'
   import { onMount } from 'svelte'
   import { marked } from 'marked'
+  import { VOICE_TRACKING_PRESETS, type VoiceTrackingPacePreset } from './settings'
   import hljs from 'highlight.js/lib/core'
   // Import common languages for syntax highlighting
   import javascript from 'highlight.js/lib/languages/javascript'
@@ -51,7 +52,74 @@
     gfm: true // Enable GitHub Flavored Markdown
   })
 
-  let { app }: { app: ObsidianApp } = $props()
+  import type TeleprompterPlusPlugin from './main'
+
+  let { app, plugin, ownerDocument, ownerWindow }: {
+    app: ObsidianApp,
+    plugin: TeleprompterPlusPlugin,
+    ownerDocument: Document,
+    ownerWindow: Window
+  } = $props()
+
+  // Use owner document/window for popout window support
+  // NOTE: Props are captured BEFORE element is in popout DOM, so for event listeners
+  // we must get document/window from the actual mounted element at runtime.
+  // These are fallbacks for early initialization before element is mounted.
+  const activeDoc = ownerDocument
+  const activeWin = ownerWindow
+
+  // Helper functions to get actual document/window from mounted element
+  // These return the correct document even in popout windows
+  function getActualDocument(): Document {
+    return teleprompterContainer?.ownerDocument || document
+  }
+
+  function getActualWindow(): Window {
+    return teleprompterContainer?.ownerDocument?.defaultView || window
+  }
+
+  // ==========================================================================
+  // BroadcastChannel for syncing state between main and popout windows
+  // ==========================================================================
+  const stateChannel = new BroadcastChannel('teleprompter-state-sync')
+  let isReceivingBroadcast = $state(false) // Prevent echo loops (must be $state for reactivity)
+
+  interface SyncState {
+    isPlaying?: boolean
+    speed?: number
+    fontSize?: number
+    showEyeline?: boolean
+    eyelinePosition?: number
+    showNavigation?: boolean
+    autoPauseOnEdit?: boolean
+    textColor?: string
+    backgroundColor?: string
+    lineHeight?: number
+    letterSpacing?: number
+    opacity?: number
+    textAlignment?: string
+    scrollPosition?: number
+    countdownSeconds?: number
+    isPinned?: boolean
+    isKeepAwake?: boolean
+    flipHorizontal?: boolean
+    flipVertical?: boolean
+    viewMode?: string
+    progressIndicatorStyle?: string
+    fontFamily?: string
+    paddingTop?: number
+    paddingRight?: number
+    paddingBottom?: number
+    paddingLeft?: number
+    showMinimap?: boolean
+    isFullScreen?: boolean
+    focusMode?: boolean
+  }
+
+  function broadcastState(partialState: SyncState) {
+    if (isReceivingBroadcast) return // Don't echo back
+    stateChannel.postMessage({ type: 'state-update', data: partialState })
+  }
 
   // Image file extensions
   const IMAGE_EXTENSIONS = new Set(['png', 'jpg', 'jpeg', 'gif', 'bmp', 'svg', 'webp', 'ico', 'tiff', 'tif'])
@@ -309,10 +377,136 @@
   let content = $state('# Welcome to Teleprompter Plus! 🎬\n\nOpen a note in Obsidian to see it here!')
   let renderedHTML = $state('') // Rendered markdown HTML
   let isPlaying = $state(false)
-  // Get plugin settings
-  const plugin = (app as any).plugins.plugins['obsidian-teleprompter-plus']
+  // Get plugin settings (plugin is now passed as a prop for reliable access)
   const settings = plugin?.settings || {}
   const debugMode = settings.debugMode || false
+
+  // Reactive trigger for toolbar layout changes
+  // Incrementing this forces orderedControls to re-compute
+  let toolbarLayoutVersion = $state(0)
+
+  // Listen for toolbar settings changes from Settings UI
+  $effect(() => {
+    const handleToolbarChange = () => {
+      toolbarLayoutVersion++
+      debugLog('[Teleprompter] Toolbar layout changed, refreshing controls')
+    }
+
+    activeDoc.addEventListener('teleprompter:toolbar-changed', handleToolbarChange)
+
+    // Listen for auto-pause setting changes from Settings UI
+    function handleAutoPauseChange(event: Event) {
+      const customEvent = event as CustomEvent
+      if (customEvent.detail?.enabled !== undefined) {
+        autoPauseOnEdit = customEvent.detail.enabled
+        debugLog(`[AutoPause] Setting changed from Settings UI: ${autoPauseOnEdit ? 'ENABLED' : 'DISABLED'}`)
+      }
+    }
+    document.addEventListener('teleprompter:auto-pause-changed', handleAutoPauseChange)
+
+    return () => {
+      activeDoc.removeEventListener('teleprompter:toolbar-changed', handleToolbarChange)
+      document.removeEventListener('teleprompter:auto-pause-changed', handleAutoPauseChange)
+    }
+  })
+
+  // Helper function to check if a toolbar control is visible
+  function isControlVisible(controlId: string): boolean {
+    const hidden = plugin?.settings?.toolbarLayout?.hidden || []
+    return !hidden.includes(controlId)
+  }
+
+  // Toolbar control definitions - maps IDs to their type for rendering
+  type ToolbarControlType = 'icon-button' | 'text-button' | 'popup-slider' | 'popup-multi' | 'popup-list' | 'color-picker'
+
+  interface ToolbarControlDef {
+    id: string
+    type: ToolbarControlType
+    name: string
+  }
+
+  const TOOLBAR_CONTROL_DEFS: ToolbarControlDef[] = [
+    // Core playback controls
+    { id: 'play-pause', type: 'icon-button', name: 'Play/Pause' },
+    { id: 'speed', type: 'popup-slider', name: 'Speed' },
+    { id: 'countdown', type: 'popup-slider', name: 'Countdown' },
+    { id: 'reset', type: 'icon-button', name: 'Reset' },
+    // Display controls
+    { id: 'font-size', type: 'popup-slider', name: 'Font Size' },
+    { id: 'line-height', type: 'popup-slider', name: 'Line Height' },
+    { id: 'letter-spacing', type: 'popup-slider', name: 'Letter Spacing' },
+    { id: 'font-family', type: 'popup-list', name: 'Font Family' },
+    { id: 'opacity', type: 'popup-slider', name: 'Opacity' },
+    { id: 'padding', type: 'popup-multi', name: 'Padding' },
+    { id: 'text-color', type: 'color-picker', name: 'Text Color' },
+    { id: 'bg-color', type: 'color-picker', name: 'Background Color' },
+    // Feature toggles
+    { id: 'eyeline', type: 'icon-button', name: 'Eyeline' },
+    { id: 'focus-mode', type: 'icon-button', name: 'Focus Mode' },
+    { id: 'navigation', type: 'icon-button', name: 'Navigation' },
+    { id: 'fullscreen', type: 'icon-button', name: 'Fullscreen' },
+    { id: 'flip-h', type: 'icon-button', name: 'Flip Horizontal' },
+    { id: 'flip-v', type: 'icon-button', name: 'Flip Vertical' },
+    { id: 'minimap', type: 'icon-button', name: 'Minimap' },
+    // Utility controls
+    { id: 'auto-pause', type: 'icon-button', name: 'Auto-Pause' },
+    { id: 'progress-indicator', type: 'icon-button', name: 'Progress Indicator' },
+    { id: 'alignment', type: 'icon-button', name: 'Text Alignment' },
+    { id: 'keep-awake', type: 'icon-button', name: 'Keep Awake' },
+    { id: 'pin', type: 'icon-button', name: 'Pin Note' },
+    { id: 'detach', type: 'icon-button', name: 'Open in Window' },
+    { id: 'quick-presets', type: 'popup-list', name: 'Quick Presets' },
+    // Info displays
+    { id: 'time-display', type: 'info-display', name: 'Time Display' },
+    // Voice tracking
+    { id: 'voice-tracking', type: 'icon-button', name: 'Voice Tracking' },
+  ]
+
+  // Build ordered list of visible toolbar controls from settings
+  // Note: Reads fresh from plugin.settings to get latest changes
+  function getOrderedToolbarControls(_version: number): ToolbarControlDef[] {
+    // Read fresh settings from plugin (not cached)
+    const currentSettings = plugin?.settings?.toolbarLayout || {}
+    const primary = currentSettings.primary || []
+    const secondary = currentSettings.secondary || []
+    const hidden = currentSettings.hidden || []
+
+    const ordered: ToolbarControlDef[] = []
+    const addedIds = new Set<string>()
+
+    // First add controls in primary order
+    for (const id of primary) {
+      if (hidden.includes(id)) continue
+      const def = TOOLBAR_CONTROL_DEFS.find(d => d.id === id)
+      if (def && !addedIds.has(id)) {
+        ordered.push(def)
+        addedIds.add(id)
+      }
+    }
+
+    // Then add secondary controls
+    for (const id of secondary) {
+      if (hidden.includes(id)) continue
+      const def = TOOLBAR_CONTROL_DEFS.find(d => d.id === id)
+      if (def && !addedIds.has(id)) {
+        ordered.push(def)
+        addedIds.add(id)
+      }
+    }
+
+    // Finally add any remaining enabled controls not yet added
+    for (const def of TOOLBAR_CONTROL_DEFS) {
+      if (hidden.includes(def.id)) continue
+      if (!addedIds.has(def.id)) {
+        ordered.push(def)
+      }
+    }
+
+    return ordered
+  }
+
+  // Get the ordered controls (reactive - re-computes when toolbarLayoutVersion changes)
+  const orderedControls = $derived(getOrderedToolbarControls(toolbarLayoutVersion))
 
   // Helper function for conditional logging
   function debugLog(...args: any[]) {
@@ -371,12 +565,19 @@
   let minimapElement: HTMLElement | undefined = $state() // Reference to minimap element
   let scrollPosition = $state(0) // Track scroll position for minimap viewport indicator
   let scrollPercentage = $state(0) // Scroll percentage (0-100) for progress display
+  // Focus mode state
+  let focusMode = $state(false) // Dim text outside eyeline area
+  let focusModeOpacity = $state(0.3) // Opacity for dimmed text (0.1-0.5)
+  let focusModeRange = $state(3) // Lines above/below eyeline to keep bright
 
   // Progress indicator style: 'progress-bar' | 'scrollbar' | 'none'
   // - progress-bar: Simple horizontal progress bar with percentage and time
   // - scrollbar: Minimal vertical scrollbar with viewport and section markers
   // - none: No progress indicator (just use Jump to Section panel)
   let progressIndicatorStyle = $state<'progress-bar' | 'scrollbar' | 'none'>(settings.progressIndicatorStyle || 'progress-bar')
+
+  // View mode: 'rendered' (Markdown HTML) | 'plain' (raw text)
+  let viewMode = $state<'rendered' | 'plain'>('rendered')
 
   // Focus state for keyboard shortcuts
   let isTeleprompterFocused = $state(false) // Whether teleprompter pane has focus (keyboard shortcuts only work when focused)
@@ -394,37 +595,44 @@
   let showTimeEstimation = $state(settings.showTimeEstimation ?? true) // Show time estimation
   let showElapsedTime = $state(settings.showElapsedTime ?? true) // Show elapsed time
   let speakingPaceWPM = $state(settings.speakingPaceWPM || 150) // Words per minute
+  let timeDisplayMode = $state<'elapsed' | 'remaining'>('elapsed') // Toggle between elapsed/remaining display
+  let timeDisplayStyle = $state<'compact' | 'full'>(settings.timeDisplayStyle ?? 'compact') // Display style
 
   // Transparency state
   let backgroundOpacity = $state(100) // Background opacity (0-100)
   let enableBackgroundTransparency = $state(false) // Enable background transparency
 
-  // Button refs for applying custom icons
-  let btnFullscreen: HTMLButtonElement | undefined = $state()
-  let btnNav: HTMLButtonElement | undefined = $state()
-  let btnEyeline: HTMLButtonElement | undefined = $state()
-  let btnPin: HTMLButtonElement | undefined = $state()
-  let btnKeepAwake: HTMLButtonElement | undefined = $state()
-  let btnAutoPause: HTMLButtonElement | undefined = $state()
-  let btnRefresh: HTMLButtonElement | undefined = $state()
+  // Voice tracking state
+  let voiceTrackingActive = $state(false) // Whether voice tracking is currently active
+  let voiceTrackingStatus = $state<'off' | 'initializing' | 'listening' | 'error'>('off') // Current status
+  let lastRecognizedText = $state('') // Last recognized speech text
+  let voiceTrackingService: any = null // Voice tracking service instance
+  let voiceDownloadProgress = $state(0) // Model download progress (0-100)
+
+  // Update voice tracking config when settings change (real-time)
+  $effect(() => {
+    if (voiceTrackingService) {
+      voiceTrackingService.updateConfig({
+        maxJumpDistance: settings.voiceTrackingMaxJumpDistance ?? 4,
+        minJumpDistance: settings.voiceTrackingMinJumpDistance ?? 4,
+        updateFrequencyMs: settings.voiceTrackingUpdateFrequencyMs ?? 500,
+        animationBaseMs: settings.voiceTrackingAnimationBaseMs ?? 400,
+        animationPerWordMs: settings.voiceTrackingAnimationPerWordMs ?? 60,
+        pauseDetection: settings.voiceTrackingPauseDetection ?? true,
+        pauseThresholdMs: settings.voiceTrackingPauseThresholdMs ?? 1200,
+        scrollPosition: settings.voiceTrackingScrollPosition ?? 20
+      })
+    }
+  })
+
+  // Button refs for controls that need dynamic icon updates
   let btnPlay: HTMLButtonElement | undefined = $state()
-  let btnReset: HTMLButtonElement | undefined = $state()
-  let btnSpeed: HTMLButtonElement | undefined = $state()
-  let btnCountdown: HTMLButtonElement | undefined = $state()
-  let btnFontSize: HTMLButtonElement | undefined = $state()
-  let btnLineHeight: HTMLButtonElement | undefined = $state()
-  let btnLetterSpacing: HTMLButtonElement | undefined = $state()
-  let btnOpacity: HTMLButtonElement | undefined = $state()
-  let btnPadding: HTMLButtonElement | undefined = $state()
-  let btnFontFamily: HTMLButtonElement | undefined = $state()
-  let btnTextColor: HTMLButtonElement | undefined = $state()
-  let btnBgColor: HTMLButtonElement | undefined = $state()
-  let btnQuickPresets: HTMLButtonElement | undefined = $state()
   let btnProgressIndicator: HTMLButtonElement | undefined = $state()
   let btnAlignment: HTMLButtonElement | undefined = $state()
 
   // Popup slider states
   let showSpeedSlider = $state(false)
+  let showVoiceSettings = $state(false)  // Voice tracking preset selector
   let showCountdownSlider = $state(false)
   let showFontSizeSlider = $state(false)
   let showLineHeightSlider = $state(false)
@@ -458,6 +666,16 @@
   $effect(() => {
     eyelinePosition // Track this dependency
     calculateEyelinePixelPosition()
+  })
+
+  // Recalculate eyeline when contentArea becomes available (timing fix)
+  $effect(() => {
+    if (contentArea) {
+      // Use requestAnimationFrame to ensure layout is complete
+      requestAnimationFrame(() => {
+        calculateEyelinePixelPosition()
+      })
+    }
   })
 
   // Log font size changes and ensure DOM updates
@@ -497,6 +715,15 @@
         markdownContent.style.setProperty('--padding-horizontal', `${paddingHorizontal}px`)
         debugLog(`[Padding] Applied to .markdown-content element: V=${paddingVertical}px, H=${paddingHorizontal}px`)
       }
+    }
+  })
+
+  // Update play button icon when state changes
+  $effect(() => {
+    if (btnPlay) {
+      const iconName = isPlaying ? 'tp-pause' : isCountingDown ? 'x' : 'tp-play'
+      btnPlay.innerHTML = '' // Clear previous icon
+      setIcon(btnPlay, iconName)
     }
   })
 
@@ -557,10 +784,28 @@
 
     // Load saved eyeline position and visibility
     const savedEyelinePos = localStorage.getItem('teleprompter-eyeline-position')
-    if (savedEyelinePos) eyelinePosition = parseFloat(savedEyelinePos)
+    if (savedEyelinePos) {
+      const parsed = parseFloat(savedEyelinePos)
+      // Clamp to reasonable range (5-95%) so eyeline is always visible and draggable
+      eyelinePosition = Math.max(5, Math.min(95, parsed))
+    }
 
     const savedEyelineVisible = localStorage.getItem('teleprompter-eyeline-visible')
-    if (savedEyelineVisible !== null) showEyeline = savedEyelineVisible === 'true'
+    // Check for migration flag - reset eyeline if bad position was saved
+    const needsReset = localStorage.getItem('teleprompter-eyeline-reset-v1') !== 'done'
+    if (needsReset && savedEyelinePos && parseFloat(savedEyelinePos) >= 95) {
+      // One-time reset: position was at extreme, reset to defaults
+      eyelinePosition = 50 // Middle
+      showEyeline = true
+      localStorage.setItem('teleprompter-eyeline-position', '50')
+      localStorage.setItem('teleprompter-eyeline-visible', 'true')
+      localStorage.setItem('teleprompter-eyeline-reset-v1', 'done')
+    } else if (savedEyelineVisible !== null) {
+      showEyeline = savedEyelineVisible === 'true'
+    } else {
+      // Default to true if not set
+      showEyeline = true
+    }
   }
 
   // Save navigation width whenever it changes
@@ -684,7 +929,7 @@
   function loadActiveNote() {
     // If note is pinned, don't auto-update
     if (isPinned) {
-      console.log('[Pin] Note is pinned, skipping auto-update')
+      debugLog('[Pin] Note is pinned, skipping auto-update')
       return
     }
 
@@ -699,7 +944,7 @@
 
         // Reset countdown flag when new document loads
         hasUsedCountdown = false
-        console.log('[Document] New document loaded - countdown flag reset')
+        debugLog('[Document] New document loaded - countdown flag reset')
       })
     }
   }
@@ -897,7 +1142,7 @@
       isCountingDown = false
       currentCountdown = 0
       startTimestamp = null // Pause timer
-      console.log('[Play] Paused')
+      debugLog('[Play] Paused')
     } else {
       // Start playing
       const scrollTop = contentArea?.scrollTop || 0
@@ -923,40 +1168,53 @@
       // 4. Haven't used countdown yet in this session
       if (countdownSeconds > 0 && !isCountingDown && isAtStart && !hasUsedCountdown) {
         // Start countdown - this will only happen ONCE per document
-        console.log('[Countdown] Starting countdown - first time at document start')
+        debugLog('[Countdown] Starting countdown - first time at document start')
         hasUsedCountdown = true // Mark as used
         startCountdown()
       } else {
         // Resume playing immediately (no countdown)
         if (countdownSeconds === 0) {
-          console.log('[Play] Countdown disabled (0s) - starting immediately')
+          debugLog('[Play] Countdown disabled (0s) - starting immediately')
         } else if (hasUsedCountdown) {
-          console.log('[Play] Countdown already used - starting immediately')
+          debugLog('[Play] Countdown already used - starting immediately')
         } else if (!isAtStart) {
-          console.log('[Play] Not at document start - starting immediately')
+          debugLog('[Play] Not at document start - starting immediately')
         } else {
-          console.log('[Play] Starting playback immediately')
+          debugLog('[Play] Starting playback immediately')
         }
         isPlaying = true
         // Focus teleprompter so blur event fires when user clicks on editor (for auto-pause)
         focusTeleprompter()
       }
     }
+    // Broadcast play state change to other windows
+    broadcastState({ isPlaying })
   }
 
   function startCountdown() {
-    isCountingDown = true
+    // Set initial countdown value FIRST, before showing overlay
     currentCountdown = countdownSeconds
+    isCountingDown = true
+
+    debugLog(`[Countdown] Starting countdown from ${currentCountdown}`)
 
     const countdownInterval = setInterval(() => {
-      currentCountdown--
-
-      if (currentCountdown <= 0) {
+      if (currentCountdown <= 1) {
+        // This is the last tick - clear and start playing
         clearInterval(countdownInterval)
-        isCountingDown = false
-        isPlaying = true
-        // Focus teleprompter so blur event fires when user clicks on editor (for auto-pause)
-        focusTeleprompter()
+        currentCountdown = 0
+        debugLog('[Countdown] Finished - starting playback')
+
+        // Small delay to show "0" briefly before transitioning
+        setTimeout(() => {
+          isCountingDown = false
+          isPlaying = true
+          // Focus teleprompter so blur event fires when user clicks on editor (for auto-pause)
+          focusTeleprompter()
+        }, 500)
+      } else {
+        currentCountdown--
+        debugLog(`[Countdown] ${currentCountdown}...`)
       }
     }, 1000)
   }
@@ -964,21 +1222,25 @@
   function increaseCountdown() {
     if (countdownSeconds < 30) {
       countdownSeconds++
+      broadcastState({ countdownSeconds })
     }
   }
 
   function decreaseCountdown() {
     if (countdownSeconds > 0) {
       countdownSeconds--
+      broadcastState({ countdownSeconds })
     }
   }
 
   function increaseSpeed() {
     speed = Math.min(speed + speedIncrement, settings.maxScrollSpeed || 10)
+    broadcastState({ speed })
   }
 
   function decreaseSpeed() {
     speed = Math.max(speed - speedIncrement, settings.minScrollSpeed || 0.5)
+    broadcastState({ speed })
   }
 
   // Speed preset functions
@@ -986,6 +1248,7 @@
     currentPresetIndex = (currentPresetIndex + 1) % SPEED_PRESETS.length
     speed = SPEED_PRESETS[currentPresetIndex]
     debugLog(`[Speed] Preset: ${speed}x`)
+    broadcastState({ speed })
   }
 
   function setSpeedPreset(presetSpeed: number) {
@@ -1000,6 +1263,7 @@
       currentPresetIndex = -1 // Not a preset
       debugLog(`[Speed] Custom speed: ${speed}x`)
     }
+    broadcastState({ speed })
   }
 
   function nextSpeedPreset() {
@@ -1007,6 +1271,7 @@
       currentPresetIndex++
       speed = SPEED_PRESETS[currentPresetIndex]
       debugLog(`[Speed] Next preset: ${speed}x`)
+      broadcastState({ speed })
     }
   }
 
@@ -1015,6 +1280,7 @@
       currentPresetIndex--
       speed = SPEED_PRESETS[currentPresetIndex]
       debugLog(`[Speed] Previous preset: ${speed}x`)
+      broadcastState({ speed })
     }
   }
 
@@ -1046,6 +1312,38 @@
   function toggleOpacitySlider() {
     showOpacitySlider = !showOpacitySlider
     if (showOpacitySlider) closeOtherPopups('opacity')
+  }
+
+  // Toggle time display mode (elapsed ↔ remaining)
+  function toggleTimeDisplayMode() {
+    timeDisplayMode = timeDisplayMode === 'elapsed' ? 'remaining' : 'elapsed'
+    debugLog(`[TimeDisplay] Switched to: ${timeDisplayMode}`)
+  }
+
+  // Letter spacing control functions (for Stream Deck)
+  function increaseLetterSpacing() {
+    letterSpacing = Math.min(20, letterSpacing + 1)
+    debugLog(`[LetterSpacing] Increased to: ${letterSpacing}px`)
+    broadcastState({ letterSpacing })
+  }
+
+  function decreaseLetterSpacing() {
+    letterSpacing = Math.max(-5, letterSpacing - 1)
+    debugLog(`[LetterSpacing] Decreased to: ${letterSpacing}px`)
+    broadcastState({ letterSpacing })
+  }
+
+  // Opacity control functions (for Stream Deck)
+  function increaseOpacity() {
+    opacity = Math.min(100, opacity + 10)
+    debugLog(`[Opacity] Increased to: ${opacity}%`)
+    broadcastState({ opacity })
+  }
+
+  function decreaseOpacity() {
+    opacity = Math.max(10, opacity - 10)
+    debugLog(`[Opacity] Decreased to: ${opacity}%`)
+    broadcastState({ opacity })
   }
 
   function togglePaddingSliders() {
@@ -1197,8 +1495,67 @@
     },
   ]
 
+  // Color presets for quick selection
+  const textColorPresets = [
+    { color: '#ffffff', name: 'White' },
+    { color: '#e0e0e0', name: 'Light Gray' },
+    { color: '#a0a0a0', name: 'Gray' },
+    { color: '#606060', name: 'Dark Gray' },
+    { color: '#000000', name: 'Black' },
+    { color: '#ffeb3b', name: 'Yellow' },
+    { color: '#ff9800', name: 'Orange' },
+    { color: '#f44336', name: 'Red' },
+    { color: '#4caf50', name: 'Green' },
+    { color: '#2196f3', name: 'Blue' },
+  ]
+
+  const backgroundColorPresets = [
+    { color: '#000000', name: 'Black' },
+    { color: '#1a1a1a', name: 'Charcoal' },
+    { color: '#2d2d2d', name: 'Dark Gray' },
+    { color: '#1e1e1e', name: 'VS Code' },
+    { color: '#0d1117', name: 'GitHub Dark' },
+    { color: '#1a1a2e', name: 'Dark Blue' },
+    { color: '#1a2e1a', name: 'Dark Green' },
+    { color: '#2e1a1a', name: 'Dark Red' },
+    { color: '#f4ecd8', name: 'Cream' },
+    { color: '#ffffff', name: 'White' },
+  ]
+
+  function applyTextColorPreset(color: string) {
+    textColor = color
+    // Update HSB sliders to match
+    const hsb = hexToHsb(color)
+    pickerHue = hsb.h
+    pickerSaturation = hsb.s
+    pickerBrightness = hsb.b
+    // Broadcast to other windows
+    broadcastState({ textColor })
+    // Save to plugin
+    if (plugin) {
+      plugin.settings.textColor = color
+      plugin.saveSettings()
+    }
+  }
+
+  function applyBackgroundColorPreset(color: string) {
+    backgroundColor = color
+    // Update HSB sliders to match
+    const hsb = hexToHsb(color)
+    pickerHue = hsb.h
+    pickerSaturation = hsb.s
+    pickerBrightness = hsb.b
+    // Broadcast to other windows
+    broadcastState({ backgroundColor })
+    // Save to plugin
+    if (plugin) {
+      plugin.settings.backgroundColor = color
+      plugin.saveSettings()
+    }
+  }
+
   async function applyQuickPreset(preset: typeof quickSetupPresets[0]) {
-    console.log('[Teleprompter] Applying quick preset from toolbar:', preset.name)
+    debugLog('[Teleprompter] Applying quick preset from toolbar:', preset.name)
 
     // Apply all settings from preset
     fontSize = preset.config.fontSize
@@ -1209,11 +1566,24 @@
     paddingVertical = preset.config.paddingVertical
     paddingHorizontal = preset.config.paddingHorizontal
 
+    // Broadcast all preset changes to other windows
+    broadcastState({
+      fontSize,
+      textColor,
+      backgroundColor,
+      fontFamily,
+      lineHeight,
+      paddingTop: paddingVertical,
+      paddingBottom: paddingVertical,
+      paddingLeft: paddingHorizontal,
+      paddingRight: paddingHorizontal
+    })
+
     // Save to plugin settings
     if (plugin) {
       Object.assign(plugin.settings, preset.config)
       await plugin.saveSettings()
-      console.log('[Teleprompter] Preset saved to settings:', preset.name)
+      debugLog('[Teleprompter] Preset saved to settings:', preset.name)
     }
 
     // Close the menu
@@ -1241,6 +1611,7 @@
     paddingRight = 40
     paddingBottom = 20
     paddingLeft = 40
+    broadcastState({ paddingTop, paddingRight, paddingBottom, paddingLeft })
   }
 
   // Svelte action to set icon on element
@@ -1300,6 +1671,15 @@
     return {h, s, b: brightness}
   }
 
+  // Convert hex color to HSB
+  function hexToHsb(hex: string): {h: number, s: number, b: number} {
+    const rgb = hexToRgb(hex)
+    if (rgb) {
+      return rgbToHsb(rgb.r, rgb.g, rgb.b)
+    }
+    return {h: 0, s: 0, b: 0}
+  }
+
   // Initialize color picker with current color
   function openColorPicker(type: 'text' | 'bg') {
     activeColorType = type
@@ -1327,8 +1707,10 @@
     const hexColor = rgbToHex(rgb.r, rgb.g, rgb.b)
     if (activeColorType === 'text') {
       textColor = hexColor
+      broadcastState({ textColor })
     } else if (activeColorType === 'bg') {
       backgroundColor = hexColor
+      broadcastState({ backgroundColor })
     }
   }
 
@@ -1338,10 +1720,160 @@
     if (settings.rememberNavigationState) {
       localStorage.setItem('teleprompter-navigation-open', String(showNavigation))
     }
+    broadcastState({ showNavigation })
   }
 
   function toggleEyeline() {
     showEyeline = !showEyeline
+    broadcastState({ showEyeline })
+  }
+
+  // Toggle focus mode (dim text outside eyeline area)
+  function toggleFocusMode() {
+    focusMode = !focusMode
+    broadcastState({ focusMode })
+    debugLog(`[FocusMode] ${focusMode ? 'Enabled' : 'Disabled'}`)
+  }
+
+  // Apply voice tracking pace preset
+  function applyVoicePreset(presetName: Exclude<VoiceTrackingPacePreset, 'custom'>) {
+    const preset = VOICE_TRACKING_PRESETS[presetName]
+    if (!preset || !plugin) return
+
+    // Update settings with preset values
+    plugin.settings.voiceTrackingPacePreset = presetName
+    plugin.settings.voiceTrackingConfidenceThreshold = preset.confidenceThreshold
+    plugin.settings.voiceTrackingWindowSize = preset.windowSize
+    plugin.settings.voiceTrackingMaxJumpDistance = preset.maxJumpDistance
+    plugin.settings.voiceTrackingMinJumpDistance = preset.minJumpDistance
+    plugin.settings.voiceTrackingUpdateFrequencyMs = preset.updateFrequencyMs
+    plugin.settings.voiceTrackingAnimationBaseMs = preset.animationBaseMs
+
+    // Save settings
+    plugin.saveSettings()
+
+    // If voice tracking is active, restart it with new settings
+    if (voiceTrackingActive && voiceTrackingService) {
+      voiceTrackingService.stop()
+      voiceTrackingActive = false
+      // Give it a moment then restart
+      setTimeout(() => toggleVoiceTracking(), 100)
+    }
+
+    debugLog(`[Voice] Applied preset: ${presetName}`)
+    showVoiceSettings = false
+  }
+
+  function toggleVoiceSettings() {
+    showVoiceSettings = !showVoiceSettings
+  }
+
+  // Voice tracking toggle
+  async function toggleVoiceTracking() {
+    if (!settings.voiceTrackingEnabled) {
+      debugLog('[Voice] Voice tracking is disabled in settings')
+      return
+    }
+
+    try {
+      if (voiceTrackingActive) {
+        // Stop voice tracking
+        if (voiceTrackingService) {
+          voiceTrackingService.stop()
+        }
+        voiceTrackingActive = false
+        voiceTrackingStatus = 'off'
+        lastRecognizedText = ''
+        debugLog('[Voice] Voice tracking stopped')
+      } else {
+        // Start voice tracking
+        voiceTrackingStatus = 'initializing'
+
+        // Dynamically import and initialize voice tracking
+        const { getVoiceTrackingService, VoiceTrackingService } = await import('./voice')
+
+        // Check if voice tracking is supported
+        if (!VoiceTrackingService.isSupported()) {
+          voiceTrackingStatus = 'error'
+          debugLog('[Voice] Voice tracking not supported in this browser')
+          return
+        }
+
+        // Get or create service with tuning parameters from settings
+        voiceTrackingService = getVoiceTrackingService({
+          language: settings.voiceTrackingLanguage || 'en-US',
+          scrollBehavior: settings.voiceTrackingScrollBehavior || 'smooth',
+          showIndicator: settings.voiceTrackingShowIndicator ?? true,
+          // Speech matching tuning - from preset or custom settings
+          confidenceThreshold: settings.voiceTrackingConfidenceThreshold ?? 0.20,
+          windowSize: settings.voiceTrackingWindowSize ?? 6,
+          maxJumpDistance: settings.voiceTrackingMaxJumpDistance ?? 3,
+          minJumpDistance: settings.voiceTrackingMinJumpDistance ?? 2,
+          updateFrequencyMs: settings.voiceTrackingUpdateFrequencyMs ?? 500,
+          animationBaseMs: settings.voiceTrackingAnimationBaseMs ?? 400,
+          animationPerWordMs: settings.voiceTrackingAnimationPerWordMs ?? 60,
+          // Pause detection settings
+          pauseDetection: settings.voiceTrackingPauseDetection ?? true,
+          pauseThresholdMs: settings.voiceTrackingPauseThresholdMs ?? 1200,
+          // Scroll position setting (where current word appears on screen)
+          scrollPosition: settings.voiceTrackingScrollPosition ?? 20
+        })
+
+        // Set up callbacks
+        voiceTrackingService.onStatusChange = (status: string) => {
+          voiceTrackingStatus = status as any
+          debugLog(`[Voice] Status: ${status}`)
+        }
+
+        voiceTrackingService.onRecognizedText = (text: string, isFinal: boolean) => {
+          lastRecognizedText = text
+          debugLog(`[Voice] Recognized (${isFinal ? 'final' : 'partial'}): ${text}`)
+        }
+
+        voiceTrackingService.onWordMatch = (wordIndex: number, scrollPosition: number) => {
+          debugLog(`[Voice] Matched word ${wordIndex}, scrolling to ${scrollPosition}`)
+        }
+
+        voiceTrackingService.onPauseChange = (isPaused: boolean) => {
+          debugLog(`[Voice] Pause state: ${isPaused ? 'PAUSED' : 'RESUMED'}`)
+        }
+
+        voiceTrackingService.onError = (error: string, message: string) => {
+          console.error(`[Voice] Error: ${error} - ${message}`)
+          voiceTrackingStatus = 'error'
+        }
+
+        voiceTrackingService.onProgress = (loaded: number, total: number) => {
+          voiceDownloadProgress = Math.round((loaded / total) * 100)
+          debugLog(`[Voice] Download progress: ${voiceDownloadProgress}%`)
+        }
+
+        // Initialize with content
+        if (contentArea) {
+          debugLog(`[Voice] Initializing with content length: ${content.length}`)
+          debugLog(`[Voice] ContentArea exists: ${!!contentArea}`)
+          debugLog(`[Voice] Content preview: "${content.substring(0, 100)}..."`)
+          voiceTrackingService.initialize(content, contentArea)
+        } else {
+          debugLog('[Voice] WARNING: contentArea is not available!')
+        }
+
+        // Pause auto-scroll when voice tracking is active
+        if (isPlaying) {
+          isPlaying = false
+          broadcastState({ isPlaying })
+        }
+
+        // Start listening
+        await voiceTrackingService.start()
+        voiceTrackingActive = true
+        debugLog('[Voice] Voice tracking started')
+      }
+    } catch (error) {
+      console.error('[Voice] Failed to toggle voice tracking:', error)
+      voiceTrackingStatus = 'error'
+      voiceTrackingActive = false
+    }
   }
 
   function togglePin() {
@@ -1351,13 +1883,14 @@
       // Pin the current note
       const activeFile = app.workspace.getActiveFile()
       pinnedNotePath = activeFile?.path || null
-      console.log(`[Pin] Note pinned: ${currentFileName}`)
+      debugLog(`[Pin] Note pinned: ${currentFileName}`)
     } else {
       // Unpin and reload current active note
       pinnedNotePath = null
-      console.log('[Pin] Note unpinned')
+      debugLog('[Pin] Note unpinned')
       loadActiveNote()
     }
+    broadcastState({ isPinned })
   }
 
   function refreshPinnedNote() {
@@ -1370,7 +1903,7 @@
         const result = removeYAMLFrontmatter(fileContent)
         content = result.content
         yamlLineOffset = result.linesRemoved
-        console.log('[Pin] Manually refreshed pinned note')
+        debugLog('[Pin] Manually refreshed pinned note')
       })
     }
   }
@@ -1391,15 +1924,16 @@
         if (powerSaveBlockerId !== null) {
           powerSaveBlocker.stop(powerSaveBlockerId)
           powerSaveBlockerId = null
-          console.log('[KeepAwake] Screen sleep prevention stopped')
+          debugLog('[KeepAwake] Screen sleep prevention stopped')
         }
         isKeepAwake = false
       } else {
         // Start preventing sleep
         powerSaveBlockerId = powerSaveBlocker.start('prevent-display-sleep')
         isKeepAwake = true
-        console.log('[KeepAwake] Screen sleep prevention started')
+        debugLog('[KeepAwake] Screen sleep prevention started')
       }
+      broadcastState({ isKeepAwake })
     } catch (error) {
       console.error('[KeepAwake] Failed to toggle keep awake:', error)
       isKeepAwake = false
@@ -1414,7 +1948,7 @@
         const { powerSaveBlocker } = electron.remote || electron
         if (powerSaveBlocker) {
           powerSaveBlocker.stop(powerSaveBlockerId)
-          console.log('[KeepAwake] Cleanup: Stopped screen sleep prevention')
+          debugLog('[KeepAwake] Cleanup: Stopped screen sleep prevention')
         }
       } catch (error) {
         console.error('[KeepAwake] Cleanup error:', error)
@@ -1427,6 +1961,7 @@
   function toggleFullScreen() {
     isFullScreen = !isFullScreen
     debugLog(`[FullScreen] ${isFullScreen ? 'Enabled' : 'Disabled'}`)
+    broadcastState({ isFullScreen })
   }
 
   function handleFullScreenKeyPress(e: KeyboardEvent) {
@@ -1447,6 +1982,7 @@
     if (lineHeight < 3.0) {
       lineHeight = Math.round((lineHeight + 0.1) * 10) / 10 // Round to 1 decimal
       debugLog(`[LineHeight] Increased to ${lineHeight}`)
+      broadcastState({ lineHeight })
     }
   }
 
@@ -1454,34 +1990,47 @@
     if (lineHeight > 1.0) {
       lineHeight = Math.round((lineHeight - 0.1) * 10) / 10 // Round to 1 decimal
       debugLog(`[LineHeight] Decreased to ${lineHeight}`)
+      broadcastState({ lineHeight })
     }
   }
 
   function increasePaddingVertical() {
     if (paddingVertical < 100) {
       paddingVertical += 5
+      paddingTop = paddingVertical
+      paddingBottom = paddingVertical
       debugLog(`[Padding] Vertical increased to ${paddingVertical}px`)
+      broadcastState({ paddingTop, paddingBottom })
     }
   }
 
   function decreasePaddingVertical() {
     if (paddingVertical > 0) {
       paddingVertical -= 5
+      paddingTop = paddingVertical
+      paddingBottom = paddingVertical
       debugLog(`[Padding] Vertical decreased to ${paddingVertical}px`)
+      broadcastState({ paddingTop, paddingBottom })
     }
   }
 
   function increasePaddingHorizontal() {
     if (paddingHorizontal < 200) {
       paddingHorizontal += 10
+      paddingRight = paddingHorizontal
+      paddingLeft = paddingHorizontal
       debugLog(`[Padding] Horizontal increased to ${paddingHorizontal}px`)
+      broadcastState({ paddingRight, paddingLeft })
     }
   }
 
   function decreasePaddingHorizontal() {
     if (paddingHorizontal > 0) {
       paddingHorizontal -= 10
+      paddingRight = paddingHorizontal
+      paddingLeft = paddingHorizontal
       debugLog(`[Padding] Horizontal decreased to ${paddingHorizontal}px`)
+      broadcastState({ paddingRight, paddingLeft })
     }
   }
 
@@ -1524,16 +2073,19 @@
         debugLog(`[Color] Applied preset: Amber on Black (Retro)`)
         break
     }
+    broadcastState({ textColor, backgroundColor })
   }
 
   function setTextColor(color: string) {
     textColor = color
     debugLog(`[Color] Text color set to ${color}`)
+    broadcastState({ textColor })
   }
 
   function setBackgroundColor(color: string) {
     backgroundColor = color
     debugLog(`[Color] Background color set to ${color}`)
+    broadcastState({ backgroundColor })
   }
 
   // Font family preset functions
@@ -1564,33 +2116,131 @@
         debugLog(`[Font] Applied preset: Slab Serif`)
         break
     }
+    broadcastState({ fontFamily })
   }
 
   function setFontFamily(family: string) {
     fontFamily = family
     showFontFamilyList = false
     debugLog(`[Font] Font family set to ${family}`)
+    broadcastState({ fontFamily })
   }
 
   // Flip control functions
   function toggleFlipHorizontal() {
     flipHorizontal = !flipHorizontal
     debugLog(`[Flip] Horizontal flip: ${flipHorizontal ? 'ON' : 'OFF'}`)
+    broadcastState({ flipHorizontal })
   }
 
   function toggleFlipVertical() {
     flipVertical = !flipVertical
     debugLog(`[Flip] Vertical flip: ${flipVertical ? 'ON' : 'OFF'}`)
+    broadcastState({ flipVertical })
   }
 
   function setFlipHorizontal(value: boolean) {
     flipHorizontal = value
     debugLog(`[Flip] Horizontal flip set to: ${value ? 'ON' : 'OFF'}`)
+    broadcastState({ flipHorizontal })
   }
 
   function setFlipVertical(value: boolean) {
     flipVertical = value
     debugLog(`[Flip] Vertical flip set to: ${value ? 'ON' : 'OFF'}`)
+    broadcastState({ flipVertical })
+  }
+
+  // View mode control functions (for Stream Deck)
+  function toggleViewMode() {
+    viewMode = viewMode === 'rendered' ? 'plain' : 'rendered'
+    debugLog(`[ViewMode] Switched to: ${viewMode}`)
+    broadcastState({ viewMode })
+  }
+
+  function setViewMode(mode: 'rendered' | 'plain') {
+    viewMode = mode
+    debugLog(`[ViewMode] Set to: ${mode}`)
+    broadcastState({ viewMode })
+  }
+
+  // Check if we're in a popout window (detached)
+  function isInPopoutWindow(): boolean {
+    // Get the ACTUAL window from the mounted DOM element, not from props
+    // This is critical because props are set before the element is in the popout DOM
+    const currentWindow = teleprompterContainer?.ownerDocument?.defaultView
+
+    // Get the main Obsidian window from the workspace container
+    // app.workspace.containerEl is ALWAYS in the main window
+    const mainWindow = app.workspace.containerEl.ownerDocument.defaultView
+
+    // If we don't have a container yet, we can't determine - assume main window
+    if (!currentWindow) {
+      return false
+    }
+
+    // Compare window objects - if different, we're in a popout
+    return currentWindow !== mainWindow
+  }
+
+  // Detach function (open teleprompter in a popout window, or close if already detached)
+  function detachWindow() {
+    // If already in a popout window, close it instead
+    if (isInPopoutWindow()) {
+      debugLog('[Detach] Already in popout window - closing')
+      // Get the actual window from the DOM element
+      const currentWindow = teleprompterContainer?.ownerDocument?.defaultView
+      if (currentWindow) {
+        currentWindow.close()
+      }
+      return
+    }
+
+    debugLog('[Detach] Opening teleprompter in popout window')
+    try {
+      // Use openPopoutLeaf() which is specifically designed for popout windows
+      // This is more reliable than getLeaf('window') as it properly initializes the window context
+      const leaf = app.workspace.openPopoutLeaf()
+      if (leaf) {
+        leaf.setViewState({
+          type: 'teleprompter-plus-view',
+          active: true
+        })
+        debugLog('[Detach] Popout window opened successfully')
+      }
+    } catch (error) {
+      // Fallback to new tab if popout fails (e.g., on mobile)
+      debugLog('[Detach] Popout failed, falling back to new tab:', error)
+      const leaf = app.workspace.getLeaf('tab')
+      if (leaf) {
+        leaf.setViewState({
+          type: 'teleprompter-plus-view',
+          active: true
+        })
+        debugLog('[Detach] Fallback: New tab opened')
+      }
+    }
+  }
+
+  // Open file function (for Stream Deck)
+  async function openFile(filePath: string) {
+    debugLog(`[OpenFile] Opening file: ${filePath}`)
+    const file = app.vault.getAbstractFileByPath(filePath)
+    if (file && 'extension' in file && file.extension === 'md') {
+      try {
+        const fileContent = await app.vault.read(file as any)
+        const result = removeYAMLFrontmatter(fileContent)
+        content = result.content
+        yamlLineOffset = result.linesRemoved
+        currentFileName = file.name.replace('.md', '')
+        hasUsedCountdown = false
+        debugLog(`[OpenFile] Loaded: ${currentFileName}`)
+      } catch (err) {
+        debugLog(`[OpenFile] Error loading file: ${err}`)
+      }
+    } else {
+      debugLog(`[OpenFile] File not found or not markdown: ${filePath}`)
+    }
   }
 
   // Text alignment functions
@@ -1600,11 +2250,13 @@
     const nextIndex = (currentIndex + 1) % alignments.length
     textAlignment = alignments[nextIndex]
     debugLog(`[Alignment] Text alignment: ${textAlignment.toUpperCase()}`)
+    broadcastState({ textAlignment })
   }
 
   function setTextAlignment(value: 'left' | 'center' | 'right' | 'rtl') {
     textAlignment = value
     debugLog(`[Alignment] Text alignment set to: ${value.toUpperCase()}`)
+    broadcastState({ textAlignment })
   }
 
   // Scroll synchronization functions
@@ -1622,6 +2274,7 @@
   function toggleMinimap() {
     showMinimap = !showMinimap
     debugLog(`[Minimap] Minimap: ${showMinimap ? 'SHOWN' : 'HIDDEN'}`)
+    broadcastState({ showMinimap })
   }
 
   function setMinimap(value: boolean) {
@@ -1636,11 +2289,11 @@
     if (isCountingDown) {
       isCountingDown = false
       currentCountdown = 0
-      console.log('[Minimap] Cancelled countdown due to manual navigation')
+      debugLog('[Minimap] Cancelled countdown due to manual navigation')
     }
     if (isPlaying) {
       isPlaying = false
-      console.log('[Minimap] Paused playback due to manual navigation')
+      debugLog('[Minimap] Paused playback due to manual navigation')
     }
 
     const rect = minimapElement.getBoundingClientRect()
@@ -1660,6 +2313,7 @@
   function setProgressIndicatorStyle(style: 'progress-bar' | 'scrollbar' | 'none') {
     progressIndicatorStyle = style
     debugLog(`[ProgressIndicator] Style set to: ${style}`)
+    broadcastState({ progressIndicatorStyle })
   }
 
   function cycleProgressIndicatorStyle() {
@@ -1668,6 +2322,7 @@
     const nextIndex = (currentIndex + 1) % styles.length
     progressIndicatorStyle = styles[nextIndex]
     debugLog(`[ProgressIndicator] Cycled to: ${progressIndicatorStyle}`)
+    broadcastState({ progressIndicatorStyle })
   }
 
   // Handle click on progress bar to jump to position
@@ -1707,7 +2362,7 @@
   function handleMouseMove(e: MouseEvent) {
     if (isResizing) {
       // Get the panel's bounding rect to calculate relative position
-      const panel = document.querySelector('.navigation-panel') as HTMLElement
+      const panel = getActualDocument().querySelector('.navigation-panel') as HTMLElement
       if (panel) {
         const rect = panel.getBoundingClientRect()
         // For right-side panel, calculate width from right edge
@@ -1755,14 +2410,22 @@
     debugLog('[Focus] Teleprompter focused - keyboard shortcuts ACTIVE')
   }
 
-  function handleTeleprompterBlur() {
+  function handleTeleprompterBlur(event: FocusEvent) {
     isTeleprompterFocused = false
     debugLog('[Focus] Teleprompter unfocused - keyboard shortcuts INACTIVE')
+
+    // Check if focus is moving to a child element (like a button)
+    // If so, don't trigger auto-pause - user is just clicking controls
+    const relatedTarget = event.relatedTarget as HTMLElement | null
+    if (relatedTarget && teleprompterContainer?.contains(relatedTarget)) {
+      debugLog('[AutoPause] Focus moved to child element, NOT pausing')
+      return
+    }
 
     // Auto-pause when user starts editing (clicks on editor)
     if (autoPauseOnEdit && isPlaying) {
       isPlaying = false
-      debugLog('[AutoPause] Teleprompter paused - user started editing')
+      debugLog('[AutoPause] Teleprompter paused - user clicked outside to edit')
     }
   }
 
@@ -1846,6 +2509,9 @@
       case 'toggleEyeline':
         toggleEyeline()
         return true
+      case 'toggleVoiceTracking':
+        toggleVoiceTracking()
+        return true
       default:
         return false
     }
@@ -1899,7 +2565,7 @@
 
       // Reset countdown flag when explicitly resetting to top
       hasUsedCountdown = false
-      console.log('[Reset] Reset to top - countdown flag reset')
+      debugLog('[Reset] Reset to top - countdown flag reset')
     }
   }
 
@@ -1970,6 +2636,21 @@
           contentArea.scrollTop += customEvent.detail.amount
         }
         break
+      case 'teleprompter:set-scroll-position':
+        // Network Broadcast: Set absolute scroll position (for follower devices)
+        if (contentArea && customEvent.detail?.position !== undefined) {
+          contentArea.scrollTop = customEvent.detail.position
+          debugLog(`[Network Sync] Scroll position set to ${customEvent.detail.position}px`)
+        }
+        break
+      case 'teleprompter:set-scroll-percentage':
+        // Network Broadcast: Set scroll by percentage (for follower devices)
+        if (contentArea && customEvent.detail?.percentage !== undefined) {
+          const scrollableHeight = contentArea.scrollHeight - contentArea.clientHeight
+          contentArea.scrollTop = (customEvent.detail.percentage / 100) * scrollableHeight
+          debugLog(`[Network Sync] Scroll percentage set to ${customEvent.detail.percentage}%`)
+        }
+        break
       case 'teleprompter:jump-to-header':
         if (customEvent.detail?.index !== undefined) {
           const headerList = headers()
@@ -2018,19 +2699,21 @@
           if (settings.paddingHorizontal !== undefined) paddingHorizontal = settings.paddingHorizontal
           if (settings.backgroundOpacity !== undefined) backgroundOpacity = settings.backgroundOpacity
           if (settings.enableBackgroundTransparency !== undefined) enableBackgroundTransparency = settings.enableBackgroundTransparency
-          console.log('[Teleprompter] Applied all settings from preset:', settings)
+          debugLog('[Teleprompter] Applied all settings from preset:', settings)
         }
         break
       case 'teleprompter:font-size-up':
         if (fontSize < 72) {
           fontSize += 2
           debugLog(`[Font] Size: ${fontSize}px`)
+          broadcastState({ fontSize })
         }
         break
       case 'teleprompter:font-size-down':
         if (fontSize > 12) {
           fontSize -= 2
           debugLog(`[Font] Size: ${fontSize}px`)
+          broadcastState({ fontSize })
         }
         break
       case 'teleprompter:toggle-eyeline':
@@ -2041,6 +2724,23 @@
         break
       case 'teleprompter:hide-eyeline':
         if (showEyeline) showEyeline = false
+        break
+      case 'teleprompter:toggle-focus-mode':
+        toggleFocusMode()
+        break
+      case 'teleprompter:enable-focus-mode':
+        if (!focusMode) {
+          focusMode = true
+          broadcastState({ focusMode })
+          debugLog('[FocusMode] Enabled')
+        }
+        break
+      case 'teleprompter:disable-focus-mode':
+        if (focusMode) {
+          focusMode = false
+          broadcastState({ focusMode })
+          debugLog('[FocusMode] Disabled')
+        }
         break
       case 'teleprompter:countdown-increase':
         increaseCountdown()
@@ -2055,6 +2755,10 @@
           countdownSeconds = Math.max(0, Math.min(30, customEvent.detail.seconds))
           debugLog(`[Countdown] Set to ${countdownSeconds}s`)
         }
+        break
+      case 'teleprompter:start-countdown':
+        startCountdown()
+        debugLog(`[Countdown] Started with ${countdownSeconds}s`)
         break
       case 'teleprompter:toggle-pin':
         togglePin()
@@ -2270,6 +2974,59 @@
       case 'teleprompter:broadcast-state':
         broadcastStateToWebSocket()
         break
+      // v0.8.0 Stream Deck commands - Letter spacing
+      case 'teleprompter:letter-spacing-increase':
+        increaseLetterSpacing()
+        break
+      case 'teleprompter:letter-spacing-decrease':
+        decreaseLetterSpacing()
+        break
+      // v0.8.0 Stream Deck commands - Opacity
+      case 'teleprompter:opacity-increase':
+        increaseOpacity()
+        break
+      case 'teleprompter:opacity-decrease':
+        decreaseOpacity()
+        break
+      // v0.8.0 Stream Deck commands - View mode
+      case 'teleprompter:toggle-view-mode':
+        toggleViewMode()
+        break
+      case 'teleprompter:set-view-mode-rendered':
+        setViewMode('rendered')
+        break
+      case 'teleprompter:set-view-mode-plain':
+        setViewMode('plain')
+        break
+      // v0.8.0 Stream Deck commands - Detach window
+      case 'teleprompter:detach-window':
+        detachWindow()
+        break
+      // v0.8.0 Stream Deck commands - Open file
+      case 'teleprompter:open-file':
+        if (customEvent.detail?.path) {
+          openFile(customEvent.detail.path)
+        }
+        break
+      // Voice tracking commands
+      case 'teleprompter:voice-start':
+        if (!voiceTrackingActive) toggleVoiceTracking()
+        break
+      case 'teleprompter:voice-stop':
+        if (voiceTrackingActive) toggleVoiceTracking()
+        break
+      case 'teleprompter:voice-toggle':
+        toggleVoiceTracking()
+        break
+      case 'teleprompter:get-voice-status':
+        // Update WebSocket state with voice status
+        if (plugin?.wsServer) {
+          plugin.wsServer.updateState({
+            voiceTrackingActive,
+            voiceTrackingStatus
+          })
+        }
+        break
     }
   }
 
@@ -2305,6 +3062,7 @@
       pinnedNotePath,
       isKeepAwake,
       isFullScreen,
+      focusMode,
       progressIndicatorStyle,
       autoPauseOnEdit,
       doubleClickToEdit: settings.doubleClickToEdit,
@@ -2314,7 +3072,7 @@
     })
   }
 
-  // Auto-broadcast state when it changes
+  // Auto-broadcast state when it changes (to WebSocket and other windows)
   $effect(() => {
     // Track these reactive values
     const stateSnapshot = {
@@ -2334,6 +3092,15 @@
     return () => clearTimeout(timer)
   })
 
+  // NOTE: Cross-window state sync is handled by individual broadcastState() calls
+  // in each handler function (togglePlay, setSpeed, etc.). We do NOT use $effect()
+  // for broadcasting because it creates infinite loops:
+  // 1. Window A changes state → $effect fires → broadcasts
+  // 2. Window B receives → updates state → $effect fires → broadcasts back
+  // 3. Infinite loop
+  //
+  // The correct pattern: broadcast only on explicit user actions, not on state changes.
+
   // Add global mouse and keyboard event listeners
   onMount(() => {
     loadActiveNote()
@@ -2351,27 +3118,33 @@
       loadActiveNote()
     })
 
+    // Get actual document/window from mounted element for popout window support
+    // IMPORTANT: Must use getActualDocument() here, NOT activeDoc from props
+    // because props are captured before element is moved to popout DOM
+    const actualDoc = getActualDocument()
+    const actualWin = getActualWindow()
+
     // Add resize listeners
-    document.addEventListener('mousemove', handleMouseMove)
-    document.addEventListener('mouseup', stopResize)
+    actualDoc.addEventListener('mousemove', handleMouseMove)
+    actualDoc.addEventListener('mouseup', stopResize)
 
     // Add eyeline drag listeners
-    document.addEventListener('mousemove', handleEyelineDrag)
-    document.addEventListener('mouseup', stopDragEyeline)
+    actualDoc.addEventListener('mousemove', handleEyelineDrag)
+    actualDoc.addEventListener('mouseup', stopDragEyeline)
 
     // Add window resize listener to recalculate eyeline position
     const handleResize = () => {
       calculateEyelinePixelPosition()
     }
-    window.addEventListener('resize', handleResize)
+    actualWin.addEventListener('resize', handleResize)
 
     // Calculate initial eyeline position
     calculateEyelinePixelPosition()
 
     // Add keyboard listeners
-    document.addEventListener('keydown', handleKeyPress)
-    document.addEventListener('keydown', handleFullScreenKeyPress)
-    document.addEventListener('keyup', handleFullScreenKeyRelease)
+    actualDoc.addEventListener('keydown', handleKeyPress)
+    actualDoc.addEventListener('keydown', handleFullScreenKeyPress)
+    actualDoc.addEventListener('keyup', handleFullScreenKeyRelease)
 
     // Add scroll listener to track current section (debounced for performance)
     let scrollTimeout: NodeJS.Timeout | null = null
@@ -2429,6 +3202,17 @@
       showMinimap = plugin.settings.showMinimap
     }
 
+    // Load focus mode settings
+    if (plugin?.settings?.focusMode !== undefined) {
+      focusMode = plugin.settings.focusMode
+    }
+    if (plugin?.settings?.focusModeOpacity !== undefined) {
+      focusModeOpacity = plugin.settings.focusModeOpacity
+    }
+    if (plugin?.settings?.focusModeRange !== undefined) {
+      focusModeRange = plugin.settings.focusModeRange
+    }
+
     // Register WebSocket event listeners
     const wsEvents = [
       'teleprompter:toggle-play',
@@ -2449,6 +3233,8 @@
       'teleprompter:speed-preset-5',
       'teleprompter:reset-to-top',
       'teleprompter:scroll',
+      'teleprompter:set-scroll-position',
+      'teleprompter:set-scroll-percentage',
       'teleprompter:jump-to-header',
       'teleprompter:jump-to-header-by-id',
       'teleprompter:next-section',
@@ -2464,6 +3250,9 @@
       'teleprompter:toggle-eyeline',
       'teleprompter:show-eyeline',
       'teleprompter:hide-eyeline',
+      'teleprompter:toggle-focus-mode',
+      'teleprompter:enable-focus-mode',
+      'teleprompter:disable-focus-mode',
       'teleprompter:toggle-pin',
       'teleprompter:pin-note',
       'teleprompter:unpin-note',
@@ -2525,48 +3314,84 @@
       'teleprompter:prev-speed-preset',
       'teleprompter:cycle-alignment',
       'teleprompter:broadcast-state',
+      // Voice tracking events
+      'teleprompter:voice-start',
+      'teleprompter:voice-stop',
+      'teleprompter:voice-toggle',
+      'teleprompter:get-voice-status',
+      // Countdown events
+      'teleprompter:countdown-increase',
+      'teleprompter:countdown-decrease',
+      'teleprompter:set-countdown',
+      'teleprompter:start-countdown',
     ]
 
     wsEvents.forEach(eventType => {
-      window.addEventListener(eventType, handleWebSocketEvent as EventListener)
+      actualWin.addEventListener(eventType, handleWebSocketEvent as EventListener)
     })
 
     // Initial state broadcast
     broadcastStateToWebSocket()
 
-    // Apply custom Obsidian icons to toolbar buttons
-    if (btnFullscreen) setIcon(btnFullscreen, 'tp-fullscreen')
-    if (btnNav) setIcon(btnNav, 'tp-nav-panel')
-    if (btnEyeline) setIcon(btnEyeline, 'tp-eyeline')
-    if (btnPin) setIcon(btnPin, isPinned ? 'tp-pin' : 'tp-pin')
-    if (btnKeepAwake) setIcon(btnKeepAwake, 'tp-keep-awake')
-    if (btnAutoPause) setIcon(btnAutoPause, 'pause-circle')
-    if (btnRefresh) setIcon(btnRefresh, 'tp-refresh')
-    if (btnPlay) setIcon(btnPlay, isPlaying ? 'tp-pause' : 'tp-play')
-    if (btnReset) setIcon(btnReset, 'tp-reset-top')
-    if (btnSpeed) setIcon(btnSpeed, 'tp-speed-up')
-    if (btnCountdown) setIcon(btnCountdown, 'tp-countdown-up')
-    if (btnFontSize) setIcon(btnFontSize, 'tp-font-up')
-    if (btnLineHeight) setIcon(btnLineHeight, 'tp-line-height')
-    if (btnLetterSpacing) setIcon(btnLetterSpacing, 'tp-letter-spacing')
-    if (btnOpacity) setIcon(btnOpacity, 'tp-opacity')
-    if (btnPadding) setIcon(btnPadding, 'tp-padding')
-    if (btnFontFamily) setIcon(btnFontFamily, 'tp-font-system')
-    if (btnTextColor) setIcon(btnTextColor, 'tp-text-color')
-    if (btnBgColor) setIcon(btnBgColor, 'tp-bg-color')
-    if (btnQuickPresets) setIcon(btnQuickPresets, 'tp-quick-presets')
+    // BroadcastChannel listener for syncing between main and popout windows
+    function handleBroadcastMessage(event: MessageEvent) {
+      if (event.data?.type === 'state-update') {
+        isReceivingBroadcast = true
+        const data = event.data.data as SyncState
+        debugLog('[Broadcast] RECEIVED:', data)
 
-    // Cleanup
+        // Apply received state changes
+        if (data.isPlaying !== undefined) isPlaying = data.isPlaying
+        if (data.speed !== undefined) speed = data.speed
+        if (data.fontSize !== undefined) fontSize = data.fontSize
+        if (data.showEyeline !== undefined) showEyeline = data.showEyeline
+        if (data.eyelinePosition !== undefined) eyelinePosition = data.eyelinePosition
+        if (data.focusMode !== undefined) focusMode = data.focusMode
+        if (data.showNavigation !== undefined) showNavigation = data.showNavigation
+        if (data.autoPauseOnEdit !== undefined) autoPauseOnEdit = data.autoPauseOnEdit
+        if (data.textColor !== undefined) textColor = data.textColor
+        if (data.backgroundColor !== undefined) backgroundColor = data.backgroundColor
+        if (data.lineHeight !== undefined) lineHeight = data.lineHeight
+        if (data.letterSpacing !== undefined) letterSpacing = data.letterSpacing
+        if (data.opacity !== undefined) opacity = data.opacity
+        if (data.textAlignment !== undefined) textAlignment = data.textAlignment
+        if (data.countdownSeconds !== undefined) countdownSeconds = data.countdownSeconds
+        if (data.isPinned !== undefined) isPinned = data.isPinned
+        if (data.isKeepAwake !== undefined) {
+          isKeepAwake = data.isKeepAwake
+          // Also start/stop keep awake based on received state
+          if (isKeepAwake) startKeepAwake()
+          else stopKeepAwake()
+        }
+        if (data.flipHorizontal !== undefined) flipHorizontal = data.flipHorizontal
+        if (data.flipVertical !== undefined) flipVertical = data.flipVertical
+        if (data.viewMode !== undefined) viewMode = data.viewMode
+        if (data.progressIndicatorStyle !== undefined) progressIndicatorStyle = data.progressIndicatorStyle
+        if (data.fontFamily !== undefined) fontFamily = data.fontFamily
+        if (data.paddingTop !== undefined) paddingTop = data.paddingTop
+        if (data.paddingRight !== undefined) paddingRight = data.paddingRight
+        if (data.paddingBottom !== undefined) paddingBottom = data.paddingBottom
+        if (data.paddingLeft !== undefined) paddingLeft = data.paddingLeft
+        if (data.showMinimap !== undefined) showMinimap = data.showMinimap
+        if (data.isFullScreen !== undefined) isFullScreen = data.isFullScreen
+
+        // Allow broadcasting again after state is applied
+        setTimeout(() => { isReceivingBroadcast = false }, 50)
+      }
+    }
+    stateChannel.addEventListener('message', handleBroadcastMessage)
+
+    // Cleanup (use actualDoc/actualWin captured above for popout window support)
     return () => {
       app.workspace.offref(eventRef)
-      document.removeEventListener('mousemove', handleMouseMove)
-      document.removeEventListener('mouseup', stopResize)
-      document.removeEventListener('mousemove', handleEyelineDrag)
-      document.removeEventListener('mouseup', stopDragEyeline)
-      window.removeEventListener('resize', handleResize)
-      document.removeEventListener('keydown', handleKeyPress)
-      document.removeEventListener('keydown', handleFullScreenKeyPress)
-      document.removeEventListener('keyup', handleFullScreenKeyRelease)
+      actualDoc.removeEventListener('mousemove', handleMouseMove)
+      actualDoc.removeEventListener('mouseup', stopResize)
+      actualDoc.removeEventListener('mousemove', handleEyelineDrag)
+      actualDoc.removeEventListener('mouseup', stopDragEyeline)
+      actualWin.removeEventListener('resize', handleResize)
+      actualDoc.removeEventListener('keydown', handleKeyPress)
+      actualDoc.removeEventListener('keydown', handleFullScreenKeyPress)
+      actualDoc.removeEventListener('keyup', handleFullScreenKeyRelease)
 
       if (contentArea) {
         contentArea.removeEventListener('scroll', handleScroll)
@@ -2574,11 +3399,15 @@
 
       // Remove WebSocket event listeners
       wsEvents.forEach(eventType => {
-        window.removeEventListener(eventType, handleWebSocketEvent as EventListener)
+        actualWin.removeEventListener(eventType, handleWebSocketEvent as EventListener)
       })
 
       // Cleanup keep awake
       stopKeepAwake()
+
+      // Cleanup BroadcastChannel
+      stateChannel.removeEventListener('message', handleBroadcastMessage)
+      stateChannel.close()
     }
   })
 
@@ -2638,7 +3467,7 @@
     // Get the active markdown view
     const view = app.workspace.getActiveViewOfType(MarkdownView)
     if (!view) {
-      console.log('[ScrollSync] No active markdown view found')
+      debugLog('[ScrollSync] No active markdown view found')
       return
     }
 
@@ -2662,11 +3491,12 @@
       if (isCountingDown) {
         isCountingDown = false
         currentCountdown = 0
-        console.log('[Navigation] Cancelled countdown due to manual jump')
+        debugLog('[Navigation] Cancelled countdown due to manual jump')
       }
       if (isPlaying) {
         isPlaying = false
-        console.log('[Navigation] Paused playback due to manual jump')
+        broadcastState({ isPlaying: false })
+        debugLog('[Navigation] Paused playback due to manual jump')
       }
 
       // Scroll to header in teleprompter
@@ -2698,7 +3528,7 @@
       const headerIndex = headerList.findIndex(h => h.id === headerId)
       if (headerIndex !== -1) {
         currentHeaderIndex = headerIndex
-        console.log(`[jumpToHeader] Synced currentHeaderIndex to ${currentHeaderIndex}`)
+        debugLog(`[jumpToHeader] Synced currentHeaderIndex to ${currentHeaderIndex}`)
       }
 
       // Reset flag after a brief delay to allow scroll events to settle
@@ -2748,8 +3578,8 @@
       return
     }
 
-    // Get the clicked text
-    const selection = window.getSelection()
+    // Get the clicked text (use actual window for popout window support)
+    const selection = getActualWindow().getSelection()
     let clickedText = ''
 
     // Try to get selected text (double-click usually selects a word)
@@ -2889,6 +3719,7 @@
       // Use requestAnimationFrame for smoother, more performant scrolling
       let animationFrameId: number
       let lastTimestamp = 0
+      let accumulatedScroll = 0 // Accumulate fractional pixels
 
       const scroll = (timestamp: number) => {
         if (!lastTimestamp) lastTimestamp = timestamp
@@ -2897,7 +3728,15 @@
         // Target 60fps, adjust scroll amount based on actual time elapsed
         if (delta >= 16.67) { // ~60fps
           if (contentArea) {
-            contentArea.scrollTop += (speed / 2) * (delta / 50)
+            // Accumulate scroll amount (fractional pixels)
+            accumulatedScroll += (speed / 2) * (delta / 50)
+
+            // Only apply scroll when we have at least 1 pixel
+            if (accumulatedScroll >= 1) {
+              const pixelsToScroll = Math.floor(accumulatedScroll)
+              contentArea.scrollTop += pixelsToScroll
+              accumulatedScroll -= pixelsToScroll // Keep the remainder
+            }
 
             // Update scroll position and percentage in real-time during auto-scroll
             scrollPosition = contentArea.scrollTop
@@ -2918,6 +3757,45 @@
 
       // Cleanup when this effect re-runs or component unmounts
       return () => cancelAnimationFrame(animationFrameId)
+    }
+  })
+
+  // Network Broadcast effect - broadcasts scroll position to WebSocket for multi-device sync
+  $effect(() => {
+    // Only broadcast when playing and network broadcast is enabled
+    if (!isPlaying || !settings.networkBroadcastEnabled) return
+
+    const wsServer = plugin?.getWebSocketServer?.()
+    if (!wsServer) return
+
+    const broadcastInterval = settings.networkBroadcastInterval || 100
+
+    debugLog(`[Network Broadcast] Starting broadcast at ${broadcastInterval}ms interval`)
+
+    const intervalId = setInterval(() => {
+      if (!contentArea) return
+
+      const scrollableHeight = contentArea.scrollHeight - contentArea.clientHeight
+      const currentScrollPercentage = scrollableHeight > 0
+        ? Math.round((contentArea.scrollTop / scrollableHeight) * 100)
+        : 0
+
+      // Broadcast current state to all connected WebSocket clients
+      wsServer.updateState({
+        isPlaying,
+        speed,
+        scrollPosition: contentArea.scrollTop,
+        maxScroll: scrollableHeight,
+        scrollPercentage: currentScrollPercentage,
+        currentNote: pinnedNotePath || null,
+        currentNoteTitle: pinnedNotePath?.split('/').pop()?.replace('.md', '') || null,
+      })
+    }, broadcastInterval)
+
+    // Cleanup when effect re-runs or component unmounts
+    return () => {
+      debugLog('[Network Broadcast] Stopping broadcast')
+      clearInterval(intervalId)
     }
   })
 </script>
@@ -2955,559 +3833,597 @@
     </div>
   {/if}
 
+  <!-- Voice tracking status indicator -->
+  {#if voiceTrackingActive && settings.voiceTrackingShowIndicator}
+    <div class="voice-status-overlay">
+      <div class="voice-status-indicator" class:listening={voiceTrackingStatus === 'listening'}>
+        <span class="voice-icon">🎤</span>
+        <span class="voice-status-text">
+          {#if voiceTrackingStatus === 'listening'}
+            Listening...
+          {:else if voiceTrackingStatus === 'initializing'}
+            {#if voiceDownloadProgress > 0 && voiceDownloadProgress < 100}
+              Downloading model... {voiceDownloadProgress}%
+            {:else}
+              Initializing...
+            {/if}
+          {:else}
+            Voice Active
+          {/if}
+        </span>
+      </div>
+      {#if voiceTrackingStatus === 'initializing' && voiceDownloadProgress > 0}
+        <div class="voice-progress-bar">
+          <div class="voice-progress-fill" style="width: {voiceDownloadProgress}%"></div>
+        </div>
+      {/if}
+      {#if lastRecognizedText}
+        <div class="voice-recognized-text">"{lastRecognizedText}"</div>
+      {/if}
+    </div>
+  {/if}
+
   <!-- Show controls always (including in full-screen mode) -->
+  <!-- Controls visibility and order is configurable via Settings > Toolbar -->
   <div class="controls" class:fullscreen-controls={isFullScreen}>
-    <button
-      bind:this={btnFullscreen}
-      onclick={toggleFullScreen}
-      class="btn-fullscreen icon-btn"
-      class:active={isFullScreen}
-      title={isFullScreen ? 'Exit Full-Screen Mode (f)' : 'Enter Full-Screen Mode (f)'}
-    >
-    </button>
-    <button
-      bind:this={btnNav}
-      onclick={toggleNavigation}
-      class="btn-nav icon-btn"
-      class:active={showNavigation}
-      title="Toggle Navigation Panel (n)"
-    >
-    </button>
-    <button
-      bind:this={btnEyeline}
-      onclick={toggleEyeline}
-      class="btn-eyeline icon-btn"
-      class:active={showEyeline}
-      title="Toggle Eyeline Indicator"
-    >
-    </button>
-    <button
-      bind:this={btnPin}
-      onclick={togglePin}
-      class="btn-pin icon-btn"
-      class:active={isPinned}
-      title={isPinned ? `Pinned: ${currentFileName}` : 'Pin Current Note (Lock content)'}
-    >
-    </button>
-    <button
-      bind:this={btnKeepAwake}
-      onclick={toggleKeepAwake}
-      class="btn-keep-awake icon-btn"
-      class:active={isKeepAwake}
-      title={isKeepAwake ? 'Keep Awake: ON (Screen won\'t sleep)' : 'Keep Awake: OFF (Click to prevent sleep)'}
-    >
-    </button>
-    <button
-      bind:this={btnAutoPause}
-      onclick={toggleAutoPauseOnEdit}
-      class="btn-auto-pause icon-btn"
-      class:active={autoPauseOnEdit}
-      title={autoPauseOnEdit ? 'Auto-Pause: ON (Pauses when you edit)' : 'Auto-Pause: OFF (Click to enable)'}
-    >
-    </button>
-    <button
-      bind:this={btnProgressIndicator}
-      onclick={cycleProgressIndicatorStyle}
-      class="btn-progress-indicator icon-btn"
-      class:active={progressIndicatorStyle !== 'none'}
-      title={`Progress Indicator: ${progressIndicatorStyle === 'progress-bar' ? 'Bar' : progressIndicatorStyle === 'scrollbar' ? 'Scrollbar' : 'Off'} (click to cycle)`}
-    >
-      {progressIndicatorStyle === 'progress-bar' ? '▔' : progressIndicatorStyle === 'scrollbar' ? '▮' : '○'}
-    </button>
-    <button
-      bind:this={btnAlignment}
-      onclick={cycleTextAlignment}
-      class="btn-alignment icon-btn"
-      title={`Text Alignment: ${textAlignment.toUpperCase()} (click to cycle)`}
-    >
-      {textAlignment === 'left' ? '⊣' : textAlignment === 'center' ? '☰' : textAlignment === 'right' ? '⊢' : 'ﺭ'}
-    </button>
+    <!-- Dynamic toolbar controls - rendered in order from settings -->
+    {#each orderedControls as control (control.id)}
+      {#if control.id === 'fullscreen'}
+        <button
+          use:setIconAction={'tp-fullscreen'}
+          onclick={toggleFullScreen}
+          class="btn-fullscreen icon-btn"
+          class:active={isFullScreen}
+          title={isFullScreen ? 'Exit Full-Screen Mode (f)' : 'Enter Full-Screen Mode (f)'}
+        >
+        </button>
+      {:else if control.id === 'navigation'}
+        <button
+          use:setIconAction={'tp-nav-panel'}
+          onclick={toggleNavigation}
+          class="btn-nav icon-btn"
+          class:active={showNavigation}
+          title="Toggle Navigation Panel (n)"
+        >
+        </button>
+      {:else if control.id === 'eyeline'}
+        <button
+          use:setIconAction={'tp-eyeline'}
+          onclick={toggleEyeline}
+          class="btn-eyeline icon-btn"
+          class:active={showEyeline}
+          title="Toggle Eyeline Indicator"
+        >
+        </button>
+      {:else if control.id === 'focus-mode'}
+        <button
+          use:setIconAction={'focus'}
+          onclick={toggleFocusMode}
+          class="btn-focus-mode icon-btn"
+          class:active={focusMode}
+          title={focusMode ? 'Focus Mode: ON (Dims text outside eyeline)' : 'Focus Mode: OFF (Click to dim text outside eyeline)'}
+        >
+        </button>
+      {:else if control.id === 'pin'}
+        <button
+          use:setIconAction={'tp-pin'}
+          onclick={togglePin}
+          class="btn-pin icon-btn"
+          class:active={isPinned}
+          title={isPinned ? `Pinned: ${currentFileName}` : 'Pin Current Note (Lock content)'}
+        >
+        </button>
+      {:else if control.id === 'keep-awake'}
+        <button
+          use:setIconAction={'tp-keep-awake'}
+          onclick={toggleKeepAwake}
+          class="btn-keep-awake icon-btn"
+          class:active={isKeepAwake}
+          title={isKeepAwake ? 'Keep Awake: ON (Screen won\'t sleep)' : 'Keep Awake: OFF (Click to prevent sleep)'}
+        >
+        </button>
+      {:else if control.id === 'voice-tracking'}
+        <div class="control-with-popup voice-control-group">
+          <button
+            use:setIconAction={voiceTrackingActive ? 'mic' : 'mic-off'}
+            onclick={toggleVoiceTracking}
+            class="btn-voice icon-btn"
+            class:active={voiceTrackingActive}
+            class:loading={voiceTrackingStatus === 'initializing'}
+            class:error={voiceTrackingStatus === 'error'}
+            disabled={!settings.voiceTrackingEnabled}
+            title={!settings.voiceTrackingEnabled ? 'Voice Tracking (disabled in settings)' : voiceTrackingActive ? 'Stop Voice Tracking (V)' : voiceTrackingStatus === 'initializing' ? 'Initializing...' : 'Start Voice Tracking (V)'}
+          >
+          </button>
+          {#if settings.voiceTrackingEnabled}
+            <button
+              use:setIconAction={'settings'}
+              onclick={toggleVoiceSettings}
+              class="btn-voice-settings icon-btn-small"
+              class:active={showVoiceSettings}
+              title="Voice Pace Settings"
+            >
+            </button>
+          {/if}
+          {#if showVoiceSettings}
+            <div class="popup-panel voice-preset-panel">
+              <div class="preset-header">VOICE PACE PRESETS</div>
+              <div class="preset-grid">
+                <button
+                  class="preset-item"
+                  class:active={settings.voiceTrackingPacePreset === 'conservative'}
+                  onclick={() => applyVoicePreset('conservative')}
+                >
+                  <div class="preset-icon conservative">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/>
+                      <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
+                      <line x1="12" y1="19" x2="12" y2="22"/>
+                    </svg>
+                  </div>
+                  <div class="preset-text">
+                    <span class="preset-name">Conservative</span>
+                    <span class="preset-desc">Non-native speakers, careful reading</span>
+                  </div>
+                  {#if settings.voiceTrackingPacePreset === 'conservative'}
+                    <div class="preset-check">✓</div>
+                  {/if}
+                </button>
+
+                <button
+                  class="preset-item"
+                  class:active={settings.voiceTrackingPacePreset === 'balanced'}
+                  onclick={() => applyVoicePreset('balanced')}
+                >
+                  <div class="preset-icon balanced">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/>
+                      <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
+                      <line x1="12" y1="19" x2="12" y2="22"/>
+                    </svg>
+                  </div>
+                  <div class="preset-text">
+                    <span class="preset-name">Balanced</span>
+                    <span class="preset-desc">Most speakers, normal pace</span>
+                  </div>
+                  {#if settings.voiceTrackingPacePreset === 'balanced'}
+                    <div class="preset-check">✓</div>
+                  {/if}
+                </button>
+
+                <button
+                  class="preset-item"
+                  class:active={settings.voiceTrackingPacePreset === 'responsive'}
+                  onclick={() => applyVoicePreset('responsive')}
+                >
+                  <div class="preset-icon responsive">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/>
+                      <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
+                      <line x1="12" y1="19" x2="12" y2="22"/>
+                    </svg>
+                  </div>
+                  <div class="preset-text">
+                    <span class="preset-name">Responsive</span>
+                    <span class="preset-desc">Fast speakers, larger movements</span>
+                  </div>
+                  {#if settings.voiceTrackingPacePreset === 'responsive'}
+                    <div class="preset-check">✓</div>
+                  {/if}
+                </button>
+              </div>
+            </div>
+          {/if}
+        </div>
+      {:else if control.id === 'play-pause'}
+        <button
+          bind:this={btnPlay}
+          onclick={togglePlay}
+          class="btn-play icon-btn"
+          class:active={isPlaying || isCountingDown}
+          title={isPlaying ? 'Pause (Space)' : isCountingDown ? 'Cancel Countdown (Space)' : 'Play (Space)'}
+        >
+        </button>
+      {:else if control.id === 'reset'}
+        <button use:setIconAction={'tp-reset-top'} onclick={resetToTop} class="btn-reset icon-btn" title="Reset to Top (Home)">
+        </button>
+      {:else if control.id === 'speed'}
+        <div class="control-with-popup">
+          <button
+            use:setIconAction={'tp-speed-up'}
+            onclick={toggleSpeedSlider}
+            class="icon-btn"
+            class:active={showSpeedSlider}
+            title="Speed: {speed} (click to adjust)"
+          ></button>
+          {#if showSpeedSlider}
+            <div class="popup-slider">
+              <label class="slider-label">
+                <span>Speed: {speed}</span>
+                <input
+                  type="range"
+                  bind:value={speed}
+                  oninput={() => broadcastState({ speed })}
+                  min={settings.minScrollSpeed || 0.5}
+                  max={settings.maxScrollSpeed || 10}
+                  step={speedIncrement}
+                />
+              </label>
+            </div>
+          {/if}
+        </div>
+      {:else if control.id === 'countdown'}
+        <div class="control-with-popup">
+          <button
+            use:setIconAction={'tp-countdown-up'}
+            onclick={toggleCountdownSlider}
+            class="icon-btn"
+            class:active={showCountdownSlider}
+            title="Countdown: {countdownSeconds}s (click to adjust)"
+          ></button>
+          {#if showCountdownSlider}
+            <div class="popup-slider">
+              <label class="slider-label">
+                <span>Countdown: {countdownSeconds}s</span>
+                <input
+                  type="range"
+                  bind:value={countdownSeconds}
+                  oninput={() => broadcastState({ countdownSeconds })}
+                  min="0"
+                  max="30"
+                  step="1"
+                />
+              </label>
+            </div>
+          {/if}
+        </div>
+      {:else if control.id === 'font-size'}
+        <div class="control-with-popup">
+          <button
+            use:setIconAction={'tp-font-up'}
+            onclick={toggleFontSizeSlider}
+            class="icon-btn"
+            class:active={showFontSizeSlider}
+            title="Font Size: {fontSize}px (click to adjust)"
+          ></button>
+          {#if showFontSizeSlider}
+            <div class="popup-slider">
+              <label class="slider-label">
+                <span>Font Size: {fontSize}px</span>
+                <input
+                  type="range"
+                  bind:value={fontSize}
+                  oninput={() => broadcastState({ fontSize })}
+                  min="12"
+                  max="72"
+                  step="1"
+                />
+              </label>
+            </div>
+          {/if}
+        </div>
+      {:else if control.id === 'flip-h'}
+        <button
+          use:setIconAction={'tp-flip-h'}
+          onclick={toggleFlipHorizontal}
+          class="btn-flip-h icon-btn"
+          class:active={flipHorizontal}
+          title={flipHorizontal ? 'Flip Horizontal: ON' : 'Flip Horizontal: OFF'}
+        >
+        </button>
+      {:else if control.id === 'flip-v'}
+        <button
+          use:setIconAction={'tp-flip-v'}
+          onclick={toggleFlipVertical}
+          class="btn-flip-v icon-btn"
+          class:active={flipVertical}
+          title={flipVertical ? 'Flip Vertical: ON' : 'Flip Vertical: OFF'}
+        >
+        </button>
+      {:else if control.id === 'minimap'}
+        <button
+          use:setIconAction={'tp-minimap'}
+          onclick={toggleMinimap}
+          class="btn-minimap icon-btn"
+          class:active={showMinimap}
+          title={showMinimap ? 'Minimap: ON' : 'Minimap: OFF'}
+        >
+        </button>
+      {:else if control.id === 'detach'}
+        <button
+          use:setIconAction={isInPopoutWindow() ? 'x' : 'tp-detach'}
+          onclick={detachWindow}
+          class="btn-detach icon-btn"
+          title={isInPopoutWindow() ? 'Close Window' : 'Open in New Window'}
+        >
+        </button>
+      {:else if control.id === 'line-height'}
+        <div class="control-with-popup">
+          <button
+            use:setIconAction={'tp-line-height'}
+            onclick={toggleLineHeightSlider}
+            class="icon-btn"
+            class:active={showLineHeightSlider}
+            title="Line Height: {lineHeight} (click to adjust)"
+          ></button>
+          {#if showLineHeightSlider}
+            <div class="popup-slider">
+              <label class="slider-label">
+                <span>Line Height: {lineHeight}</span>
+                <input type="range" bind:value={lineHeight} oninput={() => broadcastState({ lineHeight })} min="1.0" max="3.0" step="0.1" />
+              </label>
+            </div>
+          {/if}
+        </div>
+      {:else if control.id === 'letter-spacing'}
+        <div class="control-with-popup">
+          <button
+            use:setIconAction={'tp-letter-spacing'}
+            onclick={toggleLetterSpacingSlider}
+            class="icon-btn"
+            class:active={showLetterSpacingSlider}
+            title="Letter Spacing: {letterSpacing}px (click to adjust)"
+          ></button>
+          {#if showLetterSpacingSlider}
+            <div class="popup-slider">
+              <label class="slider-label">
+                <span>Letter Spacing: {letterSpacing}px</span>
+                <input type="range" bind:value={letterSpacing} oninput={() => broadcastState({ letterSpacing })} min="-5" max="20" step="0.5" />
+              </label>
+            </div>
+          {/if}
+        </div>
+      {:else if control.id === 'opacity'}
+        <div class="control-with-popup">
+          <button
+            use:setIconAction={'tp-opacity'}
+            onclick={toggleOpacitySlider}
+            class="icon-btn"
+            class:active={showOpacitySlider}
+            title="Opacity: {opacity}% (click to adjust)"
+          ></button>
+          {#if showOpacitySlider}
+            <div class="popup-slider">
+              <label class="slider-label">
+                <span>Opacity: {opacity}%</span>
+                <input type="range" bind:value={opacity} oninput={() => broadcastState({ opacity })} min="0" max="100" step="5" />
+              </label>
+            </div>
+          {/if}
+        </div>
+      {:else if control.id === 'padding'}
+        <div class="control-with-popup">
+          <button
+            use:setIconAction={'tp-padding'}
+            onclick={togglePaddingSliders}
+            class="icon-btn"
+            class:active={showPaddingSliders}
+            title="Padding (click to adjust)"
+          ></button>
+          {#if showPaddingSliders}
+            <div class="popup-padding">
+              <div class="padding-header">Padding</div>
+              <div class="padding-sliders">
+                <label class="slider-label"><span>Top: {paddingTop}px</span><input type="range" bind:value={paddingTop} oninput={() => broadcastState({ paddingTop })} min="0" max="200" step="5" /></label>
+                <label class="slider-label"><span>Right: {paddingRight}px</span><input type="range" bind:value={paddingRight} oninput={() => broadcastState({ paddingRight })} min="0" max="200" step="5" /></label>
+                <label class="slider-label"><span>Bottom: {paddingBottom}px</span><input type="range" bind:value={paddingBottom} oninput={() => broadcastState({ paddingBottom })} min="0" max="200" step="5" /></label>
+                <label class="slider-label"><span>Left: {paddingLeft}px</span><input type="range" bind:value={paddingLeft} oninput={() => broadcastState({ paddingLeft })} min="0" max="200" step="5" /></label>
+              </div>
+              <div class="popup-buttons">
+                <button onclick={resetPadding} class="btn-reset-popup">Reset</button>
+                <button onclick={togglePaddingSliders} class="btn-close-popup">Close</button>
+              </div>
+            </div>
+          {/if}
+        </div>
+      {:else if control.id === 'font-family'}
+        <div class="control-with-popup">
+          <button
+            use:setIconAction={'tp-font-system'}
+            onclick={toggleFontFamilyList}
+            class="icon-btn"
+            class:active={showFontFamilyList}
+            title="Font Family (click to choose)"
+          ></button>
+          {#if showFontFamilyList}
+            <div class="popup-font-list">
+              <div class="font-list-header">Font Family</div>
+              <div class="font-options">
+                <button class="font-option" class:selected={fontFamily === 'inherit'} onclick={() => setFontFamily('inherit')}><span style="font-family: inherit;">System Default</span></button>
+                <button class="font-option" class:selected={fontFamily === 'Arial, "Helvetica Neue", Helvetica, sans-serif'} onclick={() => setFontFamily('Arial, "Helvetica Neue", Helvetica, sans-serif')}><span style="font-family: Arial, sans-serif;">Arial</span></button>
+                <button class="font-option" class:selected={fontFamily === '"Courier New", Courier, Monaco, "Lucida Console", monospace'} onclick={() => setFontFamily('"Courier New", Courier, Monaco, "Lucida Console", monospace')}><span style="font-family: 'Courier New', monospace;">Courier New</span></button>
+                <button class="font-option" class:selected={fontFamily === 'Georgia, "Times New Roman", Times, serif'} onclick={() => setFontFamily('Georgia, "Times New Roman", Times, serif')}><span style="font-family: Georgia, serif;">Georgia</span></button>
+                <button class="font-option" class:selected={fontFamily === 'Helvetica, "Helvetica Neue", Arial, sans-serif'} onclick={() => setFontFamily('Helvetica, "Helvetica Neue", Arial, sans-serif')}><span style="font-family: Helvetica, Arial, sans-serif;">Helvetica</span></button>
+                <button class="font-option" class:selected={fontFamily === 'Roboto, "Segoe UI", Arial, sans-serif'} onclick={() => setFontFamily('Roboto, "Segoe UI", Arial, sans-serif')}><span style="font-family: Roboto, 'Segoe UI', Arial, sans-serif;">Roboto</span></button>
+                <button class="font-option" class:selected={fontFamily === 'Tahoma, "Segoe UI", Geneva, sans-serif'} onclick={() => setFontFamily('Tahoma, "Segoe UI", Geneva, sans-serif')}><span style="font-family: Tahoma, Geneva, sans-serif;">Tahoma</span></button>
+                <button class="font-option" class:selected={fontFamily === '"Times New Roman", Times, Georgia, serif'} onclick={() => setFontFamily('"Times New Roman", Times, Georgia, serif')}><span style="font-family: 'Times New Roman', serif;">Times New Roman</span></button>
+                <button class="font-option" class:selected={fontFamily === '"Trebuchet MS", "Lucida Grande", "Lucida Sans Unicode", sans-serif'} onclick={() => setFontFamily('"Trebuchet MS", "Lucida Grande", "Lucida Sans Unicode", sans-serif')}><span style="font-family: 'Trebuchet MS', sans-serif;">Trebuchet MS</span></button>
+                <button class="font-option" class:selected={fontFamily === 'Verdana, Geneva, Tahoma, sans-serif'} onclick={() => setFontFamily('Verdana, Geneva, Tahoma, sans-serif')}><span style="font-family: Verdana, sans-serif;">Verdana</span></button>
+              </div>
+              <div class="popup-buttons"><button onclick={toggleFontFamilyList} class="btn-close-popup">Close</button></div>
+            </div>
+          {/if}
+        </div>
+      {:else if control.id === 'text-color'}
+        <div class="control-with-popup">
+          <button
+            use:setIconAction={'tp-text-color'}
+            onclick={toggleTextColorPicker}
+            class="icon-btn"
+            class:active={showTextColorPicker}
+            title="Text Color (click to choose)"
+          ></button>
+          {#if showTextColorPicker}
+            <div class="popup-color-picker">
+              <div class="color-picker-header">Text Color</div>
+              <div class="color-preview" style="background-color: {textColor};"></div>
+              <div class="color-presets">
+                {#each textColorPresets as preset}
+                  <button
+                    class="color-swatch"
+                    class:active={textColor.toLowerCase() === preset.color.toLowerCase()}
+                    style="background-color: {preset.color};"
+                    onclick={() => applyTextColorPreset(preset.color)}
+                    title={preset.name}
+                  ></button>
+                {/each}
+              </div>
+              <div class="color-sliders">
+                <label class="slider-label"><span>Hue: {pickerHue}°</span><input type="range" bind:value={pickerHue} min="0" max="360" step="1" oninput={updateColorFromPicker} /></label>
+                <label class="slider-label"><span>Saturation: {pickerSaturation}%</span><input type="range" bind:value={pickerSaturation} min="0" max="100" step="1" oninput={updateColorFromPicker} /></label>
+                <label class="slider-label"><span>Brightness: {pickerBrightness}%</span><input type="range" bind:value={pickerBrightness} min="0" max="100" step="1" oninput={updateColorFromPicker} /></label>
+              </div>
+              <div class="color-hex-input"><label><span>Hex:</span><input type="text" bind:value={textColor} class="hex-input" placeholder="#000000" /></label></div>
+              <div class="popup-buttons"><button onclick={toggleTextColorPicker} class="btn-close-popup">Close</button></div>
+            </div>
+          {/if}
+        </div>
+      {:else if control.id === 'bg-color'}
+        <div class="control-with-popup">
+          <button
+            use:setIconAction={'tp-bg-color'}
+            onclick={toggleBgColorPicker}
+            class="icon-btn"
+            class:active={showBgColorPicker}
+            title="Background Color (click to choose)"
+          ></button>
+          {#if showBgColorPicker}
+            <div class="popup-color-picker">
+              <div class="color-picker-header">Background Color</div>
+              <div class="color-preview" style="background-color: {backgroundColor};"></div>
+              <div class="color-presets">
+                {#each backgroundColorPresets as preset}
+                  <button
+                    class="color-swatch"
+                    class:active={backgroundColor.toLowerCase() === preset.color.toLowerCase()}
+                    style="background-color: {preset.color};"
+                    onclick={() => applyBackgroundColorPreset(preset.color)}
+                    title={preset.name}
+                  ></button>
+                {/each}
+              </div>
+              <div class="color-sliders">
+                <label class="slider-label"><span>Hue: {pickerHue}°</span><input type="range" bind:value={pickerHue} min="0" max="360" step="1" oninput={updateColorFromPicker} /></label>
+                <label class="slider-label"><span>Saturation: {pickerSaturation}%</span><input type="range" bind:value={pickerSaturation} min="0" max="100" step="1" oninput={updateColorFromPicker} /></label>
+                <label class="slider-label"><span>Brightness: {pickerBrightness}%</span><input type="range" bind:value={pickerBrightness} min="0" max="100" step="1" oninput={updateColorFromPicker} /></label>
+              </div>
+              <div class="color-hex-input"><label><span>Hex:</span><input type="text" bind:value={backgroundColor} class="hex-input" placeholder="#000000" /></label></div>
+              <div class="popup-buttons"><button onclick={toggleBgColorPicker} class="btn-close-popup">Close</button></div>
+            </div>
+          {/if}
+        </div>
+      {:else if control.id === 'auto-pause'}
+        <button
+          use:setIconAction={'tp-auto-pause'}
+          onclick={toggleAutoPauseOnEdit}
+          class="btn-auto-pause icon-btn"
+          class:active={autoPauseOnEdit}
+          title={autoPauseOnEdit ? 'Auto-Pause: ON (Pauses when you edit)' : 'Auto-Pause: OFF (Click to enable)'}
+        >
+        </button>
+      {:else if control.id === 'progress-indicator'}
+        <button
+          bind:this={btnProgressIndicator}
+          onclick={cycleProgressIndicatorStyle}
+          class="btn-progress-indicator icon-btn"
+          class:active={progressIndicatorStyle !== 'none'}
+          title={`Progress Indicator: ${progressIndicatorStyle === 'progress-bar' ? 'Bar' : progressIndicatorStyle === 'scrollbar' ? 'Scrollbar' : 'Off'} (click to cycle)`}
+        >
+          {progressIndicatorStyle === 'progress-bar' ? '▔' : progressIndicatorStyle === 'scrollbar' ? '▮' : '○'}
+        </button>
+      {:else if control.id === 'alignment'}
+        <button
+          bind:this={btnAlignment}
+          onclick={cycleTextAlignment}
+          class="btn-alignment icon-btn"
+          title={`Text Alignment: ${textAlignment.toUpperCase()} (click to cycle)`}
+        >
+          {textAlignment === 'left' ? '⊣' : textAlignment === 'center' ? '☰' : textAlignment === 'right' ? '⊢' : 'ﺭ'}
+        </button>
+      {:else if control.id === 'quick-presets'}
+        <div class="control-with-popup">
+          <button
+            use:setIconAction={'tp-quick-presets'}
+            onclick={toggleQuickPresetsMenu}
+            class="icon-btn"
+            class:active={showQuickPresetsMenu}
+            title="Quick Setup Presets - One-click configurations"
+          ></button>
+          {#if showQuickPresetsMenu}
+            <div class="popup-preset-menu">
+              <div class="preset-menu-header">Quick Setup Presets</div>
+              <div class="preset-menu-list">
+                {#each quickSetupPresets as preset}
+                  <button class="preset-menu-item" onclick={() => { applyQuickPreset(preset); toggleQuickPresetsMenu(); }} title={preset.desc}>
+                    <div class="preset-preview" style="background: {preset.config.backgroundColor}; color: {preset.config.textColor};">
+                      <span class="preview-text" style="font-size: 10px;">Aa</span>
+                    </div>
+                    <div class="preset-info">
+                      <div class="preset-menu-name">{preset.name}</div>
+                      <div class="preset-menu-desc">{preset.desc}</div>
+                    </div>
+                    <div class="preset-menu-icon" use:setIconAction={preset.icon}></div>
+                  </button>
+                {/each}
+              </div>
+            </div>
+          {/if}
+        </div>
+      {:else if control.id === 'time-display'}
+        <!-- Time Display -->
+        {#if showElapsedTime || showTimeEstimation}
+          {#if timeDisplayStyle === 'compact'}
+            <!-- Compact: Click to toggle between elapsed/remaining -->
+            <button
+              class="time-display time-display-toggle"
+              onclick={toggleTimeDisplayMode}
+              title={timeDisplayMode === 'elapsed' ? 'Elapsed time (click for remaining)' : `Remaining time at ${speakingPaceWPM} WPM (click for elapsed)`}
+            >
+              {#if timeDisplayMode === 'elapsed'}
+                <span class="time-value">{formatTime(elapsedSeconds)}</span>
+                <span class="time-toggle-arrow">&#9654;</span>
+              {:else}
+                <span class="time-toggle-arrow">&#9664;</span>
+                <span class="time-value">~{formatEstimatedTime(estimatedRemainingMinutes)}</span>
+              {/if}
+            </button>
+          {:else}
+            <!-- Full: Show both elapsed and remaining -->
+            <div class="time-display time-display-full">
+              {#if showElapsedTime}
+                <span class="time-value elapsed">{formatTime(elapsedSeconds)}</span>
+              {/if}
+              {#if showElapsedTime && showTimeEstimation}
+                <span class="time-separator">|</span>
+              {/if}
+              {#if showTimeEstimation}
+                <span class="time-value remaining">~{formatEstimatedTime(estimatedRemainingMinutes)}</span>
+              {/if}
+            </div>
+          {/if}
+        {/if}
+      {/if}
+    {/each}
+
+    <!-- Refresh button (only when note is pinned) -->
     {#if isPinned}
       <button
-        bind:this={btnRefresh}
+        use:setIconAction={'tp-refresh'}
         onclick={refreshPinnedNote}
         class="btn-refresh icon-btn"
         title="Refresh Pinned Note"
       >
       </button>
     {/if}
-    <button bind:this={btnPlay} onclick={togglePlay} class="btn-play" title="Play/Pause (Space)">
-      {isPlaying ? 'Pause' : isCountingDown ? 'Cancel' : 'Play'}
-    </button>
-    <button bind:this={btnReset} onclick={resetToTop} class="btn-reset icon-btn" title="Reset to Top (Home)">
-    </button>
 
-    <!-- Time Display -->
-    {#if showElapsedTime || showTimeEstimation}
-      <div class="time-display">
-        {#if showElapsedTime}
-          <span class="elapsed-time" title="Elapsed time">{formatTime(elapsedSeconds)}</span>
-        {/if}
-        {#if showElapsedTime && showTimeEstimation}
-          <span class="time-separator">|</span>
-        {/if}
-        {#if showTimeEstimation}
-          <span class="remaining-time" title="Estimated remaining time ({speakingPaceWPM} WPM)">~{formatEstimatedTime(estimatedRemainingMinutes)}</span>
-        {/if}
-      </div>
-    {/if}
-
-    <!-- Speed Control with Popup Slider -->
-    <div class="control-with-popup">
-      <button
-        bind:this={btnSpeed}
-        onclick={toggleSpeedSlider}
-        class="icon-btn"
-        class:active={showSpeedSlider}
-        title="Speed: {speed} (click to adjust)"
-      ></button>
-      {#if showSpeedSlider}
-        <div class="popup-slider">
-          <label class="slider-label">
-            <span>Speed: {speed}</span>
-            <input
-              type="range"
-              bind:value={speed}
-              min={settings.minScrollSpeed || 0.5}
-              max={settings.maxScrollSpeed || 10}
-              step={speedIncrement}
-            />
-          </label>
-        </div>
-      {/if}
-    </div>
-
-    <!-- Countdown Control with Popup Slider -->
-    <div class="control-with-popup">
-      <button
-        bind:this={btnCountdown}
-        onclick={toggleCountdownSlider}
-        class="icon-btn"
-        class:active={showCountdownSlider}
-        title="Countdown: {countdownSeconds}s (click to adjust)"
-      ></button>
-      {#if showCountdownSlider}
-        <div class="popup-slider">
-          <label class="slider-label">
-            <span>Countdown: {countdownSeconds}s</span>
-            <input
-              type="range"
-              bind:value={countdownSeconds}
-              min="0"
-              max="30"
-              step="1"
-            />
-          </label>
-        </div>
-      {/if}
-    </div>
-
-    <!-- Font Size Control with Popup Slider -->
-    <div class="control-with-popup">
-      <button
-        bind:this={btnFontSize}
-        onclick={toggleFontSizeSlider}
-        class="icon-btn"
-        class:active={showFontSizeSlider}
-        title="Font Size: {fontSize}px (click to adjust)"
-      ></button>
-      {#if showFontSizeSlider}
-        <div class="popup-slider">
-          <label class="slider-label">
-            <span>Font Size: {fontSize}px</span>
-            <input
-              type="range"
-              bind:value={fontSize}
-              min="12"
-              max="72"
-              step="1"
-            />
-          </label>
-        </div>
-      {/if}
-    </div>
-
-    <!-- Line Height Control with Popup Slider -->
-    <div class="control-with-popup">
-      <button
-        bind:this={btnLineHeight}
-        onclick={toggleLineHeightSlider}
-        class="icon-btn"
-        class:active={showLineHeightSlider}
-        title="Line Height: {lineHeight} (click to adjust)"
-      ></button>
-      {#if showLineHeightSlider}
-        <div class="popup-slider">
-          <label class="slider-label">
-            <span>Line Height: {lineHeight}</span>
-            <input
-              type="range"
-              bind:value={lineHeight}
-              min="1.0"
-              max="3.0"
-              step="0.1"
-            />
-          </label>
-        </div>
-      {/if}
-    </div>
-
-    <!-- Letter Spacing Control with Popup Slider -->
-    <div class="control-with-popup">
-      <button
-        bind:this={btnLetterSpacing}
-        onclick={toggleLetterSpacingSlider}
-        class="icon-btn"
-        class:active={showLetterSpacingSlider}
-        title="Letter Spacing: {letterSpacing}px (click to adjust)"
-      ></button>
-      {#if showLetterSpacingSlider}
-        <div class="popup-slider">
-          <label class="slider-label">
-            <span>Letter Spacing: {letterSpacing}px</span>
-            <input
-              type="range"
-              bind:value={letterSpacing}
-              min="-5"
-              max="20"
-              step="0.5"
-            />
-          </label>
-        </div>
-      {/if}
-    </div>
-
-    <!-- Opacity Control with Popup Slider -->
-    <div class="control-with-popup">
-      <button
-        bind:this={btnOpacity}
-        onclick={toggleOpacitySlider}
-        class="icon-btn"
-        class:active={showOpacitySlider}
-        title="Opacity: {opacity}% (click to adjust)"
-      ></button>
-      {#if showOpacitySlider}
-        <div class="popup-slider">
-          <label class="slider-label">
-            <span>Opacity: {opacity}%</span>
-            <input
-              type="range"
-              bind:value={opacity}
-              min="0"
-              max="100"
-              step="5"
-            />
-          </label>
-        </div>
-      {/if}
-    </div>
-
-    <!-- Padding Control with Popup (4 sliders) -->
-    <div class="control-with-popup">
-      <button
-        bind:this={btnPadding}
-        onclick={togglePaddingSliders}
-        class="icon-btn"
-        class:active={showPaddingSliders}
-        title="Padding (click to adjust)"
-      ></button>
-      {#if showPaddingSliders}
-        <div class="popup-padding">
-          <div class="padding-header">Padding</div>
-          <div class="padding-sliders">
-            <label class="slider-label">
-              <span>Top: {paddingTop}px</span>
-              <input
-                type="range"
-                bind:value={paddingTop}
-                min="0"
-                max="200"
-                step="5"
-              />
-            </label>
-            <label class="slider-label">
-              <span>Right: {paddingRight}px</span>
-              <input
-                type="range"
-                bind:value={paddingRight}
-                min="0"
-                max="200"
-                step="5"
-              />
-            </label>
-            <label class="slider-label">
-              <span>Bottom: {paddingBottom}px</span>
-              <input
-                type="range"
-                bind:value={paddingBottom}
-                min="0"
-                max="200"
-                step="5"
-              />
-            </label>
-            <label class="slider-label">
-              <span>Left: {paddingLeft}px</span>
-              <input
-                type="range"
-                bind:value={paddingLeft}
-                min="0"
-                max="200"
-                step="5"
-              />
-            </label>
-          </div>
-          <div class="popup-buttons">
-            <button onclick={resetPadding} class="btn-reset-popup">Reset</button>
-            <button onclick={togglePaddingSliders} class="btn-close-popup">Close</button>
-          </div>
-        </div>
-      {/if}
-    </div>
-
-    <!-- Font Family Control with Popup List -->
-    <div class="control-with-popup">
-      <button
-        bind:this={btnFontFamily}
-        onclick={toggleFontFamilyList}
-        class="icon-btn"
-        class:active={showFontFamilyList}
-        title="Font Family (click to choose)"
-      ></button>
-      {#if showFontFamilyList}
-        <div class="popup-font-list">
-          <div class="font-list-header">Font Family</div>
-          <div class="font-options">
-            <button
-              class="font-option"
-              class:selected={fontFamily === 'inherit'}
-              onclick={() => setFontFamily('inherit')}
-            >
-              <span style="font-family: inherit;">System Default</span>
-            </button>
-            <button
-              class="font-option"
-              class:selected={fontFamily === 'system-ui, -apple-system, sans-serif'}
-              onclick={() => setFontFamily('system-ui, -apple-system, sans-serif')}
-            >
-              <span style="font-family: system-ui, -apple-system, sans-serif;">System UI</span>
-            </button>
-            <button
-              class="font-option"
-              class:selected={fontFamily === 'Georgia, serif'}
-              onclick={() => setFontFamily('Georgia, serif')}
-            >
-              <span style="font-family: Georgia, serif;">Georgia</span>
-            </button>
-            <button
-              class="font-option"
-              class:selected={fontFamily === '"Times New Roman", serif'}
-              onclick={() => setFontFamily('"Times New Roman", serif')}
-            >
-              <span style="font-family: 'Times New Roman', serif;">Times New Roman</span>
-            </button>
-            <button
-              class="font-option"
-              class:selected={fontFamily === 'Arial, sans-serif'}
-              onclick={() => setFontFamily('Arial, sans-serif')}
-            >
-              <span style="font-family: Arial, sans-serif;">Arial</span>
-            </button>
-            <button
-              class="font-option"
-              class:selected={fontFamily === 'Verdana, sans-serif'}
-              onclick={() => setFontFamily('Verdana, sans-serif')}
-            >
-              <span style="font-family: Verdana, sans-serif;">Verdana</span>
-            </button>
-            <button
-              class="font-option"
-              class:selected={fontFamily === '"Courier New", monospace'}
-              onclick={() => setFontFamily('"Courier New", monospace')}
-            >
-              <span style="font-family: 'Courier New', monospace;">Courier New</span>
-            </button>
-            <button
-              class="font-option"
-              class:selected={fontFamily === '"Lucida Console", monospace'}
-              onclick={() => setFontFamily('"Lucida Console", monospace')}
-            >
-              <span style="font-family: 'Lucida Console', monospace;">Lucida Console</span>
-            </button>
-          </div>
-          <div class="popup-buttons">
-            <button onclick={toggleFontFamilyList} class="btn-close-popup">Close</button>
-          </div>
-        </div>
-      {/if}
-    </div>
-
-    <!-- Text Color Picker -->
-    <div class="control-with-popup">
-      <button
-        bind:this={btnTextColor}
-        onclick={toggleTextColorPicker}
-        class="icon-btn"
-        class:active={showTextColorPicker}
-        title="Text Color (click to choose)"
-      ></button>
-      {#if showTextColorPicker}
-        <div class="popup-color-picker">
-          <div class="color-picker-header">Text Color</div>
-          <div class="color-preview" style="background-color: {textColor};"></div>
-          <div class="color-sliders">
-            <label class="slider-label">
-              <span>Hue: {pickerHue}°</span>
-              <input
-                type="range"
-                bind:value={pickerHue}
-                min="0"
-                max="360"
-                step="1"
-                oninput={updateColorFromPicker}
-              />
-            </label>
-            <label class="slider-label">
-              <span>Saturation: {pickerSaturation}%</span>
-              <input
-                type="range"
-                bind:value={pickerSaturation}
-                min="0"
-                max="100"
-                step="1"
-                oninput={updateColorFromPicker}
-              />
-            </label>
-            <label class="slider-label">
-              <span>Brightness: {pickerBrightness}%</span>
-              <input
-                type="range"
-                bind:value={pickerBrightness}
-                min="0"
-                max="100"
-                step="1"
-                oninput={updateColorFromPicker}
-              />
-            </label>
-          </div>
-          <div class="color-hex-input">
-            <label>
-              <span>Hex:</span>
-              <input
-                type="text"
-                bind:value={textColor}
-                class="hex-input"
-                placeholder="#000000"
-              />
-            </label>
-          </div>
-          <div class="popup-buttons">
-            <button onclick={toggleTextColorPicker} class="btn-close-popup">Close</button>
-          </div>
-        </div>
-      {/if}
-    </div>
-
-    <!-- Background Color Picker -->
-    <div class="control-with-popup">
-      <button
-        bind:this={btnBgColor}
-        onclick={toggleBgColorPicker}
-        class="icon-btn"
-        class:active={showBgColorPicker}
-        title="Background Color (click to choose)"
-      ></button>
-      {#if showBgColorPicker}
-        <div class="popup-color-picker">
-          <div class="color-picker-header">Background Color</div>
-          <div class="color-preview" style="background-color: {backgroundColor};"></div>
-          <div class="color-sliders">
-            <label class="slider-label">
-              <span>Hue: {pickerHue}°</span>
-              <input
-                type="range"
-                bind:value={pickerHue}
-                min="0"
-                max="360"
-                step="1"
-                oninput={updateColorFromPicker}
-              />
-            </label>
-            <label class="slider-label">
-              <span>Saturation: {pickerSaturation}%</span>
-              <input
-                type="range"
-                bind:value={pickerSaturation}
-                min="0"
-                max="100"
-                step="1"
-                oninput={updateColorFromPicker}
-              />
-            </label>
-            <label class="slider-label">
-              <span>Brightness: {pickerBrightness}%</span>
-              <input
-                type="range"
-                bind:value={pickerBrightness}
-                min="0"
-                max="100"
-                step="1"
-                oninput={updateColorFromPicker}
-              />
-            </label>
-          </div>
-          <div class="color-hex-input">
-            <label>
-              <span>Hex:</span>
-              <input
-                type="text"
-                bind:value={backgroundColor}
-                class="hex-input"
-                placeholder="#000000"
-              />
-            </label>
-          </div>
-          <div class="popup-buttons">
-            <button onclick={toggleBgColorPicker} class="btn-close-popup">Close</button>
-          </div>
-        </div>
-      {/if}
-    </div>
-
-    <!-- Quick Setup Presets Menu -->
-    <div class="control-with-popup">
-      <button
-        bind:this={btnQuickPresets}
-        onclick={toggleQuickPresetsMenu}
-        class="icon-btn"
-        class:active={showQuickPresetsMenu}
-        title="Quick Setup Presets - One-click configurations"
-      ></button>
-      {#if showQuickPresetsMenu}
-        <div class="popup-preset-menu">
-          <div class="preset-menu-header">Quick Setup Presets</div>
-          <div class="preset-menu-grid">
-            {#each quickSetupPresets as preset}
-              <button
-                class="preset-menu-item"
-                onclick={() => applyQuickPreset(preset)}
-                title={preset.desc}
-              >
-                <div class="preset-menu-icon" use:setIconAction={preset.icon}></div>
-                <div class="preset-menu-name">{preset.name}</div>
-                <div class="preset-menu-desc">{preset.desc}</div>
-              </button>
-            {/each}
-          </div>
-          <div class="popup-buttons">
-            <button onclick={toggleQuickPresetsMenu} class="btn-close-popup">Close</button>
-          </div>
-        </div>
-      {/if}
-    </div>
   </div>
 
   <div class="main-content">
-    <div class="content-area" bind:this={contentArea}>
+    <div
+      class="content-area"
+      class:focus-mode-active={focusMode && showEyeline}
+      style="--focus-eyeline-pos: {eyelinePosition}%; --focus-opacity: {focusModeOpacity}; --focus-range: {focusModeRange * 5}%;"
+      bind:this={contentArea}>
       <!-- Eyeline Indicator -->
       {#if showEyeline}
         <!-- svelte-ignore a11y_no_static_element_interactions -->
@@ -3532,7 +4448,11 @@
         class:align-rtl={textAlignment === 'rtl'}
         ondblclick={handleDoubleClickToEdit}
         style="--base-font-size: {fontSize}px; --line-height: {lineHeight}; padding: {paddingTop}px {paddingRight}px {paddingBottom}px {paddingLeft}px; letter-spacing: {letterSpacing}px; opacity: {opacity / 100}; font-family: {fontFamily}; color: {textColor}; background-color: {backgroundColor};">
-        {@html renderedHTML}
+        {#if viewMode === 'rendered'}
+          {@html renderedHTML}
+        {:else}
+          <pre class="plain-text-content">{content}</pre>
+        {/if}
       </div>
     </div>
 
@@ -3769,6 +4689,10 @@
     border-bottom: 1px solid var(--background-modifier-border);
     align-items: center;
     flex-wrap: wrap;
+    background: var(--background-primary);
+    position: relative;
+    z-index: 10;
+    flex-shrink: 0;
   }
 
   /* Temporarily shown controls in full-screen mode */
@@ -3906,31 +4830,63 @@
     color: var(--interactive-accent);
   }
 
-  /* Time Display Styles */
+  /* Time Display Styles - Click to toggle */
   .time-display {
     display: flex;
     align-items: center;
-    gap: 0.75rem;
-    padding: 0.4rem 1rem;
+    gap: 0.4rem;
+    padding: 0.4rem 0.75rem;
     background: rgba(var(--interactive-accent-rgb), 0.1);
     border-radius: 6px;
     font-size: 0.95rem;
     font-weight: 500;
     font-family: 'SF Mono', 'Monaco', 'Consolas', monospace;
     margin-left: 0.5rem;
+    border: none;
+    cursor: pointer;
+    transition: background 0.15s ease, transform 0.1s ease;
   }
 
-  .elapsed-time {
+  .time-display:hover {
+    background: rgba(var(--interactive-accent-rgb), 0.2);
+  }
+
+  .time-display:active {
+    transform: scale(0.97);
+  }
+
+  .time-value {
     color: var(--interactive-accent);
+  }
+
+  .time-toggle-arrow {
+    color: var(--text-muted);
+    opacity: 0.5;
+    font-size: 0.65rem;
+    transition: opacity 0.15s ease;
+  }
+
+  .time-display:hover .time-toggle-arrow {
+    opacity: 0.8;
+  }
+
+  /* Full display mode (both times) */
+  .time-display-full {
+    cursor: default;
+    gap: 0.5rem;
+  }
+
+  .time-display-full .time-value.elapsed {
+    color: var(--interactive-accent);
+  }
+
+  .time-display-full .time-value.remaining {
+    color: var(--text-muted);
   }
 
   .time-separator {
     color: var(--text-muted);
     opacity: 0.5;
-  }
-
-  .remaining-time {
-    color: var(--text-muted);
   }
 
   .main-content {
@@ -4166,6 +5122,32 @@
     min-height: 400px;
   }
 
+  /* Focus Mode - dims text outside the eyeline area */
+  .content-area.focus-mode-active {
+    --focus-gradient: linear-gradient(
+      to bottom,
+      rgba(0, 0, 0, var(--focus-opacity, 0.3)) 0%,
+      rgba(0, 0, 0, var(--focus-opacity, 0.3)) calc(var(--focus-eyeline-pos, 50%) - var(--focus-range, 15%)),
+      rgba(0, 0, 0, 0) calc(var(--focus-eyeline-pos, 50%) - calc(var(--focus-range, 15%) / 2)),
+      rgba(0, 0, 0, 0) calc(var(--focus-eyeline-pos, 50%) + calc(var(--focus-range, 15%) / 2)),
+      rgba(0, 0, 0, var(--focus-opacity, 0.3)) calc(var(--focus-eyeline-pos, 50%) + var(--focus-range, 15%)),
+      rgba(0, 0, 0, var(--focus-opacity, 0.3)) 100%
+    );
+  }
+
+  .content-area.focus-mode-active::after {
+    content: '';
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    pointer-events: none;
+    z-index: 5;
+    background: var(--focus-gradient);
+    transition: opacity 0.3s ease;
+  }
+
   .markdown-content {
     max-width: 100%;
     margin: 0 auto;
@@ -4175,6 +5157,19 @@
     padding-right: var(--padding-horizontal, 40px);
     /* Add extra height to ensure scrollable content */
     min-height: 200vh;
+  }
+
+  /* Plain text view mode */
+  .plain-text-content {
+    font-family: inherit;
+    font-size: inherit;
+    line-height: inherit;
+    white-space: pre-wrap;
+    word-wrap: break-word;
+    margin: 0;
+    padding: 0;
+    background: transparent;
+    color: inherit;
   }
 
   .markdown-content :global(h1) {
@@ -4430,6 +5425,127 @@
     50% { transform: scale(1.05); }
   }
 
+  /* Voice Tracking Status Overlay */
+  .voice-status-overlay {
+    position: absolute;
+    top: 1rem;
+    right: 1rem;
+    background: rgba(0, 0, 0, 0.8);
+    border-radius: 8px;
+    padding: 0.75rem 1rem;
+    z-index: 500;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    max-width: 250px;
+    animation: fadeIn 0.3s ease-in;
+  }
+
+  .voice-status-indicator {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    color: #ffffff; /* White text on dark background */
+  }
+
+  .voice-status-indicator.listening {
+    color: #4ade80; /* Bright green when actively listening */
+  }
+
+  .voice-status-indicator.listening .voice-icon {
+    animation: micPulse 1s ease-in-out infinite;
+  }
+
+  @keyframes micPulse {
+    0%, 100% { transform: scale(1); opacity: 1; }
+    50% { transform: scale(1.1); opacity: 0.8; }
+  }
+
+  .voice-icon {
+    font-size: 1.25rem;
+  }
+
+  .voice-status-text {
+    font-size: 0.875rem;
+    font-weight: 500;
+  }
+
+  .voice-recognized-text {
+    font-size: 0.75rem;
+    color: rgba(255, 255, 255, 0.7); /* Light gray on dark background */
+    font-style: italic;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .voice-progress-bar {
+    width: 100%;
+    height: 6px;
+    background: rgba(255, 255, 255, 0.2);
+    border-radius: 3px;
+    overflow: hidden;
+  }
+
+  .voice-progress-fill {
+    height: 100%;
+    background: linear-gradient(90deg, #4CAF50, #8BC34A);
+    border-radius: 3px;
+    transition: width 0.3s ease;
+  }
+
+  /* Karaoke word highlighting - use :global() for dynamically created elements */
+  :global(.voice-word) {
+    transition: all 0.15s ease-out;
+    border-radius: 3px;
+    padding: 1px 3px;
+    margin: 0 -2px;
+  }
+
+  :global(.voice-word.voice-active) {
+    background: linear-gradient(135deg, rgba(138, 43, 226, 0.5), rgba(75, 0, 130, 0.5));
+    color: #fff !important;
+    text-shadow: 0 0 10px rgba(138, 43, 226, 0.8);
+    box-shadow: 0 0 15px rgba(138, 43, 226, 0.4), inset 0 0 10px rgba(255, 255, 255, 0.1);
+    animation: karaokeGlow 0.4s ease-out;
+  }
+
+  @keyframes karaokeGlow {
+    0% {
+      background: rgba(138, 43, 226, 0.7);
+      transform: scale(1.08);
+      box-shadow: 0 0 20px rgba(138, 43, 226, 0.6);
+    }
+    100% {
+      background: linear-gradient(135deg, rgba(138, 43, 226, 0.5), rgba(75, 0, 130, 0.5));
+      transform: scale(1);
+      box-shadow: 0 0 15px rgba(138, 43, 226, 0.4);
+    }
+  }
+
+  /* Alternative highlight styles based on theme */
+  :global(.theme-light .voice-word.voice-active) {
+    background: linear-gradient(135deg, rgba(138, 43, 226, 0.35), rgba(75, 0, 130, 0.3));
+    color: #4a0080 !important;
+    text-shadow: none;
+    box-shadow: 0 2px 10px rgba(138, 43, 226, 0.25);
+  }
+
+  /* Voice button states */
+  .btn-voice.loading {
+    opacity: 0.6;
+    cursor: wait;
+  }
+
+  .btn-voice.error {
+    color: var(--text-error);
+  }
+
+  .btn-voice:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+  }
+
   /* Control with Popup Slider */
   .control-with-popup {
     position: relative;
@@ -4510,6 +5626,167 @@
 
   .slider-label input[type="range"]::-moz-range-thumb:hover {
     transform: scale(1.2);
+  }
+
+  /* Voice control group with settings button */
+  .voice-control-group {
+    display: flex;
+    align-items: center;
+    gap: 2px;
+  }
+
+  .icon-btn-small {
+    width: 24px;
+    height: 24px;
+    padding: 0;
+    border: none;
+    background: transparent;
+    cursor: pointer;
+    color: var(--text-muted);
+    opacity: 0.6;
+    transition: all 0.2s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .icon-btn-small:hover {
+    opacity: 1;
+    color: var(--text-normal);
+  }
+
+  .icon-btn-small.active {
+    color: var(--interactive-accent);
+    opacity: 1;
+  }
+
+  /* Voice Preset Panel */
+  .popup-panel {
+    position: absolute;
+    top: calc(100% + 0.5rem);
+    left: 50%;
+    transform: translateX(-50%);
+    background: var(--background-primary);
+    border: 1px solid var(--background-modifier-border);
+    border-radius: 8px;
+    padding: 0.75rem;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    z-index: 100;
+    animation: slideDown 0.2s ease-out;
+  }
+
+  .voice-preset-panel {
+    min-width: 260px;
+  }
+
+  .preset-header {
+    font-weight: 500;
+    color: var(--text-muted);
+    text-align: left;
+    margin-bottom: 0.5rem;
+    font-size: 0.7rem;
+    letter-spacing: 0.05em;
+    padding-left: 0.25rem;
+  }
+
+  .preset-grid {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  .preset-item {
+    display: flex;
+    align-items: center;
+    gap: 0.65rem;
+    padding: 0.5rem 0.6rem;
+    border: none;
+    border-radius: 6px;
+    background: transparent;
+    cursor: pointer;
+    transition: all 0.15s;
+    text-align: left;
+    width: 100%;
+  }
+
+  .preset-item:hover {
+    background: var(--background-modifier-hover);
+  }
+
+  .preset-item.active {
+    background: var(--interactive-accent);
+  }
+
+  .preset-item.active .preset-name,
+  .preset-item.active .preset-desc {
+    color: white;
+  }
+
+  .preset-item.active .preset-desc {
+    opacity: 0.85;
+  }
+
+  .preset-item.active .preset-icon {
+    background: rgba(255, 255, 255, 0.2);
+    color: white;
+  }
+
+  .preset-icon {
+    width: 28px;
+    height: 28px;
+    border-radius: 4px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+  }
+
+  .preset-icon svg {
+    width: 16px;
+    height: 16px;
+  }
+
+  .preset-icon.conservative {
+    background: rgba(100, 180, 100, 0.2);
+    color: #64b464;
+  }
+
+  .preset-icon.balanced {
+    background: rgba(100, 140, 200, 0.2);
+    color: #648cc8;
+  }
+
+  .preset-icon.responsive {
+    background: rgba(180, 100, 180, 0.2);
+    color: #b464b4;
+  }
+
+  .preset-text {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    min-width: 0;
+  }
+
+  .preset-name {
+    font-weight: 500;
+    font-size: 0.85rem;
+    color: var(--text-normal);
+  }
+
+  .preset-desc {
+    font-size: 0.72rem;
+    color: var(--text-muted);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .preset-check {
+    font-size: 0.85rem;
+    color: white;
+    opacity: 0.9;
+    flex-shrink: 0;
   }
 
   /* Padding popup (larger with 4 sliders and buttons) */
@@ -4669,6 +5946,38 @@
     margin-bottom: 1rem;
   }
 
+  .color-presets {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-bottom: 1rem;
+    padding: 0.5rem;
+    background: var(--background-secondary);
+    border-radius: 6px;
+  }
+
+  .color-swatch {
+    width: 28px;
+    height: 28px;
+    border-radius: 4px;
+    border: 2px solid var(--background-modifier-border);
+    cursor: pointer;
+    transition: transform 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
+    padding: 0;
+  }
+
+  .color-swatch:hover {
+    transform: scale(1.15);
+    border-color: var(--text-accent);
+    z-index: 1;
+  }
+
+  .color-swatch.active {
+    border-color: var(--text-accent);
+    box-shadow: 0 0 0 2px var(--text-accent);
+    transform: scale(1.1);
+  }
+
   .color-sliders {
     display: flex;
     flex-direction: column;
@@ -4702,96 +6011,126 @@
     font-size: 0.9rem;
   }
 
-  /* Quick Preset Menu Popup */
+  /* Quick Preset Menu Popup - Professional List Style */
   .popup-preset-menu {
     position: absolute;
     top: calc(100% + 0.5rem);
-    left: 50%;
-    transform: translateX(-50%);
+    right: 0;
     background: var(--background-primary);
     border: 1px solid var(--background-modifier-border);
     border-radius: 8px;
-    padding: 1rem;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    padding: 0.5rem;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2);
     z-index: 100;
-    min-width: 350px;
-    max-width: 450px;
-    animation: slideDown 0.2s ease-out;
+    min-width: 280px;
+    max-width: 320px;
+    animation: slideDown 0.15s ease-out;
   }
 
   .preset-menu-header {
     font-weight: 600;
-    color: var(--text-normal);
-    text-align: center;
-    margin-bottom: 1rem;
-    font-size: 1.1rem;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    font-size: 0.7rem;
+    padding: 0.5rem 0.75rem 0.25rem;
+    border-bottom: 1px solid var(--background-modifier-border);
+    margin-bottom: 0.25rem;
   }
 
-  .preset-menu-grid {
-    display: grid;
-    grid-template-columns: repeat(2, 1fr);
-    gap: 0.75rem;
-    margin-bottom: 1rem;
+  .preset-menu-list {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
   }
 
   .preset-menu-item {
     display: flex;
-    flex-direction: column;
+    flex-direction: row;
     align-items: center;
-    gap: 0.5rem;
-    padding: 1rem;
-    background: var(--background-secondary);
-    border: 2px solid var(--background-modifier-border);
-    border-radius: 6px;
+    gap: 0.75rem;
+    padding: 0.5rem 0.75rem;
+    background: transparent;
+    border: none;
+    border-radius: 4px;
     cursor: pointer;
-    transition: all 0.2s ease;
-    text-align: center;
+    transition: background 0.15s ease;
+    text-align: left;
+    width: 100%;
   }
 
   .preset-menu-item:hover {
-    border-color: var(--interactive-accent);
-    transform: translateY(-2px);
-    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
-    background: var(--background-primary-alt);
+    background: var(--background-modifier-hover);
   }
 
-  .preset-menu-icon {
-    width: 1.5rem;
-    height: 1.5rem;
+  .preset-menu-item:active {
+    background: var(--background-modifier-active-hover);
+  }
+
+  .preset-preview {
+    width: 32px;
+    height: 32px;
+    border-radius: 4px;
     display: flex;
     align-items: center;
     justify-content: center;
-    color: var(--interactive-accent);
     flex-shrink: 0;
+    font-weight: 600;
+    border: 1px solid var(--background-modifier-border);
+    box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.1);
+  }
+
+  .preset-preview .preview-text {
+    font-family: inherit;
+    line-height: 1;
+  }
+
+  .preset-info {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .preset-menu-icon {
+    width: 1.25rem;
+    height: 1.25rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--text-muted);
+    flex-shrink: 0;
+    opacity: 0.6;
+  }
+
+  .preset-menu-item:hover .preset-menu-icon {
+    color: var(--interactive-accent);
+    opacity: 1;
   }
 
   .preset-menu-icon :global(svg) {
-    width: 1.5rem !important;
-    height: 1.5rem !important;
+    width: 1.25rem !important;
+    height: 1.25rem !important;
     stroke-width: 2;
   }
 
   .preset-menu-icon :global(.svg-icon) {
-    width: 1.5rem !important;
-    height: 1.5rem !important;
-  }
-
-  .preset-icon-placeholder {
-    font-size: 0.65rem;
-    color: var(--text-muted);
-    opacity: 0.7;
+    width: 1.25rem !important;
+    height: 1.25rem !important;
   }
 
   .preset-menu-name {
-    font-weight: 600;
-    font-size: 0.95rem;
+    font-weight: 500;
+    font-size: 0.85rem;
     color: var(--text-normal);
+    line-height: 1.2;
   }
 
   .preset-menu-desc {
-    font-size: 0.75rem;
+    font-size: 0.7rem;
     color: var(--text-muted);
     line-height: 1.2;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
 
   /* Icon buttons (compact style) */
@@ -4808,6 +6147,12 @@
     display: flex;
     align-items: center;
     justify-content: center;
+  }
+
+  /* Ensure SVG icons inside buttons don't capture clicks */
+  .icon-btn :global(svg),
+  .icon-btn :global(svg *) {
+    pointer-events: none;
   }
 
   .icon-btn:hover {

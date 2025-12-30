@@ -24,11 +24,8 @@ export function loadWebSocketModule(): WebSocketModule {
 		loaded: false
 	}
 
-	console.log('[WS Loader] Attempting to load WebSocket module...')
-
 	// Strategy 1: Try to use Electron's built-in WebSocket APIs via remote
 	try {
-		console.log('[WS Loader] Strategy 1: Trying electron remote...')
 		const electron = require('electron')
 
 		if (electron && electron.remote) {
@@ -39,17 +36,15 @@ export function loadWebSocketModule(): WebSocketModule {
 				result.WebSocketServer = ws.WebSocketServer || ws.Server
 				result.WebSocket = ws.WebSocket || ws
 				result.loaded = true
-				console.log('[WS Loader] ✅ Loaded via electron.remote')
 				return result
 			}
 		}
 	} catch (e) {
-		console.log('[WS Loader] Strategy 1 failed:', e.message)
+		// Continue to next strategy
 	}
 
 	// Strategy 2: Try standard require with full module path
 	try {
-		console.log('[WS Loader] Strategy 2: Trying standard require...')
 		const path = require('path')
 
 		// Get Obsidian's app path
@@ -58,29 +53,25 @@ export function loadWebSocketModule(): WebSocketModule {
 			const vaultPath = app.vault.adapter.basePath
 			const wsPath = path.join(vaultPath, '.obsidian', 'plugins', 'teleprompter-plus', 'node_modules', 'ws')
 
-			console.log('[WS Loader] Trying absolute path:', wsPath)
 			const ws = require(wsPath)
 
 			if (ws) {
 				result.WebSocketServer = ws.WebSocketServer || ws.Server
 				result.WebSocket = ws.WebSocket || ws
 				result.loaded = true
-				console.log('[WS Loader] ✅ Loaded via absolute path')
 				return result
 			}
 		}
 	} catch (e) {
-		console.log('[WS Loader] Strategy 2 failed:', e.message)
+		// Continue to next strategy
 	}
 
 	// Strategy 3: Try using process.cwd() to build path
 	try {
-		console.log('[WS Loader] Strategy 3: Trying process.cwd()...')
 		const path = require('path')
 		const process = require('process')
 
 		const cwd = process.cwd()
-		console.log('[WS Loader] Current working directory:', cwd)
 
 		// Try various possible paths
 		const possiblePaths = [
@@ -90,14 +81,12 @@ export function loadWebSocketModule(): WebSocketModule {
 
 		for (const wsPath of possiblePaths) {
 			try {
-				console.log('[WS Loader] Trying:', wsPath)
 				const ws = require(wsPath)
 
 				if (ws) {
 					result.WebSocketServer = ws.WebSocketServer || ws.Server
 					result.WebSocket = ws.WebSocket || ws
 					result.loaded = true
-					console.log('[WS Loader] ✅ Loaded from:', wsPath)
 					return result
 				}
 			} catch (e) {
@@ -105,12 +94,11 @@ export function loadWebSocketModule(): WebSocketModule {
 			}
 		}
 	} catch (e) {
-		console.log('[WS Loader] Strategy 3 failed:', e.message)
+		// Continue to next strategy
 	}
 
 	// Strategy 4: Try to load from Obsidian's app resources
 	try {
-		console.log('[WS Loader] Strategy 4: Trying app.asar resources...')
 		const path = require('path')
 		const process = require('process')
 
@@ -118,40 +106,35 @@ export function loadWebSocketModule(): WebSocketModule {
 		const appPath = process.resourcesPath || ''
 		const wsPath = path.join(appPath, 'app.asar', 'node_modules', 'ws')
 
-		console.log('[WS Loader] Trying app.asar path:', wsPath)
 		const ws = require(wsPath)
 
 		if (ws) {
 			result.WebSocketServer = ws.WebSocketServer || ws.Server
 			result.WebSocket = ws.WebSocket || ws
 			result.loaded = true
-			console.log('[WS Loader] ✅ Loaded from app.asar')
 			return result
 		}
 	} catch (e) {
-		console.log('[WS Loader] Strategy 4 failed:', e.message)
+		// Continue to next strategy
 	}
 
 	// Strategy 5: Last resort - try just 'ws'
 	try {
-		console.log('[WS Loader] Strategy 5: Trying simple require("ws")...')
 		const ws = require('ws')
 
 		if (ws) {
 			result.WebSocketServer = ws.WebSocketServer || ws.Server
 			result.WebSocket = ws.WebSocket || ws
 			result.loaded = true
-			console.log('[WS Loader] ✅ Loaded via simple require')
 			return result
 		}
 	} catch (e) {
-		console.log('[WS Loader] Strategy 5 failed:', e.message)
+		// All strategies failed
 	}
 
 	// All strategies failed
 	result.error = 'Could not load ws module using any strategy'
-	console.error('[WS Loader] ❌ All loading strategies failed')
-	console.error('[WS Loader] WebSocket server will not be available')
+	console.error('[Teleprompter] WebSocket module failed to load - Stream Deck integration unavailable')
 
 	return result
 }

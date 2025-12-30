@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+  <title>Reset to Top</title>
+  <desc>Return to top of document</desc>
+  <!-- Return arrow with curved path -->
+  <path d="M3 9 L3 4 L8 4"/>
+  <path d="M3 4 Q3 12, 12 12 T21 12"/>
+  <!-- Arrow pointing up to top -->
+  <path d="M12 20 L12 12"/>
+  <path d="M9 15 L12 12 L15 15"/>
+</svg>

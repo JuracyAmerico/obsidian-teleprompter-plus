@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="72" height="72" viewBox="0 0 72 72" fill="none" stroke="#FFFFFF" stroke-width="6" stroke-linecap="round" stroke-linejoin="round">
+  <title>Eyeline Guide</title>
+  <desc>Toggle reading position guide - Stream Deck 72x72</desc>
+  <!-- Eye shape -->
+  <ellipse cx="36" cy="36" rx="22" ry="14"/>
+  <!-- Iris -->
+  <circle cx="36" cy="36" r="8" fill="#FFFFFF" stroke="none"/>
+  <!-- Horizontal guide line -->
+  <line x1="8" y1="36" x2="14" y2="36" stroke-width="4"/>
+  <line x1="58" y1="36" x2="64" y2="36" stroke-width="4"/>
+</svg>

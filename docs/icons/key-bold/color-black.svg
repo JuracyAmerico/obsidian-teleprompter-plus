@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="72" height="72" viewBox="0 0 72 72">
+  <!-- Pure black: empty rectangle outline with subtle blue corner -->
+  <rect x="8" y="8" width="56" height="56" rx="8" fill="none" stroke="#FFFFFF" stroke-width="8"/>
+  <circle cx="54" cy="54" r="4" fill="#4A90E2"/>
+</svg>
