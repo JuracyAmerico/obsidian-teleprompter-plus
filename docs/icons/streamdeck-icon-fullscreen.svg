@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="72" height="72" viewBox="0 0 72 72" fill="none" stroke="#FFFFFF" stroke-width="6" stroke-linecap="round" stroke-linejoin="round">
+  <title>Fullscreen</title>
+  <desc>Toggle fullscreen mode - Stream Deck 72x72</desc>
+  <!-- Four corner brackets expanding outward -->
+  <!-- Top-left corner -->
+  <path d="M16 28 L16 16 L28 16"/>
+  <!-- Top-right corner -->
+  <path d="M44 16 L56 16 L56 28"/>
+  <!-- Bottom-right corner -->
+  <path d="M56 44 L56 56 L44 56"/>
+  <!-- Bottom-left corner -->
+  <path d="M28 56 L16 56 L16 44"/>
+</svg>

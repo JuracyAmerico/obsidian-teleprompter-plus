@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="72" height="72" viewBox="0 0 72 72" fill="none" stroke="#FFFFFF" stroke-width="6" stroke-linecap="round" stroke-linejoin="round">
+  <title>Countdown Timer</title>
+  <desc>Start countdown before scrolling - Stream Deck 72x72</desc>
+  <!-- Clock circle -->
+  <circle cx="36" cy="38" r="22"/>
+  <!-- Clock top button -->
+  <rect x="32" y="10" width="8" height="6" rx="2" fill="#FFFFFF" stroke="none"/>
+  <!-- Hour hand -->
+  <line x1="36" y1="38" x2="36" y2="26"/>
+  <!-- Minute hand -->
+  <line x1="36" y1="38" x2="46" y2="38"/>
+</svg>

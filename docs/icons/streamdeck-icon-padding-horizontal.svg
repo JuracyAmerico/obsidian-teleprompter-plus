@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="72" height="72" viewBox="0 0 72 72" fill="none" stroke="#FFFFFF" stroke-width="6" stroke-linecap="round" stroke-linejoin="round">
+  <title>Horizontal Padding</title>
+  <desc>Adjust left/right margins - Stream Deck 72x72</desc>
+  <!-- Content box -->
+  <rect x="20" y="16" width="32" height="40" rx="2"/>
+  <!-- Left arrow -->
+  <line x1="8" y1="36" x2="16" y2="36"/>
+  <path d="M12 32 L8 36 L12 40" stroke-width="4"/>
+  <!-- Right arrow -->
+  <line x1="56" y1="36" x2="64" y2="36"/>
+  <path d="M60 32 L64 36 L60 40" stroke-width="4"/>
+</svg>

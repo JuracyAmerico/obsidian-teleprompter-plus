@@ -1,0 +1,240 @@
+/**
+ * Teleprompter Plus Design Tokens
+ * Version: 1.0.0
+ * Last Updated: 2025-12-15
+ *
+ * CSS custom properties for consistent design system implementation
+ */
+
+:root {
+  /* ============================================
+     COLORS
+     ============================================ */
+
+  /* Brand */
+  --tp-color-brand: #4A90E2;
+
+  /* Semantic Colors */
+  --tp-color-active: #27AE60;
+  --tp-color-inactive: #7F8C8D;
+  --tp-color-warning: #E67E22;
+  --tp-color-danger: #E74C3C;
+  --tp-color-info: #3498DB;
+
+  /* Stream Deck Pure Pack Colors */
+  --tp-pure-charcoal: #3A3A3A;
+  --tp-pure-blue: #4A90E2;
+  --tp-pure-green: #27AE60;
+  --tp-pure-orange: #E67E22;
+  --tp-pure-purple: #9B59B6;
+  --tp-pure-pink: #E91E63;
+
+  /* Stream Deck Icon Colors */
+  --tp-streamdeck-icon-light: #FFFFFF;
+  --tp-streamdeck-icon-muted: #AAAAAA;
+  --tp-streamdeck-icon-subtle: #666666;
+
+  /* Light Mode (default) */
+  --tp-icon-foreground: #2C3E50;
+  --tp-icon-background: #FFFFFF;
+  --tp-icon-muted: #7F8C8D;
+  --tp-icon-subtle: #BDC3C7;
+
+  /* ============================================
+     SIZES
+     ============================================ */
+
+  /* Icon Sizes */
+  --tp-icon-size-sm: 16px;
+  --tp-icon-size-md: 24px;
+  --tp-icon-size-lg: 32px;
+  --tp-icon-size-xl: 48px;
+  --tp-icon-size-streamdeck: 72px;
+  --tp-icon-size-streamdeck-2x: 144px;
+
+  /* Canvas Sizes */
+  --tp-canvas-obsidian: 24px;
+  --tp-canvas-streamdeck: 72px;
+  --tp-canvas-streamdeck-2x: 144px;
+
+  /* Safe Zones */
+  --tp-safe-zone-obsidian: 20px;
+  --tp-safe-zone-streamdeck: 64px;
+  --tp-safe-zone-streamdeck-2x: 128px;
+
+  /* Icon Zones */
+  --tp-icon-zone-obsidian: 16px;
+  --tp-icon-zone-streamdeck: 52px;
+  --tp-icon-zone-streamdeck-2x: 104px;
+
+  /* ============================================
+     SPACING
+     ============================================ */
+
+  --tp-spacing-unit: 2px;
+  --tp-spacing-xs: 2px;
+  --tp-spacing-sm: 4px;
+  --tp-spacing-md: 8px;
+  --tp-spacing-lg: 16px;
+  --tp-spacing-xl: 24px;
+
+  /* Padding */
+  --tp-padding-obsidian: 2px;
+  --tp-padding-streamdeck: 4px;
+  --tp-padding-streamdeck-2x: 8px;
+
+  /* ============================================
+     STROKE & BORDER
+     ============================================ */
+
+  /* Obsidian Stroke Widths */
+  --tp-stroke-width: 2px;
+  --tp-stroke-width-bold: 2.5px;
+  --tp-stroke-width-thin: 1.5px;
+
+  /* Stream Deck Stroke Widths */
+  --tp-stroke-width-streamdeck: 6px;
+  --tp-stroke-width-streamdeck-bold: 7px;
+  --tp-stroke-width-streamdeck-thin: 4.5px;
+
+  /* Stream Deck @2x Stroke Widths */
+  --tp-stroke-width-streamdeck-2x: 12px;
+  --tp-stroke-width-streamdeck-2x-bold: 14px;
+  --tp-stroke-width-streamdeck-2x-thin: 9px;
+
+  /* Stroke Style */
+  --tp-stroke-linecap: round;
+  --tp-stroke-linejoin: round;
+
+  /* ============================================
+     CORNER RADIUS
+     ============================================ */
+
+  --tp-radius-sharp: 0px;
+  --tp-radius-sm: 2px;
+  --tp-radius-md: 4px;
+  --tp-radius-lg: 8px;
+  --tp-radius-round: 50%;
+
+  /* Context-Specific */
+  --tp-radius-obsidian: 2px;
+  --tp-radius-streamdeck: 4px;
+  --tp-radius-streamdeck-2x: 8px;
+
+  /* ============================================
+     OPACITY
+     ============================================ */
+
+  --tp-opacity-primary: 1.0;
+  --tp-opacity-secondary: 0.8;
+  --tp-opacity-tertiary: 0.6;
+  --tp-opacity-subtle: 0.4;
+  --tp-opacity-ghost: 0.2;
+
+  /* ============================================
+     TYPOGRAPHY
+     ============================================ */
+
+  /* Icon Text */
+  --tp-icon-font-family: sans-serif;
+  --tp-icon-font-weight: bold;
+  --tp-icon-font-size-lg: 12px;
+  --tp-icon-font-size-md: 10px;
+  --tp-icon-font-size-sm: 8px;
+  --tp-icon-letter-spacing: -0.5px;
+
+  /* Number Display */
+  --tp-number-font-family: monospace;
+  --tp-number-font-weight: 500;
+  --tp-number-font-size-lg: 14px;
+  --tp-number-font-size-md: 10px;
+  --tp-number-font-size-sm: 8px;
+
+  /* ============================================
+     SCALING FACTORS
+     ============================================ */
+
+  --tp-scale-obsidian-to-streamdeck: 3;
+  --tp-scale-standard-to-retina: 2;
+}
+
+/* ============================================
+   DARK MODE OVERRIDES
+   ============================================ */
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --tp-icon-foreground: #ECF0F1;
+    --tp-icon-background: #1E1E1E;
+    --tp-icon-muted: #95A5A6;
+    --tp-icon-subtle: #34495E;
+  }
+}
+
+/* Explicit dark mode class */
+.theme-dark {
+  --tp-icon-foreground: #ECF0F1;
+  --tp-icon-background: #1E1E1E;
+  --tp-icon-muted: #95A5A6;
+  --tp-icon-subtle: #34495E;
+}
+
+/* ============================================
+   UTILITY CLASSES
+   ============================================ */
+
+/* Icon containers */
+.tp-icon {
+  width: var(--tp-icon-size-md);
+  height: var(--tp-icon-size-md);
+  color: var(--tp-icon-foreground);
+}
+
+.tp-icon-sm {
+  width: var(--tp-icon-size-sm);
+  height: var(--tp-icon-size-sm);
+}
+
+.tp-icon-lg {
+  width: var(--tp-icon-size-lg);
+  height: var(--tp-icon-size-lg);
+}
+
+/* State colors */
+.tp-icon-active {
+  color: var(--tp-color-active);
+}
+
+.tp-icon-inactive {
+  color: var(--tp-color-inactive);
+  opacity: var(--tp-opacity-subtle);
+}
+
+.tp-icon-warning {
+  color: var(--tp-color-warning);
+}
+
+.tp-icon-danger {
+  color: var(--tp-color-danger);
+}
+
+/* Opacity utilities */
+.tp-opacity-primary {
+  opacity: var(--tp-opacity-primary);
+}
+
+.tp-opacity-secondary {
+  opacity: var(--tp-opacity-secondary);
+}
+
+.tp-opacity-tertiary {
+  opacity: var(--tp-opacity-tertiary);
+}
+
+.tp-opacity-subtle {
+  opacity: var(--tp-opacity-subtle);
+}
+
+.tp-opacity-ghost {
+  opacity: var(--tp-opacity-ghost);
+}

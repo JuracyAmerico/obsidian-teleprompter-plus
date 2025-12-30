@@ -27,6 +27,8 @@
   "dependencies": {
     "highlight.js": "^11.11.1",
     "marked": "^16.4.0",
+    "obs-websocket-js": "^5.0.7",
+    "vosk-browser": "^0.0.8",
     "ws": "^8.18.3"
   }
 }

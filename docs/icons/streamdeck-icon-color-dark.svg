@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="72" height="72" viewBox="0 0 72 72" fill="none" stroke="#FFFFFF" stroke-width="6" stroke-linecap="round" stroke-linejoin="round">
+  <title>Dark Theme</title>
+  <desc>Switch to dark color theme - Stream Deck 72x72</desc>
+  <!-- Dark background circle -->
+  <circle cx="36" cy="36" r="26" fill="#1E1E1E" stroke="#FFFFFF"/>
+  <!-- Moon crescent -->
+  <path d="M42 22 A14 14 0 1 0 42 50 A10 10 0 1 1 42 22" fill="#ECF0F1" stroke="none"/>
+</svg>

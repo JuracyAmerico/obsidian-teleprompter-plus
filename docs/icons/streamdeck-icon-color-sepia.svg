@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="72" height="72" viewBox="0 0 72 72" fill="none" stroke="#5D4E37" stroke-width="6" stroke-linecap="round" stroke-linejoin="round">
+  <title>Sepia Theme</title>
+  <desc>Switch to sepia color theme - Stream Deck 72x72</desc>
+  <!-- Sepia background circle -->
+  <circle cx="36" cy="36" r="26" fill="#F5E6D3" stroke="#5D4E37"/>
+  <!-- Book/paper icon -->
+  <rect x="26" y="26" width="20" height="20" rx="2" fill="#D4B896" stroke="none"/>
+  <line x1="30" y1="32" x2="42" y2="32" stroke="#5D4E37" stroke-width="2"/>
+  <line x1="30" y1="38" x2="42" y2="38" stroke="#5D4E37" stroke-width="2"/>
+</svg>

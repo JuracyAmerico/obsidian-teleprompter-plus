@@ -1,10 +1,33 @@
-# Obsidian Teleprompter Plus 🎬
+<p align="center">
+  <img src="docs/logo.svg" alt="Teleprompter Plus Logo" width="150">
+</p>
 
-A professional-grade teleprompter plugin for Obsidian with Stream Deck integration, advanced navigation, and complete keyboard control. Perfect for presentations, video recording, podcasts, speeches, and content creation.
+# Teleprompter Plus
 
-[![Version](https://img.shields.io/badge/version-0.7.0-blue.svg)](https://github.com/yourusername/obsidian-teleprompter-plus/releases)
-[![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
-[![Obsidian](https://img.shields.io/badge/Obsidian-1.0.0+-purple.svg)](https://obsidian.md)
+<p align="center">
+  <strong>Professional teleprompter for Obsidian with Stream Deck integration</strong>
+</p>
+
+<p align="center">
+  <a href="https://github.com/americo/obsidian-teleprompter-plus/releases">
+    <img src="https://img.shields.io/badge/version-0.7.1-blue.svg" alt="Version">
+  </a>
+  <a href="LICENSE">
+    <img src="https://img.shields.io/badge/license-MIT-green.svg" alt="License">
+  </a>
+  <a href="https://obsidian.md">
+    <img src="https://img.shields.io/badge/Obsidian-1.0.0+-purple.svg" alt="Obsidian">
+  </a>
+  <a href="https://ko-fi.com/americo">
+    <img src="https://img.shields.io/badge/Ko--fi-Support-ff5e5b?logo=ko-fi" alt="Ko-fi">
+  </a>
+</p>
+
+<p align="center">
+  Perfect for presentations, video recording, podcasts, speeches, and content creation.
+</p>
+
+---
 
 ## ✨ Features
 
@@ -65,7 +88,7 @@ A professional-grade teleprompter plugin for Obsidian with Stream Deck integrati
 - **Links** - Both internal and external links
 - **Diagram placeholders** - Mermaid, PlantUML, and other diagrams shown as clean placeholders
 
-### 🆕 v0.7.0 Features
+### 🆕 v0.7.1 Features
 - **Speed presets** - Cycle through 6 preset speeds (0.5x, 1x, 1.5x, 2x, 3x, 5x)
 - **Custom hotkeys** - Define your own keyboard shortcuts for 12+ actions
 - **Double-click to edit** - Click text in teleprompter to jump to that line in editor
@@ -96,13 +119,13 @@ A professional-grade teleprompter plugin for Obsidian with Stream Deck integrati
 ### Method 1: Manual Installation (Recommended)
 
 1. **Download the latest release**
-   - Go to the [Releases page](https://github.com/yourusername/obsidian-teleprompter-plus/releases)
-   - Download `obsidian-teleprompter-plus-v0.7.0.zip`
+   - Go to the [Releases page](https://github.com/americo/obsidian-teleprompter-plus/releases)
+   - Download `obsidian-teleprompter-plus-v0.7.1.zip`
 
 2. **Extract to plugins folder**
    ```bash
    # Extract the zip file to your vault's plugins directory
-   unzip obsidian-teleprompter-plus-v0.7.0.zip -d <vault>/.obsidian/plugins/
+   unzip obsidian-teleprompter-plus-v0.7.1.zip -d <vault>/.obsidian/plugins/
    ```
 
 3. **Install WebSocket module** (Required for Stream Deck)
@@ -122,7 +145,7 @@ A professional-grade teleprompter plugin for Obsidian with Stream Deck integrati
 
 ```bash
 # 1. Clone the repository
-git clone https://github.com/yourusername/obsidian-teleprompter-plus.git
+git clone https://github.com/americo/obsidian-teleprompter-plus.git
 cd obsidian-teleprompter-plus
 
 # 2. Install dependencies
@@ -396,7 +419,7 @@ ws.send(JSON.stringify({ command: "get-state" }))
 
 2. **Install Teleprompter Plus Plugin**
    - Coming soon: Official Stream Deck plugin in Elgato Marketplace
-   - Manual installation: [Stream Deck Plugin Repository](https://github.com/yourusername/streamdeck-obsidian-teleprompter)
+   - Manual installation: [Stream Deck Plugin Repository](https://github.com/americo/streamdeck-obsidian-teleprompter)
 
 3. **Configure Actions**
    - Drag actions from Teleprompter Plus category to your Stream Deck
@@ -653,12 +676,12 @@ If issues persist:
    - Enable Debug Mode for verbose logging
 
 2. **Report Issues**
-   - [GitHub Issues](https://github.com/yourusername/obsidian-teleprompter-plus/issues)
+   - [GitHub Issues](https://github.com/americo/obsidian-teleprompter-plus/issues)
    - Include: Obsidian version, plugin version, error messages, steps to reproduce
    - Screenshots or video recordings are very helpful
 
 3. **Community Support**
-   - [GitHub Discussions](https://github.com/yourusername/obsidian-teleprompter-plus/discussions)
+   - [GitHub Discussions](https://github.com/americo/obsidian-teleprompter-plus/discussions)
    - [Obsidian Forum Thread](https://forum.obsidian.md/...)
 
 ---
@@ -701,7 +724,7 @@ obsidian-teleprompter-plus/
 
 ```bash
 # 1. Clone repository
-git clone https://github.com/yourusername/obsidian-teleprompter-plus.git
+git clone https://github.com/americo/obsidian-teleprompter-plus.git
 cd obsidian-teleprompter-plus
 
 # 2. Install dependencies
@@ -832,13 +855,20 @@ Contributions are welcome! Here's how:
 - ✅ Full Markdown support
 - ✅ Theme integration
 
-### 🚧 Planned Features
+### ✅ Recently Completed (v0.7.x)
 
 #### Phase 4: Enhanced UX
-- [ ] Multiple teleprompter themes (dark, light, high contrast)
-- [ ] Customizable color schemes
-- [ ] Font family selection
-- [ ] Eye-level indicator line
+- [x] **Multiple teleprompter themes** - 8 built-in themes (Professional, Broadcast, Stream, Practice, Accessibility, Cinema) + Dark/Light/High Contrast presets
+- [x] **Customizable color schemes** - Full color picker for text and background colors with presets
+- [x] **Font family selection** - 10 fonts (System, Arial, Courier New, Georgia, Helvetica, Roboto, Tahoma, Times New Roman, Trebuchet MS, Verdana)
+- [x] **Eye-level indicator line** - Configurable eyeline position with toggle
+
+#### Phase 7: Professional Features
+- [x] **Accessibility profile** - High contrast theme with larger fonts for improved readability
+
+### 🚧 Planned Features
+
+#### Phase 4: Enhanced UX (Remaining)
 - [ ] Focus mode (dim non-current section)
 - [ ] Reading guide (highlight current line)
 
@@ -856,16 +886,15 @@ Contributions are welcome! Here's how:
 - [ ] Share teleprompter sessions
 - [ ] Real-time collaboration
 
-#### Phase 7: Professional Features
+#### Phase 7: Professional Features (Remaining)
 - [ ] Timecode display
 - [ ] Recording integration (OBS, etc.)
 - [ ] Autocue mode (stop at headers)
-- [ ] Accessibility improvements
 - [x] ~~Voice control~~ - *Investigated; incompatible with Obsidian's Electron environment (see docs/voice-scroll-research.md)*
 
 ### 💡 Feature Requests
 
-Have an idea? [Open a discussion](https://github.com/yourusername/obsidian-teleprompter-plus/discussions) or [submit an issue](https://github.com/yourusername/obsidian-teleprompter-plus/issues)!
+Have an idea? [Open a discussion](https://github.com/americo/obsidian-teleprompter-plus/discussions) or [submit an issue](https://github.com/americo/obsidian-teleprompter-plus/issues)!
 
 ---
 
@@ -873,7 +902,7 @@ Have an idea? [Open a discussion](https://github.com/yourusername/obsidian-telep
 
 MIT License - See [LICENSE](LICENSE) file for details.
 
-Copyright (c) 2024 Americo
+Copyright (c) 2024-2025 Americo
 
 Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the "Software"), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:
 
@@ -912,9 +941,9 @@ Created with ❤️ by **Americo**
 ### Get Help
 
 - 📖 **Documentation**: You're reading it!
-- 🐛 **Bug Reports**: [GitHub Issues](https://github.com/yourusername/obsidian-teleprompter-plus/issues)
-- 💬 **Discussions**: [GitHub Discussions](https://github.com/yourusername/obsidian-teleprompter-plus/discussions)
-- 💡 **Feature Requests**: [GitHub Issues](https://github.com/yourusername/obsidian-teleprompter-plus/issues/new)
+- 🐛 **Bug Reports**: [GitHub Issues](https://github.com/americo/obsidian-teleprompter-plus/issues)
+- 💬 **Discussions**: [GitHub Discussions](https://github.com/americo/obsidian-teleprompter-plus/discussions)
+- 💡 **Feature Requests**: [GitHub Issues](https://github.com/americo/obsidian-teleprompter-plus/issues/new)
 - 🗨️ **Community Forum**: [Obsidian Forum](https://forum.obsidian.md/)
 
 ### Stay Updated
@@ -923,9 +952,23 @@ Created with ❤️ by **Americo**
 - 👀 **Watch** for updates and releases
 - 🔔 **Subscribe** to release notifications
 
+### Support Development
+
+If you find this plugin useful and want to support its development:
+
+<a href="https://ko-fi.com/americo">
+  <img src="https://ko-fi.com/img/githubbutton_sm.svg" alt="Support on Ko-fi">
+</a>
+
+Your support helps with:
+- Continued development and new features
+- Bug fixes and maintenance
+- Documentation improvements
+- Community support
+
 ### Share Your Experience
 
-If you find this plugin useful, please:
+If you enjoy using Teleprompter Plus:
 - Share it with the Obsidian community
 - Leave feedback on the forum
 - Contribute improvements
@@ -935,8 +978,8 @@ If you find this plugin useful, please:
 
 ## 📊 Project Stats
 
-- **Version**: 0.5.0
-- **Lines of Code**: 2000+ (TypeScript/Svelte)
+- **Version**: 0.7.1
+- **Lines of Code**: 3000+ (TypeScript/Svelte)
 - **Commands**: 25+
 - **Stream Deck Actions**: 55+
 - **Settings Options**: 15+

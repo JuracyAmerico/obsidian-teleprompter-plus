@@ -165,3 +165,829 @@
     transform: translateY(0);
   }
 }
+
+/* ========================================
+   SETTINGS REDESIGN v2.0
+   6-Tab System with Feature Cards
+   ======================================== */
+
+/* Settings Header with Search */
+.tp-settings-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 1rem;
+  padding-bottom: 1rem;
+  border-bottom: 1px solid var(--background-modifier-border);
+}
+
+.tp-settings-title {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: var(--text-normal);
+  margin: 0;
+}
+
+.tp-search-container {
+  position: relative;
+  width: 250px;
+}
+
+.tp-search-input {
+  width: 100%;
+  padding: 0.5rem 1rem 0.5rem 2.25rem;
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 20px;
+  background: var(--background-primary);
+  font-size: 0.9rem;
+  color: var(--text-normal);
+  transition: all 0.2s ease;
+}
+
+.tp-search-input:focus {
+  outline: none;
+  border-color: var(--interactive-accent);
+  box-shadow: 0 0 0 2px var(--interactive-accent-hover);
+}
+
+.tp-search-input::placeholder {
+  color: var(--text-muted);
+}
+
+.tp-search-icon {
+  position: absolute;
+  left: 0.75rem;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--text-muted);
+  width: 16px;
+  height: 16px;
+  pointer-events: none;
+}
+
+/* Tab Navigation - Enhanced for 6 tabs */
+.tp-tabs {
+  display: flex;
+  gap: 0.125rem;
+  margin-bottom: 1.5rem;
+  border-bottom: 2px solid var(--background-modifier-border);
+  padding-bottom: 0;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.tp-tabs::-webkit-scrollbar {
+  display: none;
+}
+
+.tp-tab {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  background: transparent;
+  border: none;
+  border-bottom: 2px solid transparent;
+  padding: 0.625rem 1rem;
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  margin-bottom: -2px;
+  border-radius: 0;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.tp-tab:hover {
+  color: var(--text-normal);
+  background: var(--background-modifier-hover);
+  border-bottom-color: var(--text-muted);
+}
+
+.tp-tab.active {
+  color: var(--interactive-accent);
+  border-bottom-color: var(--interactive-accent);
+  font-weight: 600;
+}
+
+.tp-tab-icon {
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+}
+
+.tp-tab-content {
+  animation: fadeIn 0.2s ease-in;
+}
+
+/* Live Preview Panel */
+.tp-live-preview {
+  display: flex;
+  gap: 1.5rem;
+  margin-bottom: 1.5rem;
+  padding: 1rem;
+  background: var(--background-secondary);
+  border-radius: 12px;
+  border: 1px solid var(--background-modifier-border);
+}
+
+.tp-preview-frame {
+  flex: 0 0 200px;
+  height: 120px;
+  border-radius: 8px;
+  overflow: hidden;
+  border: 2px solid var(--background-modifier-border);
+  position: relative;
+}
+
+.tp-preview-content {
+  width: 100%;
+  height: 100%;
+  padding: 0.5rem;
+  font-size: 8px;
+  line-height: 1.4;
+  overflow: hidden;
+  transition: all 0.3s ease;
+}
+
+.tp-preview-eyeline {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: linear-gradient(90deg, transparent, var(--interactive-accent), transparent);
+  pointer-events: none;
+}
+
+.tp-preview-info {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+.tp-preview-label {
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--text-muted);
+  margin-bottom: 0.25rem;
+}
+
+.tp-preview-title {
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: var(--text-normal);
+  margin-bottom: 0.5rem;
+}
+
+/* Quick Profiles in Dashboard */
+.tp-quick-profiles {
+  display: flex;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.tp-profile-chip {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 1rem;
+  background: var(--background-primary);
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 20px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  font-size: 0.875rem;
+}
+
+.tp-profile-chip:hover {
+  border-color: var(--interactive-accent);
+  background: var(--background-primary-alt);
+}
+
+.tp-profile-chip.active {
+  border-color: var(--interactive-accent);
+  background: var(--interactive-accent);
+  color: var(--text-on-accent);
+}
+
+.tp-profile-chip-icon {
+  width: 14px;
+  height: 14px;
+}
+
+/* Feature Cards - Collapsible */
+.tp-feature-group {
+  margin-bottom: 1.5rem;
+}
+
+.tp-feature-group-header {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.75rem 0;
+  cursor: pointer;
+  user-select: none;
+  border-bottom: 1px solid var(--background-modifier-border);
+}
+
+.tp-feature-group-header:hover {
+  color: var(--interactive-accent);
+}
+
+.tp-feature-group-chevron {
+  width: 16px;
+  height: 16px;
+  transition: transform 0.2s ease;
+  color: var(--text-muted);
+}
+
+.tp-feature-group.collapsed .tp-feature-group-chevron {
+  transform: rotate(-90deg);
+}
+
+.tp-feature-group-title {
+  font-size: 0.9rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--text-muted);
+}
+
+.tp-feature-group-content {
+  padding-top: 0.5rem;
+  overflow: hidden;
+  transition: all 0.3s ease;
+}
+
+.tp-feature-group.collapsed .tp-feature-group-content {
+  display: none;
+}
+
+/* Feature Card */
+.tp-feature-card {
+  margin: 0.75rem 0;
+  background: var(--background-primary);
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 10px;
+  overflow: hidden;
+  transition: all 0.2s ease;
+}
+
+.tp-feature-card:hover {
+  border-color: var(--interactive-accent-hover);
+}
+
+.tp-feature-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.875rem 1rem;
+  cursor: pointer;
+  background: var(--background-secondary);
+  border-bottom: 1px solid transparent;
+  transition: all 0.2s ease;
+}
+
+.tp-feature-card.expanded .tp-feature-card-header {
+  border-bottom-color: var(--background-modifier-border);
+}
+
+.tp-feature-card-left {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.tp-feature-card-icon {
+  width: 20px;
+  height: 20px;
+  color: var(--interactive-accent);
+  flex-shrink: 0;
+}
+
+.tp-feature-card-name {
+  font-weight: 600;
+  font-size: 0.95rem;
+  color: var(--text-normal);
+}
+
+.tp-feature-card-toggle {
+  flex-shrink: 0;
+}
+
+.tp-feature-card-content {
+  padding: 1rem;
+  display: none;
+  animation: slideDown 0.2s ease;
+}
+
+.tp-feature-card.expanded .tp-feature-card-content {
+  display: block;
+}
+
+@keyframes slideDown {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Feature Card Sub-Settings */
+.tp-feature-setting {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.625rem 0;
+  border-bottom: 1px solid var(--background-modifier-border-focus);
+}
+
+.tp-feature-setting:last-child {
+  border-bottom: none;
+}
+
+.tp-feature-setting-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.tp-feature-setting-name {
+  font-size: 0.875rem;
+  color: var(--text-normal);
+  margin-bottom: 0.125rem;
+}
+
+.tp-feature-setting-desc {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
+
+.tp-feature-setting-control {
+  flex-shrink: 0;
+  margin-left: 1rem;
+}
+
+/* Toolbar Configurator */
+.tp-toolbar-preview {
+  display: flex;
+  gap: 0.5rem;
+  padding: 1rem;
+  background: var(--background-secondary);
+  border-radius: 8px;
+  margin-bottom: 1rem;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+.tp-toolbar-item {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  background: var(--background-primary);
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 6px;
+  cursor: grab;
+  transition: all 0.2s ease;
+}
+
+.tp-toolbar-item:hover {
+  border-color: var(--interactive-accent);
+  transform: translateY(-2px);
+}
+
+.tp-toolbar-item.dragging {
+  opacity: 0.5;
+  cursor: grabbing;
+  transform: scale(1.1);
+  z-index: 100;
+}
+
+.tp-toolbar-item.drag-over {
+  border-color: var(--interactive-accent);
+  background: var(--interactive-accent-hover);
+  transform: scale(1.05);
+}
+
+.tp-toolbar-item.hidden {
+  opacity: 0.3;
+  border-style: dashed;
+}
+
+.tp-toolbar-item-icon {
+  width: 20px;
+  height: 20px;
+  color: var(--text-normal);
+}
+
+/* Toolbar Control List */
+.tp-toolbar-controls {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+  gap: 0.75rem;
+}
+
+.tp-toolbar-control {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.75rem 1rem;
+  background: var(--background-primary);
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 8px;
+  transition: all 0.2s ease;
+}
+
+.tp-toolbar-control:hover {
+  border-color: var(--interactive-accent-hover);
+}
+
+.tp-toolbar-control-drag {
+  cursor: grab;
+  color: var(--text-muted);
+  width: 16px;
+  height: 16px;
+}
+
+.tp-toolbar-control-icon {
+  width: 18px;
+  height: 18px;
+  color: var(--interactive-accent);
+}
+
+.tp-toolbar-control-name {
+  flex: 1;
+  font-size: 0.9rem;
+  color: var(--text-normal);
+}
+
+.tp-toolbar-control-toggle {
+  flex-shrink: 0;
+}
+
+/* Profiles List */
+.tp-profiles-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+}
+
+.tp-profile-item {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 1rem;
+  background: var(--background-primary);
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 10px;
+  transition: all 0.2s ease;
+}
+
+.tp-profile-item:hover {
+  border-color: var(--interactive-accent-hover);
+}
+
+.tp-profile-item.active {
+  border-color: var(--interactive-accent);
+  background: var(--background-primary-alt);
+}
+
+.tp-profile-icon {
+  width: 24px;
+  height: 24px;
+  color: var(--interactive-accent);
+}
+
+.tp-profile-info {
+  flex: 1;
+}
+
+.tp-profile-name {
+  font-weight: 600;
+  font-size: 0.95rem;
+  color: var(--text-normal);
+}
+
+.tp-profile-desc {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+}
+
+.tp-profile-badge {
+  font-size: 0.7rem;
+  padding: 0.2rem 0.5rem;
+  background: var(--interactive-accent);
+  color: var(--text-on-accent);
+  border-radius: 10px;
+  text-transform: uppercase;
+  font-weight: 600;
+}
+
+.tp-profile-actions {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.tp-profile-action {
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+  background: transparent;
+  border: 1px solid var(--background-modifier-border);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  color: var(--text-muted);
+}
+
+.tp-profile-action:hover {
+  border-color: var(--interactive-accent);
+  color: var(--interactive-accent);
+  background: var(--background-secondary);
+}
+
+.tp-profile-action.danger:hover {
+  border-color: var(--text-error);
+  color: var(--text-error);
+}
+
+/* Connection Status */
+.tp-connection-status {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 1rem;
+  background: var(--background-secondary);
+  border-radius: 10px;
+  margin-bottom: 1rem;
+}
+
+.tp-connection-indicator {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.tp-connection-indicator.connected {
+  background: #4ade80;
+  box-shadow: 0 0 8px #4ade80;
+}
+
+.tp-connection-indicator.disconnected {
+  background: #f87171;
+  box-shadow: 0 0 8px #f87171;
+}
+
+.tp-connection-info {
+  flex: 1;
+}
+
+.tp-connection-title {
+  font-weight: 600;
+  font-size: 0.95rem;
+  color: var(--text-normal);
+}
+
+.tp-connection-detail {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+}
+
+/* Health Check Cards */
+.tp-health-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+}
+
+.tp-health-card {
+  padding: 1rem;
+  background: var(--background-secondary);
+  border-radius: 10px;
+  border: 1px solid var(--background-modifier-border);
+  text-align: center;
+}
+
+.tp-health-card-icon {
+  width: 28px;
+  height: 28px;
+  margin: 0 auto 0.5rem;
+  color: var(--interactive-accent);
+}
+
+.tp-health-card-value {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: var(--text-normal);
+  margin-bottom: 0.25rem;
+}
+
+.tp-health-card-label {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+/* About Tab */
+.tp-about-header {
+  text-align: center;
+  padding: 2rem;
+  background: var(--background-secondary);
+  border-radius: 12px;
+  margin-bottom: 1.5rem;
+}
+
+.tp-about-logo {
+  width: 64px;
+  height: 64px;
+  margin: 0 auto 1rem;
+  color: var(--interactive-accent);
+}
+
+.tp-about-name {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: var(--text-normal);
+  margin-bottom: 0.25rem;
+}
+
+.tp-about-version {
+  font-size: 0.9rem;
+  color: var(--text-muted);
+}
+
+.tp-about-links {
+  display: flex;
+  justify-content: center;
+  gap: 1rem;
+  margin-top: 1rem;
+}
+
+.tp-about-link {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 1rem;
+  background: var(--background-primary);
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 6px;
+  color: var(--text-normal);
+  text-decoration: none;
+  font-size: 0.875rem;
+  transition: all 0.2s ease;
+}
+
+.tp-about-link:hover {
+  border-color: var(--interactive-accent);
+  color: var(--interactive-accent);
+}
+
+/* Keyboard Shortcuts Table */
+.tp-shortcuts-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-bottom: 1rem;
+}
+
+.tp-shortcuts-table th,
+.tp-shortcuts-table td {
+  padding: 0.75rem;
+  text-align: left;
+  border-bottom: 1px solid var(--background-modifier-border);
+}
+
+.tp-shortcuts-table th {
+  font-weight: 600;
+  color: var(--text-muted);
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.tp-shortcuts-table td {
+  font-size: 0.9rem;
+}
+
+.tp-shortcut-key {
+  display: inline-block;
+  padding: 0.25rem 0.5rem;
+  background: var(--background-secondary);
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 4px;
+  font-family: monospace;
+  font-size: 0.8rem;
+}
+
+/* Section Headers in Settings */
+.tp-section-header {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin: 1.5rem 0 1rem;
+  padding-bottom: 0.5rem;
+  border-bottom: 1px solid var(--background-modifier-border);
+}
+
+.tp-section-header-icon {
+  width: 18px;
+  height: 18px;
+  color: var(--interactive-accent);
+}
+
+.tp-section-header-title {
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--text-normal);
+}
+
+/* Buttons */
+.tp-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.625rem 1rem;
+  border-radius: 6px;
+  font-size: 0.875rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  border: 1px solid var(--background-modifier-border);
+  background: var(--background-primary);
+  color: var(--text-normal);
+}
+
+.tp-btn:hover {
+  border-color: var(--interactive-accent);
+  background: var(--background-secondary);
+}
+
+.tp-btn-primary {
+  background: var(--interactive-accent);
+  border-color: var(--interactive-accent);
+  color: var(--text-on-accent);
+}
+
+.tp-btn-primary:hover {
+  background: var(--interactive-accent-hover);
+  border-color: var(--interactive-accent-hover);
+}
+
+.tp-btn-danger {
+  border-color: var(--text-error);
+  color: var(--text-error);
+}
+
+.tp-btn-danger:hover {
+  background: var(--text-error);
+  color: white;
+}
+
+.tp-btn-icon {
+  width: 16px;
+  height: 16px;
+}
+
+/* Search Results Highlight */
+.tp-search-highlight {
+  background: rgba(var(--interactive-accent-rgb), 0.2);
+  border-radius: 2px;
+  padding: 0 2px;
+}
+
+/* Empty State */
+.tp-empty-state {
+  text-align: center;
+  padding: 3rem 2rem;
+  color: var(--text-muted);
+}
+
+.tp-empty-state-icon {
+  width: 48px;
+  height: 48px;
+  margin: 0 auto 1rem;
+  opacity: 0.5;
+}
+
+.tp-empty-state-title {
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: var(--text-normal);
+  margin-bottom: 0.5rem;
+}
+
+.tp-empty-state-desc {
+  font-size: 0.9rem;
+}

@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="72" height="72" viewBox="0 0 72 72" fill="none" stroke="#FFFFFF" stroke-width="6" stroke-linecap="round" stroke-linejoin="round">
+  <title>System Font</title>
+  <desc>Use system default typeface - Stream Deck 72x72</desc>
+  <!-- Gear/settings icon -->
+  <circle cx="36" cy="28" r="10"/>
+  <circle cx="36" cy="28" r="4" fill="#FFFFFF" stroke="none"/>
+  <!-- Gear teeth -->
+  <line x1="36" y1="14" x2="36" y2="18"/>
+  <line x1="36" y1="38" x2="36" y2="42"/>
+  <line x1="22" y1="28" x2="26" y2="28"/>
+  <line x1="46" y1="28" x2="50" y2="28"/>
+  <!-- Aa below -->
+  <text x="18" y="62" font-family="system-ui, sans-serif" font-size="22" font-weight="bold" fill="#FFFFFF" stroke="none">Aa</text>
+</svg>

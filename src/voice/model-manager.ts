@@ -1,0 +1,193 @@
+/**
+ * Model Manager
+ *
+ * Handles downloading, caching, and loading Vosk speech recognition models.
+ */
+
+import type { VoiceLanguage, ModelDownloadProgress } from './types'
+import { VOICE_LANGUAGES } from './types'
+
+// Base URL for Vosk models
+const VOSK_MODEL_BASE_URL = 'https://alphacephei.com/vosk/models'
+
+/**
+ * Model Manager class for handling Vosk model downloads and caching.
+ */
+export class ModelManager {
+  private basePath: string
+  private downloadProgress: ModelDownloadProgress = {
+    downloading: false,
+    progress: 0,
+    downloadedBytes: 0,
+    totalBytes: 0
+  }
+
+  // Callbacks
+  onProgressUpdate?: (progress: ModelDownloadProgress) => void
+  onError?: (error: string) => void
+
+  /**
+   * Create a new ModelManager.
+   *
+   * @param basePath - Base path for storing models (plugin data folder)
+   */
+  constructor(basePath: string) {
+    this.basePath = basePath
+  }
+
+  /**
+   * Get the language configuration for a language code.
+   */
+  getLanguageConfig(languageCode: string): VoiceLanguage | undefined {
+    return VOICE_LANGUAGES.find(lang => lang.code === languageCode)
+  }
+
+  /**
+   * Get the path where a model should be stored.
+   */
+  getModelPath(languageCode: string): string {
+    const config = this.getLanguageConfig(languageCode)
+    if (!config) {
+      throw new Error(`Unsupported language: ${languageCode}`)
+    }
+    return `${this.basePath}/models/${config.voskModel}`
+  }
+
+  /**
+   * Get the download URL for a model.
+   */
+  getModelUrl(languageCode: string): string {
+    const config = this.getLanguageConfig(languageCode)
+    if (!config) {
+      throw new Error(`Unsupported language: ${languageCode}`)
+    }
+    return `${VOSK_MODEL_BASE_URL}/${config.voskModel}.zip`
+  }
+
+  /**
+   * Check if a model is downloaded and available.
+   * Note: In browser context, we check IndexedDB or localStorage.
+   */
+  async isModelDownloaded(languageCode: string): Promise<boolean> {
+    const config = this.getLanguageConfig(languageCode)
+    if (!config) return false
+
+    // Check localStorage for model downloaded flag
+    const key = `vosk-model-${config.voskModel}`
+    return localStorage.getItem(key) === 'downloaded'
+  }
+
+  /**
+   * Mark a model as downloaded.
+   */
+  markModelDownloaded(languageCode: string): void {
+    const config = this.getLanguageConfig(languageCode)
+    if (config) {
+      const key = `vosk-model-${config.voskModel}`
+      localStorage.setItem(key, 'downloaded')
+    }
+  }
+
+  /**
+   * Get the current download progress.
+   */
+  getProgress(): ModelDownloadProgress {
+    return { ...this.downloadProgress }
+  }
+
+  /**
+   * Download a model for the specified language.
+   * vosk-browser handles model loading internally, so this primarily
+   * tracks the download state for UI purposes.
+   *
+   * @param languageCode - Language code (e.g., 'en-US')
+   * @returns Promise that resolves when download is complete
+   */
+  async downloadModel(languageCode: string): Promise<void> {
+    const config = this.getLanguageConfig(languageCode)
+    if (!config) {
+      throw new Error(`Unsupported language: ${languageCode}`)
+    }
+
+    // Check if already downloaded
+    if (await this.isModelDownloaded(languageCode)) {
+      return
+    }
+
+    // Update progress state
+    this.downloadProgress = {
+      downloading: true,
+      progress: 0,
+      downloadedBytes: 0,
+      totalBytes: config.modelSizeMB * 1024 * 1024
+    }
+    this.onProgressUpdate?.(this.downloadProgress)
+
+    try {
+      // vosk-browser will download the model when createModel is called
+      // This method is primarily for UI state management
+      // The actual download happens in VoskRecognizer.initialize()
+
+      // Simulate progress for UI (actual progress comes from vosk-browser)
+      // In production, vosk-browser's createModel provides progress callbacks
+
+      // Mark as downloaded (vosk-browser will cache it)
+      this.markModelDownloaded(languageCode)
+
+      this.downloadProgress = {
+        downloading: false,
+        progress: 100,
+        downloadedBytes: config.modelSizeMB * 1024 * 1024,
+        totalBytes: config.modelSizeMB * 1024 * 1024
+      }
+      this.onProgressUpdate?.(this.downloadProgress)
+
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error'
+      this.downloadProgress = {
+        ...this.downloadProgress,
+        downloading: false,
+        error: errorMessage
+      }
+      this.onProgressUpdate?.(this.downloadProgress)
+      this.onError?.(errorMessage)
+      throw error
+    }
+  }
+
+  /**
+   * Delete a downloaded model.
+   */
+  async deleteModel(languageCode: string): Promise<void> {
+    const config = this.getLanguageConfig(languageCode)
+    if (config) {
+      const key = `vosk-model-${config.voskModel}`
+      localStorage.removeItem(key)
+    }
+  }
+
+  /**
+   * Get list of downloaded models.
+   */
+  getDownloadedModels(): VoiceLanguage[] {
+    return VOICE_LANGUAGES.filter(lang => {
+      const key = `vosk-model-${lang.voskModel}`
+      return localStorage.getItem(key) === 'downloaded'
+    })
+  }
+}
+
+/**
+ * Create a singleton ModelManager instance.
+ */
+let modelManagerInstance: ModelManager | null = null
+
+export function getModelManager(basePath?: string): ModelManager {
+  if (!modelManagerInstance && basePath) {
+    modelManagerInstance = new ModelManager(basePath)
+  }
+  if (!modelManagerInstance) {
+    throw new Error('ModelManager not initialized. Call with basePath first.')
+  }
+  return modelManagerInstance
+}

@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="72" height="72" viewBox="0 0 72 72" fill="none" stroke="#FFFFFF" stroke-width="6" stroke-linecap="round" stroke-linejoin="round">
+  <title>Cycle Progress Indicator</title>
+  <desc>Cycle through progress indicator styles - Stream Deck 72x72</desc>
+  <!-- Three progress styles stacked -->
+  <!-- Line position -->
+  <line x1="14" y1="18" x2="58" y2="18" stroke-width="3"/>
+  <circle cx="32" cy="18" r="4" fill="#4A90E2" stroke="none"/>
+  <!-- Percentage -->
+  <text x="28" y="40" font-family="sans-serif" font-size="16" font-weight="bold" fill="#FFFFFF" stroke="none">%</text>
+  <!-- Time -->
+  <circle cx="36" cy="54" r="8" stroke-width="3"/>
+  <line x1="36" y1="54" x2="36" y2="50" stroke-width="2"/>
+  <line x1="36" y1="54" x2="40" y2="54" stroke-width="2"/>
+  <!-- Cycle arrow -->
+  <path d="M54 36 A6 6 0 1 1 60 30"/>
+  <path d="M58 28 L60 30 L58 34" stroke-width="3"/>
+</svg>

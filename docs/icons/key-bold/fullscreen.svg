@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="72" height="72" viewBox="0 0 72 72">
+  <!-- Blue center square to indicate fullscreen mode -->
+  <rect x="24" y="24" width="24" height="24" rx="4" fill="#4A90E2"/>
+  <!-- White corner brackets -->
+  <path d="M4,24 L4,4 L24,4" fill="none" stroke="#FFFFFF" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M48,4 L68,4 L68,24" fill="none" stroke="#FFFFFF" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M68,48 L68,68 L48,68" fill="none" stroke="#FFFFFF" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M24,68 L4,68 L4,48" fill="none" stroke="#FFFFFF" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>
