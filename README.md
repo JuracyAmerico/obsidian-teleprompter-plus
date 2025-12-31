@@ -193,21 +193,21 @@ cp -r node_modules/ws "<vault>/.obsidian/plugins/obsidian-teleprompter-plus/"
    - Content updates in real-time as you edit
 
 3. **Control Playback**
-   - Click ▶️ **Play** to start auto-scrolling
+   - Click **Play** to start auto-scrolling
    - Use **+/-** buttons to adjust speed
-   - Click **Reset** (↺) to return to top
-   - Press **Pause** (⏸️) to stop scrolling
+   - Click **Reset** to return to top
+   - Press **Pause** to stop scrolling
 
 4. **Adjust Appearance**
    - Use **Aa+/-** buttons to change font size
    - Click fullscreen icon for distraction-free mode
-   - Toggle navigation panel (☰) to see document structure
+   - Toggle navigation panel to see document structure
 
 ### Navigation Panel
 
 The navigation panel shows a hierarchical tree of all headers in your document:
 
-- **Toggle**: Click the hamburger menu (☰) icon
+- **Toggle**: Click the menu icon
 - **Navigate**: Click any header to jump to that section
 - **Collapse/Expand**: Click arrows to show/hide nested sections
 - **Active highlighting**: Current section is highlighted in blue
