@@ -101,7 +101,7 @@
 - **Links** - Both internal and external links
 - **Diagram placeholders** - Mermaid, PlantUML, and other diagrams shown as clean placeholders
 
-### 🆕 v0.7.1 Features
+### 🆕 v0.9.0 Features
 - **Speed presets** - Cycle through 6 preset speeds (0.5x, 1x, 1.5x, 2x, 3x, 5x)
 - **Custom hotkeys** - Define your own keyboard shortcuts for 12+ actions
 - **Double-click to edit** - Click text in teleprompter to jump to that line in editor
@@ -133,12 +133,12 @@
 
 1. **Download the latest release**
    - Go to the [Releases page](https://github.com/americo/obsidian-teleprompter-plus/releases)
-   - Download `obsidian-teleprompter-plus-v0.7.1.zip`
+   - Download `obsidian-teleprompter-plus-v0.9.0.zip`
 
 2. **Extract to plugins folder**
    ```bash
    # Extract the zip file to your vault's plugins directory
-   unzip obsidian-teleprompter-plus-v0.7.1.zip -d <vault>/.obsidian/plugins/
+   unzip obsidian-teleprompter-plus-v0.9.0.zip -d <vault>/.obsidian/plugins/
    ```
 
 3. **Install WebSocket module** (Required for Stream Deck)
@@ -991,7 +991,7 @@ If you enjoy using Teleprompter Plus:
 
 ## 📊 Project Stats
 
-- **Version**: 0.7.1
+- **Version**: 0.9.0
 - **Lines of Code**: 3000+ (TypeScript/Svelte)
 - **Commands**: 25+
 - **Stream Deck Actions**: 55+
