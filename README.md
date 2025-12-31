@@ -18,7 +18,7 @@
   <a href="https://obsidian.md">
     <img src="https://img.shields.io/badge/Obsidian-1.0.0+-purple.svg" alt="Obsidian">
   </a>
-  <a href="https://ko-fi.com/americo">
+  <a href="https://ko-fi.com/americocanada">
     <img src="https://img.shields.io/badge/Ko--fi-Support-ff5e5b?logo=ko-fi" alt="Ko-fi">
   </a>
 </p>
@@ -898,16 +898,6 @@ Contributions are welcome! Here's how:
 - [x] **Flip/mirror modes** - Horizontal and vertical flip
 - [x] **Minimap** - Document overview with position indicator
 
-### 🚧 Planned Features
-
-#### Future Enhancements
-- [ ] Reading guide (highlight current line)
-- [ ] Bookmarks / position markers
-- [ ] Export scripts with timing markers
-- [ ] Autocue mode (auto-pause at headers)
-- [ ] Timecode display
-- [ ] Share teleprompter sessions
-
 ### 💡 Feature Requests
 
 Have an idea? [Open a discussion](https://github.com/JuracyAmerico/obsidian-teleprompter-plus/discussions) or [submit an issue](https://github.com/JuracyAmerico/obsidian-teleprompter-plus/issues)!
@@ -972,7 +962,7 @@ Created with ❤️ by **Americo**
 
 If you find this plugin useful and want to support its development:
 
-<a href="https://ko-fi.com/americo">
+<a href="https://ko-fi.com/americocanada">
   <img src="https://ko-fi.com/img/githubbutton_sm.svg" alt="Support on Ko-fi">
 </a>
 
