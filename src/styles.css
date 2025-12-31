@@ -991,3 +991,172 @@
 .tp-empty-state-desc {
   font-size: 0.9rem;
 }
+
+/* ========================================
+   What's New Modal Styles
+   ======================================== */
+
+.teleprompter-whats-new-modal {
+  padding: 0;
+}
+
+.teleprompter-whats-new-modal .modal-content {
+  padding: 1.5rem;
+  max-width: 500px;
+}
+
+.whats-new-header {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+  padding-bottom: 1rem;
+  border-bottom: 1px solid var(--background-modifier-border);
+}
+
+.whats-new-logo svg {
+  display: block;
+}
+
+.whats-new-title-container {
+  display: flex;
+  flex-direction: column;
+}
+
+.whats-new-title {
+  margin: 0;
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: var(--text-normal);
+}
+
+.whats-new-version {
+  color: var(--text-muted);
+  font-size: 0.9rem;
+  margin-top: 0.25rem;
+}
+
+.whats-new-welcome {
+  font-size: 1.1rem;
+  color: var(--text-normal);
+  margin-bottom: 1.5rem;
+}
+
+.whats-new-highlights h3 {
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--text-normal);
+  margin-bottom: 0.75rem;
+}
+
+.whats-new-features {
+  list-style: none;
+  padding: 0;
+  margin: 0 0 1.5rem 0;
+}
+
+.whats-new-feature {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+  padding: 0.75rem;
+  margin-bottom: 0.5rem;
+  background: var(--background-secondary);
+  border-radius: 8px;
+  border: 1px solid var(--background-modifier-border);
+}
+
+.feature-icon {
+  font-size: 1.25rem;
+  flex-shrink: 0;
+}
+
+.feature-text {
+  font-size: 0.9rem;
+  line-height: 1.4;
+}
+
+.feature-text strong {
+  color: var(--text-normal);
+}
+
+.feature-text span {
+  color: var(--text-muted);
+}
+
+.whats-new-support {
+  padding: 1.25rem;
+  background: var(--background-secondary);
+  border-radius: 8px;
+  border: 1px solid var(--background-modifier-border);
+  text-align: center;
+  margin-bottom: 1.5rem;
+}
+
+.whats-new-support h3 {
+  font-size: 1rem;
+  font-weight: 600;
+  margin: 0 0 0.5rem 0;
+}
+
+.support-text {
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  margin: 0 0 1rem 0;
+}
+
+.whats-new-kofi-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 0.75rem 1.5rem;
+  background: #ff5e5b;
+  color: white;
+  border-radius: 8px;
+  text-decoration: none;
+  font-weight: 600;
+  font-size: 0.9rem;
+  transition: all 0.2s ease;
+}
+
+.whats-new-kofi-button:hover {
+  background: #ff4542;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(255, 94, 91, 0.4);
+  color: white;
+  text-decoration: none;
+}
+
+.whats-new-kofi-button svg {
+  flex-shrink: 0;
+}
+
+.whats-new-docs-link {
+  display: block;
+  margin-top: 1rem;
+  font-size: 0.85rem;
+  color: var(--text-accent);
+}
+
+.whats-new-docs-link:hover {
+  color: var(--text-accent-hover);
+}
+
+.whats-new-footer {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.whats-new-footer .setting-item {
+  border-top: none;
+  padding-top: 0;
+}
+
+.whats-new-close-button {
+  width: 100%;
+  padding: 0.75rem 1rem;
+  font-size: 1rem;
+  font-weight: 600;
+}

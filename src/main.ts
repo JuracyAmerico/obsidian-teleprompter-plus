@@ -1,9 +1,10 @@
-import { Plugin, Notice, addIcon, TFile } from 'obsidian'
+import { Plugin, Notice, addIcon, TFile, WorkspaceLeaf } from 'obsidian'
 import { TeleprompterView, VIEW_TYPE_TELEPROMPTER } from './view'
 import { TeleprompterWebSocketServer } from './websocket-server'
 import { TeleprompterSettingTab, DEFAULT_SETTINGS } from './settings'
 import type { TeleprompterSettings } from './settings'
 import { OBSService, type OBSState } from './obs-service'
+import { WhatsNewModal } from './whats-new-modal'
 import './styles.css'
 
 export default class TeleprompterPlusPlugin extends Plugin {
@@ -108,6 +109,9 @@ export default class TeleprompterPlusPlugin extends Plugin {
 		
 		// Load settings
 		await this.loadSettings()
+
+		// Show What's New modal if version changed
+		this.showWhatsNewIfNeeded()
 
 		// Register settings tab
 		this.addSettingTab(new TeleprompterSettingTab(this.app, this))
@@ -1487,5 +1491,30 @@ Use this address to connect from Stream Deck or other devices.`
 			.slice(0, 100) // Limit length
 			.replace(/[<>'"&]/g, '') // Remove potential XSS chars
 			.trim()
+	}
+
+	/**
+	 * Show What's New modal if version changed or first install
+	 */
+	private showWhatsNewIfNeeded(): void {
+		const currentVersion = this.manifest.version
+		const lastSeenVersion = this.settings.lastSeenVersion
+
+		// Show modal if:
+		// 1. First install (lastSeenVersion is empty)
+		// 2. Version updated AND user hasn't disabled release notes
+		const isFirstInstall = !lastSeenVersion
+		const isVersionUpdated = lastSeenVersion !== currentVersion
+
+		if ((isFirstInstall || isVersionUpdated) && this.settings.showReleaseNotes) {
+			// Small delay to ensure the app is fully loaded
+			setTimeout(() => {
+				new WhatsNewModal(this.app, this).open()
+			}, 1000)
+		} else if (!this.settings.showReleaseNotes && isVersionUpdated) {
+			// Silently update the version if user disabled the modal
+			this.settings.lastSeenVersion = currentVersion
+			this.saveSettings()
+		}
 	}
 }
