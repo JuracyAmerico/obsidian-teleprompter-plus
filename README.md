@@ -132,27 +132,18 @@
 ### Method 1: Manual Installation (Recommended)
 
 1. **Download the latest release**
-   - Go to the [Releases page](https://github.com/americo/obsidian-teleprompter-plus/releases)
+   - Go to the [Releases page](https://github.com/JuracyAmerico/obsidian-teleprompter-plus/releases)
    - Download `obsidian-teleprompter-plus-v0.9.0.zip`
 
 2. **Extract to plugins folder**
-   ```bash
-   # Extract the zip file to your vault's plugins directory
-   unzip obsidian-teleprompter-plus-v0.9.0.zip -d <vault>/.obsidian/plugins/
-   ```
+   - Unzip to your vault's `.obsidian/plugins/` directory
+   - You should have: `<vault>/.obsidian/plugins/obsidian-teleprompter-plus/`
 
-3. **Install WebSocket module** (Required for Stream Deck)
-   ```bash
-   cd <vault>/.obsidian/plugins/obsidian-teleprompter-plus/
-   bun install ws
-   # Or copy the ws module from node_modules if included
-   ```
-
-4. **Enable the plugin**
+3. **Enable the plugin**
    - Open Obsidian
    - Go to Settings → Community Plugins
-   - Reload plugins if necessary
-   - Enable "Teleprompter Plus"
+   - Click "Reload plugins" if necessary
+   - Find "Teleprompter Plus" and enable it
 
 ### Method 2: Build from Source
 
@@ -171,10 +162,7 @@ bun run build
 mkdir -p "<vault>/.obsidian/plugins/obsidian-teleprompter-plus"
 cp dist/main.js dist/styles.css manifest.json "<vault>/.obsidian/plugins/obsidian-teleprompter-plus/"
 
-# 5. Copy WebSocket module (required for Stream Deck)
-cp -r node_modules/ws "<vault>/.obsidian/plugins/obsidian-teleprompter-plus/"
-
-# 6. Reload Obsidian and enable the plugin
+# 5. Reload Obsidian and enable the plugin
 ```
 
 ---
