@@ -868,46 +868,49 @@ Contributions are welcome! Here's how:
 - ✅ Full Markdown support
 - ✅ Theme integration
 
-### ✅ Recently Completed (v0.7.x)
+### ✅ Completed Features (v0.9.0)
 
-#### Phase 4: Enhanced UX
-- [x] **Multiple teleprompter themes** - 8 built-in themes (Professional, Broadcast, Stream, Practice, Accessibility, Cinema) + Dark/Light/High Contrast presets
-- [x] **Customizable color schemes** - Full color picker for text and background colors with presets
-- [x] **Font family selection** - 10 fonts (System, Arial, Courier New, Georgia, Helvetica, Roboto, Tahoma, Times New Roman, Trebuchet MS, Verdana)
-- [x] **Eye-level indicator line** - Configurable eyeline position with toggle
+#### Core Features
+- [x] **Professional teleprompter view** - Full-featured reading display
+- [x] **Auto-scrolling** - Configurable speed with smooth animation
+- [x] **Multiple themes** - 8 built-in profiles (Professional, Broadcast, Stream, Practice, etc.)
+- [x] **Customizable colors** - Full color picker for text/background with presets
+- [x] **Font family selection** - 10 font options
+- [x] **Eyeline indicator** - Configurable reading position guide
 
-#### Phase 7: Professional Features
-- [x] **Accessibility profile** - High contrast theme with larger fonts for improved readability
+#### Remote Control (v0.9.0)
+- [x] **Remote web interface** - Control from any device on your network
+- [x] **Mobile-optimized UI** - Touch-friendly controls for phone/tablet
+- [x] **Real-time sync** - Instant state synchronization via WebSocket
+- [x] **Section navigation** - Jump to headers from remote
+
+#### Professional Features
+- [x] **OBS integration** - Start/stop recording synced with teleprompter
+- [x] **Stream Deck support** - 55+ actions for professional control
+- [x] **Countdown timer** - Visual countdown before auto-scroll starts
+- [x] **Focus mode** - Dim text outside eyeline for better focus
+- [x] **Voice tracking (Beta)** - Experimental speech-following scroll
+
+#### UX Enhancements
+- [x] **Speed presets** - Quick switch between 6 preset speeds
+- [x] **Custom hotkeys** - Define your own keyboard shortcuts
+- [x] **Double-click to edit** - Jump to source line in editor
+- [x] **Flip/mirror modes** - Horizontal and vertical flip
+- [x] **Minimap** - Document overview with position indicator
 
 ### 🚧 Planned Features
 
-#### Phase 4: Enhanced UX (Remaining)
-- [ ] Focus mode (dim non-current section)
+#### Future Enhancements
 - [ ] Reading guide (highlight current line)
-
-#### Phase 5: Advanced Features
 - [ ] Bookmarks / position markers
-- [ ] Session recording (speed, position over time)
-- [ ] Session playback (replay recorded sessions)
-- [ ] Export scripts with timing
-- [ ] Speaker notes (separate notes panel)
-- [ ] Presentation mode (title slide, transitions)
-
-#### Phase 6: Collaboration & Sync
-- [ ] Multi-device sync (control from phone)
-- [ ] Remote control web interface
-- [ ] Share teleprompter sessions
-- [ ] Real-time collaboration
-
-#### Phase 7: Professional Features (Remaining)
+- [ ] Export scripts with timing markers
+- [ ] Autocue mode (auto-pause at headers)
 - [ ] Timecode display
-- [ ] Recording integration (OBS, etc.)
-- [ ] Autocue mode (stop at headers)
-- [x] ~~Voice control~~ - *Investigated; incompatible with Obsidian's Electron environment (see docs/voice-scroll-research.md)*
+- [ ] Share teleprompter sessions
 
 ### 💡 Feature Requests
 
-Have an idea? [Open a discussion](https://github.com/americo/obsidian-teleprompter-plus/discussions) or [submit an issue](https://github.com/americo/obsidian-teleprompter-plus/issues)!
+Have an idea? [Open a discussion](https://github.com/JuracyAmerico/obsidian-teleprompter-plus/discussions) or [submit an issue](https://github.com/JuracyAmerico/obsidian-teleprompter-plus/issues)!
 
 ---
 
