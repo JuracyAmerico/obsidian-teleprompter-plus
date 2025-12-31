@@ -144,7 +144,7 @@
 3. **Install WebSocket module** (Required for Stream Deck)
    ```bash
    cd <vault>/.obsidian/plugins/obsidian-teleprompter-plus/
-   npm install ws
+   bun install ws
    # Or copy the ws module from node_modules if included
    ```
 
@@ -158,14 +158,14 @@
 
 ```bash
 # 1. Clone the repository
-git clone https://github.com/americo/obsidian-teleprompter-plus.git
+git clone https://github.com/JuracyAmerico/obsidian-teleprompter-plus.git
 cd obsidian-teleprompter-plus
 
 # 2. Install dependencies
-npm install
+bun install
 
 # 3. Build the plugin
-npm run build
+bun run build
 
 # 4. Copy to your vault's plugins folder
 mkdir -p "<vault>/.obsidian/plugins/obsidian-teleprompter-plus"
@@ -666,7 +666,7 @@ Create lessons and lectures:
 
 **Solutions**:
 - WebSocket module not installed correctly
-- Run `npm install ws` in plugin folder
+- Run `bun install ws` in plugin folder
 - Or copy `node_modules/ws/` to plugin folder
 - For built-from-source: Ensure ws is bundled in build
 
@@ -737,28 +737,28 @@ obsidian-teleprompter-plus/
 
 ```bash
 # 1. Clone repository
-git clone https://github.com/americo/obsidian-teleprompter-plus.git
+git clone https://github.com/JuracyAmerico/obsidian-teleprompter-plus.git
 cd obsidian-teleprompter-plus
 
 # 2. Install dependencies
-npm install
+bun install
 
 # 3. Start development server with hot reload
-npm run dev
+bun run dev
 
 # 4. Build for production
-npm run build
+bun run build
 
 # 5. Preview production build
-npm run preview
+bun run preview
 ```
 
 ### Development Workflow
 
 1. **Make changes** to source files in `src/`
-2. **Hot reload** updates automatically with `npm run dev`
+2. **Hot reload** updates automatically with `bun run dev`
 3. **Test in Obsidian** by symlinking or copying to vault plugins folder
-4. **Build** with `npm run build` before committing
+4. **Build** with `bun run build` before committing
 5. **Update version** in `manifest.json` for releases
 
 ### Key Files to Understand
