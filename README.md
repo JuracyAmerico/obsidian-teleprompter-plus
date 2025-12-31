@@ -184,7 +184,7 @@ cp -r node_modules/ws "<vault>/.obsidian/plugins/obsidian-teleprompter-plus/"
 ### Basic Usage
 
 1. **Open Teleprompter**
-   - Click the scroll icon (📜) in the left ribbon, or
+   - Click the teleprompter icon in the left ribbon, or
    - Use Command Palette: `Cmd/Ctrl + P` → "Open Teleprompter Plus"
 
 2. **Load a Note**
