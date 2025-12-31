@@ -1,7 +1,7 @@
 {
-  "id": "obsidian-teleprompter-plus",
+  "id": "teleprompter-plus",
   "name": "Teleprompter Plus",
-  "version": "0.9.0",
+  "version": "0.9.1",
   "minAppVersion": "1.0.0",
   "description": "Professional teleprompter with mobile remote control, Stream Deck integration, countdown timer, and voice tracking",
   "author": "JuracyAmerico",
