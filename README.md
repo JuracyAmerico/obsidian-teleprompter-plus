@@ -9,8 +9,8 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/americo/obsidian-teleprompter-plus/releases">
-    <img src="https://img.shields.io/badge/version-0.7.1-blue.svg" alt="Version">
+  <a href="https://github.com/JuracyAmerico/obsidian-teleprompter-plus/releases">
+    <img src="https://img.shields.io/badge/version-0.9.0-blue.svg" alt="Version">
   </a>
   <a href="LICENSE">
     <img src="https://img.shields.io/badge/license-MIT-green.svg" alt="License">
@@ -26,6 +26,19 @@
 <p align="center">
   Perfect for presentations, video recording, podcasts, speeches, and content creation.
 </p>
+
+---
+
+## 📸 Screenshots
+
+> **Coming Soon:** Screenshots showing the plugin in action. For now, install and try it yourself!
+
+| Feature | Description |
+|---------|-------------|
+| **Main Interface** | Clean teleprompter view with eyeline guide and navigation panel |
+| **Mobile Remote** | Control from your phone via web browser (v0.9.0+) |
+| **Stream Deck** | Hardware integration with 55+ actions |
+| **Settings** | Comprehensive customization options |
 
 ---
 
