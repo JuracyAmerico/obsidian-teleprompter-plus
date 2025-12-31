@@ -1,6 +1,7 @@
 import { PluginSettingTab, Setting, setIcon, Notice } from 'obsidian'
 import type { App } from 'obsidian'
 import type TeleprompterPlusPlugin from './main'
+import { ConfirmModal } from './confirm-modal'
 
 // Hotkey action names
 export type HotkeyAction =
@@ -448,8 +449,8 @@ const TOOLBAR_CONTROLS = [
 
 export class TeleprompterSettingTab extends PluginSettingTab {
 	plugin: TeleprompterPlusPlugin
-	private statusInterval: NodeJS.Timeout | null = null
-	private obsStatusInterval: NodeJS.Timeout | null = null
+	private statusInterval: ReturnType<typeof setInterval> | null = null
+	private obsStatusInterval: ReturnType<typeof setInterval> | null = null
 	private activeTab: string = 'dashboard'
 	private searchQuery: string = ''
 
@@ -629,24 +630,25 @@ export class TeleprompterSettingTab extends PluginSettingTab {
 		setIcon(actionsIcon, 'zap')
 		actionsSection.createSpan({ text: 'Quick Actions', cls: 'tp-section-header-title' })
 
-		const actionsContainer = containerEl.createDiv()
-		actionsContainer.style.display = 'flex'
-		actionsContainer.style.gap = '0.75rem'
-		actionsContainer.style.flexWrap = 'wrap'
+		const actionsContainer = containerEl.createDiv('tp-flex-container')
 
 		// Reset all settings button
 		const resetBtn = actionsContainer.createEl('button', { cls: 'tp-btn' })
 		const resetBtnIcon = resetBtn.createDiv('tp-btn-icon')
 		setIcon(resetBtnIcon, 'rotate-ccw')
 		resetBtn.createSpan({ text: 'Reset All' })
-		resetBtn.addEventListener('click', async () => {
-			if (confirm('Reset all settings to defaults?')) {
-				Object.assign(this.plugin.settings, DEFAULT_SETTINGS)
-				await this.plugin.saveSettings()
-				this.plugin.applyAllSettings()
-				new Notice('Settings reset to defaults')
-				this.display()
-			}
+		resetBtn.addEventListener('click', () => {
+			new ConfirmModal(
+				this.app,
+				'Reset all settings to defaults?',
+				async () => {
+					Object.assign(this.plugin.settings, DEFAULT_SETTINGS)
+					await this.plugin.saveSettings()
+					this.plugin.applyAllSettings()
+					new Notice('Settings reset to defaults')
+					this.display()
+				}
+			).open()
 		})
 
 		// Export settings button
@@ -682,11 +684,11 @@ export class TeleprompterSettingTab extends PluginSettingTab {
 				reader.onload = async (event) => {
 					try {
 						const imported = JSON.parse(event.target?.result as string)
-						const validKeys = Object.keys(DEFAULT_SETTINGS)
+						const validKeys = Object.keys(DEFAULT_SETTINGS) as Array<keyof TeleprompterSettings>
 						const importedFiltered: Partial<TeleprompterSettings> = {}
 						for (const key of validKeys) {
 							if (key in imported) {
-								(importedFiltered as any)[key] = imported[key]
+								(importedFiltered as Record<string, unknown>)[key] = imported[key]
 							}
 						}
 						Object.assign(this.plugin.settings, importedFiltered)
@@ -882,8 +884,7 @@ export class TeleprompterSettingTab extends PluginSettingTab {
 						this.display()
 					})
 				)
-			toggle.settingEl.style.border = 'none'
-			toggle.settingEl.style.padding = '0'
+			toggle.settingEl.addClass('tp-setting-no-border')
 		})
 	}
 
@@ -1546,9 +1547,9 @@ export class TeleprompterSettingTab extends PluginSettingTab {
 				min?: number
 				max?: number
 				step?: number
-				value: any
+				value: string | number | boolean
 				options?: Array<{ value: string; label: string }>
-				onChange: (value: any) => void
+				onChange: (value: string | number | boolean) => void
 			}>
 		}>
 	): void {
@@ -1589,7 +1590,7 @@ export class TeleprompterSettingTab extends PluginSettingTab {
 			// Master toggle if applicable
 			if (feature.hasToggle) {
 				const toggleContainer = cardHeader.createDiv('tp-feature-card-toggle')
-				new Setting(toggleContainer)
+				const toggleSetting = new Setting(toggleContainer)
 					.addToggle(t => t
 						.setValue(feature.toggleValue ?? false)
 						.onChange(async (value) => {
@@ -1598,7 +1599,7 @@ export class TeleprompterSettingTab extends PluginSettingTab {
 							}
 						})
 					)
-					.settingEl.style.border = 'none'
+				toggleSetting.settingEl.addClass('tp-setting-no-border')
 			}
 
 			// Card content (sub-settings)
@@ -1625,14 +1626,8 @@ export class TeleprompterSettingTab extends PluginSettingTab {
 							// Create value display element
 							const valueDisplay = settingControl.createSpan({
 								text: String(setting.value),
-								cls: 'tp-slider-value'
+								cls: 'tp-slider-value tp-value-display'
 							})
-							valueDisplay.style.minWidth = '45px'
-							valueDisplay.style.textAlign = 'right'
-							valueDisplay.style.marginRight = '8px'
-							valueDisplay.style.fontFamily = 'var(--font-monospace)'
-							valueDisplay.style.fontSize = '12px'
-							valueDisplay.style.opacity = '0.8'
 
 							// Add unit suffix for specific settings
 							const unit = setting.name.includes('time') || setting.name.includes('frequency') ? 'ms' : ''
@@ -1641,32 +1636,29 @@ export class TeleprompterSettingTab extends PluginSettingTab {
 							new Setting(settingControl)
 								.addSlider(s => s
 									.setLimits(setting.min!, setting.max!, setting.step!)
-									.setValue(setting.value)
+									.setValue(setting.value as number)
 									.setDynamicTooltip()
 									.onChange((value) => {
 										valueDisplay.textContent = value + unit
 										setting.onChange(value)
 									})
 								)
-								.settingEl.style.border = 'none'
+								.settingEl.addClass('tp-setting-no-border')
 							break
 						case 'toggle':
 							new Setting(settingControl)
 								.addToggle(t => t
-									.setValue(setting.value)
+									.setValue(setting.value as boolean)
 									.onChange(setting.onChange)
 								)
-								.settingEl.style.border = 'none'
+								.settingEl.addClass('tp-setting-no-border')
 							break
 						case 'color':
 							const colorInput = settingControl.createEl('input', {
 								type: 'color',
-								value: setting.value
+								value: setting.value as string,
+								cls: 'tp-color-input'
 							})
-							colorInput.style.width = '50px'
-							colorInput.style.height = '30px'
-							colorInput.style.borderRadius = '4px'
-							colorInput.style.cursor = 'pointer'
 							colorInput.addEventListener('input', (e) => {
 								setting.onChange((e.target as HTMLInputElement).value)
 							})
@@ -1677,10 +1669,10 @@ export class TeleprompterSettingTab extends PluginSettingTab {
 									setting.options?.forEach(opt => {
 										d.addOption(opt.value, opt.label)
 									})
-									d.setValue(setting.value)
+									d.setValue(setting.value as string)
 									d.onChange(setting.onChange)
 								})
-								.settingEl.style.border = 'none'
+								.settingEl.addClass('tp-setting-no-border')
 							break
 					}
 				})
@@ -1783,26 +1775,27 @@ export class TeleprompterSettingTab extends PluginSettingTab {
 				const deleteBtn = actions.createEl('button', { cls: 'tp-profile-action danger' })
 				setIcon(deleteBtn, 'trash-2')
 				deleteBtn.title = 'Delete profile'
-				deleteBtn.addEventListener('click', async () => {
-					if (confirm(`Delete profile "${profile.name}"?`)) {
-						this.plugin.settings.profiles.custom =
-							this.plugin.settings.profiles.custom.filter(p => p.id !== profile.id)
-						if (this.plugin.settings.profiles.active === profile.id) {
-							this.plugin.settings.profiles.active = 'professional'
+				deleteBtn.addEventListener('click', () => {
+					new ConfirmModal(
+						this.app,
+						`Delete profile "${profile.name}"?`,
+						async () => {
+							this.plugin.settings.profiles.custom =
+								this.plugin.settings.profiles.custom.filter(p => p.id !== profile.id)
+							if (this.plugin.settings.profiles.active === profile.id) {
+								this.plugin.settings.profiles.active = 'professional'
+							}
+							await this.plugin.saveSettings()
+							new Notice('Profile deleted')
+							this.display()
 						}
-						await this.plugin.saveSettings()
-						new Notice('Profile deleted')
-						this.display()
-					}
+					).open()
 				})
 			})
 		}
 
 		// Actions
-		const actionsContainer = containerEl.createDiv()
-		actionsContainer.style.display = 'flex'
-		actionsContainer.style.gap = '0.75rem'
-		actionsContainer.style.marginTop = '1rem'
+		const actionsContainer = containerEl.createDiv('tp-flex-container tp-flex-container--mt')
 
 		// Save current as new profile
 		const saveBtn = actionsContainer.createEl('button', { cls: 'tp-btn tp-btn-primary' })
@@ -1822,10 +1815,11 @@ export class TeleprompterSettingTab extends PluginSettingTab {
 				createdAt: Date.now(),
 				isBuiltIn: false
 			}
-			// Remove circular references
-			delete (newProfile.settings as any).profiles
-			delete (newProfile.settings as any).settingsUI
-			delete (newProfile.settings as any).toolbarLayout
+			// Remove circular references - use Partial<TeleprompterSettings> to properly delete these
+			const profileSettings = newProfile.settings as Partial<TeleprompterSettings>
+			delete profileSettings.profiles
+			delete profileSettings.settingsUI
+			delete profileSettings.toolbarLayout
 
 			this.plugin.settings.profiles.custom.push(newProfile)
 			await this.plugin.saveSettings()
@@ -2027,8 +2021,7 @@ export class TeleprompterSettingTab extends PluginSettingTab {
 		setIcon(remoteIcon, 'smartphone')
 		remoteSection.createSpan({ text: 'Remote Web Interface', cls: 'tp-section-header-title' })
 
-		const remoteStatus = containerEl.createDiv('tp-connection-status')
-		remoteStatus.style.marginBottom = '16px'
+		const remoteStatus = containerEl.createDiv('tp-connection-status tp-flex-container--mb')
 
 		const remoteIndicator = remoteStatus.createDiv(`tp-connection-indicator ${wsInfo.running ? 'connected' : 'disconnected'}`)
 
@@ -2041,8 +2034,8 @@ export class TeleprompterSettingTab extends PluginSettingTab {
 		// Get local network URL for phone access
 		let localUrl = `http://${this.plugin.settings.wsHost}:${this.plugin.settings.wsPort}/`
 		const wsServerInfo = this.plugin.getWebSocketInfo()
-		if ((wsServerInfo as any).remoteUrl) {
-			localUrl = (wsServerInfo as any).remoteUrl
+		if (wsServerInfo.remoteUrl) {
+			localUrl = wsServerInfo.remoteUrl
 		}
 
 		remoteInfo.createDiv({
@@ -2300,10 +2293,7 @@ export class TeleprompterSettingTab extends PluginSettingTab {
 			setIcon(controlsIcon, 'sliders-horizontal')
 			controlsSection.createSpan({ text: 'Manual Controls', cls: 'tp-section-header-title' })
 
-			const controlsContainer = containerEl.createDiv()
-			controlsContainer.style.display = 'flex'
-			controlsContainer.style.gap = '0.75rem'
-			controlsContainer.style.flexWrap = 'wrap'
+			const controlsContainer = containerEl.createDiv('tp-flex-container')
 
 			// Toggle Recording button
 			const recordBtn = controlsContainer.createEl('button', {
@@ -2333,8 +2323,7 @@ export class TeleprompterSettingTab extends PluginSettingTab {
 
 			// Current scene info
 			if (obsInfo.currentScene) {
-				const sceneInfo = containerEl.createDiv()
-				sceneInfo.style.marginTop = '1rem'
+				const sceneInfo = containerEl.createDiv('tp-flex-container--mt')
 				sceneInfo.createEl('p', {
 					text: `Current Scene: ${obsInfo.currentScene}`,
 					cls: 'setting-item-description'
@@ -2464,10 +2453,7 @@ export class TeleprompterSettingTab extends PluginSettingTab {
 		setIcon(creditsIcon, 'heart')
 		creditsSection.createSpan({ text: 'Credits', cls: 'tp-section-header-title' })
 
-		const creditsEl = containerEl.createDiv()
-		creditsEl.style.textAlign = 'center'
-		creditsEl.style.padding = '1rem'
-		creditsEl.style.color = 'var(--text-muted)'
+		const creditsEl = containerEl.createDiv('tp-credits')
 
 		creditsEl.createEl('p', { text: 'Built for the Obsidian community' })
 		creditsEl.createEl('p', { text: 'Powered by Svelte 5 & Obsidian Plugin API' })

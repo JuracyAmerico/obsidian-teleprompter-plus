@@ -1160,3 +1160,102 @@
   font-size: 1rem;
   font-weight: 600;
 }
+
+/* ========================================
+   Confirmation Modal
+   ======================================== */
+.teleprompter-confirm-modal {
+  padding: 0;
+}
+
+.teleprompter-confirm-modal .modal-content {
+  padding: 1.5rem;
+  max-width: 400px;
+}
+
+.confirm-modal-message {
+  font-size: 1rem;
+  margin: 0 0 1.5rem 0;
+  color: var(--text-normal);
+}
+
+.confirm-modal-buttons {
+  display: flex;
+  gap: 0.75rem;
+  justify-content: flex-end;
+}
+
+.confirm-modal-button {
+  padding: 0.5rem 1rem;
+  border-radius: 4px;
+  font-size: 0.9rem;
+  font-weight: 500;
+  cursor: pointer;
+  border: 1px solid var(--background-modifier-border);
+  background: var(--background-secondary);
+  color: var(--text-normal);
+}
+
+.confirm-modal-button:hover {
+  background: var(--background-modifier-hover);
+}
+
+.confirm-modal-button.mod-warning {
+  background: var(--text-error);
+  color: white;
+  border-color: var(--text-error);
+}
+
+.confirm-modal-button.mod-warning:hover {
+  background: #dc2626;
+}
+
+/* ========================================
+   Settings Utility Classes
+   ======================================== */
+
+/* Flex container for buttons and controls */
+.tp-flex-container {
+  display: flex;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.tp-flex-container--mt {
+  margin-top: 1rem;
+}
+
+.tp-flex-container--mb {
+  margin-bottom: 16px;
+}
+
+/* Setting element with no border */
+.tp-setting-no-border {
+  border: none !important;
+  padding: 0 !important;
+}
+
+/* Value display for sliders */
+.tp-value-display {
+  min-width: 45px;
+  text-align: right;
+  margin-right: 8px;
+  font-family: var(--font-monospace);
+  font-size: 12px;
+  opacity: 0.8;
+}
+
+/* Color input styling */
+.tp-color-input {
+  width: 50px;
+  height: 30px;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+/* Credits section */
+.tp-credits {
+  text-align: center;
+  padding: 1rem;
+  color: var(--text-muted);
+}

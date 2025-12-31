@@ -135,7 +135,7 @@ export class VoskRecognizer {
 
         // Also listen for errors
         this.model.on('error', (message) => {
-          const errorMsg = 'error' in message ? (message as any).error : 'Model loading error'
+          const errorMsg = 'error' in message ? (message as { error: string }).error : 'Model loading error'
           reject(new Error(errorMsg))
         })
       })

@@ -75,11 +75,11 @@ export class OBSService {
 	private setupEventListeners(): void {
 		// Connection events
 		this.obs.on('ConnectionOpened', () => {
-			console.log('[OBS] Connection opened')
+			console.debug('[OBS] Connection opened')
 		})
 
 		this.obs.on('ConnectionClosed', () => {
-			console.log('[OBS] Connection closed')
+			console.debug('[OBS] Connection closed')
 			this.state.status = 'disconnected'
 			this.state.isRecording = false
 			this.state.isStreaming = false
@@ -96,21 +96,21 @@ export class OBSService {
 
 		// Recording events
 		this.obs.on('RecordStateChanged', (event: { outputActive: boolean; outputState: string }) => {
-			console.log('[OBS] Record state changed:', event.outputState)
+			console.debug('[OBS] Record state changed:', event.outputState)
 			this.state.isRecording = event.outputActive
 			this.notifyStateChange()
 		})
 
 		// Streaming events
 		this.obs.on('StreamStateChanged', (event: { outputActive: boolean; outputState: string }) => {
-			console.log('[OBS] Stream state changed:', event.outputState)
+			console.debug('[OBS] Stream state changed:', event.outputState)
 			this.state.isStreaming = event.outputActive
 			this.notifyStateChange()
 		})
 
 		// Scene change events
 		this.obs.on('CurrentProgramSceneChanged', (event: { sceneName: string }) => {
-			console.log('[OBS] Scene changed:', event.sceneName)
+			console.debug('[OBS] Scene changed:', event.sceneName)
 			this.state.currentScene = event.sceneName
 			this.notifyStateChange()
 		})
@@ -121,12 +121,12 @@ export class OBSService {
 	 */
 	async connect(): Promise<boolean> {
 		if (!this.settings.obsEnabled) {
-			console.log('[OBS] Integration disabled')
+			console.debug('[OBS] Integration disabled')
 			return false
 		}
 
 		if (this.state.status === 'connected') {
-			console.log('[OBS] Already connected')
+			console.debug('[OBS] Already connected')
 			return true
 		}
 
@@ -136,14 +136,14 @@ export class OBSService {
 			this.notifyStateChange()
 
 			const url = `ws://${this.settings.obsHost}:${this.settings.obsPort}`
-			console.log(`[OBS] Connecting to ${url}...`)
+			console.debug(`[OBS] Connecting to ${url}...`)
 
 			const { obsWebSocketVersion, negotiatedRpcVersion } = await this.obs.connect(
 				url,
 				this.settings.obsPassword || undefined
 			)
 
-			console.log(`[OBS] Connected to OBS WebSocket v${obsWebSocketVersion} (RPC v${negotiatedRpcVersion})`)
+			console.debug(`[OBS] Connected to OBS WebSocket v${obsWebSocketVersion} (RPC v${negotiatedRpcVersion})`)
 			this.state.status = 'connected'
 			this.state.error = null
 
@@ -194,7 +194,7 @@ export class OBSService {
 		this.state.error = null
 		this.notifyStateChange()
 
-		console.log('[OBS] Disconnected')
+		console.debug('[OBS] Disconnected')
 	}
 
 	/**
@@ -228,13 +228,13 @@ export class OBSService {
 		}
 
 		if (this.state.isRecording) {
-			console.log('[OBS] Already recording')
+			console.debug('[OBS] Already recording')
 			return true
 		}
 
 		try {
 			await this.obs.call('StartRecord')
-			console.log('[OBS] Recording started')
+			console.debug('[OBS] Recording started')
 			this.state.isRecording = true
 			this.notifyStateChange()
 			return true
@@ -254,13 +254,13 @@ export class OBSService {
 		}
 
 		if (!this.state.isRecording) {
-			console.log('[OBS] Not recording')
+			console.debug('[OBS] Not recording')
 			return true
 		}
 
 		try {
 			await this.obs.call('StopRecord')
-			console.log('[OBS] Recording stopped')
+			console.debug('[OBS] Recording stopped')
 			this.state.isRecording = false
 			this.notifyStateChange()
 			return true
@@ -281,7 +281,7 @@ export class OBSService {
 
 		try {
 			await this.obs.call('ToggleRecord')
-			console.log('[OBS] Recording toggled')
+			console.debug('[OBS] Recording toggled')
 			// State will be updated by event listener
 			return true
 		} catch (err) {
@@ -300,13 +300,13 @@ export class OBSService {
 		}
 
 		if (this.state.isStreaming) {
-			console.log('[OBS] Already streaming')
+			console.debug('[OBS] Already streaming')
 			return true
 		}
 
 		try {
 			await this.obs.call('StartStream')
-			console.log('[OBS] Streaming started')
+			console.debug('[OBS] Streaming started')
 			this.state.isStreaming = true
 			this.notifyStateChange()
 			return true
@@ -326,13 +326,13 @@ export class OBSService {
 		}
 
 		if (!this.state.isStreaming) {
-			console.log('[OBS] Not streaming')
+			console.debug('[OBS] Not streaming')
 			return true
 		}
 
 		try {
 			await this.obs.call('StopStream')
-			console.log('[OBS] Streaming stopped')
+			console.debug('[OBS] Streaming stopped')
 			this.state.isStreaming = false
 			this.notifyStateChange()
 			return true
@@ -353,7 +353,7 @@ export class OBSService {
 
 		try {
 			await this.obs.call('ToggleStream')
-			console.log('[OBS] Streaming toggled')
+			console.debug('[OBS] Streaming toggled')
 			// State will be updated by event listener
 			return true
 		} catch (err) {
@@ -390,7 +390,7 @@ export class OBSService {
 
 		try {
 			await this.obs.call('SetCurrentProgramScene', { sceneName })
-			console.log(`[OBS] Switched to scene: ${sceneName}`)
+			console.debug(`[OBS] Switched to scene: ${sceneName}`)
 			this.state.currentScene = sceneName
 			this.notifyStateChange()
 			return true
