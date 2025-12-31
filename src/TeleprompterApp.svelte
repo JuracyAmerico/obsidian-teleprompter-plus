@@ -4,6 +4,7 @@
   import { onMount } from 'svelte'
   import { marked } from 'marked'
   import { VOICE_TRACKING_PRESETS, type VoiceTrackingPacePreset } from './settings'
+  import type { VoiceTrackingService } from './voice'
   import hljs from 'highlight.js/lib/core'
   // Import common languages for syntax highlighting
   import javascript from 'highlight.js/lib/languages/javascript'
@@ -509,9 +510,9 @@
   const orderedControls = $derived(getOrderedToolbarControls(toolbarLayoutVersion))
 
   // Helper function for conditional logging
-  function debugLog(...args: any[]) {
+  function debugLog(...args: unknown[]) {
     if (debugMode) {
-      console.log(...args)
+      console.debug(...args)
     }
   }
 
@@ -606,7 +607,7 @@
   let voiceTrackingActive = $state(false) // Whether voice tracking is currently active
   let voiceTrackingStatus = $state<'off' | 'initializing' | 'listening' | 'error'>('off') // Current status
   let lastRecognizedText = $state('') // Last recognized speech text
-  let voiceTrackingService: any = null // Voice tracking service instance
+  let voiceTrackingService: VoiceTrackingService | null = null // Voice tracking service instance
   let voiceDownloadProgress = $state(0) // Model download progress (0-100)
 
   // Update voice tracking config when settings change (real-time)
@@ -1026,7 +1027,7 @@
   }
 
   // Write error log to file for debugging
-  function writeErrorLog(errorType: string, errorData: any) {
+  function writeErrorLog(errorType: string, errorData: Record<string, unknown>) {
     try {
       const fs = require('fs')
       const path = require('path')
@@ -1821,7 +1822,7 @@
 
         // Set up callbacks
         voiceTrackingService.onStatusChange = (status: string) => {
-          voiceTrackingStatus = status as any
+          voiceTrackingStatus = status as typeof voiceTrackingStatus
           debugLog(`[Voice] Status: ${status}`)
         }
 

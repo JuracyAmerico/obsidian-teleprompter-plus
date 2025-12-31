@@ -5,11 +5,26 @@
  * that work in Obsidian's Electron environment.
  */
 
-declare function require(name: string): any
+// Node.js module types for dynamic require
+type NodeModule = Record<string, unknown>
+declare function require(name: string): NodeModule
+
+// WebSocket Server and WebSocket constructor types (from ws package)
+// Using generic constructor types since we're loading dynamically
+type WebSocketServerConstructor = new (options: { server: unknown }) => {
+	on: (event: string, handler: (...args: unknown[]) => void) => void
+	close: (callback?: () => void) => void
+}
+type WebSocketConstructor = new (url: string) => {
+	on: (event: string, handler: (...args: unknown[]) => void) => void
+	send: (data: string) => void
+	close: () => void
+	readyState: number
+}
 
 export interface WebSocketModule {
-	WebSocketServer: any
-	WebSocket: any
+	WebSocketServer: WebSocketServerConstructor | null
+	WebSocket: WebSocketConstructor | null
 	loaded: boolean
 	error?: string
 }
@@ -48,7 +63,7 @@ export function loadWebSocketModule(): WebSocketModule {
 		const path = require('path')
 
 		// Get Obsidian's app path
-		const app = (window as any).app
+		const app = (window as unknown as { app?: { vault?: { adapter?: { basePath?: string } } } }).app
 		if (app?.vault?.adapter?.basePath) {
 			const vaultPath = app.vault.adapter.basePath
 			const wsPath = path.join(vaultPath, '.obsidian', 'plugins', 'teleprompter-plus', 'node_modules', 'ws')
@@ -142,8 +157,8 @@ export function loadWebSocketModule(): WebSocketModule {
 /**
  * Get diagnostic information about the environment
  */
-export function getDiagnostics(): Record<string, any> {
-	const diagnostics: Record<string, any> = {}
+export function getDiagnostics(): Record<string, unknown> {
+	const diagnostics: Record<string, unknown> = {}
 
 	try {
 		const process = require('process')
@@ -154,12 +169,12 @@ export function getDiagnostics(): Record<string, any> {
 		diagnostics.arch = process.arch
 		diagnostics.versions = process.versions
 	} catch (e) {
-		diagnostics.processError = e.message
+		diagnostics.processError = e instanceof Error ? e.message : String(e)
 	}
 
 	try {
 		const path = require('path')
-		const app = (window as any).app
+		const app = (window as unknown as { app?: { vault?: { adapter?: { basePath?: string } } } }).app
 
 		if (app?.vault?.adapter?.basePath) {
 			diagnostics.vaultPath = app.vault.adapter.basePath
@@ -171,7 +186,7 @@ export function getDiagnostics(): Record<string, any> {
 			)
 		}
 	} catch (e) {
-		diagnostics.pathError = e.message
+		diagnostics.pathError = e instanceof Error ? e.message : String(e)
 	}
 
 	return diagnostics

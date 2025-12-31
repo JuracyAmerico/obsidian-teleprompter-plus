@@ -1,18 +1,26 @@
 import { Plugin, Notice, addIcon, TFile, WorkspaceLeaf } from 'obsidian'
 import { TeleprompterView, VIEW_TYPE_TELEPROMPTER } from './view'
-import { TeleprompterWebSocketServer } from './websocket-server'
+import { TeleprompterWebSocketServer, type TeleprompterState } from './websocket-server'
 import { TeleprompterSettingTab, DEFAULT_SETTINGS } from './settings'
 import type { TeleprompterSettings } from './settings'
 import { OBSService, type OBSState } from './obs-service'
 import { WhatsNewModal } from './whats-new-modal'
 import './styles.css'
 
+// Extended state type for broadcast updates that include additional properties
+interface ExtendedBroadcastState extends Partial<TeleprompterState> {
+	networkBroadcastEnabled?: boolean
+	networkBroadcastInterval?: number
+	obs?: OBSState
+	obsScenes?: string[]
+}
+
 export default class TeleprompterPlusPlugin extends Plugin {
 	settings: TeleprompterSettings
 	private wsServer: TeleprompterWebSocketServer | null = null
 	private obsService: OBSService | null = null
 
-	async onload() {
+	onload(): void {
 		// Teleprompter icon - CORRECT FORMAT per Obsidian docs
 		// NO <svg> wrapper, coordinates for 100x100 viewBox
 		const iconSvg = `<path d="M 15 10 L 85 10 L 75 70 L 25 70 Z" fill="currentColor"></path><rect x="47" y="70" width="6" height="15" fill="currentColor"></rect><rect x="30" y="85" width="40" height="8" fill="currentColor"></rect><line x1="30" y1="35" x2="70" y2="35" stroke="currentColor" stroke-width="3" opacity="0.5"></line>`
@@ -108,10 +116,10 @@ export default class TeleprompterPlusPlugin extends Plugin {
 
 		
 		// Load settings
-		await this.loadSettings()
-
-		// Show What's New modal if version changed
-		this.showWhatsNewIfNeeded()
+		void this.loadSettings().then(() => {
+			// Show What's New modal if version changed
+			this.showWhatsNewIfNeeded()
+		})
 
 		// Register settings tab
 		this.addSettingTab(new TeleprompterSettingTab(this.app, this))
@@ -124,7 +132,7 @@ export default class TeleprompterPlusPlugin extends Plugin {
 
 		// Start WebSocket server if enabled
 		if (this.settings.autoStartWebSocket) {
-			await this.startWebSocketServer()
+			void this.startWebSocketServer()
 		}
 
 		// Register WebSocket commands
@@ -140,32 +148,32 @@ export default class TeleprompterPlusPlugin extends Plugin {
 		}
 
 		// Listen for teleprompter play/pause events to sync with OBS
-		this.registerDomEvent(window, 'teleprompter:play-started' as any, () => {
-			this.obsService?.onTeleprompterPlay()
+		this.registerDomEvent(window, 'teleprompter:play-started' as keyof WindowEventMap, () => {
+			void this.obsService?.onTeleprompterPlay()
 		})
 
-		this.registerDomEvent(window, 'teleprompter:reset-complete' as any, () => {
-			this.obsService?.onTeleprompterReset()
+		this.registerDomEvent(window, 'teleprompter:reset-complete' as keyof WindowEventMap, () => {
+			void this.obsService?.onTeleprompterReset()
 		})
 
 		// Add ribbon icon to open teleprompter
 		this.addRibbonIcon(iconName, 'Open Teleprompter Plus', () => {
-			this.activateView()
+			void this.activateView()
 		})
 
 		// Add command to open teleprompter
 		this.addCommand({
 			id: 'open-teleprompter',
-			name: 'Open Teleprompter Plus',
+			name: 'Open teleprompter',
 			callback: () => {
-				this.activateView()
+				void this.activateView()
 			},
 		})
 
 		// Add command to show WebSocket info
 		this.addCommand({
 			id: 'websocket-info',
-			name: 'Show WebSocket Server Info',
+			name: 'Show WebSocket server info',
 			callback: () => {
 				this.showWebSocketInfo()
 			},
@@ -174,7 +182,7 @@ export default class TeleprompterPlusPlugin extends Plugin {
 		// Add command to increase font size (no default hotkey to avoid conflicts)
 		this.addCommand({
 			id: 'increase-font-size',
-			name: 'Increase Font Size',
+			name: 'Increase font size',
 			callback: () => {
 				this.increaseFontSize()
 				new Notice(`Font size: ${this.settings.fontSize}px`)
@@ -184,7 +192,7 @@ export default class TeleprompterPlusPlugin extends Plugin {
 		// Add command to decrease font size (no default hotkey to avoid conflicts)
 		this.addCommand({
 			id: 'decrease-font-size',
-			name: 'Decrease Font Size',
+			name: 'Decrease font size',
 			callback: () => {
 				this.decreaseFontSize()
 				new Notice(`Font size: ${this.settings.fontSize}px`)
@@ -194,10 +202,10 @@ export default class TeleprompterPlusPlugin extends Plugin {
 		// Add command to reset font size
 		this.addCommand({
 			id: 'reset-font-size',
-			name: 'Reset Font Size to Default',
+			name: 'Reset font size to default',
 			callback: () => {
 				this.settings.fontSize = DEFAULT_SETTINGS.fontSize
-				this.saveSettings()
+				void this.saveSettings()
 				this.updateFontSize(DEFAULT_SETTINGS.fontSize)
 				new Notice(`Font size reset to ${DEFAULT_SETTINGS.fontSize}px`)
 			},
@@ -206,7 +214,7 @@ export default class TeleprompterPlusPlugin extends Plugin {
 		// ===== Playback Control Commands =====
 		this.addCommand({
 			id: 'toggle-play-pause',
-			name: 'Toggle Play/Pause',
+			name: 'Toggle play/pause',
 			callback: () => {
 				window.dispatchEvent(new CustomEvent('teleprompter:toggle-play'))
 			},
@@ -214,7 +222,7 @@ export default class TeleprompterPlusPlugin extends Plugin {
 
 		this.addCommand({
 			id: 'play',
-			name: 'Start Playing',
+			name: 'Start playing',
 			callback: () => {
 				window.dispatchEvent(new CustomEvent('teleprompter:play'))
 			},
@@ -230,7 +238,7 @@ export default class TeleprompterPlusPlugin extends Plugin {
 
 		this.addCommand({
 			id: 'reset-to-top',
-			name: 'Reset to Top',
+			name: 'Reset to top',
 			callback: () => {
 				window.dispatchEvent(new CustomEvent('teleprompter:reset-to-top'))
 			},
@@ -239,7 +247,7 @@ export default class TeleprompterPlusPlugin extends Plugin {
 		// ===== Speed Control Commands =====
 		this.addCommand({
 			id: 'increase-speed',
-			name: 'Increase Scroll Speed',
+			name: 'Increase scroll speed',
 			callback: () => {
 				window.dispatchEvent(new CustomEvent('teleprompter:increase-speed'))
 			},
@@ -247,7 +255,7 @@ export default class TeleprompterPlusPlugin extends Plugin {
 
 		this.addCommand({
 			id: 'decrease-speed',
-			name: 'Decrease Scroll Speed',
+			name: 'Decrease scroll speed',
 			callback: () => {
 				window.dispatchEvent(new CustomEvent('teleprompter:decrease-speed'))
 			},
@@ -256,7 +264,7 @@ export default class TeleprompterPlusPlugin extends Plugin {
 		// ===== Navigation Commands =====
 		this.addCommand({
 			id: 'next-section',
-			name: 'Jump to Next Section',
+			name: 'Jump to next section',
 			callback: () => {
 				window.dispatchEvent(new CustomEvent('teleprompter:next-section'))
 			},
@@ -264,7 +272,7 @@ export default class TeleprompterPlusPlugin extends Plugin {
 
 		this.addCommand({
 			id: 'previous-section',
-			name: 'Jump to Previous Section',
+			name: 'Jump to previous section',
 			callback: () => {
 				window.dispatchEvent(new CustomEvent('teleprompter:previous-section'))
 			},
@@ -272,7 +280,7 @@ export default class TeleprompterPlusPlugin extends Plugin {
 
 		this.addCommand({
 			id: 'toggle-navigation',
-			name: 'Toggle Navigation Panel',
+			name: 'Toggle navigation panel',
 			callback: () => {
 				window.dispatchEvent(new CustomEvent('teleprompter:toggle-navigation'))
 			},
@@ -281,7 +289,7 @@ export default class TeleprompterPlusPlugin extends Plugin {
 		// ===== Display Commands =====
 		this.addCommand({
 			id: 'toggle-eyeline',
-			name: 'Toggle Eyeline Indicator',
+			name: 'Toggle eyeline indicator',
 			callback: () => {
 				window.dispatchEvent(new CustomEvent('teleprompter:toggle-eyeline'))
 			},
@@ -289,7 +297,7 @@ export default class TeleprompterPlusPlugin extends Plugin {
 
 		this.addCommand({
 			id: 'toggle-focus-mode',
-			name: 'Toggle Focus Mode',
+			name: 'Toggle focus mode',
 			callback: () => {
 				window.dispatchEvent(new CustomEvent('teleprompter:toggle-focus-mode'))
 			},
@@ -297,7 +305,7 @@ export default class TeleprompterPlusPlugin extends Plugin {
 
 		this.addCommand({
 			id: 'toggle-fullscreen',
-			name: 'Toggle Full-Screen Mode',
+			name: 'Toggle full-screen mode',
 			callback: () => {
 				window.dispatchEvent(new CustomEvent('teleprompter:toggle-fullscreen'))
 			},
@@ -305,7 +313,7 @@ export default class TeleprompterPlusPlugin extends Plugin {
 
 		this.addCommand({
 			id: 'toggle-minimap',
-			name: 'Toggle Minimap',
+			name: 'Toggle minimap',
 			callback: () => {
 				window.dispatchEvent(new CustomEvent('teleprompter:toggle-minimap'))
 			},
@@ -314,7 +322,7 @@ export default class TeleprompterPlusPlugin extends Plugin {
 		// ===== Pin/Keep Awake Commands =====
 		this.addCommand({
 			id: 'toggle-pin',
-			name: 'Toggle Pin Note',
+			name: 'Toggle pin note',
 			callback: () => {
 				window.dispatchEvent(new CustomEvent('teleprompter:toggle-pin'))
 			},
@@ -322,7 +330,7 @@ export default class TeleprompterPlusPlugin extends Plugin {
 
 		this.addCommand({
 			id: 'refresh-pinned',
-			name: 'Refresh Pinned Note',
+			name: 'Refresh pinned note',
 			callback: () => {
 				window.dispatchEvent(new CustomEvent('teleprompter:refresh-pinned'))
 			},
@@ -330,7 +338,7 @@ export default class TeleprompterPlusPlugin extends Plugin {
 
 		this.addCommand({
 			id: 'toggle-keep-awake',
-			name: 'Toggle Keep Awake',
+			name: 'Toggle keep awake',
 			callback: () => {
 				window.dispatchEvent(new CustomEvent('teleprompter:toggle-keep-awake'))
 			},
@@ -339,7 +347,7 @@ export default class TeleprompterPlusPlugin extends Plugin {
 		// ===== Countdown Commands =====
 		this.addCommand({
 			id: 'countdown-increase',
-			name: 'Increase Countdown Duration',
+			name: 'Increase countdown duration',
 			callback: () => {
 				window.dispatchEvent(new CustomEvent('teleprompter:countdown-increase'))
 			},
@@ -347,7 +355,7 @@ export default class TeleprompterPlusPlugin extends Plugin {
 
 		this.addCommand({
 			id: 'countdown-decrease',
-			name: 'Decrease Countdown Duration',
+			name: 'Decrease countdown duration',
 			callback: () => {
 				window.dispatchEvent(new CustomEvent('teleprompter:countdown-decrease'))
 			},
@@ -356,7 +364,7 @@ export default class TeleprompterPlusPlugin extends Plugin {
 		// ===== Flip Commands =====
 		this.addCommand({
 			id: 'toggle-flip-horizontal',
-			name: 'Toggle Horizontal Flip (Mirror)',
+			name: 'Toggle horizontal flip (mirror)',
 			callback: () => {
 				window.dispatchEvent(new CustomEvent('teleprompter:toggle-flip-horizontal'))
 			},
@@ -364,7 +372,7 @@ export default class TeleprompterPlusPlugin extends Plugin {
 
 		this.addCommand({
 			id: 'toggle-flip-vertical',
-			name: 'Toggle Vertical Flip',
+			name: 'Toggle vertical flip',
 			callback: () => {
 				window.dispatchEvent(new CustomEvent('teleprompter:toggle-flip-vertical'))
 			},
@@ -373,7 +381,7 @@ export default class TeleprompterPlusPlugin extends Plugin {
 		// ===== Scroll Sync Commands =====
 		this.addCommand({
 			id: 'toggle-scroll-sync',
-			name: 'Toggle Scroll Synchronization',
+			name: 'Toggle scroll synchronization',
 			callback: () => {
 				window.dispatchEvent(new CustomEvent('teleprompter:toggle-scroll-sync'))
 			},
@@ -383,64 +391,64 @@ export default class TeleprompterPlusPlugin extends Plugin {
 		this.addCommand({
 			id: 'obs-connect',
 			name: 'OBS: Connect',
-			callback: async () => {
-				await this.connectOBS()
+			callback: () => {
+				void this.connectOBS()
 			},
 		})
 
 		this.addCommand({
 			id: 'obs-disconnect',
 			name: 'OBS: Disconnect',
-			callback: async () => {
-				await this.disconnectOBS()
+			callback: () => {
+				void this.disconnectOBS()
 			},
 		})
 
 		this.addCommand({
 			id: 'obs-toggle-recording',
-			name: 'OBS: Toggle Recording',
-			callback: async () => {
-				await this.toggleOBSRecording()
+			name: 'OBS: Toggle recording',
+			callback: () => {
+				void this.toggleOBSRecording()
 			},
 		})
 
 		this.addCommand({
 			id: 'obs-start-recording',
-			name: 'OBS: Start Recording',
-			callback: async () => {
-				await this.startOBSRecording()
+			name: 'OBS: Start recording',
+			callback: () => {
+				void this.startOBSRecording()
 			},
 		})
 
 		this.addCommand({
 			id: 'obs-stop-recording',
-			name: 'OBS: Stop Recording',
-			callback: async () => {
-				await this.stopOBSRecording()
+			name: 'OBS: Stop recording',
+			callback: () => {
+				void this.stopOBSRecording()
 			},
 		})
 
 		this.addCommand({
 			id: 'obs-toggle-streaming',
-			name: 'OBS: Toggle Streaming',
-			callback: async () => {
-				await this.toggleOBSStreaming()
+			name: 'OBS: Toggle streaming',
+			callback: () => {
+				void this.toggleOBSStreaming()
 			},
 		})
 
 		this.addCommand({
 			id: 'obs-start-streaming',
-			name: 'OBS: Start Streaming',
-			callback: async () => {
-				await this.startOBSStreaming()
+			name: 'OBS: Start streaming',
+			callback: () => {
+				void this.startOBSStreaming()
 			},
 		})
 
 		this.addCommand({
 			id: 'obs-stop-streaming',
-			name: 'OBS: Stop Streaming',
-			callback: async () => {
-				await this.stopOBSStreaming()
+			name: 'OBS: Stop streaming',
+			callback: () => {
+				void this.stopOBSStreaming()
 			},
 		})
 
@@ -560,7 +568,7 @@ export default class TeleprompterPlusPlugin extends Plugin {
 			window.dispatchEvent(new CustomEvent('teleprompter:decrease-speed'))
 		})
 
-		this.wsServer.registerCommand('set-speed', (cmd: any) => {
+		this.wsServer.registerCommand('set-speed', (cmd: { speed?: number }) => {
 			window.dispatchEvent(
 				new CustomEvent('teleprompter:set-speed', {
 					detail: { speed: cmd.speed },
@@ -573,7 +581,7 @@ export default class TeleprompterPlusPlugin extends Plugin {
 			window.dispatchEvent(new CustomEvent('teleprompter:reset-to-top'))
 		})
 
-		this.wsServer.registerCommand('scroll-up', (cmd: any) => {
+		this.wsServer.registerCommand('scroll-up', (cmd: { amount?: number }) => {
 			window.dispatchEvent(
 				new CustomEvent('teleprompter:scroll', {
 					detail: { amount: -(cmd.amount || 100) },
@@ -581,7 +589,7 @@ export default class TeleprompterPlusPlugin extends Plugin {
 			)
 		})
 
-		this.wsServer.registerCommand('scroll-down', (cmd: any) => {
+		this.wsServer.registerCommand('scroll-down', (cmd: { amount?: number }) => {
 			window.dispatchEvent(
 				new CustomEvent('teleprompter:scroll', {
 					detail: { amount: cmd.amount || 100 },
@@ -589,7 +597,7 @@ export default class TeleprompterPlusPlugin extends Plugin {
 			)
 		})
 
-		this.wsServer.registerCommand('jump-to-header', (cmd: any) => {
+		this.wsServer.registerCommand('jump-to-header', (cmd: { index?: number }) => {
 			window.dispatchEvent(
 				new CustomEvent('teleprompter:jump-to-header', {
 					detail: { index: cmd.index },
@@ -597,7 +605,7 @@ export default class TeleprompterPlusPlugin extends Plugin {
 			)
 		})
 
-		this.wsServer.registerCommand('jump-to-header-by-id', (cmd: any) => {
+		this.wsServer.registerCommand('jump-to-header-by-id', (cmd: { headerId?: string }) => {
 			window.dispatchEvent(
 				new CustomEvent('teleprompter:jump-to-header-by-id', {
 					detail: { headerId: cmd.headerId },
@@ -650,10 +658,10 @@ export default class TeleprompterPlusPlugin extends Plugin {
 			window.dispatchEvent(new CustomEvent('teleprompter:font-size-down'))
 		})
 
-		this.wsServer.registerCommand('set-font-size', (cmd: any) => {
+		this.wsServer.registerCommand('set-font-size', (cmd: { fontSize?: number }) => {
 			if (cmd.fontSize && cmd.fontSize >= this.settings.minFontSize && cmd.fontSize <= this.settings.maxFontSize) {
 				this.settings.fontSize = cmd.fontSize
-				this.saveSettings()
+				void this.saveSettings()
 				this.updateFontSize(cmd.fontSize)
 			}
 		})
@@ -693,7 +701,7 @@ export default class TeleprompterPlusPlugin extends Plugin {
 			window.dispatchEvent(new CustomEvent('teleprompter:countdown-decrease'))
 		})
 
-		this.wsServer.registerCommand('set-countdown', (cmd: any) => {
+		this.wsServer.registerCommand('set-countdown', (cmd: { seconds?: number }) => {
 			window.dispatchEvent(
 				new CustomEvent('teleprompter:set-countdown', {
 					detail: { seconds: cmd.seconds },
@@ -913,7 +921,7 @@ export default class TeleprompterPlusPlugin extends Plugin {
 		})
 
 		// v0.8.0 Stream Deck commands - Open file
-		this.wsServer.registerCommand('open-file', (cmd: any) => {
+		this.wsServer.registerCommand('open-file', (cmd: { path?: string }) => {
 			const filePath = cmd.path
 			if (filePath) {
 				window.dispatchEvent(new CustomEvent('teleprompter:open-file', { detail: { path: filePath } }))
@@ -946,7 +954,7 @@ export default class TeleprompterPlusPlugin extends Plugin {
 		})
 
 		// Network Broadcast commands (multi-device sync)
-		this.wsServer.registerCommand('set-scroll-position', (cmd: any) => {
+		this.wsServer.registerCommand('set-scroll-position', (cmd: { position?: number; percentage?: number }) => {
 			if (cmd.position !== undefined) {
 				window.dispatchEvent(new CustomEvent('teleprompter:set-scroll-position', {
 					detail: { position: cmd.position }
@@ -961,10 +969,10 @@ export default class TeleprompterPlusPlugin extends Plugin {
 		this.wsServer.registerCommand('get-broadcast-status', () => {
 			// Broadcast current status to requesting client
 			if (this.wsServer) {
-				this.wsServer.updateState({
+				this.broadcastState({
 					networkBroadcastEnabled: this.settings.networkBroadcastEnabled,
 					networkBroadcastInterval: this.settings.networkBroadcastInterval,
-				} as any)
+				})
 			}
 		})
 
@@ -980,9 +988,9 @@ export default class TeleprompterPlusPlugin extends Plugin {
 		this.wsServer.registerCommand('obs-get-status', () => {
 			const state = this.getOBSInfo()
 			if (this.wsServer) {
-				this.wsServer.updateState({
+				this.broadcastState({
 					obs: state
-				} as any)
+				})
 			}
 		})
 
@@ -1010,7 +1018,7 @@ export default class TeleprompterPlusPlugin extends Plugin {
 			await this.stopOBSStreaming()
 		})
 
-		this.wsServer.registerCommand('obs-set-scene', async (cmd: any) => {
+		this.wsServer.registerCommand('obs-set-scene', async (cmd: { scene?: string }) => {
 			if (cmd.scene) {
 				await this.setOBSScene(cmd.scene)
 			}
@@ -1019,9 +1027,9 @@ export default class TeleprompterPlusPlugin extends Plugin {
 		this.wsServer.registerCommand('obs-get-scenes', async () => {
 			const scenes = await this.getOBSScenes()
 			if (this.wsServer) {
-				this.wsServer.updateState({
+				this.broadcastState({
 					obsScenes: scenes
-				} as any)
+				})
 			}
 		})
 	}
@@ -1049,7 +1057,7 @@ Use this address to connect from Stream Deck or other devices.`
 	/**
 	 * Public method to allow views to broadcast state updates
 	 */
-	broadcastState(state: any): void {
+	broadcastState(state: ExtendedBroadcastState): void {
 		if (this.wsServer) {
 			this.wsServer.updateState(state)
 		}
@@ -1065,7 +1073,7 @@ Use this address to connect from Stream Deck or other devices.`
 	/**
 	 * Get WebSocket server info
 	 */
-	getWebSocketInfo(): { running: boolean; clientCount: number; port: number; host: string } {
+	getWebSocketInfo(): { running: boolean; clientCount: number; port: number; host: string; remoteUrl?: string } {
 		if (this.wsServer) {
 			return this.wsServer.getInfo()
 		}
@@ -1463,8 +1471,14 @@ Use this address to connect from Stream Deck or other devices.`
 	private sanitizeNotePath(path: string): string | null {
 		if (!path || typeof path !== 'string') return null
 
-		// Remove null bytes and control characters
-		let sanitized = path.replace(/[\x00-\x1f\x7f]/g, '')
+		// Remove null bytes and control characters (ASCII 0-31 and 127)
+		let sanitized = ''
+		for (const char of path) {
+			const code = char.charCodeAt(0)
+			if (code >= 32 && code !== 127) {
+				sanitized += char
+			}
+		}
 
 		// Check for path traversal attempts
 		if (sanitized.includes('..') || sanitized.startsWith('/') || sanitized.startsWith('\\')) {

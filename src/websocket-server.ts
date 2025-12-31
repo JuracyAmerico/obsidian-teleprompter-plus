@@ -17,7 +17,7 @@ import { loadWebSocketModule, getDiagnostics } from './websocket-loader'
 import { REMOTE_INTERFACE_HTML } from './remote-interface'
 
 // Declare require for runtime module loading (Obsidian/Electron environment)
-declare function require(name: string): any
+declare function require(name: 'http'): typeof import('http')
 
 // HTTP types for type safety
 type HttpServer = ReturnType<typeof import('http').createServer>
@@ -28,6 +28,11 @@ type ServerResponse = import('http').ServerResponse
 const wsModule = loadWebSocketModule()
 const WebSocketServer = wsModule.WebSocketServer
 const WebSocket = wsModule.WebSocket
+
+// Extended WebSocket type with ping/pong health check property
+interface WebSocketWithHealth {
+	isAlive?: boolean
+}
 
 // Log diagnostics if loading failed
 if (!wsModule.loaded) {
@@ -173,7 +178,7 @@ export class TeleprompterWebSocketServer {
 	private clients: Set<WebSocket> = new Set()
 	private plugin: Plugin
 	private config: Required<WebSocketServerConfig>
-	private commandHandlers: Map<string, (params?: any) => void | Promise<void>> = new Map()
+	private commandHandlers: Map<string, (params?: Record<string, unknown>) => void | Promise<void>> = new Map()
 	private currentState: TeleprompterState
 	private heartbeatInterval: NodeJS.Timeout | null = null
 	private isShuttingDown = false
@@ -251,7 +256,7 @@ export class TeleprompterWebSocketServer {
 
 				// Start listening on HTTP server
 				this.httpServer.listen(this.config.port, this.config.host, () => {
-					console.log(`[TeleprompterWS] Server running on http://${this.config.host}:${this.config.port}`)
+					console.debug(`[TeleprompterWS] Server running on http://${this.config.host}:${this.config.port}`)
 					this.startHeartbeat()
 					resolve()
 				})
@@ -539,7 +544,7 @@ export class TeleprompterWebSocketServer {
 
 		// Setup ping/pong for connection health
 		ws.on('pong', () => {
-			;(ws as any).isAlive = true
+			;(ws as WebSocketWithHealth).isAlive = true
 		})
 	}
 
@@ -657,7 +662,7 @@ export class TeleprompterWebSocketServer {
 	 */
 	registerCommand(
 		command: string,
-		handler: (params?: any) => void | Promise<void>
+		handler: (params?: Record<string, unknown>) => void | Promise<void>
 	): void {
 		this.commandHandlers.set(command, handler)
 	}
@@ -751,12 +756,12 @@ export class TeleprompterWebSocketServer {
 			const deadClients: WebSocket[] = []
 
 			this.clients.forEach((ws) => {
-				if ((ws as any).isAlive === false) {
+				if ((ws as WebSocketWithHealth).isAlive === false) {
 					deadClients.push(ws)
 					return
 				}
 
-				;(ws as any).isAlive = false
+				;(ws as WebSocketWithHealth).isAlive = false
 				try {
 					ws.ping()
 				} catch (error) {
