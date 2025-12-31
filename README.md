@@ -112,7 +112,7 @@ flowchart TB
     subgraph Clients["External Clients"]
         StreamDeck["Stream Deck\n(55+ actions)"]
         Mobile["Mobile Remote\n(Web Interface)"]
-        Custom["Custom Scripts\n(Node.js, etc.)"]
+        Custom["Custom Scripts\n(Bun, Node.js, etc.)"]
     end
 
     subgraph Features["Key Features"]
@@ -542,12 +542,11 @@ ws.send(JSON.stringify({ command: "get-state" }))
 
 You can also control the teleprompter from custom scripts:
 
-```javascript
-// Node.js example
-const WebSocket = require('ws')
+```typescript
+// Bun/TypeScript example (save as control.ts, run with: bun control.ts)
 const ws = new WebSocket('ws://127.0.0.1:8765')
 
-ws.on('open', () => {
+ws.onopen = () => {
   // Start playing
   ws.send(JSON.stringify({ command: 'play' }))
 
@@ -555,15 +554,15 @@ ws.on('open', () => {
   setTimeout(() => {
     ws.send(JSON.stringify({ command: 'set-speed', value: 5 }))
   }, 5000)
-})
+}
 
-ws.on('message', (data) => {
-  const message = JSON.parse(data)
+ws.onmessage = (event) => {
+  const message = JSON.parse(event.data as string)
   if (message.type === 'state') {
     console.log('Current speed:', message.data.speed)
     console.log('Scroll position:', message.data.scrollPercentage + '%')
   }
-})
+}
 ```
 
 ---
