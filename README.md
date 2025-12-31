@@ -193,13 +193,13 @@ cp -r node_modules/ws "<vault>/.obsidian/plugins/obsidian-teleprompter-plus/"
    - Content updates in real-time as you edit
 
 3. **Control Playback**
-   - Click **Play** to start auto-scrolling
+   - Click <img src="docs/icons/icon-play.svg" width="16" height="16" alt="Play"> **Play** to start auto-scrolling
    - Use **+/-** buttons to adjust speed
-   - Click **Reset** to return to top
-   - Press **Pause** to stop scrolling
+   - Click <img src="docs/icons/icon-reset.svg" width="16" height="16" alt="Reset"> **Reset** to return to top
+   - Press <img src="docs/icons/icon-pause.svg" width="16" height="16" alt="Pause"> **Pause** to stop scrolling
 
 4. **Adjust Appearance**
-   - Use **Aa+/-** buttons to change font size
+   - Use <img src="docs/icons/icon-font.svg" width="16" height="16" alt="Font"> **Aa+/-** buttons to change font size
    - Click fullscreen icon for distraction-free mode
    - Toggle navigation panel to see document structure
 
