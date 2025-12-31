@@ -163,6 +163,9 @@ export interface TeleprompterSettings {
 		expandedCards: string[]  // Which feature cards are expanded
 		recentSettings: string[] // Last 5 changed settings
 	}
+	// What's New modal
+	lastSeenVersion: string
+	showReleaseNotes: boolean
 }
 
 // Profile interface
@@ -287,7 +290,10 @@ export const DEFAULT_SETTINGS: TeleprompterSettings = {
 	settingsUI: {
 		expandedCards: ['playback'],  // Start with Playback expanded
 		recentSettings: []
-	}
+	},
+	// What's New modal
+	lastSeenVersion: '',
+	showReleaseNotes: true
 }
 
 // Built-in profile presets
