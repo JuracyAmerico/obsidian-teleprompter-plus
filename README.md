@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="docs/logo.svg" alt="Teleprompter Plus Logo" width="150">
+  <img src="docs/logo.png" alt="Teleprompter Plus Logo" width="200">
 </p>
 
 # Teleprompter Plus
