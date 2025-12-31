@@ -136,8 +136,16 @@
    - Download `obsidian-teleprompter-plus-v0.9.0.zip`
 
 2. **Extract to plugins folder**
-   - Unzip to your vault's `.obsidian/plugins/` directory
-   - You should have: `<vault>/.obsidian/plugins/obsidian-teleprompter-plus/`
+   - Navigate to your vault's `.obsidian/plugins/` directory
+   - Create a new folder called `obsidian-teleprompter-plus`
+   - Unzip the contents into this folder
+   - You should have these 3 files inside:
+     ```
+     <vault>/.obsidian/plugins/obsidian-teleprompter-plus/
+     ├── main.js
+     ├── manifest.json
+     └── styles.css
+     ```
 
 3. **Enable the plugin**
    - Open Obsidian
