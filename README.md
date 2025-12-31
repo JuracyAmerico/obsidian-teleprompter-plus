@@ -10,16 +10,16 @@
 
 <p align="center">
   <a href="https://github.com/JuracyAmerico/obsidian-teleprompter-plus/releases">
-    <img src="https://img.shields.io/badge/version-0.9.0-blue.svg" alt="Version">
+    <img src="https://img.shields.io/badge/Version-0.9.1-blue?style=for-the-badge" alt="Version">
   </a>
   <a href="LICENSE">
-    <img src="https://img.shields.io/badge/license-MIT-green.svg" alt="License">
+    <img src="https://img.shields.io/badge/License-MIT-green?style=for-the-badge" alt="License">
   </a>
   <a href="https://obsidian.md">
-    <img src="https://img.shields.io/badge/Obsidian-1.0.0+-purple.svg" alt="Obsidian">
+    <img src="https://img.shields.io/badge/Obsidian-1.0.0+-7c3aed?style=for-the-badge&logo=obsidian&logoColor=white" alt="Obsidian">
   </a>
   <a href="https://ko-fi.com/americocanada">
-    <img src="https://img.shields.io/badge/Ko--fi-Support-ff5e5b?logo=ko-fi" alt="Ko-fi">
+    <img src="https://img.shields.io/badge/Ko--fi-Support_Development-ff5e5b?style=for-the-badge&logo=ko-fi&logoColor=white" alt="Ko-fi">
   </a>
 </p>
 
@@ -29,16 +29,113 @@
 
 ---
 
+## 🧭 Quick Navigation
+
+<p align="center">
+  <a href="#-screenshots">Screenshots</a> •
+  <a href="#-features">Features</a> •
+  <a href="#-installation">Installation</a> •
+  <a href="#-quick-start">Quick Start</a> •
+  <a href="#%EF%B8%8F-keyboard-shortcuts">Keyboard Shortcuts</a> •
+  <a href="#-stream-deck-integration">Stream Deck</a> •
+  <a href="#%EF%B8%8F-settings">Settings</a> •
+  <a href="#-development">Development</a>
+</p>
+
+---
+
 ## 📸 Screenshots
 
-> **Coming Soon:** Screenshots showing the plugin in action. For now, install and try it yourself!
+### Main Teleprompter Interface
 
-| Feature | Description |
-|---------|-------------|
-| **Main Interface** | Clean teleprompter view with eyeline guide and navigation panel |
-| **Mobile Remote** | Control from your phone via web browser (v0.9.0+) |
-| **Stream Deck** | Hardware integration with 55+ actions |
-| **Settings** | Comprehensive customization options |
+<p align="center">
+  <img src="docs/screenshots/main-interface.png" alt="Teleprompter Plus Main Interface" width="800">
+</p>
+
+*Clean, distraction-free teleprompter with eyeline guide and hierarchical navigation panel. Features include adjustable speed, font size controls, and real-time position tracking.*
+
+### Mobile Remote Control (New in v0.9.0!)
+
+<p align="center">
+  <img src="docs/screenshots/mobile-remote.png" alt="Mobile Remote Interface" width="400">
+</p>
+
+*Control your teleprompter from any device on your network - phone, tablet, or second computer. Touch-friendly interface with full playback control and section navigation.*
+
+### Stream Deck Integration
+
+<p align="center">
+  <img src="docs/screenshots/stream-deck.png" alt="Stream Deck Integration" width="600">
+</p>
+
+*Professional hardware control with 55+ actions. Real-time state synchronization, visual feedback, and complete teleprompter control at your fingertips.*
+
+### Settings Panel
+
+<p align="center">
+  <img src="docs/screenshots/settings.png" alt="Settings Panel" width="600">
+</p>
+
+*Comprehensive customization options including appearance, playback, navigation, WebSocket server, and advanced settings.*
+
+---
+
+## 🏗️ Architecture Overview
+
+```mermaid
+flowchart TB
+    subgraph Obsidian["Obsidian App"]
+        Plugin["Teleprompter Plus Plugin"]
+        View["Teleprompter View"]
+        Settings["Settings Manager"]
+        Plugin --> View
+        Plugin --> Settings
+    end
+
+    subgraph Core["Core Components"]
+        Svelte["Svelte 5 UI\n(TeleprompterApp.svelte)"]
+        Markdown["Markdown Renderer\n(marked.js + highlight.js)"]
+        State["State Management\n($state, $effect)"]
+        View --> Svelte
+        Svelte --> Markdown
+        Svelte --> State
+    end
+
+    subgraph Server["WebSocket Server"]
+        WS["ws://127.0.0.1:8765"]
+        Commands["Command Router"]
+        Broadcast["State Broadcaster"]
+        WS --> Commands
+        WS --> Broadcast
+    end
+
+    subgraph Clients["External Clients"]
+        StreamDeck["Stream Deck\n(55+ actions)"]
+        Mobile["Mobile Remote\n(Web Interface)"]
+        Custom["Custom Scripts\n(Node.js, etc.)"]
+    end
+
+    subgraph Features["Key Features"]
+        AutoScroll["Auto-Scroll Engine\n(requestAnimationFrame)"]
+        Navigation["Header Navigation\n(Hierarchical Tree)"]
+        Minimap["Minimap\n(Abstract Scrollbar)"]
+        Flip["Flip Modes\n(H/V Mirror)"]
+    end
+
+    Plugin --> WS
+    Svelte --> AutoScroll
+    Svelte --> Navigation
+    Svelte --> Minimap
+    Svelte --> Flip
+
+    StreamDeck <--> WS
+    Mobile <--> WS
+    Custom <--> WS
+
+    Broadcast --> StreamDeck
+    Broadcast --> Mobile
+    Broadcast --> Custom
+```
 
 ---
 
@@ -133,15 +230,15 @@
 
 1. **Download the latest release**
    - Go to the [Releases page](https://github.com/JuracyAmerico/obsidian-teleprompter-plus/releases)
-   - Download `obsidian-teleprompter-plus-v0.9.0.zip`
+   - Download `teleprompter-plus.zip`
 
 2. **Extract to plugins folder**
    - Navigate to your vault's `.obsidian/plugins/` directory
-   - Create a new folder called `obsidian-teleprompter-plus`
+   - Create a new folder called `teleprompter-plus`
    - Unzip the contents into this folder
    - You should have these 3 files inside:
      ```
-     <vault>/.obsidian/plugins/obsidian-teleprompter-plus/
+     <vault>/.obsidian/plugins/teleprompter-plus/
      ├── main.js
      ├── manifest.json
      └── styles.css
@@ -167,8 +264,8 @@ bun install
 bun run build
 
 # 4. Copy to your vault's plugins folder
-mkdir -p "<vault>/.obsidian/plugins/obsidian-teleprompter-plus"
-cp dist/main.js dist/styles.css manifest.json "<vault>/.obsidian/plugins/obsidian-teleprompter-plus/"
+mkdir -p "<vault>/.obsidian/plugins/teleprompter-plus"
+cp dist/main.js dist/styles.css manifest.json "<vault>/.obsidian/plugins/teleprompter-plus/"
 
 # 5. Reload Obsidian and enable the plugin
 ```
@@ -653,7 +750,7 @@ Create lessons and lectures:
 **Problem**: Plugin not appearing after installation
 
 **Solutions**:
-- Verify files are in correct location: `<vault>/.obsidian/plugins/obsidian-teleprompter-plus/`
+- Verify files are in correct location: `<vault>/.obsidian/plugins/teleprompter-plus/`
 - Required files: `main.js`, `styles.css`, `manifest.json`
 - Check folder name matches plugin ID exactly
 - Reload Obsidian: `Cmd/Ctrl + R`
@@ -980,7 +1077,7 @@ If you enjoy using Teleprompter Plus:
 
 ## 📊 Project Stats
 
-- **Version**: 0.9.0
+- **Version**: 0.9.1
 - **Lines of Code**: 3000+ (TypeScript/Svelte)
 - **Commands**: 25+
 - **Stream Deck Actions**: 55+
