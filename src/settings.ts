@@ -843,7 +843,6 @@ export class TeleprompterSettingTab extends PluginSettingTab {
 		const primaryControls = containerEl.createDiv('tp-toolbar-controls')
 
 		TOOLBAR_CONTROLS.forEach(control => {
-			const isPrimary = this.plugin.settings.toolbarLayout.primary.includes(control.id)
 			const isHidden = this.plugin.settings.toolbarLayout.hidden.includes(control.id)
 
 			const controlEl = primaryControls.createDiv('tp-toolbar-control')
@@ -1623,7 +1622,7 @@ export class TeleprompterSettingTab extends PluginSettingTab {
 					const settingControl = settingEl.createDiv('tp-feature-setting-control')
 
 					switch (setting.type) {
-						case 'slider':
+						case 'slider': {
 							// Create value display element
 							const valueDisplay = settingControl.createSpan({
 								text: String(setting.value),
@@ -1646,6 +1645,7 @@ export class TeleprompterSettingTab extends PluginSettingTab {
 								)
 								.settingEl.addClass('tp-setting-no-border')
 							break
+						}
 						case 'toggle':
 							new Setting(settingControl)
 								.addToggle(t => t
@@ -1654,7 +1654,7 @@ export class TeleprompterSettingTab extends PluginSettingTab {
 								)
 								.settingEl.addClass('tp-setting-no-border')
 							break
-						case 'color':
+						case 'color': {
 							const colorInput = settingControl.createEl('input', {
 								type: 'color',
 								value: setting.value as string,
@@ -1664,6 +1664,7 @@ export class TeleprompterSettingTab extends PluginSettingTab {
 								setting.onChange((e.target as HTMLInputElement).value)
 							})
 							break
+						}
 						case 'dropdown':
 							new Setting(settingControl)
 								.addDropdown(d => {
@@ -1817,8 +1818,8 @@ export class TeleprompterSettingTab extends PluginSettingTab {
 						createdAt: Date.now(),
 						isBuiltIn: false
 					}
-					// Remove circular references - use Partial<TeleprompterSettings> to properly delete these
-					const profileSettings = newProfile.settings as Partial<TeleprompterSettings>
+					// Remove circular references
+					const profileSettings: Partial<TeleprompterSettings> = newProfile.settings
 					delete profileSettings.profiles
 					delete profileSettings.settingsUI
 					delete profileSettings.toolbarLayout
@@ -2028,7 +2029,7 @@ export class TeleprompterSettingTab extends PluginSettingTab {
 
 		const remoteStatus = containerEl.createDiv('tp-connection-status tp-flex-container--mb')
 
-		const remoteIndicator = remoteStatus.createDiv(`tp-connection-indicator ${wsInfo.running ? 'connected' : 'disconnected'}`)
+		remoteStatus.createDiv(`tp-connection-indicator ${wsInfo.running ? 'connected' : 'disconnected'}`)
 
 		const remoteInfo = remoteStatus.createDiv('tp-connection-info')
 		remoteInfo.createDiv({

@@ -72,7 +72,7 @@ export class ModelManager {
    * Check if a model is downloaded and available.
    * Note: Uses Obsidian's localStorage API.
    */
-  async isModelDownloaded(languageCode: string): Promise<boolean> {
+  isModelDownloaded(languageCode: string): boolean {
     const config = this.getLanguageConfig(languageCode)
     if (!config) return false
 
@@ -162,7 +162,7 @@ export class ModelManager {
   /**
    * Delete a downloaded model.
    */
-  async deleteModel(languageCode: string): Promise<void> {
+  deleteModel(languageCode: string): void {
     const config = this.getLanguageConfig(languageCode)
     if (config) {
       const key = `vosk-model-${config.voskModel}`
