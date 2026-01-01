@@ -1,4 +1,4 @@
-import { Plugin, Notice, addIcon, TFile, WorkspaceLeaf } from 'obsidian'
+import { Plugin, Notice, addIcon, TFile } from 'obsidian'
 import { TeleprompterView, VIEW_TYPE_TELEPROMPTER } from './view'
 import { TeleprompterWebSocketServer, type TeleprompterState } from './websocket-server'
 import { TeleprompterSettingTab, DEFAULT_SETTINGS } from './settings'

@@ -183,7 +183,7 @@ export class OBSService {
 
 		try {
 			await this.obs.disconnect()
-		} catch (err) {
+		} catch {
 			// Ignore disconnect errors
 		}
 

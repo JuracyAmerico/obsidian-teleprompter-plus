@@ -54,7 +54,7 @@ export function loadWebSocketModule(): WebSocketModule {
 				return result
 			}
 		}
-	} catch (e) {
+	} catch {
 		// Continue to next strategy
 	}
 
@@ -78,7 +78,7 @@ export function loadWebSocketModule(): WebSocketModule {
 				return result
 			}
 		}
-	} catch (e) {
+	} catch {
 		// Continue to next strategy
 	}
 
@@ -110,11 +110,11 @@ export function loadWebSocketModule(): WebSocketModule {
 					result.loaded = true
 					return result
 				}
-			} catch (e) {
+			} catch {
 				// Continue to next path
 			}
 		}
-	} catch (e) {
+	} catch {
 		// Continue to next strategy
 	}
 
@@ -135,7 +135,7 @@ export function loadWebSocketModule(): WebSocketModule {
 			result.loaded = true
 			return result
 		}
-	} catch (e) {
+	} catch {
 		// Continue to next strategy
 	}
 
@@ -149,7 +149,7 @@ export function loadWebSocketModule(): WebSocketModule {
 			result.loaded = true
 			return result
 		}
-	} catch (e) {
+	} catch {
 		// All strategies failed
 	}
 

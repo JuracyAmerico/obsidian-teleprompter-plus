@@ -26,8 +26,25 @@ type ServerResponse = import('http').ServerResponse
 
 // Load WebSocket module at startup
 const wsModule = loadWebSocketModule()
-const WebSocketServer = wsModule.WebSocketServer
-const WebSocket = wsModule.WebSocket
+const WebSocketServerClass = wsModule.WebSocketServer
+const WebSocketClass = wsModule.WebSocket
+
+// Type definitions for WebSocket instances
+type WebSocketServerInstance = {
+	on: (event: string, handler: (...args: unknown[]) => void) => void
+	close: (callback?: () => void) => void
+}
+type WebSocketInstance = {
+	on: (event: string, handler: (...args: unknown[]) => void) => void
+	send: (data: string) => void
+	close: () => void
+	readyState: number
+	terminate: () => void
+	ping: () => void
+}
+
+// WebSocket readyState constants
+const WS_OPEN = 1
 
 // Extended WebSocket type with ping/pong health check property
 interface WebSocketWithHealth {
@@ -173,17 +190,17 @@ export interface WebSocketServerConfig {
  * WebSocket server for controlling the teleprompter from external devices
  */
 export class TeleprompterWebSocketServer {
-	private wss: WebSocketServer | null = null
+	private wss: WebSocketServerInstance | null = null
 	private httpServer: HttpServer | null = null
-	private clients: Set<WebSocket> = new Set()
+	private clients: Set<WebSocketInstance> = new Set()
 	private plugin: Plugin
 	private config: Required<WebSocketServerConfig>
 	private commandHandlers: Map<string, (params?: Record<string, unknown>) => void | Promise<void>> = new Map()
 	private currentState: TeleprompterState
 	private heartbeatInterval: ReturnType<typeof setInterval> | null = null
 	private isShuttingDown = false
-	private clientRateLimits: Map<WebSocket, { count: number; resetTime: number }> = new Map()
-	private authenticatedClients: Set<WebSocket> = new Set()
+	private clientRateLimits: Map<WebSocketInstance, { count: number; resetTime: number }> = new Map()
+	private authenticatedClients: Set<WebSocketInstance> = new Set()
 
 	// Server version for compatibility tracking
 	private readonly SERVER_VERSION = '1.0.0'
@@ -244,7 +261,10 @@ export class TeleprompterWebSocketServer {
 				})
 
 				// Create WebSocket server using HTTP server
-				this.wss = new WebSocketServer({
+				if (!WebSocketServerClass) {
+					throw new Error('WebSocket module not loaded')
+				}
+				this.wss = new WebSocketServerClass({
 					server: this.httpServer,
 				})
 
@@ -263,11 +283,11 @@ export class TeleprompterWebSocketServer {
 
 				this.httpServer.on('error', (error) => {
 					console.error('[TeleprompterWS] HTTP server error:', error)
-					reject(error)
+					reject(error instanceof Error ? error : new Error(String(error)))
 				})
 			} catch (error) {
 				console.error('[TeleprompterWS] Failed to start server:', error)
-				reject(error)
+				reject(error instanceof Error ? error : new Error(String(error)))
 			}
 		})
 	}
@@ -347,7 +367,7 @@ export class TeleprompterWebSocketServer {
 		// Close all client connections gracefully
 		const closePromises: Promise<void>[] = []
 		this.clients.forEach((client) => {
-			if (client.readyState === WebSocket.OPEN) {
+			if (client.readyState === WS_OPEN) {
 				closePromises.push(
 					new Promise((resolve) => {
 						client.once('close', () => resolve())
@@ -393,7 +413,7 @@ export class TeleprompterWebSocketServer {
 	/**
 	 * Check if client is within rate limit
 	 */
-	private checkRateLimit(ws: WebSocket): boolean {
+	private checkRateLimit(ws: WebSocketInstance): boolean {
 		const now = Date.now()
 		const limit = this.clientRateLimits.get(ws)
 
@@ -485,7 +505,7 @@ export class TeleprompterWebSocketServer {
 	/**
 	 * Handle new client connection
 	 */
-	private handleConnection(ws: WebSocket): void {
+	private handleConnection(ws: WebSocketInstance): void {
 		// Check max clients
 		if (this.clients.size >= this.config.maxClients) {
 			ws.close(1008, 'Server at maximum capacity')
@@ -521,7 +541,7 @@ export class TeleprompterWebSocketServer {
 	/**
 	 * Complete client connection after optional auth
 	 */
-	private completeConnection(ws: WebSocket): void {
+	private completeConnection(ws: WebSocketInstance): void {
 		this.clients.add(ws)
 
 		// Send welcome message with server info
@@ -604,7 +624,7 @@ export class TeleprompterWebSocketServer {
 	/**
 	 * Handle client disconnect
 	 */
-	private handleClientDisconnect(ws: WebSocket): void {
+	private handleClientDisconnect(ws: WebSocketInstance): void {
 		this.clients.delete(ws)
 		this.clientRateLimits.delete(ws)
 		this.authenticatedClients.delete(ws)
@@ -623,7 +643,7 @@ export class TeleprompterWebSocketServer {
 	/**
 	 * Handle command from client
 	 */
-	private async handleCommand(command: TeleprompterCommand, ws: WebSocket): Promise<void> {
+	private async handleCommand(command: TeleprompterCommand, ws: WebSocketInstance): Promise<void> {
 		// Validate command parameters
 		const validation = this.validateCommand(command)
 		if (!validation.valid) {
@@ -712,10 +732,10 @@ export class TeleprompterWebSocketServer {
 		if (this.isShuttingDown) return
 
 		const data = JSON.stringify(message)
-		const deadClients: WebSocket[] = []
+		const deadClients: WebSocketInstance[] = []
 
 		this.clients.forEach((client) => {
-			if (client.readyState === WebSocket.OPEN) {
+			if (client.readyState === WS_OPEN) {
 				try {
 					client.send(data)
 				} catch (error) {
@@ -737,7 +757,7 @@ export class TeleprompterWebSocketServer {
 	 * Send message to specific client
 	 */
 	private sendToClient(ws: WebSocket, message: TeleprompterMessage): void {
-		if (ws.readyState === WebSocket.OPEN) {
+		if (ws.readyState === WS_OPEN) {
 			try {
 				ws.send(JSON.stringify(message))
 			} catch (error) {
@@ -753,7 +773,7 @@ export class TeleprompterWebSocketServer {
 		this.heartbeatInterval = setInterval(() => {
 			if (this.isShuttingDown) return
 
-			const deadClients: WebSocket[] = []
+			const deadClients: WebSocketInstance[] = []
 
 			this.clients.forEach((ws) => {
 				if ((ws as WebSocketWithHealth).isAlive === false) {
@@ -764,7 +784,7 @@ export class TeleprompterWebSocketServer {
 				;(ws as WebSocketWithHealth).isAlive = false
 				try {
 					ws.ping()
-				} catch (error) {
+				} catch {
 					deadClients.push(ws)
 				}
 			})

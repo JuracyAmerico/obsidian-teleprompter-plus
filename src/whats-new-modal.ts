@@ -105,7 +105,7 @@ export class WhatsNewModal extends Modal {
 		kofiButton.createSpan({ text: 'Buy me a coffee' })
 
 		// Documentation link
-		const docsLink = supportSection.createEl('a', {
+		supportSection.createEl('a', {
 			href: 'https://github.com/JuracyAmerico/obsidian-teleprompter-plus',
 			text: 'View documentation →',
 			cls: 'whats-new-docs-link',

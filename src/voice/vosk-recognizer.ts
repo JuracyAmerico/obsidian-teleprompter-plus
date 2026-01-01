@@ -409,7 +409,7 @@ export class VoskRecognizer {
         store.put({ name: modelName, data, timestamp: Date.now() })
 
         transaction.oncomplete = () => resolve()
-        transaction.onerror = () => reject(transaction.error)
+        transaction.onerror = () => reject(new Error(transaction.error?.message || 'Transaction failed'))
       })
     } catch (error) {
       console.warn('Failed to cache model:', error)
@@ -431,7 +431,7 @@ export class VoskRecognizer {
       }
 
       request.onsuccess = () => resolve(request.result)
-      request.onerror = () => reject(request.error)
+      request.onerror = () => reject(new Error(request.error?.message || 'Database open failed'))
     })
   }
 
