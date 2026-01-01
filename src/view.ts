@@ -20,7 +20,7 @@ export class TeleprompterView extends ItemView {
 	}
 
 	getDisplayText() {
-		return 'Teleprompter Plus'
+		return 'Teleprompter'
 	}
 
 	getIcon() {

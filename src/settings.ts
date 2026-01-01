@@ -413,7 +413,7 @@ const BUILT_IN_PROFILES: Profile[] = [
 // Toolbar control definitions
 const TOOLBAR_CONTROLS = [
 	// Core playback controls
-	{ id: 'play-pause', name: 'Play/Pause', icon: 'tp-play' },
+	{ id: 'play-pause', name: 'Play/pause', icon: 'tp-play' },
 	{ id: 'speed', name: 'Speed controls', icon: 'tp-speed-up' },
 	{ id: 'countdown', name: 'Countdown', icon: 'tp-countdown-up' },
 	{ id: 'reset', name: 'Reset position', icon: 'tp-reset-top' },
@@ -467,7 +467,7 @@ export class TeleprompterSettingTab extends PluginSettingTab {
 
 		// Header with search
 		const header = containerEl.createDiv('tp-settings-header')
-		new Setting(header).setName('Teleprompter Plus').setHeading()
+		new Setting(header).setName('Settings').setHeading()
 
 		// Search box
 		const searchContainer = header.createDiv('tp-search-container')
@@ -902,7 +902,7 @@ export class TeleprompterSettingTab extends PluginSettingTab {
 		this.createFeatureGroup(containerEl, 'playback', 'Playback', 'play', [
 			{
 				id: 'countdown',
-				name: 'Countdown Timer',
+				name: 'Countdown timer',
 				icon: 'timer',
 				hasToggle: true,
 				toggleValue: this.plugin.settings.defaultCountdown > 0,
@@ -932,7 +932,7 @@ export class TeleprompterSettingTab extends PluginSettingTab {
 			},
 			{
 				id: 'speed',
-				name: 'Speed Control',
+				name: 'Speed control',
 				icon: 'gauge',
 				hasToggle: false,
 				settings: [
@@ -966,7 +966,7 @@ export class TeleprompterSettingTab extends PluginSettingTab {
 		this.createFeatureGroup(containerEl, 'display', 'Display', 'monitor', [
 			{
 				id: 'eyeline',
-				name: 'Eyeline Indicator',
+				name: 'Eyeline indicator',
 				icon: 'eye',
 				hasToggle: true,
 				toggleValue: this.plugin.settings.showEyeline,
@@ -990,7 +990,7 @@ export class TeleprompterSettingTab extends PluginSettingTab {
 			},
 			{
 				id: 'focus-mode',
-				name: 'Focus Mode',
+				name: 'Focus mode',
 				icon: 'focus',
 				hasToggle: true,
 				toggleValue: this.plugin.settings.focusMode,
@@ -1000,7 +1000,7 @@ export class TeleprompterSettingTab extends PluginSettingTab {
 				},
 				settings: [
 					{
-						name: 'Dim Opacity',
+						name: 'Dim opacity',
 						desc: 'How much to dim text outside the focus area (0.1-0.5)',
 						type: 'slider',
 						min: 0.1, max: 0.5, step: 0.05,
@@ -1011,7 +1011,7 @@ export class TeleprompterSettingTab extends PluginSettingTab {
 						}
 					},
 					{
-						name: 'Focus Range',
+						name: 'Focus range',
 						desc: 'Lines above/below eyeline to keep bright (1-10)',
 						type: 'slider',
 						min: 1, max: 10, step: 1,
@@ -1049,7 +1049,7 @@ export class TeleprompterSettingTab extends PluginSettingTab {
 			},
 			{
 				id: 'time',
-				name: 'Time Display',
+				name: 'Time display',
 				icon: 'clock',
 				hasToggle: true,
 				toggleValue: this.plugin.settings.showTimeEstimation,
@@ -1101,7 +1101,7 @@ export class TeleprompterSettingTab extends PluginSettingTab {
 		this.createFeatureGroup(containerEl, 'typography', 'Typography', 'type', [
 			{
 				id: 'font-size',
-				name: 'Font Size',
+				name: 'Font size',
 				icon: 'text',
 				hasToggle: false,
 				settings: [
@@ -1121,7 +1121,7 @@ export class TeleprompterSettingTab extends PluginSettingTab {
 			},
 			{
 				id: 'line-height',
-				name: 'Line Height',
+				name: 'Line height',
 				icon: 'space',
 				hasToggle: false,
 				settings: [
@@ -1140,7 +1140,7 @@ export class TeleprompterSettingTab extends PluginSettingTab {
 			},
 			{
 				id: 'font-family',
-				name: 'Font Family',
+				name: 'Font family',
 				icon: 'font',
 				hasToggle: false,
 				settings: [
@@ -1174,7 +1174,7 @@ export class TeleprompterSettingTab extends PluginSettingTab {
 		this.createFeatureGroup(containerEl, 'colors', 'Colors & Opacity', 'palette', [
 			{
 				id: 'colors',
-				name: 'Color Scheme',
+				name: 'Color scheme',
 				icon: 'droplet',
 				hasToggle: false,
 				settings: [
@@ -1262,7 +1262,7 @@ export class TeleprompterSettingTab extends PluginSettingTab {
 			},
 			{
 				id: 'flip',
-				name: 'Mirror/Flip',
+				name: 'Mirror/flip',
 				icon: 'flip-horizontal',
 				hasToggle: false,
 				settings: [
@@ -1294,7 +1294,7 @@ export class TeleprompterSettingTab extends PluginSettingTab {
 		this.createFeatureGroup(containerEl, 'advanced', 'Advanced', 'settings', [
 			{
 				id: 'keep-awake',
-				name: 'Keep Awake',
+				name: 'Keep awake',
 				icon: 'sun',
 				hasToggle: true,
 				toggleValue: this.plugin.settings.keepAwake,
@@ -1306,7 +1306,7 @@ export class TeleprompterSettingTab extends PluginSettingTab {
 			},
 			{
 				id: 'double-click',
-				name: 'Double-Click to Edit',
+				name: 'Double-click to edit',
 				icon: 'mouse-pointer-click',
 				hasToggle: true,
 				toggleValue: this.plugin.settings.doubleClickToEdit,
@@ -1318,7 +1318,7 @@ export class TeleprompterSettingTab extends PluginSettingTab {
 			},
 			{
 				id: 'auto-pause',
-				name: 'Auto-Pause on Edit',
+				name: 'Auto-pause on edit',
 				icon: 'pause-circle',
 				hasToggle: true,
 				toggleValue: this.plugin.settings.autoPauseOnEdit,
@@ -1332,7 +1332,7 @@ export class TeleprompterSettingTab extends PluginSettingTab {
 			},
 			{
 				id: 'scroll-sync',
-				name: 'Scroll Sync',
+				name: 'Scroll sync',
 				icon: 'link',
 				hasToggle: true,
 				toggleValue: this.plugin.settings.scrollSyncEnabled,
@@ -1344,7 +1344,7 @@ export class TeleprompterSettingTab extends PluginSettingTab {
 			},
 			{
 				id: 'debug',
-				name: 'Debug Mode',
+				name: 'Debug mode',
 				icon: 'bug',
 				hasToggle: true,
 				toggleValue: this.plugin.settings.debugMode,
@@ -1360,7 +1360,7 @@ export class TeleprompterSettingTab extends PluginSettingTab {
 		this.createFeatureGroup(containerEl, 'voice', 'Voice Tracking', 'mic', [
 			{
 				id: 'voice-tracking',
-				name: 'Voice-Activated Scrolling',
+				name: 'Voice-activated scrolling',
 				icon: 'mic',
 				hasToggle: true,
 				toggleValue: this.plugin.settings.voiceTrackingEnabled,
@@ -1421,7 +1421,7 @@ export class TeleprompterSettingTab extends PluginSettingTab {
 			},
 			{
 				id: 'voice-tuning',
-				name: 'Scroll Tuning',
+				name: 'Scroll tuning',
 				icon: 'sliders-horizontal',
 				hasToggle: false,
 				settings: [
@@ -1484,7 +1484,7 @@ export class TeleprompterSettingTab extends PluginSettingTab {
 			},
 			{
 				id: 'voice-pause',
-				name: 'Pause Detection',
+				name: 'Pause detection',
 				icon: 'pause-circle',
 				hasToggle: true,
 				toggleValue: this.plugin.settings.voiceTrackingPauseDetection,
@@ -1508,7 +1508,7 @@ export class TeleprompterSettingTab extends PluginSettingTab {
 			},
 			{
 				id: 'voice-scroll-position',
-				name: 'Scroll Position',
+				name: 'Scroll position',
 				icon: 'move-vertical',
 				hasToggle: false,
 				settings: [
@@ -1886,7 +1886,7 @@ export class TeleprompterSettingTab extends PluginSettingTab {
 
 		const statusInfo = statusEl.createDiv('tp-connection-info')
 		statusInfo.createDiv({
-			text: wsInfo.running ? 'Server Running' : 'Server Stopped',
+			text: wsInfo.running ? 'Server running' : 'Server stopped',
 			cls: 'tp-connection-title'
 		})
 		statusInfo.createDiv({
@@ -1921,7 +1921,7 @@ export class TeleprompterSettingTab extends PluginSettingTab {
 		const serverSection = containerEl.createDiv('tp-section-header')
 		const serverIcon = serverSection.createDiv('tp-section-header-icon')
 		setIcon(serverIcon, 'server')
-		serverSection.createSpan({ text: 'Server settings', cls: 'tp-section-header-title' })
+		serverSection.createSpan({ text: 'Server', cls: 'tp-section-header-title' })
 
 		new Setting(containerEl)
 			.setName('Auto-start server')
@@ -1984,7 +1984,7 @@ export class TeleprompterSettingTab extends PluginSettingTab {
 		const broadcastSection = containerEl.createDiv('tp-section-header')
 		const broadcastIcon = broadcastSection.createDiv('tp-section-header-icon')
 		setIcon(broadcastIcon, 'radio')
-		broadcastSection.createSpan({ text: 'Network broadcast (multi-device sync)', cls: 'tp-section-header-title' })
+		broadcastSection.createSpan({ text: 'Network broadcast', cls: 'tp-section-header-title' })
 
 		new Setting(containerEl)
 			.setName('Enable network broadcast')
@@ -2024,7 +2024,7 @@ export class TeleprompterSettingTab extends PluginSettingTab {
 		const remoteSection = containerEl.createDiv('tp-section-header')
 		const remoteIcon = remoteSection.createDiv('tp-section-header-icon')
 		setIcon(remoteIcon, 'smartphone')
-		remoteSection.createSpan({ text: 'Remote web interface', cls: 'tp-section-header-title' })
+		remoteSection.createSpan({ text: 'Remote interface', cls: 'tp-section-header-title' })
 
 		const remoteStatus = containerEl.createDiv('tp-connection-status tp-flex-container--mb')
 
@@ -2032,7 +2032,7 @@ export class TeleprompterSettingTab extends PluginSettingTab {
 
 		const remoteInfo = remoteStatus.createDiv('tp-connection-info')
 		remoteInfo.createDiv({
-			text: wsInfo.running ? 'Remote Interface Available' : 'Server Not Running',
+			text: wsInfo.running ? 'Remote interface available' : 'Server not running',
 			cls: 'tp-connection-title'
 		})
 
@@ -2070,7 +2070,7 @@ export class TeleprompterSettingTab extends PluginSettingTab {
 		const remoteSteps = remoteGuide.createEl('ol')
 		remoteSteps.createEl('li', { text: 'Ensure your phone is on the same WiFi network as this computer' })
 		remoteSteps.createEl('li', { text: 'Open the URL above in your phone\'s browser' })
-		remoteSteps.createEl('li', { text: 'Use the big Play/Pause button to control playback' })
+		remoteSteps.createEl('li', { text: 'Use the play/pause button to control playback' })
 		remoteSteps.createEl('li', { text: 'Adjust speed, jump to sections, and more from your phone' })
 
 		// Show local network IP hint
@@ -2078,34 +2078,34 @@ export class TeleprompterSettingTab extends PluginSettingTab {
 			const ipHint = remoteGuide.createEl('p', {
 				cls: 'setting-item-description'
 			})
-			ipHint.createEl('strong', { text: 'Tip:' })
-			ipHint.appendText(' To access from your phone, change the Host setting above to ')
+			ipHint.createEl('strong', { text: 'Tip: ' })
+			ipHint.appendText('To access from your phone, change the host setting above to ')
 			ipHint.createEl('code', { text: '0.0.0.0' })
-			ipHint.appendText(' and use your computer\'s local IP address. On macOS: System Settings → Wi-Fi → Details... → TCP/IP → IP address. Or run ')
+			ipHint.appendText(' and use your computer\'s local IP address. On macOS: System Settings → Wi-Fi → Details → TCP/IP → IP address. Or run ')
 			ipHint.createEl('code', { text: 'ipconfig getifaddr en0' })
-			ipHint.appendText(' in Terminal.')
+			ipHint.appendText(' in terminal.')
 		}
 
 		// Stream Deck Guide
 		const guideSection = containerEl.createDiv('tp-section-header')
 		const guideIcon = guideSection.createDiv('tp-section-header-icon')
 		setIcon(guideIcon, 'help-circle')
-		guideSection.createSpan({ text: 'Stream Deck setup', cls: 'tp-section-header-title' })
+		guideSection.createSpan({ text: 'Stream Deck', cls: 'tp-section-header-title' })
 
 		const guideEl = containerEl.createDiv()
 		guideEl.createEl('p', {
-			text: 'To control Teleprompter Plus from Stream Deck:',
+			text: 'To control the teleprompter from Stream Deck:',
 			cls: 'setting-item-description'
 		})
 
 		const steps = guideEl.createEl('ol')
 		steps.createEl('li', { text: 'Ensure the WebSocket server is running (see status above)' })
-		steps.createEl('li', { text: 'Install the Teleprompter Plus Stream Deck plugin' })
-		steps.createEl('li', { text: `Configure plugin to connect to ws://${this.plugin.settings.wsHost}:${this.plugin.settings.wsPort}` })
+		steps.createEl('li', { text: 'Install the Stream Deck plugin' })
+		steps.createEl('li', { text: `Configure the plugin to connect to ws://${this.plugin.settings.wsHost}:${this.plugin.settings.wsPort}` })
 		steps.createEl('li', { text: 'Add actions to your Stream Deck buttons' })
 
 		guideEl.createEl('p', {
-			text: 'The server only accepts connections from localhost (127.0.0.1) for security.',
+			text: 'By default, the server only accepts local connections for security.',
 			cls: 'setting-item-description'
 		})
 	}
@@ -2114,7 +2114,7 @@ export class TeleprompterSettingTab extends PluginSettingTab {
 	// OBS Tab - OBS Studio integration settings
 	// ========================================
 	private displayOBSTab(containerEl: HTMLElement): void {
-		containerEl.createEl('p', {
+			containerEl.createEl('p', {
 			text: 'Integrate with OBS Studio for recording and streaming sync',
 			cls: 'setting-item-description',
 		})
@@ -2127,7 +2127,7 @@ export class TeleprompterSettingTab extends PluginSettingTab {
 
 		const statusInfo = statusEl.createDiv('tp-connection-info')
 		statusInfo.createDiv({
-			text: obsInfo.status === 'connected' ? 'Connected to OBS' : obsInfo.status === 'connecting' ? 'Connecting...' : 'Not Connected',
+			text: obsInfo.status === 'connected' ? 'Connected to OBS' : obsInfo.status === 'connecting' ? 'Connecting...' : 'Not connected',
 			cls: 'tp-connection-title'
 		})
 
@@ -2172,7 +2172,7 @@ export class TeleprompterSettingTab extends PluginSettingTab {
 			// Update status title
 			const titleEl = statusInfo.querySelector('.tp-connection-title')
 			if (titleEl) {
-				titleEl.textContent = newInfo.status === 'connected' ? 'Connected to OBS' : newInfo.status === 'connecting' ? 'Connecting...' : 'Not Connected'
+				titleEl.textContent = newInfo.status === 'connected' ? 'Connected to OBS' : newInfo.status === 'connecting' ? 'Connecting...' : 'Not connected'
 			}
 			// Update status detail
 			const detailEl = statusInfo.querySelector('.tp-connection-detail')
@@ -2193,11 +2193,11 @@ export class TeleprompterSettingTab extends PluginSettingTab {
 		const enableSection = containerEl.createDiv('tp-section-header')
 		const enableIcon = enableSection.createDiv('tp-section-header-icon')
 		setIcon(enableIcon, 'power')
-		enableSection.createSpan({ text: 'Integration settings', cls: 'tp-section-header-title' })
+		enableSection.createSpan({ text: 'Integration', cls: 'tp-section-header-title' })
 
 		new Setting(containerEl)
 			.setName('Enable OBS integration')
-			.setDesc('Allow Teleprompter Plus to connect to OBS Studio')
+			.setDesc('Allow the plugin to connect to OBS Studio')
 			.addToggle(t => t
 				.setValue(this.plugin.settings.obsEnabled)
 				.onChange(async (value) => {
@@ -2212,7 +2212,7 @@ export class TeleprompterSettingTab extends PluginSettingTab {
 
 		new Setting(containerEl)
 			.setName('Auto-connect on startup')
-			.setDesc('Automatically connect to OBS when Obsidian loads')
+			.setDesc('Automatically connect to OBS when the plugin loads')
 			.addToggle(t => t
 				.setValue(this.plugin.settings.obsAutoConnect)
 				.onChange(async (value) => {
@@ -2225,10 +2225,10 @@ export class TeleprompterSettingTab extends PluginSettingTab {
 		const connectionSection = containerEl.createDiv('tp-section-header')
 		const connectionIcon = connectionSection.createDiv('tp-section-header-icon')
 		setIcon(connectionIcon, 'server')
-		connectionSection.createSpan({ text: 'Connection settings', cls: 'tp-section-header-title' })
+		connectionSection.createSpan({ text: 'Connection', cls: 'tp-section-header-title' })
 
 		new Setting(containerEl)
-			.setName('OBS host')
+			.setName('Host')
 			.setDesc('OBS WebSocket server host (usually 127.0.0.1)')
 			.addText(t => t
 				.setPlaceholder('127.0.0.1')
@@ -2240,7 +2240,7 @@ export class TeleprompterSettingTab extends PluginSettingTab {
 			)
 
 		new Setting(containerEl)
-			.setName('OBS port')
+			.setName('Port')
 			.setDesc('OBS WebSocket server port (default: 4455 for OBS 28+)')
 			.addText(t => t
 				.setPlaceholder('4455')
@@ -2255,7 +2255,7 @@ export class TeleprompterSettingTab extends PluginSettingTab {
 			)
 
 		new Setting(containerEl)
-			.setName('OBS password')
+			.setName('Password')
 			.setDesc('WebSocket server password (leave empty if not set in OBS)')
 			.addText(t => {
 				t.inputEl.type = 'password'
@@ -2272,10 +2272,10 @@ export class TeleprompterSettingTab extends PluginSettingTab {
 		const syncSection = containerEl.createDiv('tp-section-header')
 		const syncIcon = syncSection.createDiv('tp-section-header-icon')
 		setIcon(syncIcon, 'link')
-		syncSection.createSpan({ text: 'Playback sync', cls: 'tp-section-header-title' })
+		syncSection.createSpan({ text: 'Sync', cls: 'tp-section-header-title' })
 
 		new Setting(containerEl)
-			.setName('Sync recording with teleprompter')
+			.setName('Sync recording')
 			.setDesc('Start OBS recording when teleprompter plays, stop when reset')
 			.addToggle(t => t
 				.setValue(this.plugin.settings.obsSyncRecording)
@@ -2286,7 +2286,7 @@ export class TeleprompterSettingTab extends PluginSettingTab {
 			)
 
 		new Setting(containerEl)
-			.setName('Sync streaming with teleprompter')
+			.setName('Sync streaming')
 			.setDesc('Start OBS streaming when teleprompter plays, stop when reset')
 			.addToggle(t => t
 				.setValue(this.plugin.settings.obsSyncStreaming)
@@ -2301,7 +2301,7 @@ export class TeleprompterSettingTab extends PluginSettingTab {
 			const controlsSection = containerEl.createDiv('tp-section-header')
 			const controlsIcon = controlsSection.createDiv('tp-section-header-icon')
 			setIcon(controlsIcon, 'sliders-horizontal')
-			controlsSection.createSpan({ text: 'Manual controls', cls: 'tp-section-header-title' })
+			controlsSection.createSpan({ text: 'Controls', cls: 'tp-section-header-title' })
 
 			const controlsContainer = containerEl.createDiv('tp-flex-container')
 
@@ -2345,25 +2345,25 @@ export class TeleprompterSettingTab extends PluginSettingTab {
 		const guideSection = containerEl.createDiv('tp-section-header')
 		const guideIcon = guideSection.createDiv('tp-section-header-icon')
 		setIcon(guideIcon, 'help-circle')
-		guideSection.createSpan({ text: 'Setup guide', cls: 'tp-section-header-title' })
+		guideSection.createSpan({ text: 'Setup', cls: 'tp-section-header-title' })
 
 		const guideEl = containerEl.createDiv()
 		guideEl.createEl('p', {
-			text: 'To enable OBS integration:',
+			text: 'To enable OBS integration, follow these steps:',
 			cls: 'setting-item-description'
 		})
 
 		const steps = guideEl.createEl('ol')
 		steps.createEl('li', { text: 'Open OBS Studio (version 28 or later)' })
 		steps.createEl('li', { text: 'Go to Tools → WebSocket Server Settings' })
-		steps.createEl('li', { text: 'Check "Enable WebSocket server"' })
+		steps.createEl('li', { text: 'Enable the WebSocket server' })
 		steps.createEl('li', { text: 'Set a password if desired (optional)' })
 		steps.createEl('li', { text: 'Note the port number (default: 4455)' })
-		steps.createEl('li', { text: 'Click "Apply" and close the dialog' })
-		steps.createEl('li', { text: 'Enter the same settings above and click Connect' })
+		steps.createEl('li', { text: 'Apply the settings and close the dialog' })
+		steps.createEl('li', { text: 'Enter the same settings above and click connect' })
 
 		guideEl.createEl('p', {
-			text: 'OBS 28+ has the WebSocket server built-in. Earlier versions require the obs-websocket plugin.',
+			text: 'OBS 28 and later has the WebSocket server built-in. Earlier versions require the obs-websocket plugin.',
 			cls: 'setting-item-description'
 		})
 	}
@@ -2428,7 +2428,7 @@ export class TeleprompterSettingTab extends PluginSettingTab {
 		const shortcutsSection = containerEl.createDiv('tp-section-header')
 		const shortcutsIcon = shortcutsSection.createDiv('tp-section-header-icon')
 		setIcon(shortcutsIcon, 'keyboard')
-		shortcutsSection.createSpan({ text: 'Keyboard shortcuts', cls: 'tp-section-header-title' })
+		shortcutsSection.createSpan({ text: 'Shortcuts', cls: 'tp-section-header-title' })
 
 		const shortcutsTable = containerEl.createEl('table', { cls: 'tp-shortcuts-table' })
 		const shortcutsHead = shortcutsTable.createEl('thead')
@@ -2465,8 +2465,8 @@ export class TeleprompterSettingTab extends PluginSettingTab {
 
 		const creditsEl = containerEl.createDiv('tp-credits')
 
-		creditsEl.createEl('p', { text: 'Built for the Obsidian community' })
-		creditsEl.createEl('p', { text: 'Powered by Svelte 5 & Obsidian Plugin API' })
+		creditsEl.createEl('p', { text: 'Built for the Obsidian community.' })
+		creditsEl.createEl('p', { text: 'Powered by Svelte 5 and the Obsidian API.' })
 	}
 
 	/**
@@ -2494,7 +2494,7 @@ export class TeleprompterSettingTab extends PluginSettingTab {
 
 		if (info.running) {
 			statusEl.createEl('span', {
-				text: '🟢 Running',
+				text: '● Running',
 				cls: 'teleprompter-status-running',
 			})
 			statusEl.createEl('br')
@@ -2509,7 +2509,7 @@ export class TeleprompterSettingTab extends PluginSettingTab {
 			})
 		} else {
 			statusEl.createEl('span', {
-				text: '🔴 Stopped',
+				text: '● Stopped',
 				cls: 'teleprompter-status-stopped',
 			})
 		}

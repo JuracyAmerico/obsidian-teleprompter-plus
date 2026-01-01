@@ -582,7 +582,7 @@ export const REMOTE_INTERFACE_HTML = `<!DOCTYPE html>
         ws = new WebSocket(wsUrl);
 
         ws.onopen = function() {
-          console.log('Connected to teleprompter');
+          console.debug('Connected to teleprompter');
           setConnectionStatus('connected');
           reconnectAttempts = 0;
           enableControls(true);
@@ -600,7 +600,7 @@ export const REMOTE_INTERFACE_HTML = `<!DOCTYPE html>
         };
 
         ws.onclose = function() {
-          console.log('Disconnected from teleprompter');
+          console.debug('Disconnected from teleprompter');
           setConnectionStatus('disconnected');
           enableControls(false);
           scheduleReconnect();

@@ -153,7 +153,7 @@ export class OBSService {
 			this.notifyStateChange()
 
 			if (this.settings.showConnectionNotifications) {
-				new Notice('Connected to OBS')
+				new Notice('Connected to OBS Studio')
 			}
 
 			return true
