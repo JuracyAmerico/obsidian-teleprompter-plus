@@ -85,9 +85,12 @@ export default [
       '@typescript-eslint/no-unused-vars': ['warn', { argsIgnorePattern: '^_' }],
       '@typescript-eslint/explicit-function-return-type': 'off',
       '@typescript-eslint/no-non-null-assertion': 'warn',
+      '@typescript-eslint/no-floating-promises': 'error',
+      '@typescript-eslint/require-await': 'error',
 
       // General
-      'no-undef': 'off', // TypeScript handles this
+      'no-undef': 'off',
+      'no-unused-vars': 'off',  // Disable base rule, use TypeScript version
       'prefer-const': 'warn',
       'no-var': 'error'
     }

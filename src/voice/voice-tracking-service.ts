@@ -78,12 +78,12 @@ export class VoiceTrackingService {
   private readonly MATCH_ACCUMULATOR_SIZE = 3   // Require this many consistent matches
 
   // Callbacks
-  onPauseChange?: (isPaused: boolean) => void
-  onWordMatch?: (wordIndex: number, scrollPosition: number) => void
-  onStatusChange?: (status: VoiceTrackingStatus) => void
-  onRecognizedText?: (text: string, isFinal: boolean) => void
-  onError?: (error: VoiceTrackingError, message: string) => void
-  onProgress?: (loaded: number, total: number) => void
+  onPauseChange?: (_isPaused: boolean) => void
+  onWordMatch?: (_wordIndex: number, _scrollPosition: number) => void
+  onStatusChange?: (_status: VoiceTrackingStatus) => void
+  onRecognizedText?: (_text: string, _isFinal: boolean) => void
+  onError?: (_error: VoiceTrackingError, _message: string) => void
+  onProgress?: (_loaded: number, _total: number) => void
 
   /**
    * Create a new VoiceTrackingService.

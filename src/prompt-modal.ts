@@ -9,12 +9,12 @@ export class PromptModal extends Modal {
 	private title: string
 	private placeholder: string
 	private defaultValue: string
-	private onSubmit: (value: string) => void
+	private onSubmit: (_value: string) => void
 
 	constructor(
 		app: App,
 		title: string,
-		onSubmit: (value: string) => void,
+		onSubmit: (_value: string) => void,
 		placeholder = '',
 		defaultValue = ''
 	) {

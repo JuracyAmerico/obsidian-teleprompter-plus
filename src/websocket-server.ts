@@ -17,7 +17,7 @@ import { loadWebSocketModule, getDiagnostics } from './websocket-loader'
 import { REMOTE_INTERFACE_HTML } from './remote-interface'
 
 // Declare require for runtime module loading (Obsidian/Electron environment)
-declare function require(name: 'http'): typeof import('http')
+declare function require(_name: 'http'): typeof import('http')
 
 // HTTP types for type safety
 type HttpServer = ReturnType<typeof import('http').createServer>
@@ -27,16 +27,17 @@ type ServerResponse = import('http').ServerResponse
 // Load WebSocket module at startup
 const wsModule = loadWebSocketModule()
 const WebSocketServerClass = wsModule.WebSocketServer
-const WebSocketClass = wsModule.WebSocket
+// WebSocketClass available for future use but currently unused
+const _WebSocketClass = wsModule.WebSocket
 
 // Type definitions for WebSocket instances
 type WebSocketServerInstance = {
-	on: (event: string, handler: (...args: unknown[]) => void) => void
-	close: (callback?: () => void) => void
+	on: (_event: string, _handler: (..._args: unknown[]) => void) => void
+	close: (_callback?: () => void) => void
 }
 type WebSocketInstance = {
-	on: (event: string, handler: (...args: unknown[]) => void) => void
-	send: (data: string) => void
+	on: (_event: string, _handler: (..._args: unknown[]) => void) => void
+	send: (_data: string) => void
 	close: () => void
 	readyState: number
 	terminate: () => void
@@ -195,7 +196,7 @@ export class TeleprompterWebSocketServer {
 	private clients: Set<WebSocketInstance> = new Set()
 	private plugin: Plugin
 	private config: Required<WebSocketServerConfig>
-	private commandHandlers: Map<string, (params?: Record<string, unknown>) => void | Promise<void>> = new Map()
+	private commandHandlers: Map<string, (_params?: Record<string, unknown>) => void | Promise<void>> = new Map()
 	private currentState: TeleprompterState
 	private heartbeatInterval: ReturnType<typeof setInterval> | null = null
 	private isShuttingDown = false
@@ -602,7 +603,7 @@ export class TeleprompterWebSocketServer {
 
 			// Handle command
 			if ('command' in message) {
-				this.handleCommand(message, ws)
+				void this.handleCommand(message, ws)
 				return
 			}
 
@@ -682,7 +683,7 @@ export class TeleprompterWebSocketServer {
 	 */
 	registerCommand(
 		command: string,
-		handler: (params?: Record<string, unknown>) => void | Promise<void>
+		handler: (_params?: Record<string, unknown>) => void | Promise<void>
 	): void {
 		this.commandHandlers.set(command, handler)
 	}

@@ -467,7 +467,7 @@ export class TeleprompterSettingTab extends PluginSettingTab {
 
 		// Header with search
 		const header = containerEl.createDiv('tp-settings-header')
-		new Setting(header).setName('Settings').setHeading()
+		new Setting(header).setName('Teleprompter Plus settings').setHeading()
 
 		// Search box
 		const searchContainer = header.createDiv('tp-search-container')
@@ -678,7 +678,7 @@ export class TeleprompterSettingTab extends PluginSettingTab {
 			const input = document.createElement('input')
 			input.type = 'file'
 			input.accept = '.json'
-			input.onchange = async (e) => {
+			input.onchange = (e) => {
 				const file = (e.target as HTMLInputElement).files?.[0]
 				if (!file) return
 				const reader = new FileReader()
@@ -1539,7 +1539,7 @@ export class TeleprompterSettingTab extends PluginSettingTab {
 			icon: string
 			hasToggle: boolean
 			toggleValue?: boolean
-			onToggle?: (value: boolean) => void
+			onToggle?: (_value: boolean) => void
 			settings: Array<{
 				name: string
 				desc: string
@@ -1549,7 +1549,7 @@ export class TeleprompterSettingTab extends PluginSettingTab {
 				step?: number
 				value: string | number | boolean
 				options?: Array<{ value: string; label: string }>
-				onChange: (value: string | number | boolean) => void
+				onChange: (_value: string | number | boolean) => void
 			}>
 		}>
 	): void {
@@ -1593,7 +1593,7 @@ export class TeleprompterSettingTab extends PluginSettingTab {
 				const toggleSetting = new Setting(toggleContainer)
 					.addToggle(t => t
 						.setValue(feature.toggleValue ?? false)
-						.onChange(async (value) => {
+						.onChange((value) => {
 							if (feature.onToggle) {
 								feature.onToggle(value)
 							}
@@ -1842,7 +1842,7 @@ export class TeleprompterSettingTab extends PluginSettingTab {
 			const input = document.createElement('input')
 			input.type = 'file'
 			input.accept = '.json'
-			input.onchange = async (e) => {
+			input.onchange = (e) => {
 				const file = (e.target as HTMLInputElement).files?.[0]
 				if (!file) return
 				const reader = new FileReader()
@@ -1875,7 +1875,7 @@ export class TeleprompterSettingTab extends PluginSettingTab {
 	// ========================================
 	private displayConnectionTab(containerEl: HTMLElement): void {
 		containerEl.createEl('p', {
-			text: 'Configure WebSocket server for Stream Deck and external control',
+			text: 'Configure websocket server for Stream Deck and external control',
 			cls: 'setting-item-description',
 		})
 
@@ -1926,7 +1926,7 @@ export class TeleprompterSettingTab extends PluginSettingTab {
 
 		new Setting(containerEl)
 			.setName('Auto-start server')
-			.setDesc('Start WebSocket server when Obsidian loads')
+			.setDesc('Start websocket server when Obsidian loads')
 			.addToggle(t => t
 				.setValue(this.plugin.settings.autoStartWebSocket)
 				.onChange(async (value) => {
@@ -1937,7 +1937,7 @@ export class TeleprompterSettingTab extends PluginSettingTab {
 
 		new Setting(containerEl)
 			.setName('Port')
-			.setDesc('WebSocket server port (requires restart)')
+			.setDesc('Websocket server port (requires restart)')
 			.addText(t => t
 				.setPlaceholder('8765')
 				.setValue(this.plugin.settings.wsPort.toString())
@@ -2013,7 +2013,7 @@ export class TeleprompterSettingTab extends PluginSettingTab {
 
 		const broadcastInfo = containerEl.createDiv()
 		broadcastInfo.createEl('p', {
-			text: 'When enabled, this teleprompter becomes the "master" and broadcasts its scroll position. Other devices can connect via WebSocket and follow along in sync.',
+			text: 'When enabled, this teleprompter becomes the "master" and broadcasts its scroll position. Other devices can connect via websocket and follow along in sync.',
 			cls: 'setting-item-description'
 		})
 		broadcastInfo.createEl('p', {
@@ -2069,7 +2069,7 @@ export class TeleprompterSettingTab extends PluginSettingTab {
 		})
 
 		const remoteSteps = remoteGuide.createEl('ol')
-		remoteSteps.createEl('li', { text: 'Ensure your phone is on the same WiFi network as this computer' })
+		remoteSteps.createEl('li', { text: 'Ensure your phone is on the same Wi-Fi network as this computer' })
 		remoteSteps.createEl('li', { text: 'Open the URL above in your phone\'s browser' })
 		remoteSteps.createEl('li', { text: 'Use the play/pause button to control playback' })
 		remoteSteps.createEl('li', { text: 'Adjust speed, jump to sections, and more from your phone' })
@@ -2100,7 +2100,7 @@ export class TeleprompterSettingTab extends PluginSettingTab {
 		})
 
 		const steps = guideEl.createEl('ol')
-		steps.createEl('li', { text: 'Ensure the WebSocket server is running (see status above)' })
+		steps.createEl('li', { text: 'Ensure the websocket server is running (see status above)' })
 		steps.createEl('li', { text: 'Install the Stream Deck plugin' })
 		steps.createEl('li', { text: `Configure the plugin to connect to ws://${this.plugin.settings.wsHost}:${this.plugin.settings.wsPort}` })
 		steps.createEl('li', { text: 'Add actions to your Stream Deck buttons' })
@@ -2230,7 +2230,7 @@ export class TeleprompterSettingTab extends PluginSettingTab {
 
 		new Setting(containerEl)
 			.setName('Host')
-			.setDesc('OBS WebSocket server host (usually 127.0.0.1)')
+			.setDesc('OBS websocket server host (usually 127.0.0.1)')
 			.addText(t => t
 				.setPlaceholder('127.0.0.1')
 				.setValue(this.plugin.settings.obsHost)
@@ -2242,7 +2242,7 @@ export class TeleprompterSettingTab extends PluginSettingTab {
 
 		new Setting(containerEl)
 			.setName('Port')
-			.setDesc('OBS WebSocket server port (default: 4455 for OBS 28+)')
+			.setDesc('OBS websocket server port (default: 4455 for OBS 28+)')
 			.addText(t => t
 				.setPlaceholder('4455')
 				.setValue(this.plugin.settings.obsPort.toString())
@@ -2257,7 +2257,7 @@ export class TeleprompterSettingTab extends PluginSettingTab {
 
 		new Setting(containerEl)
 			.setName('Password')
-			.setDesc('WebSocket server password (leave empty if not set in OBS)')
+			.setDesc('Websocket server password (leave empty if not set in OBS)')
 			.addText(t => {
 				t.inputEl.type = 'password'
 				t.setPlaceholder('••••••••')
@@ -2356,15 +2356,15 @@ export class TeleprompterSettingTab extends PluginSettingTab {
 
 		const steps = guideEl.createEl('ol')
 		steps.createEl('li', { text: 'Open OBS Studio (version 28 or later)' })
-		steps.createEl('li', { text: 'Go to Tools → WebSocket Server Settings' })
-		steps.createEl('li', { text: 'Enable the WebSocket server' })
+		steps.createEl('li', { text: 'Go to Tools → Websocket Server Settings' })
+		steps.createEl('li', { text: 'Enable the websocket server' })
 		steps.createEl('li', { text: 'Set a password if desired (optional)' })
 		steps.createEl('li', { text: 'Note the port number (default: 4455)' })
 		steps.createEl('li', { text: 'Apply the settings and close the dialog' })
 		steps.createEl('li', { text: 'Enter the same settings above and click connect' })
 
 		guideEl.createEl('p', {
-			text: 'OBS 28 and later has the WebSocket server built-in. Earlier versions require the obs-websocket plugin.',
+			text: 'OBS 28 and later has the websocket server built-in. Earlier versions require the obs-websocket plugin.',
 			cls: 'setting-item-description'
 		})
 	}
@@ -2495,7 +2495,7 @@ export class TeleprompterSettingTab extends PluginSettingTab {
 
 		if (info.running) {
 			statusEl.createEl('span', {
-				text: '● Running',
+				text: '● running',
 				cls: 'teleprompter-status-running',
 			})
 			statusEl.createEl('br')
@@ -2510,7 +2510,7 @@ export class TeleprompterSettingTab extends PluginSettingTab {
 			})
 		} else {
 			statusEl.createEl('span', {
-				text: '● Stopped',
+				text: '● stopped',
 				cls: 'teleprompter-status-stopped',
 			})
 		}

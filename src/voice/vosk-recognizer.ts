@@ -15,10 +15,10 @@ import type { Model, KaldiRecognizer } from 'vosk-browser'
 /**
  * Subscriber function type for recognition results.
  */
-type ResultSubscriber = (text: string, isFinal: boolean) => void
-type StatusSubscriber = (status: VoiceTrackingStatus) => void
-type ErrorSubscriber = (error: VoiceTrackingError, message: string) => void
-type ProgressSubscriber = (loaded: number, total: number) => void
+type ResultSubscriber = (_text: string, _isFinal: boolean) => void
+type StatusSubscriber = (_status: VoiceTrackingStatus) => void
+type ErrorSubscriber = (_error: VoiceTrackingError, _message: string) => void
+type ProgressSubscriber = (_loaded: number, _total: number) => void
 
 /**
  * VoskRecognizer class - wraps vosk-browser for speech recognition.
@@ -269,7 +269,7 @@ export class VoskRecognizer {
 
     // Close audio context
     if (this.audioContext) {
-      this.audioContext.close()
+      void this.audioContext.close()
       this.audioContext = null
     }
 
@@ -377,7 +377,7 @@ export class VoskRecognizer {
   private async getCachedModel(modelName: string): Promise<string | null> {
     try {
       const db = await this.openModelDB()
-      return new Promise((resolve, reject) => {
+      return new Promise((resolve, _reject) => {
         const transaction = db.transaction(['models'], 'readonly')
         const store = transaction.objectStore('models')
         const request = store.get(modelName)

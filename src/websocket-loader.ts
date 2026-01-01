@@ -7,17 +7,17 @@
 
 // Node.js module types for dynamic require
 type NodeModule = Record<string, unknown>
-declare function require(name: string): NodeModule
+declare function require(_name: string): NodeModule
 
 // WebSocket Server and WebSocket constructor types (from ws package)
 // Using generic constructor types since we're loading dynamically
-type WebSocketServerConstructor = new (options: { server: unknown }) => {
-	on: (event: string, handler: (...args: unknown[]) => void) => void
-	close: (callback?: () => void) => void
+type WebSocketServerConstructor = new (_options: { server: unknown }) => {
+	on: (_event: string, _handler: (..._args: unknown[]) => void) => void
+	close: (_callback?: () => void) => void
 }
-type WebSocketConstructor = new (url: string) => {
-	on: (event: string, handler: (...args: unknown[]) => void) => void
-	send: (data: string) => void
+type WebSocketConstructor = new (_url: string) => {
+	on: (_event: string, _handler: (..._args: unknown[]) => void) => void
+	send: (_data: string) => void
 	close: () => void
 	readyState: number
 }

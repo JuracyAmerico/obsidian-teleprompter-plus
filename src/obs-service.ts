@@ -31,7 +31,7 @@ export class OBSService {
 		error: null
 	}
 	private reconnectTimer: ReturnType<typeof setTimeout> | null = null
-	private statusListeners: Set<(state: OBSState) => void> = new Set()
+	private statusListeners: Set<(_state: OBSState) => void> = new Set()
 
 	constructor(settings: TeleprompterSettings) {
 		this.obs = new OBSWebSocket()
@@ -56,7 +56,7 @@ export class OBSService {
 	/**
 	 * Subscribe to state changes
 	 */
-	onStateChange(callback: (state: OBSState) => void): () => void {
+	onStateChange(callback: (_state: OBSState) => void): () => void {
 		this.statusListeners.add(callback)
 		return () => this.statusListeners.delete(callback)
 	}

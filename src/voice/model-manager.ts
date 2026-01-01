@@ -25,8 +25,8 @@ export class ModelManager {
   }
 
   // Callbacks
-  onProgressUpdate?: (progress: ModelDownloadProgress) => void
-  onError?: (error: string) => void
+  onProgressUpdate?: (_progress: ModelDownloadProgress) => void
+  onError?: (_error: string) => void
 
   /**
    * Create a new ModelManager.
