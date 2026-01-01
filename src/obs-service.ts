@@ -30,7 +30,7 @@ export class OBSService {
 		currentScene: null,
 		error: null
 	}
-	private reconnectTimer: NodeJS.Timeout | null = null
+	private reconnectTimer: ReturnType<typeof setTimeout> | null = null
 	private statusListeners: Set<(state: OBSState) => void> = new Set()
 
 	constructor(settings: TeleprompterSettings) {

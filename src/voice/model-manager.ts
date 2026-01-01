@@ -4,6 +4,7 @@
  * Handles downloading, caching, and loading Vosk speech recognition models.
  */
 
+import type { App } from 'obsidian'
 import type { VoiceLanguage, ModelDownloadProgress } from './types'
 import { VOICE_LANGUAGES } from './types'
 
@@ -15,6 +16,7 @@ const VOSK_MODEL_BASE_URL = 'https://alphacephei.com/vosk/models'
  */
 export class ModelManager {
   private basePath: string
+  private app: App
   private downloadProgress: ModelDownloadProgress = {
     downloading: false,
     progress: 0,
@@ -30,9 +32,11 @@ export class ModelManager {
    * Create a new ModelManager.
    *
    * @param basePath - Base path for storing models (plugin data folder)
+   * @param app - Obsidian App instance for localStorage access
    */
-  constructor(basePath: string) {
+  constructor(basePath: string, app: App) {
     this.basePath = basePath
+    this.app = app
   }
 
   /**
@@ -66,15 +70,15 @@ export class ModelManager {
 
   /**
    * Check if a model is downloaded and available.
-   * Note: In browser context, we check IndexedDB or localStorage.
+   * Note: Uses Obsidian's localStorage API.
    */
   async isModelDownloaded(languageCode: string): Promise<boolean> {
     const config = this.getLanguageConfig(languageCode)
     if (!config) return false
 
-    // Check localStorage for model downloaded flag
+    // Use Obsidian's localStorage API
     const key = `vosk-model-${config.voskModel}`
-    return localStorage.getItem(key) === 'downloaded'
+    return this.app.loadLocalStorage(key) === 'downloaded'
   }
 
   /**
@@ -84,7 +88,7 @@ export class ModelManager {
     const config = this.getLanguageConfig(languageCode)
     if (config) {
       const key = `vosk-model-${config.voskModel}`
-      localStorage.setItem(key, 'downloaded')
+      this.app.saveLocalStorage(key, 'downloaded')
     }
   }
 
@@ -162,7 +166,7 @@ export class ModelManager {
     const config = this.getLanguageConfig(languageCode)
     if (config) {
       const key = `vosk-model-${config.voskModel}`
-      localStorage.removeItem(key)
+      this.app.saveLocalStorage(key, null)
     }
   }
 
@@ -172,7 +176,7 @@ export class ModelManager {
   getDownloadedModels(): VoiceLanguage[] {
     return VOICE_LANGUAGES.filter(lang => {
       const key = `vosk-model-${lang.voskModel}`
-      return localStorage.getItem(key) === 'downloaded'
+      return this.app.loadLocalStorage(key) === 'downloaded'
     })
   }
 }
@@ -182,12 +186,12 @@ export class ModelManager {
  */
 let modelManagerInstance: ModelManager | null = null
 
-export function getModelManager(basePath?: string): ModelManager {
-  if (!modelManagerInstance && basePath) {
-    modelManagerInstance = new ModelManager(basePath)
+export function getModelManager(basePath?: string, app?: App): ModelManager {
+  if (!modelManagerInstance && basePath && app) {
+    modelManagerInstance = new ModelManager(basePath, app)
   }
   if (!modelManagerInstance) {
-    throw new Error('ModelManager not initialized. Call with basePath first.')
+    throw new Error('ModelManager not initialized. Call with basePath and app first.')
   }
   return modelManagerInstance
 }

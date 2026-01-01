@@ -2,6 +2,7 @@ import { PluginSettingTab, Setting, setIcon, Notice } from 'obsidian'
 import type { App } from 'obsidian'
 import type TeleprompterPlusPlugin from './main'
 import { ConfirmModal } from './confirm-modal'
+import { PromptModal } from './prompt-modal'
 
 // Hotkey action names
 export type HotkeyAction =
@@ -413,38 +414,38 @@ const BUILT_IN_PROFILES: Profile[] = [
 const TOOLBAR_CONTROLS = [
 	// Core playback controls
 	{ id: 'play-pause', name: 'Play/Pause', icon: 'tp-play' },
-	{ id: 'speed', name: 'Speed Controls', icon: 'tp-speed-up' },
+	{ id: 'speed', name: 'Speed controls', icon: 'tp-speed-up' },
 	{ id: 'countdown', name: 'Countdown', icon: 'tp-countdown-up' },
-	{ id: 'reset', name: 'Reset Position', icon: 'tp-reset-top' },
+	{ id: 'reset', name: 'Reset position', icon: 'tp-reset-top' },
 	// Display controls
-	{ id: 'font-size', name: 'Font Size', icon: 'tp-font-up' },
-	{ id: 'line-height', name: 'Line Height', icon: 'tp-line-height' },
-	{ id: 'letter-spacing', name: 'Letter Spacing', icon: 'tp-letter-spacing' },
-	{ id: 'font-family', name: 'Font Family', icon: 'tp-font-system' },
+	{ id: 'font-size', name: 'Font size', icon: 'tp-font-up' },
+	{ id: 'line-height', name: 'Line height', icon: 'tp-line-height' },
+	{ id: 'letter-spacing', name: 'Letter spacing', icon: 'tp-letter-spacing' },
+	{ id: 'font-family', name: 'Font family', icon: 'tp-font-system' },
 	{ id: 'opacity', name: 'Opacity', icon: 'tp-opacity' },
 	{ id: 'padding', name: 'Padding', icon: 'tp-padding' },
-	{ id: 'text-color', name: 'Text Color', icon: 'tp-text-color' },
-	{ id: 'bg-color', name: 'Background Color', icon: 'tp-bg-color' },
+	{ id: 'text-color', name: 'Text color', icon: 'tp-text-color' },
+	{ id: 'bg-color', name: 'Background color', icon: 'tp-bg-color' },
 	// Feature toggles
 	{ id: 'eyeline', name: 'Eyeline', icon: 'tp-eyeline' },
-	{ id: 'focus-mode', name: 'Focus Mode', icon: 'focus' },
-	{ id: 'navigation', name: 'Navigation Panel', icon: 'tp-navigation' },
+	{ id: 'focus-mode', name: 'Focus mode', icon: 'focus' },
+	{ id: 'navigation', name: 'Navigation panel', icon: 'tp-navigation' },
 	{ id: 'fullscreen', name: 'Fullscreen', icon: 'tp-fullscreen' },
-	{ id: 'flip-h', name: 'Flip Horizontal', icon: 'tp-flip-h' },
-	{ id: 'flip-v', name: 'Flip Vertical', icon: 'tp-flip-v' },
+	{ id: 'flip-h', name: 'Flip horizontal', icon: 'tp-flip-h' },
+	{ id: 'flip-v', name: 'Flip vertical', icon: 'tp-flip-v' },
 	{ id: 'minimap', name: 'Minimap', icon: 'tp-minimap' },
 	// Utility controls
-	{ id: 'auto-pause', name: 'Auto-Pause on Edit', icon: 'tp-auto-pause' },
-	{ id: 'progress-indicator', name: 'Progress Indicator', icon: 'tp-progress-bar' },
-	{ id: 'alignment', name: 'Text Alignment', icon: 'tp-align-center' },
-	{ id: 'keep-awake', name: 'Keep Awake', icon: 'tp-keep-awake' },
-	{ id: 'pin', name: 'Pin Note', icon: 'tp-pin' },
-	{ id: 'detach', name: 'Open in Window', icon: 'tp-detach' },
-	{ id: 'quick-presets', name: 'Quick Presets', icon: 'tp-quick-presets' },
+	{ id: 'auto-pause', name: 'Auto-pause on edit', icon: 'tp-auto-pause' },
+	{ id: 'progress-indicator', name: 'Progress indicator', icon: 'tp-progress-bar' },
+	{ id: 'alignment', name: 'Text alignment', icon: 'tp-align-center' },
+	{ id: 'keep-awake', name: 'Keep awake', icon: 'tp-keep-awake' },
+	{ id: 'pin', name: 'Pin note', icon: 'tp-pin' },
+	{ id: 'detach', name: 'Open in window', icon: 'tp-detach' },
+	{ id: 'quick-presets', name: 'Quick presets', icon: 'tp-quick-presets' },
 	// Info displays
-	{ id: 'time-display', name: 'Time Display', icon: 'clock' },
+	{ id: 'time-display', name: 'Time display', icon: 'clock' },
 	// Voice tracking
-	{ id: 'voice-tracking', name: 'Voice Tracking', icon: 'mic' },
+	{ id: 'voice-tracking', name: 'Voice tracking', icon: 'mic' },
 ]
 
 export class TeleprompterSettingTab extends PluginSettingTab {
@@ -561,8 +562,8 @@ export class TeleprompterSettingTab extends PluginSettingTab {
 
 		// Preview info
 		const previewInfo = livePreview.createDiv('tp-preview-info')
-		previewInfo.createDiv({ text: 'LIVE PREVIEW', cls: 'tp-preview-label' })
-		previewInfo.createDiv({ text: 'Current Settings', cls: 'tp-preview-title' })
+		previewInfo.createDiv({ text: 'Live preview', cls: 'tp-preview-label' })
+		previewInfo.createDiv({ text: 'Current settings', cls: 'tp-preview-title' })
 
 		// Quick profiles
 		const quickProfiles = previewInfo.createDiv('tp-quick-profiles')
@@ -591,7 +592,7 @@ export class TeleprompterSettingTab extends PluginSettingTab {
 		const healthSection = containerEl.createDiv('tp-section-header')
 		const healthIcon = healthSection.createDiv('tp-section-header-icon')
 		setIcon(healthIcon, 'activity')
-		healthSection.createSpan({ text: 'System Status', cls: 'tp-section-header-title' })
+		healthSection.createSpan({ text: 'System status', cls: 'tp-section-header-title' })
 
 		const healthGrid = containerEl.createDiv('tp-health-grid')
 
@@ -615,20 +616,20 @@ export class TeleprompterSettingTab extends PluginSettingTab {
 		const speedIcon = speedCard.createDiv('tp-health-card-icon')
 		setIcon(speedIcon, 'gauge')
 		speedCard.createDiv({ text: `${this.plugin.settings.defaultScrollSpeed}x`, cls: 'tp-health-card-value' })
-		speedCard.createDiv({ text: 'Default Speed', cls: 'tp-health-card-label' })
+		speedCard.createDiv({ text: 'Default speed', cls: 'tp-health-card-label' })
 
 		// Font size card
 		const fontCard = healthGrid.createDiv('tp-health-card')
 		const fontIcon = fontCard.createDiv('tp-health-card-icon')
 		setIcon(fontIcon, 'type')
 		fontCard.createDiv({ text: `${this.plugin.settings.fontSize}px`, cls: 'tp-health-card-value' })
-		fontCard.createDiv({ text: 'Font Size', cls: 'tp-health-card-label' })
+		fontCard.createDiv({ text: 'Font size', cls: 'tp-health-card-label' })
 
 		// Quick Actions Section
 		const actionsSection = containerEl.createDiv('tp-section-header')
 		const actionsIcon = actionsSection.createDiv('tp-section-header-icon')
 		setIcon(actionsIcon, 'zap')
-		actionsSection.createSpan({ text: 'Quick Actions', cls: 'tp-section-header-title' })
+		actionsSection.createSpan({ text: 'Quick actions', cls: 'tp-section-header-title' })
 
 		const actionsContainer = containerEl.createDiv('tp-flex-container')
 
@@ -636,7 +637,7 @@ export class TeleprompterSettingTab extends PluginSettingTab {
 		const resetBtn = actionsContainer.createEl('button', { cls: 'tp-btn' })
 		const resetBtnIcon = resetBtn.createDiv('tp-btn-icon')
 		setIcon(resetBtnIcon, 'rotate-ccw')
-		resetBtn.createSpan({ text: 'Reset All' })
+		resetBtn.createSpan({ text: 'Reset all' })
 		resetBtn.addEventListener('click', () => {
 			new ConfirmModal(
 				this.app,
@@ -718,7 +719,7 @@ export class TeleprompterSettingTab extends PluginSettingTab {
 		const previewSection = containerEl.createDiv('tp-section-header')
 		const previewIcon = previewSection.createDiv('tp-section-header-icon')
 		setIcon(previewIcon, 'eye')
-		previewSection.createSpan({ text: 'Toolbar Preview', cls: 'tp-section-header-title' })
+		previewSection.createSpan({ text: 'Toolbar preview', cls: 'tp-section-header-title' })
 
 		const toolbarPreview = containerEl.createDiv('tp-toolbar-preview')
 
@@ -832,7 +833,7 @@ export class TeleprompterSettingTab extends PluginSettingTab {
 		const primarySection = containerEl.createDiv('tp-section-header')
 		const primaryIcon = primarySection.createDiv('tp-section-header-icon')
 		setIcon(primaryIcon, 'layout-grid')
-		primarySection.createSpan({ text: 'Primary Controls', cls: 'tp-section-header-title' })
+		primarySection.createSpan({ text: 'Primary controls', cls: 'tp-section-header-title' })
 
 		containerEl.createEl('p', {
 			text: 'Always visible in the main toolbar',
@@ -1730,7 +1731,7 @@ export class TeleprompterSettingTab extends PluginSettingTab {
 		const customSection = containerEl.createDiv('tp-section-header')
 		const customIcon = customSection.createDiv('tp-section-header-icon')
 		setIcon(customIcon, 'folder')
-		customSection.createSpan({ text: 'Custom Profiles', cls: 'tp-section-header-title' })
+		customSection.createSpan({ text: 'Custom profiles', cls: 'tp-section-header-title' })
 
 		const customList = containerEl.createDiv('tp-profiles-list')
 
@@ -1801,37 +1802,41 @@ export class TeleprompterSettingTab extends PluginSettingTab {
 		const saveBtn = actionsContainer.createEl('button', { cls: 'tp-btn tp-btn-primary' })
 		const saveBtnIcon = saveBtn.createDiv('tp-btn-icon')
 		setIcon(saveBtnIcon, 'plus')
-		saveBtn.createSpan({ text: 'Save Current as Profile' })
-		saveBtn.addEventListener('click', async () => {
-			const name = prompt('Enter profile name:')
-			if (!name) return
+		saveBtn.createSpan({ text: 'Save current as profile' })
+		saveBtn.addEventListener('click', () => {
+			new PromptModal(
+				this.app,
+				'Enter profile name',
+				async (name) => {
+					const newProfile: Profile = {
+						id: `custom-${Date.now()}`,
+						name,
+						icon: 'user',
+						description: 'Custom profile',
+						settings: { ...this.plugin.settings },
+						createdAt: Date.now(),
+						isBuiltIn: false
+					}
+					// Remove circular references - use Partial<TeleprompterSettings> to properly delete these
+					const profileSettings = newProfile.settings as Partial<TeleprompterSettings>
+					delete profileSettings.profiles
+					delete profileSettings.settingsUI
+					delete profileSettings.toolbarLayout
 
-			const newProfile: Profile = {
-				id: `custom-${Date.now()}`,
-				name,
-				icon: 'user',
-				description: 'Custom profile',
-				settings: { ...this.plugin.settings },
-				createdAt: Date.now(),
-				isBuiltIn: false
-			}
-			// Remove circular references - use Partial<TeleprompterSettings> to properly delete these
-			const profileSettings = newProfile.settings as Partial<TeleprompterSettings>
-			delete profileSettings.profiles
-			delete profileSettings.settingsUI
-			delete profileSettings.toolbarLayout
-
-			this.plugin.settings.profiles.custom.push(newProfile)
-			await this.plugin.saveSettings()
-			new Notice(`Profile "${name}" saved`)
-			this.display()
+					this.plugin.settings.profiles.custom.push(newProfile)
+					await this.plugin.saveSettings()
+					new Notice(`Profile "${name}" saved`)
+					this.display()
+				},
+				'My profile'
+			).open()
 		})
 
 		// Import profile
 		const importBtn = actionsContainer.createEl('button', { cls: 'tp-btn' })
 		const importBtnIcon = importBtn.createDiv('tp-btn-icon')
 		setIcon(importBtnIcon, 'upload')
-		importBtn.createSpan({ text: 'Import Profile' })
+		importBtn.createSpan({ text: 'Import profile' })
 		importBtn.addEventListener('click', () => {
 			const input = document.createElement('input')
 			input.type = 'file'
@@ -1916,7 +1921,7 @@ export class TeleprompterSettingTab extends PluginSettingTab {
 		const serverSection = containerEl.createDiv('tp-section-header')
 		const serverIcon = serverSection.createDiv('tp-section-header-icon')
 		setIcon(serverIcon, 'server')
-		serverSection.createSpan({ text: 'Server Settings', cls: 'tp-section-header-title' })
+		serverSection.createSpan({ text: 'Server settings', cls: 'tp-section-header-title' })
 
 		new Setting(containerEl)
 			.setName('Auto-start server')
@@ -1979,7 +1984,7 @@ export class TeleprompterSettingTab extends PluginSettingTab {
 		const broadcastSection = containerEl.createDiv('tp-section-header')
 		const broadcastIcon = broadcastSection.createDiv('tp-section-header-icon')
 		setIcon(broadcastIcon, 'radio')
-		broadcastSection.createSpan({ text: 'Network Broadcast (Multi-Device Sync)', cls: 'tp-section-header-title' })
+		broadcastSection.createSpan({ text: 'Network broadcast (multi-device sync)', cls: 'tp-section-header-title' })
 
 		new Setting(containerEl)
 			.setName('Enable network broadcast')
@@ -2019,7 +2024,7 @@ export class TeleprompterSettingTab extends PluginSettingTab {
 		const remoteSection = containerEl.createDiv('tp-section-header')
 		const remoteIcon = remoteSection.createDiv('tp-section-header-icon')
 		setIcon(remoteIcon, 'smartphone')
-		remoteSection.createSpan({ text: 'Remote Web Interface', cls: 'tp-section-header-title' })
+		remoteSection.createSpan({ text: 'Remote web interface', cls: 'tp-section-header-title' })
 
 		const remoteStatus = containerEl.createDiv('tp-connection-status tp-flex-container--mb')
 
@@ -2046,7 +2051,7 @@ export class TeleprompterSettingTab extends PluginSettingTab {
 		// Open Remote button
 		const openRemoteBtn = remoteStatus.createEl('button', {
 			cls: 'tp-btn tp-btn-primary',
-			text: 'Open Remote'
+			text: 'Open remote'
 		})
 		openRemoteBtn.disabled = !wsInfo.running
 		openRemoteBtn.addEventListener('click', () => {
@@ -2080,7 +2085,7 @@ export class TeleprompterSettingTab extends PluginSettingTab {
 		const guideSection = containerEl.createDiv('tp-section-header')
 		const guideIcon = guideSection.createDiv('tp-section-header-icon')
 		setIcon(guideIcon, 'help-circle')
-		guideSection.createSpan({ text: 'Stream Deck Setup', cls: 'tp-section-header-title' })
+		guideSection.createSpan({ text: 'Stream Deck setup', cls: 'tp-section-header-title' })
 
 		const guideEl = containerEl.createDiv()
 		guideEl.createEl('p', {
@@ -2183,7 +2188,7 @@ export class TeleprompterSettingTab extends PluginSettingTab {
 		const enableSection = containerEl.createDiv('tp-section-header')
 		const enableIcon = enableSection.createDiv('tp-section-header-icon')
 		setIcon(enableIcon, 'power')
-		enableSection.createSpan({ text: 'Integration Settings', cls: 'tp-section-header-title' })
+		enableSection.createSpan({ text: 'Integration settings', cls: 'tp-section-header-title' })
 
 		new Setting(containerEl)
 			.setName('Enable OBS integration')
@@ -2215,10 +2220,10 @@ export class TeleprompterSettingTab extends PluginSettingTab {
 		const connectionSection = containerEl.createDiv('tp-section-header')
 		const connectionIcon = connectionSection.createDiv('tp-section-header-icon')
 		setIcon(connectionIcon, 'server')
-		connectionSection.createSpan({ text: 'Connection Settings', cls: 'tp-section-header-title' })
+		connectionSection.createSpan({ text: 'Connection settings', cls: 'tp-section-header-title' })
 
 		new Setting(containerEl)
-			.setName('OBS Host')
+			.setName('OBS host')
 			.setDesc('OBS WebSocket server host (usually 127.0.0.1)')
 			.addText(t => t
 				.setPlaceholder('127.0.0.1')
@@ -2230,7 +2235,7 @@ export class TeleprompterSettingTab extends PluginSettingTab {
 			)
 
 		new Setting(containerEl)
-			.setName('OBS Port')
+			.setName('OBS port')
 			.setDesc('OBS WebSocket server port (default: 4455 for OBS 28+)')
 			.addText(t => t
 				.setPlaceholder('4455')
@@ -2245,7 +2250,7 @@ export class TeleprompterSettingTab extends PluginSettingTab {
 			)
 
 		new Setting(containerEl)
-			.setName('OBS Password')
+			.setName('OBS password')
 			.setDesc('WebSocket server password (leave empty if not set in OBS)')
 			.addText(t => {
 				t.inputEl.type = 'password'
@@ -2262,7 +2267,7 @@ export class TeleprompterSettingTab extends PluginSettingTab {
 		const syncSection = containerEl.createDiv('tp-section-header')
 		const syncIcon = syncSection.createDiv('tp-section-header-icon')
 		setIcon(syncIcon, 'link')
-		syncSection.createSpan({ text: 'Playback Sync', cls: 'tp-section-header-title' })
+		syncSection.createSpan({ text: 'Playback sync', cls: 'tp-section-header-title' })
 
 		new Setting(containerEl)
 			.setName('Sync recording with teleprompter')
@@ -2291,7 +2296,7 @@ export class TeleprompterSettingTab extends PluginSettingTab {
 			const controlsSection = containerEl.createDiv('tp-section-header')
 			const controlsIcon = controlsSection.createDiv('tp-section-header-icon')
 			setIcon(controlsIcon, 'sliders-horizontal')
-			controlsSection.createSpan({ text: 'Manual Controls', cls: 'tp-section-header-title' })
+			controlsSection.createSpan({ text: 'Manual controls', cls: 'tp-section-header-title' })
 
 			const controlsContainer = containerEl.createDiv('tp-flex-container')
 
@@ -2335,7 +2340,7 @@ export class TeleprompterSettingTab extends PluginSettingTab {
 		const guideSection = containerEl.createDiv('tp-section-header')
 		const guideIcon = guideSection.createDiv('tp-section-header-icon')
 		setIcon(guideIcon, 'help-circle')
-		guideSection.createSpan({ text: 'Setup Guide', cls: 'tp-section-header-title' })
+		guideSection.createSpan({ text: 'Setup guide', cls: 'tp-section-header-title' })
 
 		const guideEl = containerEl.createDiv()
 		guideEl.createEl('p', {
@@ -2365,7 +2370,7 @@ export class TeleprompterSettingTab extends PluginSettingTab {
 		const aboutHeader = containerEl.createDiv('tp-about-header')
 		const aboutLogo = aboutHeader.createDiv('tp-about-logo')
 		setIcon(aboutLogo, 'presentation')
-		aboutHeader.createDiv({ text: 'Teleprompter Plus', cls: 'tp-about-name' })
+		aboutHeader.createDiv({ text: 'Teleprompter Plus', cls: 'tp-about-name' })  // Proper noun - keep title case
 		aboutHeader.createDiv({ text: 'Version 1.0.0', cls: 'tp-about-version' })
 
 		// Links row
@@ -2418,7 +2423,7 @@ export class TeleprompterSettingTab extends PluginSettingTab {
 		const shortcutsSection = containerEl.createDiv('tp-section-header')
 		const shortcutsIcon = shortcutsSection.createDiv('tp-section-header-icon')
 		setIcon(shortcutsIcon, 'keyboard')
-		shortcutsSection.createSpan({ text: 'Keyboard Shortcuts', cls: 'tp-section-header-title' })
+		shortcutsSection.createSpan({ text: 'Keyboard shortcuts', cls: 'tp-section-header-title' })
 
 		const shortcutsTable = containerEl.createEl('table', { cls: 'tp-shortcuts-table' })
 		const shortcutsHead = shortcutsTable.createEl('thead')

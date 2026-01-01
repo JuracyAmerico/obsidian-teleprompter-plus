@@ -62,11 +62,12 @@ export function loadWebSocketModule(): WebSocketModule {
 	try {
 		const path = require('path')
 
-		// Get Obsidian's app path
-		const app = (window as unknown as { app?: { vault?: { adapter?: { basePath?: string } } } }).app
+		// Get Obsidian's app path - use configDir instead of hardcoded .obsidian
+		const app = (window as unknown as { app?: { vault?: { adapter?: { basePath?: string }, configDir?: string } } }).app
 		if (app?.vault?.adapter?.basePath) {
 			const vaultPath = app.vault.adapter.basePath
-			const wsPath = path.join(vaultPath, '.obsidian', 'plugins', 'teleprompter-plus', 'node_modules', 'ws')
+			const configDir = app.vault.configDir || '.obsidian'
+			const wsPath = path.join(vaultPath, configDir, 'plugins', 'teleprompter-plus', 'node_modules', 'ws')
 
 			const ws = require(wsPath)
 
@@ -87,11 +88,14 @@ export function loadWebSocketModule(): WebSocketModule {
 		const process = require('process')
 
 		const cwd = process.cwd()
+		// Get configDir from app if available
+		const app = (window as unknown as { app?: { vault?: { configDir?: string } } }).app
+		const configDir = app?.vault?.configDir || '.obsidian'
 
 		// Try various possible paths
 		const possiblePaths = [
 			path.join(cwd, 'node_modules', 'ws'),
-			path.join(cwd, '.obsidian', 'plugins', 'teleprompter-plus', 'node_modules', 'ws'),
+			path.join(cwd, configDir, 'plugins', 'teleprompter-plus', 'node_modules', 'ws'),
 		]
 
 		for (const wsPath of possiblePaths) {
@@ -174,13 +178,14 @@ export function getDiagnostics(): Record<string, unknown> {
 
 	try {
 		const path = require('path')
-		const app = (window as unknown as { app?: { vault?: { adapter?: { basePath?: string } } } }).app
+		const app = (window as unknown as { app?: { vault?: { adapter?: { basePath?: string }, configDir?: string } } }).app
 
 		if (app?.vault?.adapter?.basePath) {
+			const configDir = app.vault.configDir || '.obsidian'
 			diagnostics.vaultPath = app.vault.adapter.basePath
 			diagnostics.pluginPath = path.join(
 				app.vault.adapter.basePath,
-				'.obsidian',
+				configDir,
 				'plugins',
 				'teleprompter-plus'
 			)
