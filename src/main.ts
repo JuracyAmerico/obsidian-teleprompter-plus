@@ -1336,7 +1336,7 @@ Use this address to connect from Stream Deck or other devices.`
 	increaseFontSize(): void {
 		const newSize = Math.min(this.settings.fontSize + 2, this.settings.maxFontSize)
 		this.settings.fontSize = newSize
-		this.saveSettings()
+		void this.saveSettings()
 		this.updateFontSize(newSize)
 	}
 
@@ -1346,7 +1346,7 @@ Use this address to connect from Stream Deck or other devices.`
 	decreaseFontSize(): void {
 		const newSize = Math.max(this.settings.fontSize - 2, this.settings.minFontSize)
 		this.settings.fontSize = newSize
-		this.saveSettings()
+		void this.saveSettings()
 		this.updateFontSize(newSize)
 	}
 
@@ -1528,7 +1528,7 @@ Use this address to connect from Stream Deck or other devices.`
 		} else if (!this.settings.showReleaseNotes && isVersionUpdated) {
 			// Silently update the version if user disabled the modal
 			this.settings.lastSeenVersion = currentVersion
-			this.saveSettings()
+			void this.saveSettings()
 		}
 	}
 }

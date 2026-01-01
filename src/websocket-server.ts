@@ -180,7 +180,7 @@ export class TeleprompterWebSocketServer {
 	private config: Required<WebSocketServerConfig>
 	private commandHandlers: Map<string, (params?: Record<string, unknown>) => void | Promise<void>> = new Map()
 	private currentState: TeleprompterState
-	private heartbeatInterval: NodeJS.Timeout | null = null
+	private heartbeatInterval: ReturnType<typeof setInterval> | null = null
 	private isShuttingDown = false
 	private clientRateLimits: Map<WebSocket, { count: number; resetTime: number }> = new Map()
 	private authenticatedClients: Set<WebSocket> = new Set()
