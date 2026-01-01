@@ -467,7 +467,7 @@ export class TeleprompterSettingTab extends PluginSettingTab {
 
 		// Header with search
 		const header = containerEl.createDiv('tp-settings-header')
-		header.createEl('h2', { text: 'Teleprompter Plus', cls: 'tp-settings-title' })
+		new Setting(header).setName('Teleprompter Plus').setHeading()
 
 		// Search box
 		const searchContainer = header.createDiv('tp-search-container')
@@ -2078,7 +2078,12 @@ export class TeleprompterSettingTab extends PluginSettingTab {
 			const ipHint = remoteGuide.createEl('p', {
 				cls: 'setting-item-description'
 			})
-			ipHint.innerHTML = '<strong>Tip:</strong> To access from your phone, change the Host setting above to <code>0.0.0.0</code> and use your computer\'s local IP address. On macOS: System Settings → Wi-Fi → Details... → TCP/IP → IP address. Or run <code>ipconfig getifaddr en0</code> in Terminal.'
+			ipHint.createEl('strong', { text: 'Tip:' })
+			ipHint.appendText(' To access from your phone, change the Host setting above to ')
+			ipHint.createEl('code', { text: '0.0.0.0' })
+			ipHint.appendText(' and use your computer\'s local IP address. On macOS: System Settings → Wi-Fi → Details... → TCP/IP → IP address. Or run ')
+			ipHint.createEl('code', { text: 'ipconfig getifaddr en0' })
+			ipHint.appendText(' in Terminal.')
 		}
 
 		// Stream Deck Guide

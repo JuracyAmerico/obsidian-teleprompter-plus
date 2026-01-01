@@ -64,9 +64,9 @@ export function loadWebSocketModule(): WebSocketModule {
 
 		// Get Obsidian's app path - use configDir instead of hardcoded .obsidian
 		const app = (window as unknown as { app?: { vault?: { adapter?: { basePath?: string }, configDir?: string } } }).app
-		if (app?.vault?.adapter?.basePath) {
+		if (app?.vault?.adapter?.basePath && app.vault.configDir) {
 			const vaultPath = app.vault.adapter.basePath
-			const configDir = app.vault.configDir || '.obsidian'
+			const configDir = app.vault.configDir
 			const wsPath = path.join(vaultPath, configDir, 'plugins', 'teleprompter-plus', 'node_modules', 'ws')
 
 			const ws = require(wsPath)
@@ -90,13 +90,15 @@ export function loadWebSocketModule(): WebSocketModule {
 		const cwd = process.cwd()
 		// Get configDir from app if available
 		const app = (window as unknown as { app?: { vault?: { configDir?: string } } }).app
-		const configDir = app?.vault?.configDir || '.obsidian'
+		const configDir = app?.vault?.configDir
 
 		// Try various possible paths
-		const possiblePaths = [
-			path.join(cwd, 'node_modules', 'ws'),
-			path.join(cwd, configDir, 'plugins', 'teleprompter-plus', 'node_modules', 'ws'),
-		]
+		const possiblePaths = configDir
+			? [
+				path.join(cwd, 'node_modules', 'ws'),
+				path.join(cwd, configDir, 'plugins', 'teleprompter-plus', 'node_modules', 'ws'),
+			]
+			: [path.join(cwd, 'node_modules', 'ws')]
 
 		for (const wsPath of possiblePaths) {
 			try {
@@ -180,12 +182,11 @@ export function getDiagnostics(): Record<string, unknown> {
 		const path = require('path')
 		const app = (window as unknown as { app?: { vault?: { adapter?: { basePath?: string }, configDir?: string } } }).app
 
-		if (app?.vault?.adapter?.basePath) {
-			const configDir = app.vault.configDir || '.obsidian'
+		if (app?.vault?.adapter?.basePath && app.vault.configDir) {
 			diagnostics.vaultPath = app.vault.adapter.basePath
 			diagnostics.pluginPath = path.join(
 				app.vault.adapter.basePath,
-				configDir,
+				app.vault.configDir,
 				'plugins',
 				'teleprompter-plus'
 			)

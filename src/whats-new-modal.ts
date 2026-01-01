@@ -135,12 +135,12 @@ export class WhatsNewModal extends Modal {
 		closeButton.addEventListener('click', () => this.close())
 	}
 
-	async onClose() {
+	onClose() {
 		const { contentEl } = this
 		contentEl.empty()
 
 		// Update last seen version
 		this.plugin.settings.lastSeenVersion = this.version
-		await this.plugin.saveSettings()
+		void this.plugin.saveSettings()
 	}
 }
