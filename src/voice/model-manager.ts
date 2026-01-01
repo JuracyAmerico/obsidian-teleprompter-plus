@@ -107,14 +107,14 @@ export class ModelManager {
    * @param languageCode - Language code (e.g., 'en-US')
    * @returns Promise that resolves when download is complete
    */
-  async downloadModel(languageCode: string): Promise<void> {
+  downloadModel(languageCode: string): void {
     const config = this.getLanguageConfig(languageCode)
     if (!config) {
       throw new Error(`Unsupported language: ${languageCode}`)
     }
 
     // Check if already downloaded
-    if (await this.isModelDownloaded(languageCode)) {
+    if (this.isModelDownloaded(languageCode)) {
       return
     }
 

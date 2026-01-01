@@ -461,13 +461,13 @@ export default class TeleprompterPlusPlugin extends Plugin {
 		})
 	}
 
-	async onunload() {
+	onunload() {
 		// Stop WebSocket server
-		await this.stopWebSocketServer()
+		void this.stopWebSocketServer()
 
 		// Disconnect from OBS
 		if (this.obsService) {
-			await this.obsService.destroy()
+			void this.obsService.destroy()
 			this.obsService = null
 		}
 	}
