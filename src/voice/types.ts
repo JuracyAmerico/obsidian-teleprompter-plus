@@ -93,13 +93,13 @@ export interface VoiceTrackingConfig {
  */
 export interface VoiceTrackingEvents {
   /** Called when status changes */
-  onStatusChange: (status: VoiceTrackingStatus) => void
+  onStatusChange: (_status: VoiceTrackingStatus) => void
   /** Called when speech is recognized */
-  onRecognizedText: (text: string, isFinal: boolean) => void
+  onRecognizedText: (_text: string, _isFinal: boolean) => void
   /** Called when a word match is found */
-  onWordMatch: (wordIndex: number, scrollPosition: number) => void
+  onWordMatch: (_wordIndex: number, _scrollPosition: number) => void
   /** Called on error */
-  onError: (error: VoiceTrackingError, message: string) => void
+  onError: (_error: VoiceTrackingError, _message: string) => void
 }
 
 /**

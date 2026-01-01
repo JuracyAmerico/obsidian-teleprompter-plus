@@ -54,7 +54,7 @@ export class TeleprompterView extends ItemView {
 	onClose() {
 		// Unmount Svelte 5 component
 		if (this.component) {
-			unmount(this.component)
+			void unmount(this.component)
 		}
 	}
 }

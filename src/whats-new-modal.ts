@@ -88,7 +88,7 @@ export class WhatsNewModal extends Modal {
 
 		// Ko-fi support section
 		const supportSection = contentEl.createDiv({ cls: 'whats-new-support' })
-		supportSection.createEl('h3', { text: 'Support Development' })
+		supportSection.createEl('h3', { text: 'Support development' })
 		supportSection.createEl('p', {
 			text: 'If Teleprompter Plus helps your workflow, consider supporting its development!',
 			cls: 'support-text'
@@ -129,7 +129,7 @@ export class WhatsNewModal extends Modal {
 
 		// Close button
 		const closeButton = footer.createEl('button', {
-			text: 'Get Started',
+			text: 'Get started',
 			cls: 'whats-new-close-button mod-cta'
 		})
 		closeButton.addEventListener('click', () => this.close())

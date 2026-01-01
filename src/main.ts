@@ -1,4 +1,4 @@
-import { Plugin, Notice, addIcon, TFile } from 'obsidian'
+import { Plugin, Notice, addIcon, TFile, WorkspaceLeaf } from 'obsidian'
 import { TeleprompterView, VIEW_TYPE_TELEPROMPTER } from './view'
 import { TeleprompterWebSocketServer, type TeleprompterState } from './websocket-server'
 import { TeleprompterSettingTab, DEFAULT_SETTINGS } from './settings'
@@ -173,7 +173,7 @@ export default class TeleprompterPlusPlugin extends Plugin {
 		// Add command to show WebSocket info
 		this.addCommand({
 			id: 'websocket-info',
-			name: 'Show WebSocket info',
+			name: 'Show websocket info',
 			callback: () => {
 				this.showWebSocketInfo()
 			},
@@ -390,7 +390,7 @@ export default class TeleprompterPlusPlugin extends Plugin {
 		// ===== OBS Integration Commands =====
 		this.addCommand({
 			id: 'obs-connect',
-			name: 'OBS: connect',
+			name: 'OBS: Connect',
 			callback: () => {
 				void this.connectOBS()
 			},
@@ -398,7 +398,7 @@ export default class TeleprompterPlusPlugin extends Plugin {
 
 		this.addCommand({
 			id: 'obs-disconnect',
-			name: 'OBS: disconnect',
+			name: 'OBS: Disconnect',
 			callback: () => {
 				void this.disconnectOBS()
 			},
@@ -406,7 +406,7 @@ export default class TeleprompterPlusPlugin extends Plugin {
 
 		this.addCommand({
 			id: 'obs-toggle-recording',
-			name: 'OBS: toggle recording',
+			name: 'OBS: Toggle recording',
 			callback: () => {
 				void this.toggleOBSRecording()
 			},
@@ -414,7 +414,7 @@ export default class TeleprompterPlusPlugin extends Plugin {
 
 		this.addCommand({
 			id: 'obs-start-recording',
-			name: 'OBS: start recording',
+			name: 'OBS: Start recording',
 			callback: () => {
 				void this.startOBSRecording()
 			},
@@ -422,7 +422,7 @@ export default class TeleprompterPlusPlugin extends Plugin {
 
 		this.addCommand({
 			id: 'obs-stop-recording',
-			name: 'OBS: stop recording',
+			name: 'OBS: Stop recording',
 			callback: () => {
 				void this.stopOBSRecording()
 			},
@@ -430,7 +430,7 @@ export default class TeleprompterPlusPlugin extends Plugin {
 
 		this.addCommand({
 			id: 'obs-toggle-streaming',
-			name: 'OBS: toggle streaming',
+			name: 'OBS: Toggle streaming',
 			callback: () => {
 				void this.toggleOBSStreaming()
 			},
@@ -438,7 +438,7 @@ export default class TeleprompterPlusPlugin extends Plugin {
 
 		this.addCommand({
 			id: 'obs-start-streaming',
-			name: 'OBS: start streaming',
+			name: 'OBS: Start streaming',
 			callback: () => {
 				void this.startOBSStreaming()
 			},
@@ -446,7 +446,7 @@ export default class TeleprompterPlusPlugin extends Plugin {
 
 		this.addCommand({
 			id: 'obs-stop-streaming',
-			name: 'OBS: stop streaming',
+			name: 'OBS: Stop streaming',
 			callback: () => {
 				void this.stopOBSStreaming()
 			},
@@ -491,7 +491,7 @@ export default class TeleprompterPlusPlugin extends Plugin {
 
 		// Reveal the leaf in case it's in a collapsed sidebar
 		if (leaf) {
-			workspace.revealLeaf(leaf)
+			void workspace.revealLeaf(leaf)
 		}
 	}
 
@@ -525,7 +525,7 @@ export default class TeleprompterPlusPlugin extends Plugin {
 					5000
 				)
 			} else {
-				new Notice('Teleprompter: failed to start WebSocket server', 5000)
+				new Notice('Teleprompter: Failed to start websocket server', 5000)
 			}
 		}
 	}
@@ -1039,7 +1039,7 @@ export default class TeleprompterPlusPlugin extends Plugin {
 	 */
 	private showWebSocketInfo(): void {
 		if (!this.wsServer) {
-			new Notice('WebSocket server not running')
+			new Notice('Websocket server not running')
 			return
 		}
 
