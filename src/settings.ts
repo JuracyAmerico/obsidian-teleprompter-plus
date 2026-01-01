@@ -467,7 +467,7 @@ export class TeleprompterSettingTab extends PluginSettingTab {
 
 		// Header with search
 		const header = containerEl.createDiv('tp-settings-header')
-		new Setting(header).setName('Teleprompter Plus settings').setHeading()
+		new Setting(header).setName('Teleprompter Plus').setHeading()
 
 		// Search box
 		const searchContainer = header.createDiv('tp-search-container')
@@ -577,11 +577,11 @@ export class TeleprompterSettingTab extends PluginSettingTab {
 			setIcon(chipIcon, profile.icon)
 			chip.createSpan({ text: profile.name })
 
-			chip.addEventListener('click', async () => {
+			chip.addEventListener('click', () => {
 				// Apply profile settings
 				Object.assign(this.plugin.settings, profile.settings)
 				this.plugin.settings.profiles.active = profile.id
-				await this.plugin.saveSettings()
+				void this.plugin.saveSettings()
 				this.plugin.applyAllSettings()
 				new Notice(`Applied "${profile.name}" profile`)
 				this.display()
@@ -682,7 +682,7 @@ export class TeleprompterSettingTab extends PluginSettingTab {
 				const file = (e.target as HTMLInputElement).files?.[0]
 				if (!file) return
 				const reader = new FileReader()
-				reader.onload = async (event) => {
+				reader.onload = (event) => {
 					try {
 						const imported = JSON.parse(event.target?.result as string)
 						const validKeys = Object.keys(DEFAULT_SETTINGS) as Array<keyof TeleprompterSettings>
@@ -693,7 +693,7 @@ export class TeleprompterSettingTab extends PluginSettingTab {
 							}
 						}
 						Object.assign(this.plugin.settings, importedFiltered)
-						await this.plugin.saveSettings()
+						void this.plugin.saveSettings()
 						new Notice('Settings imported')
 						this.display()
 					} catch {
@@ -800,7 +800,7 @@ export class TeleprompterSettingTab extends PluginSettingTab {
 				item.classList.remove('drag-over')
 			})
 
-			item.addEventListener('drop', async (e) => {
+			item.addEventListener('drop', (e) => {
 				e.preventDefault()
 				item.classList.remove('drag-over')
 
@@ -821,7 +821,7 @@ export class TeleprompterSettingTab extends PluginSettingTab {
 					this.plugin.settings.toolbarLayout.primary = allEnabled
 					this.plugin.settings.toolbarLayout.secondary = []
 
-					await this.plugin.saveSettings()
+					void this.plugin.saveSettings()
 					// Notify teleprompter view to update toolbar
 					activeDocument.dispatchEvent(new CustomEvent('teleprompter:toolbar-changed'))
 					this.display()
@@ -860,7 +860,7 @@ export class TeleprompterSettingTab extends PluginSettingTab {
 			const toggle = new Setting(toggleContainer)
 				.addToggle(t => t
 					.setValue(!isHidden)
-					.onChange(async (value) => {
+					.onChange((value) => {
 						if (value) {
 							// Remove from hidden
 							this.plugin.settings.toolbarLayout.hidden =
@@ -878,7 +878,7 @@ export class TeleprompterSettingTab extends PluginSettingTab {
 							this.plugin.settings.toolbarLayout.primary =
 								this.plugin.settings.toolbarLayout.primary.filter(id => id !== control.id)
 						}
-						await this.plugin.saveSettings()
+						void this.plugin.saveSettings()
 						// Notify teleprompter view to update toolbar
 						activeDocument.dispatchEvent(new CustomEvent('teleprompter:toolbar-changed'))
 						this.display()
@@ -1563,14 +1563,14 @@ export class TeleprompterSettingTab extends PluginSettingTab {
 		setIcon(chevron, 'chevron-down')
 		groupHeader.createSpan({ text: title, cls: 'tp-feature-group-title' })
 
-		groupHeader.addEventListener('click', async () => {
+		groupHeader.addEventListener('click', () => {
 			if (isExpanded) {
 				this.plugin.settings.settingsUI.expandedCards =
 					this.plugin.settings.settingsUI.expandedCards.filter(id => id !== groupId)
 			} else {
 				this.plugin.settings.settingsUI.expandedCards.push(groupId)
 			}
-			await this.plugin.saveSettings()
+			void this.plugin.saveSettings()
 			this.display()
 		})
 
@@ -1718,10 +1718,10 @@ export class TeleprompterSettingTab extends PluginSettingTab {
 			const applyBtn = actions.createEl('button', { cls: 'tp-profile-action' })
 			setIcon(applyBtn, 'check')
 			applyBtn.title = 'Apply profile'
-			applyBtn.addEventListener('click', async () => {
+			applyBtn.addEventListener('click', () => {
 				Object.assign(this.plugin.settings, profile.settings)
 				this.plugin.settings.profiles.active = profile.id
-				await this.plugin.saveSettings()
+				void this.plugin.saveSettings()
 				this.plugin.applyAllSettings()
 				new Notice(`Applied "${profile.name}" profile`)
 				this.display()
@@ -1764,10 +1764,10 @@ export class TeleprompterSettingTab extends PluginSettingTab {
 				const applyBtn = actions.createEl('button', { cls: 'tp-profile-action' })
 				setIcon(applyBtn, 'check')
 				applyBtn.title = 'Apply profile'
-				applyBtn.addEventListener('click', async () => {
+				applyBtn.addEventListener('click', () => {
 					Object.assign(this.plugin.settings, profile.settings)
 					this.plugin.settings.profiles.active = profile.id
-					await this.plugin.saveSettings()
+					void this.plugin.saveSettings()
 					this.plugin.applyAllSettings()
 					new Notice(`Applied "${profile.name}" profile`)
 					this.display()
@@ -1808,7 +1808,7 @@ export class TeleprompterSettingTab extends PluginSettingTab {
 			new PromptModal(
 				this.app,
 				'Enter profile name',
-				async (name) => {
+				(name) => {
 					const newProfile: Profile = {
 						id: `custom-${Date.now()}`,
 						name,
@@ -1825,7 +1825,7 @@ export class TeleprompterSettingTab extends PluginSettingTab {
 					delete profileSettings.toolbarLayout
 
 					this.plugin.settings.profiles.custom.push(newProfile)
-					await this.plugin.saveSettings()
+					void this.plugin.saveSettings()
 					new Notice(`Profile "${name}" saved`)
 					this.display()
 				},
@@ -1846,7 +1846,7 @@ export class TeleprompterSettingTab extends PluginSettingTab {
 				const file = (e.target as HTMLInputElement).files?.[0]
 				if (!file) return
 				const reader = new FileReader()
-				reader.onload = async (event) => {
+				reader.onload = (event) => {
 					try {
 						const imported = JSON.parse(event.target?.result as string)
 						if (imported.name && imported.settings) {
@@ -1854,7 +1854,7 @@ export class TeleprompterSettingTab extends PluginSettingTab {
 							imported.createdAt = Date.now()
 							imported.isBuiltIn = false
 							this.plugin.settings.profiles.custom.push(imported)
-							await this.plugin.saveSettings()
+							void this.plugin.saveSettings()
 							new Notice(`Profile "${imported.name}" imported`)
 							this.display()
 						} else {
@@ -1902,11 +1902,10 @@ export class TeleprompterSettingTab extends PluginSettingTab {
 			cls: 'tp-btn tp-btn-primary',
 			text: wsInfo.running ? 'Restart' : 'Start'
 		})
-		controlBtn.addEventListener('click', async () => {
+		controlBtn.addEventListener('click', () => {
 			controlBtn.disabled = true
 			controlBtn.textContent = 'Restarting...'
-			await this.plugin.restartWebSocketServer()
-			this.display()
+			void this.plugin.restartWebSocketServer().then(() => this.display())
 		})
 
 		// Auto-refresh status
@@ -1929,9 +1928,9 @@ export class TeleprompterSettingTab extends PluginSettingTab {
 			.setDesc('Start websocket server when Obsidian loads')
 			.addToggle(t => t
 				.setValue(this.plugin.settings.autoStartWebSocket)
-				.onChange(async (value) => {
+				.onChange((value) => {
 					this.plugin.settings.autoStartWebSocket = value
-					await this.plugin.saveSettings()
+					void this.plugin.saveSettings()
 				})
 			)
 
@@ -1941,11 +1940,11 @@ export class TeleprompterSettingTab extends PluginSettingTab {
 			.addText(t => t
 				.setPlaceholder('8765')
 				.setValue(this.plugin.settings.wsPort.toString())
-				.onChange(async (value) => {
+				.onChange((value) => {
 					const port = parseInt(value)
 					if (port >= 1024 && port <= 65535) {
 						this.plugin.settings.wsPort = port
-						await this.plugin.saveSettings()
+						void this.plugin.saveSettings()
 					}
 				})
 			)
@@ -1956,12 +1955,12 @@ export class TeleprompterSettingTab extends PluginSettingTab {
 			.addText(t => t
 				.setPlaceholder('127.0.0.1')
 				.setValue(this.plugin.settings.wsHost)
-				.onChange(async (value) => {
+				.onChange((value) => {
 					// Validate host - only allow valid IP addresses or localhost
 					const hostPattern = /^(127\.0\.0\.1|localhost|0\.0\.0\.0|\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})$/
 					if (hostPattern.test(value.trim())) {
 						this.plugin.settings.wsHost = value.trim()
-						await this.plugin.saveSettings()
+						void this.plugin.saveSettings()
 						// Warn if not localhost
 						if (value !== '127.0.0.1' && value !== 'localhost') {
 							new Notice('Warning: Non-localhost binding exposes the server to the network.')
@@ -1975,9 +1974,9 @@ export class TeleprompterSettingTab extends PluginSettingTab {
 			.setDesc('Show notifications when clients connect/disconnect')
 			.addToggle(t => t
 				.setValue(this.plugin.settings.showConnectionNotifications)
-				.onChange(async (value) => {
+				.onChange((value) => {
 					this.plugin.settings.showConnectionNotifications = value
-					await this.plugin.saveSettings()
+					void this.plugin.saveSettings()
 				})
 			)
 
@@ -1992,9 +1991,9 @@ export class TeleprompterSettingTab extends PluginSettingTab {
 			.setDesc('Broadcast scroll position to connected devices for multi-device sync. Other devices can follow this teleprompter.')
 			.addToggle(t => t
 				.setValue(this.plugin.settings.networkBroadcastEnabled)
-				.onChange(async (value) => {
+				.onChange((value) => {
 					this.plugin.settings.networkBroadcastEnabled = value
-					await this.plugin.saveSettings()
+					void this.plugin.saveSettings()
 				})
 			)
 
@@ -2005,9 +2004,9 @@ export class TeleprompterSettingTab extends PluginSettingTab {
 				.setLimits(50, 500, 50)
 				.setValue(this.plugin.settings.networkBroadcastInterval)
 				.setDynamicTooltip()
-				.onChange(async (value) => {
+				.onChange((value) => {
 					this.plugin.settings.networkBroadcastInterval = value
-					await this.plugin.saveSettings()
+					void this.plugin.saveSettings()
 				})
 			)
 
@@ -2150,16 +2149,15 @@ export class TeleprompterSettingTab extends PluginSettingTab {
 			cls: 'tp-btn tp-btn-primary',
 			text: obsInfo.status === 'connected' ? 'Disconnect' : 'Connect'
 		})
-		controlBtn.addEventListener('click', async () => {
+		controlBtn.addEventListener('click', () => {
 			controlBtn.disabled = true
 			if (obsInfo.status === 'connected') {
 				controlBtn.textContent = 'Disconnecting...'
-				await this.plugin.disconnectOBS()
+				void this.plugin.disconnectOBS().then(() => this.display())
 			} else {
 				controlBtn.textContent = 'Connecting...'
-				await this.plugin.connectOBS()
+				void this.plugin.connectOBS().then(() => this.display())
 			}
-			this.display()
 		})
 
 		// Auto-refresh OBS status
@@ -2201,11 +2199,11 @@ export class TeleprompterSettingTab extends PluginSettingTab {
 			.setDesc('Allow the plugin to connect to OBS Studio')
 			.addToggle(t => t
 				.setValue(this.plugin.settings.obsEnabled)
-				.onChange(async (value) => {
+				.onChange((value) => {
 					this.plugin.settings.obsEnabled = value
-					await this.plugin.saveSettings()
+					void this.plugin.saveSettings()
 					if (!value) {
-						await this.plugin.disconnectOBS()
+						void this.plugin.disconnectOBS()
 					}
 					this.display()
 				})
@@ -2216,9 +2214,9 @@ export class TeleprompterSettingTab extends PluginSettingTab {
 			.setDesc('Automatically connect to OBS when the plugin loads')
 			.addToggle(t => t
 				.setValue(this.plugin.settings.obsAutoConnect)
-				.onChange(async (value) => {
+				.onChange((value) => {
 					this.plugin.settings.obsAutoConnect = value
-					await this.plugin.saveSettings()
+					void this.plugin.saveSettings()
 				})
 			)
 
@@ -2234,9 +2232,9 @@ export class TeleprompterSettingTab extends PluginSettingTab {
 			.addText(t => t
 				.setPlaceholder('127.0.0.1')
 				.setValue(this.plugin.settings.obsHost)
-				.onChange(async (value) => {
+				.onChange((value) => {
 					this.plugin.settings.obsHost = value.trim() || '127.0.0.1'
-					await this.plugin.saveSettings()
+					void this.plugin.saveSettings()
 				})
 			)
 
@@ -2246,11 +2244,11 @@ export class TeleprompterSettingTab extends PluginSettingTab {
 			.addText(t => t
 				.setPlaceholder('4455')
 				.setValue(this.plugin.settings.obsPort.toString())
-				.onChange(async (value) => {
+				.onChange((value) => {
 					const port = parseInt(value)
 					if (port >= 1024 && port <= 65535) {
 						this.plugin.settings.obsPort = port
-						await this.plugin.saveSettings()
+						void this.plugin.saveSettings()
 					}
 				})
 			)
@@ -2262,9 +2260,9 @@ export class TeleprompterSettingTab extends PluginSettingTab {
 				t.inputEl.type = 'password'
 				t.setPlaceholder('••••••••')
 				t.setValue(this.plugin.settings.obsPassword)
-				t.onChange(async (value) => {
+				t.onChange((value) => {
 					this.plugin.settings.obsPassword = value
-					await this.plugin.saveSettings()
+					void this.plugin.saveSettings()
 				})
 				return t
 			})
@@ -2280,9 +2278,9 @@ export class TeleprompterSettingTab extends PluginSettingTab {
 			.setDesc('Start OBS recording when teleprompter plays, stop when reset')
 			.addToggle(t => t
 				.setValue(this.plugin.settings.obsSyncRecording)
-				.onChange(async (value) => {
+				.onChange((value) => {
 					this.plugin.settings.obsSyncRecording = value
-					await this.plugin.saveSettings()
+					void this.plugin.saveSettings()
 				})
 			)
 
@@ -2291,9 +2289,9 @@ export class TeleprompterSettingTab extends PluginSettingTab {
 			.setDesc('Start OBS streaming when teleprompter plays, stop when reset')
 			.addToggle(t => t
 				.setValue(this.plugin.settings.obsSyncStreaming)
-				.onChange(async (value) => {
+				.onChange((value) => {
 					this.plugin.settings.obsSyncStreaming = value
-					await this.plugin.saveSettings()
+					void this.plugin.saveSettings()
 				})
 			)
 
@@ -2313,8 +2311,8 @@ export class TeleprompterSettingTab extends PluginSettingTab {
 			const recordBtnIcon = recordBtn.createDiv('tp-btn-icon')
 			setIcon(recordBtnIcon, obsInfo.isRecording ? 'square' : 'circle')
 			recordBtn.createSpan({ text: obsInfo.isRecording ? 'Stop Recording' : 'Start Recording' })
-			recordBtn.addEventListener('click', async () => {
-				await this.plugin.toggleOBSRecording()
+			recordBtn.addEventListener('click', () => {
+				void this.plugin.toggleOBSRecording()
 				// Brief delay then refresh
 				setTimeout(() => this.display(), 500)
 			})
@@ -2326,8 +2324,8 @@ export class TeleprompterSettingTab extends PluginSettingTab {
 			const streamBtnIcon = streamBtn.createDiv('tp-btn-icon')
 			setIcon(streamBtnIcon, obsInfo.isStreaming ? 'wifi-off' : 'wifi')
 			streamBtn.createSpan({ text: obsInfo.isStreaming ? 'Stop Streaming' : 'Start Streaming' })
-			streamBtn.addEventListener('click', async () => {
-				await this.plugin.toggleOBSStreaming()
+			streamBtn.addEventListener('click', () => {
+				void this.plugin.toggleOBSStreaming()
 				// Brief delay then refresh
 				setTimeout(() => this.display(), 500)
 			})
