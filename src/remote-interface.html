@@ -577,7 +577,7 @@
         ws = new WebSocket(wsUrl);
 
         ws.onopen = () => {
-          console.log('Connected to teleprompter');
+          console.debug('Connected to teleprompter');
           setConnectionStatus('connected');
           reconnectAttempts = 0;
           enableControls(true);
@@ -595,7 +595,7 @@
         };
 
         ws.onclose = () => {
-          console.log('Disconnected from teleprompter');
+          console.debug('Disconnected from teleprompter');
           setConnectionStatus('disconnected');
           enableControls(false);
           scheduleReconnect();
@@ -771,7 +771,7 @@
 
     // Countdown button - starts countdown if duration set, otherwise plays immediately
     countdownButton.addEventListener('click', () => {
-      console.log('[Remote] Countdown click, countdownSeconds:', state.countdownSeconds);
+      console.debug('[Remote] Countdown click, countdownSeconds:', state.countdownSeconds);
       if (state.countdownSeconds > 0) {
         sendCommand('start-countdown');
       } else {
@@ -791,7 +791,7 @@
         e.preventDefault();
         e.stopPropagation();
         const index = parseInt(target.dataset.index);
-        console.log('[Remote] Jumping to section:', index);
+        console.debug('[Remote] Jumping to section:', index);
         sendCommand('jump-to-header', { index });
         // Visual feedback
         target.style.background = 'rgba(233, 69, 96, 0.5)';
@@ -807,7 +807,7 @@
     countdownSelector.addEventListener('click', (e) => {
       if (e.target.classList.contains('countdown-option')) {
         const seconds = parseInt(e.target.dataset.seconds);
-        console.log('[Remote] Setting countdown to:', seconds);
+        console.debug('[Remote] Setting countdown to:', seconds);
         sendCommand('set-countdown', { seconds });
         // Update local state immediately for responsiveness
         state.countdownSeconds = seconds;

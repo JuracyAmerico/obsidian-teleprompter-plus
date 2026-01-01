@@ -182,7 +182,7 @@ export default class TeleprompterPlusPlugin extends Plugin {
 		// Add command to increase font size (no default hotkey to avoid conflicts)
 		this.addCommand({
 			id: 'increase-font-size',
-			name: 'Increase font size (command)',
+			name: 'Increase font size',
 			callback: () => {
 				this.increaseFontSize()
 				new Notice(`Font size: ${this.settings.fontSize}px`)
@@ -192,7 +192,7 @@ export default class TeleprompterPlusPlugin extends Plugin {
 		// Add command to decrease font size (no default hotkey to avoid conflicts)
 		this.addCommand({
 			id: 'decrease-font-size',
-			name: 'Decrease font size (command)',
+			name: 'Decrease font size',
 			callback: () => {
 				this.decreaseFontSize()
 				new Notice(`Font size: ${this.settings.fontSize}px`)
@@ -525,7 +525,7 @@ export default class TeleprompterPlusPlugin extends Plugin {
 					5000
 				)
 			} else {
-				new Notice('Teleprompter: Failed to start WebSocket server', 5000)
+				new Notice('Teleprompter: failed to start WebSocket server', 5000)
 			}
 		}
 	}
@@ -1039,7 +1039,7 @@ export default class TeleprompterPlusPlugin extends Plugin {
 	 */
 	private showWebSocketInfo(): void {
 		if (!this.wsServer) {
-			new Notice('WebSocket server is not running')
+			new Notice('WebSocket server not running')
 			return
 		}
 
@@ -1380,7 +1380,7 @@ Use this address to connect from Stream Deck or other devices.`
 			// Security: Sanitize note path
 			const notePath = this.sanitizeNotePath(params.note)
 			if (!notePath) {
-				new Notice('Teleprompter: Invalid note path')
+				new Notice('Teleprompter: invalid note path')
 				return
 			}
 

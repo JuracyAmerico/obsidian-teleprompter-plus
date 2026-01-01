@@ -428,39 +428,39 @@
 
   const TOOLBAR_CONTROL_DEFS: ToolbarControlDef[] = [
     // Core playback controls
-    { id: 'play-pause', type: 'icon-button', name: 'Play/Pause' },
+    { id: 'play-pause', type: 'icon-button', name: 'Play/pause' },
     { id: 'speed', type: 'popup-slider', name: 'Speed' },
     { id: 'countdown', type: 'popup-slider', name: 'Countdown' },
     { id: 'reset', type: 'icon-button', name: 'Reset' },
     // Display controls
-    { id: 'font-size', type: 'popup-slider', name: 'Font Size' },
-    { id: 'line-height', type: 'popup-slider', name: 'Line Height' },
-    { id: 'letter-spacing', type: 'popup-slider', name: 'Letter Spacing' },
-    { id: 'font-family', type: 'popup-list', name: 'Font Family' },
+    { id: 'font-size', type: 'popup-slider', name: 'Font size' },
+    { id: 'line-height', type: 'popup-slider', name: 'Line height' },
+    { id: 'letter-spacing', type: 'popup-slider', name: 'Letter spacing' },
+    { id: 'font-family', type: 'popup-list', name: 'Font family' },
     { id: 'opacity', type: 'popup-slider', name: 'Opacity' },
     { id: 'padding', type: 'popup-multi', name: 'Padding' },
-    { id: 'text-color', type: 'color-picker', name: 'Text Color' },
-    { id: 'bg-color', type: 'color-picker', name: 'Background Color' },
+    { id: 'text-color', type: 'color-picker', name: 'Text color' },
+    { id: 'bg-color', type: 'color-picker', name: 'Background color' },
     // Feature toggles
     { id: 'eyeline', type: 'icon-button', name: 'Eyeline' },
-    { id: 'focus-mode', type: 'icon-button', name: 'Focus Mode' },
+    { id: 'focus-mode', type: 'icon-button', name: 'Focus mode' },
     { id: 'navigation', type: 'icon-button', name: 'Navigation' },
     { id: 'fullscreen', type: 'icon-button', name: 'Fullscreen' },
-    { id: 'flip-h', type: 'icon-button', name: 'Flip Horizontal' },
-    { id: 'flip-v', type: 'icon-button', name: 'Flip Vertical' },
+    { id: 'flip-h', type: 'icon-button', name: 'Flip horizontal' },
+    { id: 'flip-v', type: 'icon-button', name: 'Flip vertical' },
     { id: 'minimap', type: 'icon-button', name: 'Minimap' },
     // Utility controls
     { id: 'auto-pause', type: 'icon-button', name: 'Auto-Pause' },
-    { id: 'progress-indicator', type: 'icon-button', name: 'Progress Indicator' },
-    { id: 'alignment', type: 'icon-button', name: 'Text Alignment' },
-    { id: 'keep-awake', type: 'icon-button', name: 'Keep Awake' },
-    { id: 'pin', type: 'icon-button', name: 'Pin Note' },
+    { id: 'progress-indicator', type: 'icon-button', name: 'Progress indicator' },
+    { id: 'alignment', type: 'icon-button', name: 'Text alignment' },
+    { id: 'keep-awake', type: 'icon-button', name: 'Keep awake' },
+    { id: 'pin', type: 'icon-button', name: 'Pin note' },
     { id: 'detach', type: 'icon-button', name: 'Open in Window' },
-    { id: 'quick-presets', type: 'popup-list', name: 'Quick Presets' },
+    { id: 'quick-presets', type: 'popup-list', name: 'Quick presets' },
     // Info displays
-    { id: 'time-display', type: 'info-display', name: 'Time Display' },
+    { id: 'time-display', type: 'info-display', name: 'Time display' },
     // Voice tracking
-    { id: 'voice-tracking', type: 'icon-button', name: 'Voice Tracking' },
+    { id: 'voice-tracking', type: 'icon-button', name: 'Voice tracking' },
   ]
 
   // Build ordered list of visible toolbar controls from settings
@@ -1439,7 +1439,7 @@
       }
     },
     {
-      name: 'Green Screen',
+      name: 'Green screen',
       icon: 'video',
       desc: 'Video production with chroma key',
       config: {
@@ -1499,9 +1499,9 @@
   // Color presets for quick selection
   const textColorPresets = [
     { color: '#ffffff', name: 'White' },
-    { color: '#e0e0e0', name: 'Light Gray' },
+    { color: '#e0e0e0', name: 'Light gray' },
     { color: '#a0a0a0', name: 'Gray' },
-    { color: '#606060', name: 'Dark Gray' },
+    { color: '#606060', name: 'Dark gray' },
     { color: '#000000', name: 'Black' },
     { color: '#ffeb3b', name: 'Yellow' },
     { color: '#ff9800', name: 'Orange' },
@@ -1513,12 +1513,12 @@
   const backgroundColorPresets = [
     { color: '#000000', name: 'Black' },
     { color: '#1a1a1a', name: 'Charcoal' },
-    { color: '#2d2d2d', name: 'Dark Gray' },
+    { color: '#2d2d2d', name: 'Dark gray' },
     { color: '#1e1e1e', name: 'VS Code' },
     { color: '#0d1117', name: 'GitHub Dark' },
-    { color: '#1a1a2e', name: 'Dark Blue' },
-    { color: '#1a2e1a', name: 'Dark Green' },
-    { color: '#2e1a1a', name: 'Dark Red' },
+    { color: '#1a1a2e', name: 'Dark blue' },
+    { color: '#1a2e1a', name: 'Dark green' },
+    { color: '#2e1a1a', name: 'Dark red' },
     { color: '#f4ecd8', name: 'Cream' },
     { color: '#ffffff', name: 'White' },
   ]
@@ -3148,7 +3148,7 @@
     actualDoc.addEventListener('keyup', handleFullScreenKeyRelease)
 
     // Add scroll listener to track current section (debounced for performance)
-    let scrollTimeout: NodeJS.Timeout | null = null
+    let scrollTimeout: ReturnType<typeof setTimeout> | null = null
     const handleScroll = () => {
       if (scrollTimeout) clearTimeout(scrollTimeout)
       scrollTimeout = setTimeout(() => {
@@ -4085,12 +4085,12 @@
             onclick={toggleFontSizeSlider}
             class="icon-btn"
             class:active={showFontSizeSlider}
-            title="Font Size: {fontSize}px (click to adjust)"
+            title="Font size: {fontSize}px (click to adjust)"
           ></button>
           {#if showFontSizeSlider}
             <div class="popup-slider">
               <label class="slider-label">
-                <span>Font Size: {fontSize}px</span>
+                <span>Font size: {fontSize}px</span>
                 <input
                   type="range"
                   bind:value={fontSize}
@@ -4145,12 +4145,12 @@
             onclick={toggleLineHeightSlider}
             class="icon-btn"
             class:active={showLineHeightSlider}
-            title="Line Height: {lineHeight} (click to adjust)"
+            title="Line height: {lineHeight} (click to adjust)"
           ></button>
           {#if showLineHeightSlider}
             <div class="popup-slider">
               <label class="slider-label">
-                <span>Line Height: {lineHeight}</span>
+                <span>Line height: {lineHeight}</span>
                 <input type="range" bind:value={lineHeight} oninput={() => broadcastState({ lineHeight })} min="1.0" max="3.0" step="0.1" />
               </label>
             </div>
