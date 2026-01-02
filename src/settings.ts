@@ -2070,7 +2070,7 @@ export class TeleprompterSettingTab extends PluginSettingTab {
 		})
 
 		const remoteSteps = remoteGuide.createEl('ol')
-		remoteSteps.createEl('li', { text: 'Ensure your phone is on the same WiFi network as this computer' })
+		remoteSteps.createEl('li', { text: 'Ensure your phone is on the same network as this computer' })
 		remoteSteps.createEl('li', { text: 'Open the URL above in your phone\'s browser' })
 		remoteSteps.createEl('li', { text: 'Use the play/pause button to control playback' })
 		remoteSteps.createEl('li', { text: 'Adjust speed, jump to sections, and more from your phone' })
@@ -2084,7 +2084,7 @@ export class TeleprompterSettingTab extends PluginSettingTab {
 			ipHint.appendText('To access from your phone, change the host setting above to ')
 			ipHint.createEl('code', { text: '0.0.0.0' })
 			ipHint.appendText(' and use your computer\'s local IP address. On macOS: System Settings → WiFi → Details → TCP/IP → IP address. Or run ')
-			ipHint.createEl('code', { text: 'ipconfig getifaddr en0' })
+			ipHint.createEl('code', { text: 'ipconfig getifaddr en0' })  // Terminal command - not sentence case
 			ipHint.appendText(' in terminal.')
 		}
 
@@ -2356,7 +2356,7 @@ export class TeleprompterSettingTab extends PluginSettingTab {
 
 		const steps = guideEl.createEl('ol')
 		steps.createEl('li', { text: 'Open the streaming software (version 28 or later)' })
-		steps.createEl('li', { text: 'Go to Tools → websocket server settings' })
+		steps.createEl('li', { text: 'Go to tools menu, then websocket server settings' })
 		steps.createEl('li', { text: 'Enable the websocket server' })
 		steps.createEl('li', { text: 'Set a password if desired (optional)' })
 		steps.createEl('li', { text: 'Note the port number (default: 4455)' })

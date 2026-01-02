@@ -33,7 +33,7 @@ export class WhatsNewModal extends Modal {
 
 		// Title and version
 		const titleContainer = header.createDiv({ cls: 'whats-new-title-container' })
-		titleContainer.createEl('h2', { text: 'Teleprompter Plus', cls: 'whats-new-title' })
+		titleContainer.createEl('h2', { text: 'Teleprompter Plus', cls: 'whats-new-title' })  // Plugin name - intentional title case
 		titleContainer.createEl('span', { text: `v${this.version}`, cls: 'whats-new-version' })
 
 		// Welcome message

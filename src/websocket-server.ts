@@ -19,16 +19,19 @@ import { REMOTE_INTERFACE_HTML } from './remote-interface'
 // Declare require for runtime module loading (Obsidian/Electron environment)
 declare function require(_name: 'http'): typeof import('http')
 
-// HTTP types for type safety
-type HttpServer = ReturnType<typeof import('http').createServer>
+// HTTP types for type safety - using minimal interface to avoid 'any' from Node types
+interface HttpServer {
+	listen: (port: number, host: string, callback?: () => void) => void
+	close: (callback?: (err?: Error) => void) => void
+	on: (event: string, handler: (...args: unknown[]) => void) => void
+}
 type IncomingMessage = import('http').IncomingMessage
 type ServerResponse = import('http').ServerResponse
 
 // Load WebSocket module at startup
 const wsModule = loadWebSocketModule()
 const WebSocketServerClass = wsModule.WebSocketServer
-// WebSocketClass available for future use but currently unused
-const _WebSocketClass = wsModule.WebSocket
+// Note: wsModule.WebSocket is available but not currently used
 
 // Type definitions for WebSocket instances
 type WebSocketServerInstance = {
