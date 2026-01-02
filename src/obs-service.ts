@@ -153,7 +153,7 @@ export class OBSService {
 			this.notifyStateChange()
 
 			if (this.settings.showConnectionNotifications) {
-				new Notice('Connected to OBS Studio')
+				new Notice('Connected to streaming software')
 			}
 
 			return true
@@ -165,7 +165,7 @@ export class OBSService {
 			this.notifyStateChange()
 
 			if (this.settings.showConnectionNotifications) {
-				new Notice(`OBS connection failed: ${error.message}`)
+				new Notice(`Connection failed: ${error.message}`)
 			}
 
 			return false
