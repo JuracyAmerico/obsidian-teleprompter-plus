@@ -83,8 +83,8 @@ export interface TeleprompterSettings {
 	obsPort: number
 	obsPassword: string
 	obsAutoConnect: boolean
-	obsSyncRecording: boolean // Start/stop OBS recording with teleprompter play/pause
-	obsSyncStreaming: boolean // Start/stop OBS streaming with teleprompter play/pause
+	obsSyncRecording: boolean // Start/stop streaming software recording with teleprompter play/pause
+	obsSyncStreaming: boolean // Start/stop streaming software streaming with teleprompter play/pause
 	fontSize: number
 	minFontSize: number
 	maxFontSize: number
@@ -192,7 +192,7 @@ export const DEFAULT_SETTINGS: TeleprompterSettings = {
 	// OBS Integration defaults
 	obsEnabled: false,
 	obsHost: '127.0.0.1',
-	obsPort: 4455, // OBS WebSocket v5 default port
+	obsPort: 4455, // streaming software websocket v5 default port
 	obsPassword: '',
 	obsAutoConnect: false,
 	obsSyncRecording: false,
@@ -467,7 +467,7 @@ export class TeleprompterSettingTab extends PluginSettingTab {
 
 		// Header with search
 		const header = containerEl.createDiv('tp-settings-header')
-		new Setting(header).setName('Teleprompter Plus').setHeading()
+		new Setting(header).setName('Configuration').setHeading()
 
 		// Search box
 		const searchContainer = header.createDiv('tp-search-container')
@@ -492,7 +492,7 @@ export class TeleprompterSettingTab extends PluginSettingTab {
 			{ id: 'features', name: 'Features', icon: 'sliders-horizontal' },
 			{ id: 'profiles', name: 'Profiles', icon: 'user-cog' },
 			{ id: 'connection', name: 'Connection', icon: 'wifi' },
-			{ id: 'obs', name: 'OBS', icon: 'video' },
+			{ id: 'obs', name: 'Streaming', icon: 'video' },
 			{ id: 'about', name: 'About', icon: 'info' },
 		]
 
@@ -602,7 +602,7 @@ export class TeleprompterSettingTab extends PluginSettingTab {
 		const wsCardIcon = wsCard.createDiv('tp-health-card-icon')
 		setIcon(wsCardIcon, wsInfo.running ? 'wifi' : 'wifi-off')
 		wsCard.createDiv({ text: wsInfo.running ? 'Connected' : 'Offline', cls: 'tp-health-card-value' })
-		wsCard.createDiv({ text: 'WebSocket', cls: 'tp-health-card-label' })
+		wsCard.createDiv({ text: 'Server', cls: 'tp-health-card-label' })
 
 		// Clients card
 		const clientsCard = healthGrid.createDiv('tp-health-card')
@@ -1696,7 +1696,7 @@ export class TeleprompterSettingTab extends PluginSettingTab {
 		const builtInSection = containerEl.createDiv('tp-section-header')
 		const builtInIcon = builtInSection.createDiv('tp-section-header-icon')
 		setIcon(builtInIcon, 'bookmark')
-		builtInSection.createSpan({ text: 'Built-in Profiles', cls: 'tp-section-header-title' })
+		builtInSection.createSpan({ text: 'Built-in profiles', cls: 'tp-section-header-title' })
 
 		const builtInList = containerEl.createDiv('tp-profiles-list')
 
@@ -1877,7 +1877,7 @@ export class TeleprompterSettingTab extends PluginSettingTab {
 	// ========================================
 	private displayConnectionTab(containerEl: HTMLElement): void {
 		containerEl.createEl('p', {
-			text: 'Configure WebSocket server for stream deck and external control',
+			text: 'Configure websocket server for stream deck and external control',
 			cls: 'setting-item-description',
 		})
 
@@ -1927,7 +1927,7 @@ export class TeleprompterSettingTab extends PluginSettingTab {
 
 		new Setting(containerEl)
 			.setName('Auto-start server')
-			.setDesc('Start WebSocket server when Obsidian loads')
+			.setDesc('Start websocket server when Obsidian loads')
 			.addToggle(t => t
 				.setValue(this.plugin.settings.autoStartWebSocket)
 				.onChange((value) => {
@@ -2101,7 +2101,7 @@ export class TeleprompterSettingTab extends PluginSettingTab {
 		})
 
 		const steps = guideEl.createEl('ol')
-		steps.createEl('li', { text: 'Ensure the WebSocket server is running (see status above)' })
+		steps.createEl('li', { text: 'Ensure the websocket server is running (see status above)' })
 		steps.createEl('li', { text: 'Install the stream deck plugin' })
 		steps.createEl('li', { text: `Configure the plugin to connect to ws://${this.plugin.settings.wsHost}:${this.plugin.settings.wsPort}` })
 		steps.createEl('li', { text: 'Add actions to your stream deck buttons' })
@@ -2117,7 +2117,7 @@ export class TeleprompterSettingTab extends PluginSettingTab {
 	// ========================================
 	private displayOBSTab(containerEl: HTMLElement): void {
 			containerEl.createEl('p', {
-			text: 'Integrate with OBS Studio for recording and streaming sync',
+			text: 'Integrate with streaming software for recording and streaming sync',
 			cls: 'setting-item-description',
 		})
 
@@ -2129,11 +2129,11 @@ export class TeleprompterSettingTab extends PluginSettingTab {
 
 		const statusInfo = statusEl.createDiv('tp-connection-info')
 		statusInfo.createDiv({
-			text: obsInfo.status === 'connected' ? 'Connected to OBS' : obsInfo.status === 'connecting' ? 'Connecting...' : 'Not connected',
+			text: obsInfo.status === 'connected' ? 'Connected' : obsInfo.status === 'connecting' ? 'Connecting...' : 'Not connected',
 			cls: 'tp-connection-title'
 		})
 
-		let statusDetail = 'Click Connect to link with OBS'
+		let statusDetail = 'Click Connect to link with streaming software'
 		if (obsInfo.status === 'connected') {
 			statusDetail = `ws://${this.plugin.settings.obsHost}:${this.plugin.settings.obsPort}`
 			if (obsInfo.isRecording) statusDetail += ' • Recording'
@@ -2173,12 +2173,12 @@ export class TeleprompterSettingTab extends PluginSettingTab {
 			// Update status title
 			const titleEl = statusInfo.querySelector('.tp-connection-title')
 			if (titleEl) {
-				titleEl.textContent = newInfo.status === 'connected' ? 'Connected to OBS' : newInfo.status === 'connecting' ? 'Connecting...' : 'Not connected'
+				titleEl.textContent = newInfo.status === 'connected' ? 'Connected' : newInfo.status === 'connecting' ? 'Connecting...' : 'Not connected'
 			}
 			// Update status detail
 			const detailEl = statusInfo.querySelector('.tp-connection-detail')
 			if (detailEl) {
-				let detail = 'Click Connect to link with OBS'
+				let detail = 'Click Connect to link with streaming software'
 				if (newInfo.status === 'connected') {
 					detail = `ws://${this.plugin.settings.obsHost}:${this.plugin.settings.obsPort}`
 					if (newInfo.isRecording) detail += ' • Recording'
@@ -2197,8 +2197,8 @@ export class TeleprompterSettingTab extends PluginSettingTab {
 		enableSection.createSpan({ text: 'Integration', cls: 'tp-section-header-title' })
 
 		new Setting(containerEl)
-			.setName('Enable OBS integration')
-			.setDesc('Allow the plugin to connect to OBS Studio')
+			.setName('Enable streaming integration')
+			.setDesc('Allow the plugin to connect to the streaming software')
 			.addToggle(t => t
 				.setValue(this.plugin.settings.obsEnabled)
 				.onChange((value) => {
@@ -2213,7 +2213,7 @@ export class TeleprompterSettingTab extends PluginSettingTab {
 
 		new Setting(containerEl)
 			.setName('Auto-connect on startup')
-			.setDesc('Automatically connect to OBS when the plugin loads')
+			.setDesc('Automatically connect to streaming software when the plugin loads')
 			.addToggle(t => t
 				.setValue(this.plugin.settings.obsAutoConnect)
 				.onChange((value) => {
@@ -2230,7 +2230,7 @@ export class TeleprompterSettingTab extends PluginSettingTab {
 
 		new Setting(containerEl)
 			.setName('Host')
-			.setDesc('OBS WebSocket server host (usually 127.0.0.1)')
+			.setDesc('Websocket server host (usually 127.0.0.1)')
 			.addText(t => t
 				.setPlaceholder('127.0.0.1')
 				.setValue(this.plugin.settings.obsHost)
@@ -2242,7 +2242,7 @@ export class TeleprompterSettingTab extends PluginSettingTab {
 
 		new Setting(containerEl)
 			.setName('Port')
-			.setDesc('OBS WebSocket server port (default: 4455 for OBS 28+)')
+			.setDesc('Websocket server port (default: 4455)')
 			.addText(t => t
 				.setPlaceholder('4455')
 				.setValue(this.plugin.settings.obsPort.toString())
@@ -2257,7 +2257,7 @@ export class TeleprompterSettingTab extends PluginSettingTab {
 
 		new Setting(containerEl)
 			.setName('Password')
-			.setDesc('WebSocket server password (leave empty if not set in OBS)')
+			.setDesc('Websocket server password (leave empty if not set)')
 			.addText(t => {
 				t.inputEl.type = 'password'
 				t.setPlaceholder('••••••••')
@@ -2277,7 +2277,7 @@ export class TeleprompterSettingTab extends PluginSettingTab {
 
 		new Setting(containerEl)
 			.setName('Sync recording')
-			.setDesc('Start OBS recording when teleprompter plays, stop when reset')
+			.setDesc('Start streaming software recording when teleprompter plays, stop when reset')
 			.addToggle(t => t
 				.setValue(this.plugin.settings.obsSyncRecording)
 				.onChange((value) => {
@@ -2288,7 +2288,7 @@ export class TeleprompterSettingTab extends PluginSettingTab {
 
 		new Setting(containerEl)
 			.setName('Sync streaming')
-			.setDesc('Start OBS streaming when teleprompter plays, stop when reset')
+			.setDesc('Start streaming software streaming when teleprompter plays, stop when reset')
 			.addToggle(t => t
 				.setValue(this.plugin.settings.obsSyncStreaming)
 				.onChange((value) => {
@@ -2350,21 +2350,21 @@ export class TeleprompterSettingTab extends PluginSettingTab {
 
 		const guideEl = containerEl.createDiv()
 		guideEl.createEl('p', {
-			text: 'To enable OBS integration, follow these steps:',
+			text: 'To enable streaming integration, follow these steps:',
 			cls: 'setting-item-description'
 		})
 
 		const steps = guideEl.createEl('ol')
-		steps.createEl('li', { text: 'Open OBS Studio (version 28 or later)' })
-		steps.createEl('li', { text: 'Go to Tools → WebSocket server settings' })
-		steps.createEl('li', { text: 'Enable the WebSocket server' })
+		steps.createEl('li', { text: 'Open the streaming software (version 28 or later)' })
+		steps.createEl('li', { text: 'Go to Tools → websocket server settings' })
+		steps.createEl('li', { text: 'Enable the websocket server' })
 		steps.createEl('li', { text: 'Set a password if desired (optional)' })
 		steps.createEl('li', { text: 'Note the port number (default: 4455)' })
 		steps.createEl('li', { text: 'Apply the settings and close the dialog' })
 		steps.createEl('li', { text: 'Enter the same settings above and click connect' })
 
 		guideEl.createEl('p', {
-			text: 'OBS 28 and later has the WebSocket server built-in. Earlier versions require the obs-websocket plugin.',
+			text: 'Version 28 and later has the websocket server built-in.',
 			cls: 'setting-item-description'
 		})
 	}
@@ -2413,7 +2413,7 @@ export class TeleprompterSettingTab extends PluginSettingTab {
 			{ icon: 'palette', label: 'Custom Icons', desc: '46+ designs' },
 			{ icon: 'maximize', label: 'Fullscreen', desc: 'Persistent toolbar' },
 			{ icon: 'map', label: 'Navigation', desc: 'Minimap & sections' },
-			{ icon: 'wifi', label: 'Stream Deck', desc: 'WebSocket API' },
+			{ icon: 'wifi', label: 'External control', desc: 'Remote API' },
 			{ icon: 'user-cog', label: 'Profiles', desc: 'Save configurations' },
 		]
 

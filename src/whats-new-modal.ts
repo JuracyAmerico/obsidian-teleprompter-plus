@@ -29,7 +29,7 @@ export class WhatsNewModal extends Modal {
 		const logoSvg = logoContainer.createSvg('svg', { attr: { width: '80', height: '80', viewBox: '0 0 100 100' } })
 		logoSvg.createSvg('circle', { attr: { cx: '50', cy: '50', r: '45', fill: '#7c3aed' } })
 		const logoText = logoSvg.createSvg('text', { attr: { x: '50', y: '62', 'text-anchor': 'middle', fill: 'white', 'font-size': '32', 'font-weight': 'bold', 'font-family': 'system-ui' } })
-		logoText.textContent = 'TP+'
+		logoText.textContent = 'T+'
 
 		// Title and version
 		const titleContainer = header.createDiv({ cls: 'whats-new-title-container' })
@@ -39,7 +39,7 @@ export class WhatsNewModal extends Modal {
 		// Welcome message
 		const isFirstInstall = !this.plugin.settings.lastSeenVersion
 		const welcomeText = isFirstInstall
-			? 'Thanks for installing Teleprompter Plus! 🎉'
+			? 'Thanks for installing! 🎉'
 			: `Updated to v${this.version}! Here's what's new:`
 
 		contentEl.createEl('p', { text: welcomeText, cls: 'whats-new-welcome' })
@@ -90,7 +90,7 @@ export class WhatsNewModal extends Modal {
 		const supportSection = contentEl.createDiv({ cls: 'whats-new-support' })
 		supportSection.createEl('h3', { text: 'Support development' })
 		supportSection.createEl('p', {
-			text: 'If Teleprompter Plus helps your workflow, consider supporting its development!',
+			text: 'If this plugin helps your workflow, consider supporting its development!',
 			cls: 'support-text'
 		})
 

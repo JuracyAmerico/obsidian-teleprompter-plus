@@ -390,7 +390,7 @@ export default class TeleprompterPlusPlugin extends Plugin {
 		// ===== OBS Integration Commands =====
 		this.addCommand({
 			id: 'obs-connect',
-			name: 'Connect to OBS',
+			name: 'Connect to streaming software',
 			callback: () => {
 				void this.connectOBS()
 			},
@@ -398,7 +398,7 @@ export default class TeleprompterPlusPlugin extends Plugin {
 
 		this.addCommand({
 			id: 'obs-disconnect',
-			name: 'Disconnect from OBS',
+			name: 'Disconnect from streaming software',
 			callback: () => {
 				void this.disconnectOBS()
 			},
@@ -406,7 +406,7 @@ export default class TeleprompterPlusPlugin extends Plugin {
 
 		this.addCommand({
 			id: 'obs-toggle-recording',
-			name: 'Toggle OBS recording',
+			name: 'Toggle recording',
 			callback: () => {
 				void this.toggleOBSRecording()
 			},
@@ -414,7 +414,7 @@ export default class TeleprompterPlusPlugin extends Plugin {
 
 		this.addCommand({
 			id: 'obs-start-recording',
-			name: 'Start OBS recording',
+			name: 'Start recording',
 			callback: () => {
 				void this.startOBSRecording()
 			},
@@ -422,7 +422,7 @@ export default class TeleprompterPlusPlugin extends Plugin {
 
 		this.addCommand({
 			id: 'obs-stop-recording',
-			name: 'Stop OBS recording',
+			name: 'Stop recording',
 			callback: () => {
 				void this.stopOBSRecording()
 			},
@@ -430,7 +430,7 @@ export default class TeleprompterPlusPlugin extends Plugin {
 
 		this.addCommand({
 			id: 'obs-toggle-streaming',
-			name: 'Toggle OBS streaming',
+			name: 'Toggle streaming',
 			callback: () => {
 				void this.toggleOBSStreaming()
 			},
@@ -438,7 +438,7 @@ export default class TeleprompterPlusPlugin extends Plugin {
 
 		this.addCommand({
 			id: 'obs-start-streaming',
-			name: 'Start OBS streaming',
+			name: 'Start streaming',
 			callback: () => {
 				void this.startOBSStreaming()
 			},
@@ -446,7 +446,7 @@ export default class TeleprompterPlusPlugin extends Plugin {
 
 		this.addCommand({
 			id: 'obs-stop-streaming',
-			name: 'Stop OBS streaming',
+			name: 'Stop streaming',
 			callback: () => {
 				void this.stopOBSStreaming()
 			},
@@ -513,7 +513,7 @@ export default class TeleprompterPlusPlugin extends Plugin {
 			await this.wsServer.start()
 
 			if (this.settings.showConnectionNotifications) {
-				new Notice(`Teleprompter: WebSocket server ready on port ${this.settings.wsPort}`)
+				new Notice(`Remote server ready on port ${this.settings.wsPort}`)
 			}
 		} catch (error) {
 			console.error('[Teleprompter] Failed to start WebSocket server:', error)
@@ -521,11 +521,11 @@ export default class TeleprompterPlusPlugin extends Plugin {
 			// Check if it's a port conflict
 			if (error instanceof Error && error.message.includes('EADDRINUSE')) {
 				new Notice(
-					`Teleprompter: Port ${this.settings.wsPort} already in use. WebSocket disabled.`,
+					`Port ${this.settings.wsPort} already in use. Remote server disabled.`,
 					5000
 				)
 			} else {
-				new Notice('Teleprompter: failed to start websocket server', 5000)
+				new Notice('Failed to start remote server', 5000)
 			}
 		}
 	}
@@ -1044,12 +1044,12 @@ export default class TeleprompterPlusPlugin extends Plugin {
 		}
 
 		const info = this.wsServer.getInfo()
-		const message = `WebSocket Server
+		const message = `Remote server
 Status: ${info.running ? '🟢 Running' : '🔴 Stopped'}
 Address: ${info.host}:${info.port}
 Clients: ${info.clientCount}
 
-Use this address to connect from Stream Deck or other devices.`
+Use this address to connect from external devices.`
 
 		new Notice(message, 8000)
 	}
