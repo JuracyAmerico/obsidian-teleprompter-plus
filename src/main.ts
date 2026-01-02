@@ -390,7 +390,7 @@ export default class TeleprompterPlusPlugin extends Plugin {
 		// ===== OBS Integration Commands =====
 		this.addCommand({
 			id: 'obs-connect',
-			name: 'OBS: connect',
+			name: 'Connect to OBS',
 			callback: () => {
 				void this.connectOBS()
 			},
@@ -398,7 +398,7 @@ export default class TeleprompterPlusPlugin extends Plugin {
 
 		this.addCommand({
 			id: 'obs-disconnect',
-			name: 'OBS: disconnect',
+			name: 'Disconnect from OBS',
 			callback: () => {
 				void this.disconnectOBS()
 			},
@@ -406,7 +406,7 @@ export default class TeleprompterPlusPlugin extends Plugin {
 
 		this.addCommand({
 			id: 'obs-toggle-recording',
-			name: 'OBS: toggle recording',
+			name: 'Toggle OBS recording',
 			callback: () => {
 				void this.toggleOBSRecording()
 			},
@@ -414,7 +414,7 @@ export default class TeleprompterPlusPlugin extends Plugin {
 
 		this.addCommand({
 			id: 'obs-start-recording',
-			name: 'OBS: start recording',
+			name: 'Start OBS recording',
 			callback: () => {
 				void this.startOBSRecording()
 			},
@@ -422,7 +422,7 @@ export default class TeleprompterPlusPlugin extends Plugin {
 
 		this.addCommand({
 			id: 'obs-stop-recording',
-			name: 'OBS: stop recording',
+			name: 'Stop OBS recording',
 			callback: () => {
 				void this.stopOBSRecording()
 			},
@@ -430,7 +430,7 @@ export default class TeleprompterPlusPlugin extends Plugin {
 
 		this.addCommand({
 			id: 'obs-toggle-streaming',
-			name: 'OBS: toggle streaming',
+			name: 'Toggle OBS streaming',
 			callback: () => {
 				void this.toggleOBSStreaming()
 			},
@@ -438,7 +438,7 @@ export default class TeleprompterPlusPlugin extends Plugin {
 
 		this.addCommand({
 			id: 'obs-start-streaming',
-			name: 'OBS: start streaming',
+			name: 'Start OBS streaming',
 			callback: () => {
 				void this.startOBSStreaming()
 			},
@@ -446,7 +446,7 @@ export default class TeleprompterPlusPlugin extends Plugin {
 
 		this.addCommand({
 			id: 'obs-stop-streaming',
-			name: 'OBS: stop streaming',
+			name: 'Stop OBS streaming',
 			callback: () => {
 				void this.stopOBSStreaming()
 			},
