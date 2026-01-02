@@ -467,7 +467,7 @@ export class TeleprompterSettingTab extends PluginSettingTab {
 
 		// Header with search
 		const header = containerEl.createDiv('tp-settings-header')
-		new Setting(header).setName('Settings').setHeading()
+		new Setting(header).setName('Teleprompter Plus').setHeading()
 
 		// Search box
 		const searchContainer = header.createDiv('tp-search-container')
@@ -1877,7 +1877,7 @@ export class TeleprompterSettingTab extends PluginSettingTab {
 	// ========================================
 	private displayConnectionTab(containerEl: HTMLElement): void {
 		containerEl.createEl('p', {
-			text: 'Configure websocket server for stream deck and external control',
+			text: 'Configure WebSocket server for stream deck and external control',
 			cls: 'setting-item-description',
 		})
 
@@ -1927,7 +1927,7 @@ export class TeleprompterSettingTab extends PluginSettingTab {
 
 		new Setting(containerEl)
 			.setName('Auto-start server')
-			.setDesc('Start websocket server when Obsidian loads')
+			.setDesc('Start WebSocket server when Obsidian loads')
 			.addToggle(t => t
 				.setValue(this.plugin.settings.autoStartWebSocket)
 				.onChange((value) => {
@@ -1965,7 +1965,7 @@ export class TeleprompterSettingTab extends PluginSettingTab {
 						void this.plugin.saveSettings()
 						// Warn if not localhost
 						if (value !== '127.0.0.1' && value !== 'localhost') {
-							new Notice('Warning: Non-localhost binding exposes the server to the network.')
+							new Notice('Non-localhost binding exposes the server to the network')
 						}
 					}
 				})
@@ -2070,7 +2070,7 @@ export class TeleprompterSettingTab extends PluginSettingTab {
 		})
 
 		const remoteSteps = remoteGuide.createEl('ol')
-		remoteSteps.createEl('li', { text: 'Ensure your phone is on the same Wi-Fi network as this computer' })
+		remoteSteps.createEl('li', { text: 'Ensure your phone is on the same WiFi network as this computer' })
 		remoteSteps.createEl('li', { text: 'Open the URL above in your phone\'s browser' })
 		remoteSteps.createEl('li', { text: 'Use the play/pause button to control playback' })
 		remoteSteps.createEl('li', { text: 'Adjust speed, jump to sections, and more from your phone' })
@@ -2083,7 +2083,7 @@ export class TeleprompterSettingTab extends PluginSettingTab {
 			ipHint.createEl('strong', { text: 'Tip: ' })
 			ipHint.appendText('To access from your phone, change the host setting above to ')
 			ipHint.createEl('code', { text: '0.0.0.0' })
-			ipHint.appendText(' and use your computer\'s local IP address. On macOS: System Settings → Wi-Fi → Details → TCP/IP → IP address. Or run ')
+			ipHint.appendText(' and use your computer\'s local IP address. On macOS: System Settings → WiFi → Details → TCP/IP → IP address. Or run ')
 			ipHint.createEl('code', { text: 'ipconfig getifaddr en0' })
 			ipHint.appendText(' in terminal.')
 		}
@@ -2101,7 +2101,7 @@ export class TeleprompterSettingTab extends PluginSettingTab {
 		})
 
 		const steps = guideEl.createEl('ol')
-		steps.createEl('li', { text: 'Ensure the websocket server is running (see status above)' })
+		steps.createEl('li', { text: 'Ensure the WebSocket server is running (see status above)' })
 		steps.createEl('li', { text: 'Install the stream deck plugin' })
 		steps.createEl('li', { text: `Configure the plugin to connect to ws://${this.plugin.settings.wsHost}:${this.plugin.settings.wsPort}` })
 		steps.createEl('li', { text: 'Add actions to your stream deck buttons' })
@@ -2117,7 +2117,7 @@ export class TeleprompterSettingTab extends PluginSettingTab {
 	// ========================================
 	private displayOBSTab(containerEl: HTMLElement): void {
 			containerEl.createEl('p', {
-			text: 'Integrate with OBS studio for recording and streaming sync',
+			text: 'Integrate with OBS Studio for recording and streaming sync',
 			cls: 'setting-item-description',
 		})
 
@@ -2198,7 +2198,7 @@ export class TeleprompterSettingTab extends PluginSettingTab {
 
 		new Setting(containerEl)
 			.setName('Enable OBS integration')
-			.setDesc('Allow the plugin to connect to OBS studio')
+			.setDesc('Allow the plugin to connect to OBS Studio')
 			.addToggle(t => t
 				.setValue(this.plugin.settings.obsEnabled)
 				.onChange((value) => {
@@ -2230,7 +2230,7 @@ export class TeleprompterSettingTab extends PluginSettingTab {
 
 		new Setting(containerEl)
 			.setName('Host')
-			.setDesc('OBS websocket server host (usually 127.0.0.1)')
+			.setDesc('OBS WebSocket server host (usually 127.0.0.1)')
 			.addText(t => t
 				.setPlaceholder('127.0.0.1')
 				.setValue(this.plugin.settings.obsHost)
@@ -2242,7 +2242,7 @@ export class TeleprompterSettingTab extends PluginSettingTab {
 
 		new Setting(containerEl)
 			.setName('Port')
-			.setDesc('OBS websocket server port (default: 4455 for OBS 28+)')
+			.setDesc('OBS WebSocket server port (default: 4455 for OBS 28+)')
 			.addText(t => t
 				.setPlaceholder('4455')
 				.setValue(this.plugin.settings.obsPort.toString())
@@ -2356,15 +2356,15 @@ export class TeleprompterSettingTab extends PluginSettingTab {
 
 		const steps = guideEl.createEl('ol')
 		steps.createEl('li', { text: 'Open OBS Studio (version 28 or later)' })
-		steps.createEl('li', { text: 'Go to Tools → Websocket Server Settings' })
-		steps.createEl('li', { text: 'Enable the websocket server' })
+		steps.createEl('li', { text: 'Go to Tools → WebSocket server settings' })
+		steps.createEl('li', { text: 'Enable the WebSocket server' })
 		steps.createEl('li', { text: 'Set a password if desired (optional)' })
 		steps.createEl('li', { text: 'Note the port number (default: 4455)' })
 		steps.createEl('li', { text: 'Apply the settings and close the dialog' })
 		steps.createEl('li', { text: 'Enter the same settings above and click connect' })
 
 		guideEl.createEl('p', {
-			text: 'OBS 28 and later has the websocket server built-in. Earlier versions require the obs-websocket plugin.',
+			text: 'OBS 28 and later has the WebSocket server built-in. Earlier versions require the obs-websocket plugin.',
 			cls: 'setting-item-description'
 		})
 	}
@@ -2467,7 +2467,7 @@ export class TeleprompterSettingTab extends PluginSettingTab {
 		const creditsEl = containerEl.createDiv('tp-credits')
 
 		creditsEl.createEl('p', { text: 'Built for the Obsidian community.' })
-		creditsEl.createEl('p', { text: 'Powered by Svelte 5 and the Obsidian API.' })
+		creditsEl.createEl('p', { text: 'Built with modern web technologies.' })
 	}
 
 	/**
