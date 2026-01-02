@@ -390,7 +390,7 @@ export default class TeleprompterPlusPlugin extends Plugin {
 		// ===== OBS Integration Commands =====
 		this.addCommand({
 			id: 'obs-connect',
-			name: 'OBS: Connect',
+			name: 'OBS: connect',
 			callback: () => {
 				void this.connectOBS()
 			},
@@ -398,7 +398,7 @@ export default class TeleprompterPlusPlugin extends Plugin {
 
 		this.addCommand({
 			id: 'obs-disconnect',
-			name: 'OBS: Disconnect',
+			name: 'OBS: disconnect',
 			callback: () => {
 				void this.disconnectOBS()
 			},
@@ -406,7 +406,7 @@ export default class TeleprompterPlusPlugin extends Plugin {
 
 		this.addCommand({
 			id: 'obs-toggle-recording',
-			name: 'OBS: Toggle recording',
+			name: 'OBS: toggle recording',
 			callback: () => {
 				void this.toggleOBSRecording()
 			},
@@ -414,7 +414,7 @@ export default class TeleprompterPlusPlugin extends Plugin {
 
 		this.addCommand({
 			id: 'obs-start-recording',
-			name: 'OBS: Start recording',
+			name: 'OBS: start recording',
 			callback: () => {
 				void this.startOBSRecording()
 			},
@@ -422,7 +422,7 @@ export default class TeleprompterPlusPlugin extends Plugin {
 
 		this.addCommand({
 			id: 'obs-stop-recording',
-			name: 'OBS: Stop recording',
+			name: 'OBS: stop recording',
 			callback: () => {
 				void this.stopOBSRecording()
 			},
@@ -430,7 +430,7 @@ export default class TeleprompterPlusPlugin extends Plugin {
 
 		this.addCommand({
 			id: 'obs-toggle-streaming',
-			name: 'OBS: Toggle streaming',
+			name: 'OBS: toggle streaming',
 			callback: () => {
 				void this.toggleOBSStreaming()
 			},
@@ -438,7 +438,7 @@ export default class TeleprompterPlusPlugin extends Plugin {
 
 		this.addCommand({
 			id: 'obs-start-streaming',
-			name: 'OBS: Start streaming',
+			name: 'OBS: start streaming',
 			callback: () => {
 				void this.startOBSStreaming()
 			},
@@ -446,7 +446,7 @@ export default class TeleprompterPlusPlugin extends Plugin {
 
 		this.addCommand({
 			id: 'obs-stop-streaming',
-			name: 'OBS: Stop streaming',
+			name: 'OBS: stop streaming',
 			callback: () => {
 				void this.stopOBSStreaming()
 			},
@@ -525,7 +525,7 @@ export default class TeleprompterPlusPlugin extends Plugin {
 					5000
 				)
 			} else {
-				new Notice('Teleprompter: Failed to start websocket server', 5000)
+				new Notice('Teleprompter: failed to start websocket server', 5000)
 			}
 		}
 	}
