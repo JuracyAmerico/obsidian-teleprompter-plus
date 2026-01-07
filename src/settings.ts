@@ -149,6 +149,8 @@ export interface TeleprompterSettings {
 	voiceTrackingPauseDetection: boolean     // Enable pause detection (default: true)
 	voiceTrackingPauseThresholdMs: number    // Time without speech to pause scrolling (default: 1500ms)
 	voiceTrackingScrollPosition: number      // Where current word appears on screen (0-100%, default: 30)
+	// Progress indicator style
+	progressIndicatorStyle: 'progress-bar' | 'scrollbar' | 'none'
 	// NEW: Toolbar configuration
 	toolbarLayout: {
 		primary: string[]    // Button IDs in order
@@ -277,6 +279,8 @@ export const DEFAULT_SETTINGS: TeleprompterSettings = {
 	voiceTrackingPauseDetection: true,      // Pause when user stops speaking
 	voiceTrackingPauseThresholdMs: 1200,    // Faster pause detection (1.2 seconds)
 	voiceTrackingScrollPosition: 20,        // Current word at 20% from top (more runway below)
+	// Progress indicator style
+	progressIndicatorStyle: 'progress-bar' as const,
 	// NEW: Toolbar configuration
 	toolbarLayout: {
 		primary: ['play-pause', 'speed', 'countdown', 'reset', 'font-size', 'line-height', 'letter-spacing', 'font-family', 'opacity', 'padding', 'text-color', 'bg-color'],
@@ -913,8 +917,8 @@ export class TeleprompterSettingTab extends PluginSettingTab {
 						type: 'slider',
 						min: 0, max: 30, step: 1,
 						value: this.plugin.settings.defaultCountdown,
-						onChange: (value: number) => {
-							this.plugin.settings.defaultCountdown = value
+						onChange: (value) => {
+							this.plugin.settings.defaultCountdown = value as number
 							void this.plugin.saveSettings()
 						}
 					},
@@ -923,8 +927,8 @@ export class TeleprompterSettingTab extends PluginSettingTab {
 						desc: 'Start playing when teleprompter opens',
 						type: 'toggle',
 						value: this.plugin.settings.autoStartPlaying,
-						onChange: (value: boolean) => {
-							this.plugin.settings.autoStartPlaying = value
+						onChange: (value) => {
+							this.plugin.settings.autoStartPlaying = value as boolean
 							void this.plugin.saveSettings()
 						}
 					}
@@ -942,8 +946,8 @@ export class TeleprompterSettingTab extends PluginSettingTab {
 						type: 'slider',
 						min: 0.5, max: 10, step: 0.5,
 						value: this.plugin.settings.defaultScrollSpeed,
-						onChange: (value: number) => {
-							this.plugin.settings.defaultScrollSpeed = value
+						onChange: (value) => {
+							this.plugin.settings.defaultScrollSpeed = value as number
 							void this.plugin.saveSettings()
 						}
 					},
@@ -953,8 +957,8 @@ export class TeleprompterSettingTab extends PluginSettingTab {
 						type: 'slider',
 						min: 0.1, max: 2, step: 0.1,
 						value: this.plugin.settings.speedIncrement,
-						onChange: (value: number) => {
-							this.plugin.settings.speedIncrement = value
+						onChange: (value) => {
+							this.plugin.settings.speedIncrement = value as number
 							void this.plugin.saveSettings()
 						}
 					}
@@ -981,8 +985,8 @@ export class TeleprompterSettingTab extends PluginSettingTab {
 						type: 'slider',
 						min: 0, max: 100, step: 5,
 						value: this.plugin.settings.eyelinePosition,
-						onChange: (value: number) => {
-							this.plugin.settings.eyelinePosition = value
+						onChange: (value) => {
+							this.plugin.settings.eyelinePosition = value as number
 							void this.plugin.saveSettings()
 						}
 					}
@@ -1005,8 +1009,8 @@ export class TeleprompterSettingTab extends PluginSettingTab {
 						type: 'slider',
 						min: 0.1, max: 0.5, step: 0.05,
 						value: this.plugin.settings.focusModeOpacity,
-						onChange: (value: number) => {
-							this.plugin.settings.focusModeOpacity = value
+						onChange: (value) => {
+							this.plugin.settings.focusModeOpacity = value as number
 							void this.plugin.saveSettings()
 						}
 					},
@@ -1016,8 +1020,8 @@ export class TeleprompterSettingTab extends PluginSettingTab {
 						type: 'slider',
 						min: 1, max: 10, step: 1,
 						value: this.plugin.settings.focusModeRange,
-						onChange: (value: number) => {
-							this.plugin.settings.focusModeRange = value
+						onChange: (value) => {
+							this.plugin.settings.focusModeRange = value as number
 							void this.plugin.saveSettings()
 						}
 					}
@@ -1063,8 +1067,8 @@ export class TeleprompterSettingTab extends PluginSettingTab {
 						desc: 'Display chronometer since playback started',
 						type: 'toggle',
 						value: this.plugin.settings.showElapsedTime,
-						onChange: (value: boolean) => {
-							this.plugin.settings.showElapsedTime = value
+						onChange: (value) => {
+							this.plugin.settings.showElapsedTime = value as boolean
 							void this.plugin.saveSettings()
 						}
 					},
@@ -1077,7 +1081,7 @@ export class TeleprompterSettingTab extends PluginSettingTab {
 							{ value: 'full', label: 'Full (both times)' }
 						],
 						value: this.plugin.settings.timeDisplayStyle,
-						onChange: (value: string) => {
+						onChange: (value) => {
 							this.plugin.settings.timeDisplayStyle = value as 'compact' | 'full'
 							void this.plugin.saveSettings()
 						}
@@ -1088,8 +1092,8 @@ export class TeleprompterSettingTab extends PluginSettingTab {
 						type: 'slider',
 						min: 100, max: 250, step: 10,
 						value: this.plugin.settings.speakingPaceWPM,
-						onChange: (value: number) => {
-							this.plugin.settings.speakingPaceWPM = value
+						onChange: (value) => {
+							this.plugin.settings.speakingPaceWPM = value as number
 							void this.plugin.saveSettings()
 						}
 					}
@@ -1111,10 +1115,10 @@ export class TeleprompterSettingTab extends PluginSettingTab {
 						type: 'slider',
 						min: 12, max: 72, step: 1,
 						value: this.plugin.settings.fontSize,
-						onChange: (value: number) => {
-							this.plugin.settings.fontSize = value
+						onChange: (value) => {
+							this.plugin.settings.fontSize = value as number
 							void this.plugin.saveSettings()
-							this.plugin.updateFontSize(value)
+							this.plugin.updateFontSize(value as number)
 						}
 					}
 				]
@@ -1131,8 +1135,8 @@ export class TeleprompterSettingTab extends PluginSettingTab {
 						type: 'slider',
 						min: 1.0, max: 3.0, step: 0.1,
 						value: this.plugin.settings.lineHeight,
-						onChange: (value: number) => {
-							this.plugin.settings.lineHeight = value
+						onChange: (value) => {
+							this.plugin.settings.lineHeight = value as number
 							void this.plugin.saveSettings()
 						}
 					}
@@ -1161,8 +1165,8 @@ export class TeleprompterSettingTab extends PluginSettingTab {
 							{ value: 'Verdana, Geneva, Tahoma, sans-serif', label: 'Verdana' }
 						],
 						value: this.plugin.settings.fontFamily,
-						onChange: (value: string) => {
-							this.plugin.settings.fontFamily = value
+						onChange: (value) => {
+							this.plugin.settings.fontFamily = value as string
 							void this.plugin.saveSettings()
 						}
 					}
@@ -1183,8 +1187,8 @@ export class TeleprompterSettingTab extends PluginSettingTab {
 						desc: 'Color for body text',
 						type: 'color',
 						value: this.plugin.settings.textColor,
-						onChange: (value: string) => {
-							this.plugin.settings.textColor = value
+						onChange: (value) => {
+							this.plugin.settings.textColor = value as string
 							void this.plugin.saveSettings()
 						}
 					},
@@ -1193,8 +1197,8 @@ export class TeleprompterSettingTab extends PluginSettingTab {
 						desc: 'Background color for content',
 						type: 'color',
 						value: this.plugin.settings.backgroundColor,
-						onChange: (value: string) => {
-							this.plugin.settings.backgroundColor = value
+						onChange: (value) => {
+							this.plugin.settings.backgroundColor = value as string
 							void this.plugin.saveSettings()
 						}
 					}
@@ -1218,8 +1222,8 @@ export class TeleprompterSettingTab extends PluginSettingTab {
 						type: 'slider',
 						min: 0, max: 100, step: 5,
 						value: this.plugin.settings.backgroundOpacity,
-						onChange: (value: number) => {
-							this.plugin.settings.backgroundOpacity = value
+						onChange: (value) => {
+							this.plugin.settings.backgroundOpacity = value as number
 							void this.plugin.saveSettings()
 							this.plugin.applyAllSettings()
 						}
@@ -1242,8 +1246,8 @@ export class TeleprompterSettingTab extends PluginSettingTab {
 						type: 'slider',
 						min: 0, max: 100, step: 5,
 						value: this.plugin.settings.paddingVertical,
-						onChange: (value: number) => {
-							this.plugin.settings.paddingVertical = value
+						onChange: (value) => {
+							this.plugin.settings.paddingVertical = value as number
 							void this.plugin.saveSettings()
 						}
 					},
@@ -1253,8 +1257,8 @@ export class TeleprompterSettingTab extends PluginSettingTab {
 						type: 'slider',
 						min: 0, max: 200, step: 10,
 						value: this.plugin.settings.paddingHorizontal,
-						onChange: (value: number) => {
-							this.plugin.settings.paddingHorizontal = value
+						onChange: (value) => {
+							this.plugin.settings.paddingHorizontal = value as number
 							void this.plugin.saveSettings()
 						}
 					}
@@ -1271,8 +1275,8 @@ export class TeleprompterSettingTab extends PluginSettingTab {
 						desc: 'Mirror text left-to-right',
 						type: 'toggle',
 						value: this.plugin.settings.flipHorizontal,
-						onChange: (value: boolean) => {
-							this.plugin.settings.flipHorizontal = value
+						onChange: (value) => {
+							this.plugin.settings.flipHorizontal = value as boolean
 							void this.plugin.saveSettings()
 						}
 					},
@@ -1281,8 +1285,8 @@ export class TeleprompterSettingTab extends PluginSettingTab {
 						desc: 'Flip text upside-down',
 						type: 'toggle',
 						value: this.plugin.settings.flipVertical,
-						onChange: (value: boolean) => {
-							this.plugin.settings.flipVertical = value
+						onChange: (value) => {
+							this.plugin.settings.flipVertical = value as boolean
 							void this.plugin.saveSettings()
 						}
 					}
@@ -1377,8 +1381,8 @@ export class TeleprompterSettingTab extends PluginSettingTab {
 							{ value: 'en-US', label: 'English (US)' }
 						],
 						value: this.plugin.settings.voiceTrackingLanguage,
-						onChange: (value: string) => {
-							this.plugin.settings.voiceTrackingLanguage = value
+						onChange: (value) => {
+							this.plugin.settings.voiceTrackingLanguage = value as string
 							void this.plugin.saveSettings()
 						}
 					},
@@ -1391,7 +1395,7 @@ export class TeleprompterSettingTab extends PluginSettingTab {
 							{ value: 'instant', label: 'Instant' }
 						],
 						value: this.plugin.settings.voiceTrackingScrollBehavior,
-						onChange: (value: string) => {
+						onChange: (value) => {
 							this.plugin.settings.voiceTrackingScrollBehavior = value as 'smooth' | 'instant'
 							void this.plugin.saveSettings()
 						}
@@ -1402,8 +1406,8 @@ export class TeleprompterSettingTab extends PluginSettingTab {
 						type: 'slider',
 						min: 0.3, max: 0.9, step: 0.1,
 						value: this.plugin.settings.voiceTrackingConfidenceThreshold,
-						onChange: (value: number) => {
-							this.plugin.settings.voiceTrackingConfidenceThreshold = value
+						onChange: (value) => {
+							this.plugin.settings.voiceTrackingConfidenceThreshold = value as number
 							void this.plugin.saveSettings()
 						}
 					},
@@ -1412,8 +1416,8 @@ export class TeleprompterSettingTab extends PluginSettingTab {
 						desc: 'Display recognized text overlay',
 						type: 'toggle',
 						value: this.plugin.settings.voiceTrackingShowIndicator,
-						onChange: (value: boolean) => {
-							this.plugin.settings.voiceTrackingShowIndicator = value
+						onChange: (value) => {
+							this.plugin.settings.voiceTrackingShowIndicator = value as boolean
 							void this.plugin.saveSettings()
 						}
 					}
@@ -1431,8 +1435,8 @@ export class TeleprompterSettingTab extends PluginSettingTab {
 						type: 'slider',
 						min: 2, max: 30, step: 1,
 						value: this.plugin.settings.voiceTrackingMaxJumpDistance,
-						onChange: (value: number) => {
-							this.plugin.settings.voiceTrackingMaxJumpDistance = value
+						onChange: (value) => {
+							this.plugin.settings.voiceTrackingMaxJumpDistance = value as number
 							void this.plugin.saveSettings()
 						}
 					},
@@ -1442,8 +1446,8 @@ export class TeleprompterSettingTab extends PluginSettingTab {
 						type: 'slider',
 						min: 1, max: 10, step: 1,
 						value: this.plugin.settings.voiceTrackingMinJumpDistance,
-						onChange: (value: number) => {
-							this.plugin.settings.voiceTrackingMinJumpDistance = value
+						onChange: (value) => {
+							this.plugin.settings.voiceTrackingMinJumpDistance = value as number
 							void this.plugin.saveSettings()
 						}
 					},
@@ -1453,8 +1457,8 @@ export class TeleprompterSettingTab extends PluginSettingTab {
 						type: 'slider',
 						min: 100, max: 1000, step: 50,
 						value: this.plugin.settings.voiceTrackingUpdateFrequencyMs,
-						onChange: (value: number) => {
-							this.plugin.settings.voiceTrackingUpdateFrequencyMs = value
+						onChange: (value) => {
+							this.plugin.settings.voiceTrackingUpdateFrequencyMs = value as number
 							void this.plugin.saveSettings()
 						}
 					},
@@ -1464,8 +1468,8 @@ export class TeleprompterSettingTab extends PluginSettingTab {
 						type: 'slider',
 						min: 100, max: 1500, step: 50,
 						value: this.plugin.settings.voiceTrackingAnimationBaseMs,
-						onChange: (value: number) => {
-							this.plugin.settings.voiceTrackingAnimationBaseMs = value
+						onChange: (value) => {
+							this.plugin.settings.voiceTrackingAnimationBaseMs = value as number
 							void this.plugin.saveSettings()
 						}
 					},
@@ -1475,8 +1479,8 @@ export class TeleprompterSettingTab extends PluginSettingTab {
 						type: 'slider',
 						min: 10, max: 200, step: 10,
 						value: this.plugin.settings.voiceTrackingAnimationPerWordMs,
-						onChange: (value: number) => {
-							this.plugin.settings.voiceTrackingAnimationPerWordMs = value
+						onChange: (value) => {
+							this.plugin.settings.voiceTrackingAnimationPerWordMs = value as number
 							void this.plugin.saveSettings()
 						}
 					}
@@ -1499,8 +1503,8 @@ export class TeleprompterSettingTab extends PluginSettingTab {
 						type: 'slider',
 						min: 500, max: 3000, step: 100,
 						value: this.plugin.settings.voiceTrackingPauseThresholdMs,
-						onChange: (value: number) => {
-							this.plugin.settings.voiceTrackingPauseThresholdMs = value
+						onChange: (value) => {
+							this.plugin.settings.voiceTrackingPauseThresholdMs = value as number
 							void this.plugin.saveSettings()
 						}
 					}
@@ -1518,8 +1522,8 @@ export class TeleprompterSettingTab extends PluginSettingTab {
 						type: 'slider',
 						min: 10, max: 60, step: 5,
 						value: this.plugin.settings.voiceTrackingScrollPosition,
-						onChange: (value: number) => {
-							this.plugin.settings.voiceTrackingScrollPosition = value
+						onChange: (value) => {
+							this.plugin.settings.voiceTrackingScrollPosition = value as number
 							void this.plugin.saveSettings()
 						}
 					}
@@ -2312,7 +2316,7 @@ export class TeleprompterSettingTab extends PluginSettingTab {
 			})
 			const recordBtnIcon = recordBtn.createDiv('tp-btn-icon')
 			setIcon(recordBtnIcon, obsInfo.isRecording ? 'square' : 'circle')
-			recordBtn.createSpan({ text: obsInfo.isRecording ? 'Stop Recording' : 'Start Recording' })
+			recordBtn.createSpan({ text: obsInfo.isRecording ? 'Stop recording' : 'Start recording' })
 			recordBtn.addEventListener('click', () => {
 				void this.plugin.toggleOBSRecording()
 				// Brief delay then refresh
@@ -2325,7 +2329,7 @@ export class TeleprompterSettingTab extends PluginSettingTab {
 			})
 			const streamBtnIcon = streamBtn.createDiv('tp-btn-icon')
 			setIcon(streamBtnIcon, obsInfo.isStreaming ? 'wifi-off' : 'wifi')
-			streamBtn.createSpan({ text: obsInfo.isStreaming ? 'Stop Streaming' : 'Start Streaming' })
+			streamBtn.createSpan({ text: obsInfo.isStreaming ? 'Stop streaming' : 'Start streaming' })
 			streamBtn.addEventListener('click', () => {
 				void this.plugin.toggleOBSStreaming()
 				// Brief delay then refresh

@@ -13,11 +13,14 @@ interface ExtendedBroadcastState extends Partial<TeleprompterState> {
 	networkBroadcastInterval?: number
 	obs?: OBSState
 	obsScenes?: string[]
+	textColor?: string
+	backgroundColor?: string
+	eyelinePosition?: number
 }
 
 export default class TeleprompterPlusPlugin extends Plugin {
-	settings: TeleprompterSettings
-	private wsServer: TeleprompterWebSocketServer | null = null
+	settings!: TeleprompterSettings
+	wsServer: TeleprompterWebSocketServer | null = null
 	private obsService: OBSService | null = null
 
 	onload(): void {
@@ -568,10 +571,10 @@ export default class TeleprompterPlusPlugin extends Plugin {
 			window.dispatchEvent(new CustomEvent('teleprompter:decrease-speed'))
 		})
 
-		this.wsServer.registerCommand('set-speed', (cmd: { speed?: number }) => {
+		this.wsServer.registerCommand('set-speed', (cmd) => {
 			window.dispatchEvent(
 				new CustomEvent('teleprompter:set-speed', {
-					detail: { speed: cmd.speed },
+					detail: { speed: (cmd as Record<string, unknown>)?.speed as number },
 				})
 			)
 		})
@@ -581,34 +584,38 @@ export default class TeleprompterPlusPlugin extends Plugin {
 			window.dispatchEvent(new CustomEvent('teleprompter:reset-to-top'))
 		})
 
-		this.wsServer.registerCommand('scroll-up', (cmd: { amount?: number }) => {
+		this.wsServer.registerCommand('scroll-up', (cmd) => {
+			const params = cmd as Record<string, unknown> | undefined
 			window.dispatchEvent(
 				new CustomEvent('teleprompter:scroll', {
-					detail: { amount: -(cmd.amount || 100) },
+					detail: { amount: -((params?.amount as number) || 100) },
 				})
 			)
 		})
 
-		this.wsServer.registerCommand('scroll-down', (cmd: { amount?: number }) => {
+		this.wsServer.registerCommand('scroll-down', (cmd) => {
+			const params = cmd as Record<string, unknown> | undefined
 			window.dispatchEvent(
 				new CustomEvent('teleprompter:scroll', {
-					detail: { amount: cmd.amount || 100 },
+					detail: { amount: (params?.amount as number) || 100 },
 				})
 			)
 		})
 
-		this.wsServer.registerCommand('jump-to-header', (cmd: { index?: number }) => {
+		this.wsServer.registerCommand('jump-to-header', (cmd) => {
+			const params = cmd as Record<string, unknown> | undefined
 			window.dispatchEvent(
 				new CustomEvent('teleprompter:jump-to-header', {
-					detail: { index: cmd.index },
+					detail: { index: params?.index as number },
 				})
 			)
 		})
 
-		this.wsServer.registerCommand('jump-to-header-by-id', (cmd: { headerId?: string }) => {
+		this.wsServer.registerCommand('jump-to-header-by-id', (cmd) => {
+			const params = cmd as Record<string, unknown> | undefined
 			window.dispatchEvent(
 				new CustomEvent('teleprompter:jump-to-header-by-id', {
-					detail: { headerId: cmd.headerId },
+					detail: { headerId: params?.headerId as string },
 				})
 			)
 		})
@@ -658,11 +665,13 @@ export default class TeleprompterPlusPlugin extends Plugin {
 			window.dispatchEvent(new CustomEvent('teleprompter:font-size-down'))
 		})
 
-		this.wsServer.registerCommand('set-font-size', (cmd: { fontSize?: number }) => {
-			if (cmd.fontSize && cmd.fontSize >= this.settings.minFontSize && cmd.fontSize <= this.settings.maxFontSize) {
-				this.settings.fontSize = cmd.fontSize
+		this.wsServer.registerCommand('set-font-size', (cmd) => {
+			const params = cmd as Record<string, unknown> | undefined
+			const fontSize = params?.fontSize as number | undefined
+			if (fontSize && fontSize >= this.settings.minFontSize && fontSize <= this.settings.maxFontSize) {
+				this.settings.fontSize = fontSize
 				void this.saveSettings()
-				this.updateFontSize(cmd.fontSize)
+				this.updateFontSize(fontSize)
 			}
 		})
 
@@ -701,10 +710,11 @@ export default class TeleprompterPlusPlugin extends Plugin {
 			window.dispatchEvent(new CustomEvent('teleprompter:countdown-decrease'))
 		})
 
-		this.wsServer.registerCommand('set-countdown', (cmd: { seconds?: number }) => {
+		this.wsServer.registerCommand('set-countdown', (cmd) => {
+			const params = cmd as Record<string, unknown> | undefined
 			window.dispatchEvent(
 				new CustomEvent('teleprompter:set-countdown', {
-					detail: { seconds: cmd.seconds },
+					detail: { seconds: params?.seconds as number },
 				})
 			)
 		})
@@ -921,8 +931,9 @@ export default class TeleprompterPlusPlugin extends Plugin {
 		})
 
 		// v0.8.0 Stream Deck commands - Open file
-		this.wsServer.registerCommand('open-file', (cmd: { path?: string }) => {
-			const filePath = cmd.path
+		this.wsServer.registerCommand('open-file', (cmd) => {
+			const params = cmd as Record<string, unknown> | undefined
+			const filePath = params?.path as string | undefined
 			if (filePath) {
 				window.dispatchEvent(new CustomEvent('teleprompter:open-file', { detail: { path: filePath } }))
 			}
@@ -954,14 +965,17 @@ export default class TeleprompterPlusPlugin extends Plugin {
 		})
 
 		// Network Broadcast commands (multi-device sync)
-		this.wsServer.registerCommand('set-scroll-position', (cmd: { position?: number; percentage?: number }) => {
-			if (cmd.position !== undefined) {
+		this.wsServer.registerCommand('set-scroll-position', (cmd) => {
+			const params = cmd as Record<string, unknown> | undefined
+			const position = params?.position as number | undefined
+			const percentage = params?.percentage as number | undefined
+			if (position !== undefined) {
 				window.dispatchEvent(new CustomEvent('teleprompter:set-scroll-position', {
-					detail: { position: cmd.position }
+					detail: { position }
 				}))
-			} else if (cmd.percentage !== undefined) {
+			} else if (percentage !== undefined) {
 				window.dispatchEvent(new CustomEvent('teleprompter:set-scroll-percentage', {
-					detail: { percentage: cmd.percentage }
+					detail: { percentage }
 				}))
 			}
 		})
@@ -1018,9 +1032,11 @@ export default class TeleprompterPlusPlugin extends Plugin {
 			await this.stopOBSStreaming()
 		})
 
-		this.wsServer.registerCommand('obs-set-scene', async (cmd: { scene?: string }) => {
-			if (cmd.scene) {
-				await this.setOBSScene(cmd.scene)
+		this.wsServer.registerCommand('obs-set-scene', async (cmd) => {
+			const params = cmd as Record<string, unknown> | undefined
+			const scene = params?.scene as string | undefined
+			if (scene) {
+				await this.setOBSScene(scene)
 			}
 		})
 
