@@ -17,16 +17,39 @@ import { loadWebSocketModule, getDiagnostics } from './websocket-loader'
 import { REMOTE_INTERFACE_HTML } from './remote-interface'
 
 // Declare require for runtime module loading (Obsidian/Electron environment)
-declare function require(_name: 'http'): typeof import('http')
+declare function require(_name: string): unknown
 
-// HTTP types for type safety - using minimal interface to avoid 'any' from Node types
+// HTTP types for type safety - using minimal interface to avoid Node type dependencies
 interface HttpServer {
 	listen: (port: number, host: string, callback?: () => void) => void
 	close: (callback?: (err?: Error) => void) => void
 	on: (event: string, handler: (...args: unknown[]) => void) => void
 }
-type IncomingMessage = import('http').IncomingMessage
-type ServerResponse = import('http').ServerResponse
+
+interface IncomingMessage {
+	method?: string
+	url?: string
+}
+
+interface ServerResponse {
+	setHeader: (name: string, value: string) => void
+	writeHead: (statusCode: number, headers?: Record<string, string>) => void
+	end: (data?: string) => void
+}
+
+interface HttpModule {
+	createServer: (handler: (req: IncomingMessage, res: ServerResponse) => void) => HttpServer
+}
+
+interface OsNetworkInterface {
+	internal: boolean
+	family: string
+	address: string
+}
+
+interface OsModule {
+	networkInterfaces: () => Record<string, OsNetworkInterface[]>
+}
 
 // Load WebSocket module at startup
 const wsModule = loadWebSocketModule()
@@ -40,8 +63,9 @@ type WebSocketServerInstance = {
 }
 type WebSocketInstance = {
 	on: (_event: string, _handler: (..._args: unknown[]) => void) => void
+	once: (_event: string, _handler: (..._args: unknown[]) => void) => void
 	send: (_data: string) => void
-	close: () => void
+	close: (_code?: number, _reason?: string) => void
 	readyState: number
 	terminate: () => void
 	ping: () => void
@@ -257,7 +281,7 @@ export class TeleprompterWebSocketServer {
 		return new Promise((resolve, reject) => {
 			try {
 				// Load http module at runtime (works in Obsidian's Electron environment)
-				const http = require('http')
+				const http = require('http') as HttpModule
 
 				// Create HTTP server first to handle both HTTP and WebSocket
 				this.httpServer = http.createServer((req: IncomingMessage, res: ServerResponse) => {
@@ -272,20 +296,20 @@ export class TeleprompterWebSocketServer {
 					server: this.httpServer,
 				})
 
-				this.wss.on('connection', this.handleConnection.bind(this))
+				this.wss.on('connection', (ws: unknown) => this.handleConnection(ws as WebSocketInstance))
 
 				this.wss.on('error', (error) => {
 					console.error('[TeleprompterWS] WebSocket server error:', error)
 				})
 
 				// Start listening on HTTP server
-				this.httpServer.listen(this.config.port, this.config.host, () => {
+				this.httpServer!.listen(this.config.port, this.config.host, () => {
 					console.debug(`[TeleprompterWS] Server running on http://${this.config.host}:${this.config.port}`)
 					this.startHeartbeat()
 					resolve()
 				})
 
-				this.httpServer.on('error', (error) => {
+				this.httpServer!.on('error', (error) => {
 					console.error('[TeleprompterWS] HTTP server error:', error)
 					reject(error instanceof Error ? error : new Error(String(error)))
 				})
@@ -522,10 +546,10 @@ export class TeleprompterWebSocketServer {
 				ws.close(4001, 'Authentication timeout')
 			}, 5000)
 
-			ws.once('message', (data: Buffer) => {
+			ws.once('message', (data: unknown) => {
 				clearTimeout(authTimeout)
 				try {
-					const msg = JSON.parse(data.toString())
+					const msg = JSON.parse(String(data)) as Record<string, unknown>
 					if (msg.type !== 'auth' || msg.token !== this.config.authToken) {
 						ws.close(4002, 'Invalid authentication')
 						return
@@ -562,9 +586,9 @@ export class TeleprompterWebSocketServer {
 		})
 
 		// Setup client event handlers
-		ws.on('message', (data: Buffer) => this.handleClientMessage(ws, data))
+		ws.on('message', (data: unknown) => this.handleClientMessage(ws, data))
 		ws.on('close', () => this.handleClientDisconnect(ws))
-		ws.on('error', (error) => this.handleClientError(ws, error))
+		ws.on('error', (error: unknown) => this.handleClientError(ws, error as Error))
 
 		// Setup ping/pong for connection health
 		ws.on('pong', () => {
@@ -575,7 +599,7 @@ export class TeleprompterWebSocketServer {
 	/**
 	 * Handle message from client
 	 */
-	private handleClientMessage(ws: WebSocket, data: Buffer): void {
+	private handleClientMessage(ws: WebSocketInstance, data: unknown): void {
 		// Check rate limit
 		if (!this.checkRateLimit(ws)) {
 			this.sendToClient(ws, {
@@ -587,10 +611,10 @@ export class TeleprompterWebSocketServer {
 		}
 
 		try {
-			const message: ClientMessage = JSON.parse(data.toString())
+			const message: ClientMessage = JSON.parse(String(data))
 
 			// Handle ping
-			if (message.type === 'ping') {
+			if ('type' in message && message.type === 'ping') {
 				this.sendToClient(ws, {
 					type: 'pong',
 					timestamp: Date.now(),
@@ -599,7 +623,7 @@ export class TeleprompterWebSocketServer {
 			}
 
 			// Handle subscribe
-			if (message.type === 'subscribe') {
+			if ('type' in message && message.type === 'subscribe') {
 				// Future: Handle event subscriptions
 				return
 			}
@@ -637,7 +661,7 @@ export class TeleprompterWebSocketServer {
 	/**
 	 * Handle client error
 	 */
-	private handleClientError(ws: WebSocket, error: Error): void {
+	private handleClientError(ws: WebSocketInstance, error: Error): void {
 		console.error('[TeleprompterWS] Client error:', error.message)
 		this.clients.delete(ws)
 		this.clientRateLimits.delete(ws)
@@ -760,7 +784,7 @@ export class TeleprompterWebSocketServer {
 	/**
 	 * Send message to specific client
 	 */
-	private sendToClient(ws: WebSocket, message: TeleprompterMessage): void {
+	private sendToClient(ws: WebSocketInstance, message: TeleprompterMessage): void {
 		if (ws.readyState === WS_OPEN) {
 			try {
 				ws.send(JSON.stringify(message))
@@ -851,7 +875,7 @@ export class TeleprompterWebSocketServer {
 	 */
 	getLocalNetworkUrl(): string | null {
 		try {
-			const os = require('os')
+			const os = require('os') as OsModule
 			const interfaces = os.networkInterfaces()
 
 			for (const name of Object.keys(interfaces)) {

@@ -80,10 +80,10 @@ fi
 echo ""
 echo "5. Checking for sentence case violations..."
 # Look for patterns like "Some Word" in setName/setDesc/text
-CASE_COUNT=$(grep -rn "setName\|setDesc\|text:" src/*.ts 2>/dev/null | grep -E "'[A-Z][a-z]+ [A-Z][a-z]+" | grep -v "Stream Deck\|Ko-fi\|GitHub" | wc -l | tr -d ' ')
+CASE_COUNT=$(grep -rn "setName\|setDesc\|text:" src/*.ts 2>/dev/null | grep -E "'[A-Z][a-z]+ [A-Z][a-z]+" | grep -v "Stream Deck\|Ko-fi\|GitHub\|Teleprompter Plus" | wc -l | tr -d ' ')
 if [ "$CASE_COUNT" -gt 0 ]; then
     check_warn "Found $CASE_COUNT potential sentence case issues - review manually"
-    grep -rn "setName\|setDesc\|text:" src/*.ts | grep -E "'[A-Z][a-z]+ [A-Z][a-z]+" | grep -v "Stream Deck\|Ko-fi\|GitHub" | head -10
+    grep -rn "setName\|setDesc\|text:" src/*.ts | grep -E "'[A-Z][a-z]+ [A-Z][a-z]+" | grep -v "Stream Deck\|Ko-fi\|GitHub\|Teleprompter Plus" | head -10
 else
     check_pass "No obvious sentence case violations"
 fi
@@ -103,7 +103,7 @@ if [ -f "manifest.json" ]; then
     fi
 
     # Check description ends with punctuation
-    if [[ "$DESC" =~ [.?!)]$ ]]; then
+    if [[ "$DESC" =~ [\.\?\!\)]$ ]]; then
         check_pass "Description ends with punctuation"
     else
         check_fail "Description must end with . ? ! or )"

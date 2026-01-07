@@ -6,8 +6,39 @@
  */
 
 // Node.js module types for dynamic require
-type NodeModule = Record<string, unknown>
-declare function require(_name: string): NodeModule
+declare function require(_name: string): unknown
+
+// Process module interface
+interface ProcessModule {
+	cwd: () => string
+	execPath: string
+	resourcesPath?: string
+	platform: string
+	arch: string
+	versions: Record<string, unknown>
+}
+
+// Path module interface
+interface PathModule {
+	join: (..._args: string[]) => string
+}
+
+// WS module interface
+interface WsModule {
+	WebSocketServer?: unknown
+	Server?: unknown
+	WebSocket?: unknown
+}
+
+// Electron remote interface
+interface ElectronRemote {
+	require: (_name: string) => unknown
+}
+
+// Electron module interface
+interface ElectronModule {
+	remote?: ElectronRemote
+}
 
 // WebSocket Server and WebSocket constructor types (from ws package)
 // Using generic constructor types since we're loading dynamically
@@ -41,15 +72,15 @@ export function loadWebSocketModule(): WebSocketModule {
 
 	// Strategy 1: Try to use Electron's built-in WebSocket APIs via remote
 	try {
-		const electron = require('electron')
+		const electron = require('electron') as ElectronModule | undefined
 
 		if (electron && electron.remote) {
 			const remote = electron.remote
-			const ws = remote.require('ws')
+			const ws = remote.require('ws') as WsModule | undefined
 
 			if (ws) {
-				result.WebSocketServer = ws.WebSocketServer || ws.Server
-				result.WebSocket = ws.WebSocket || ws
+				result.WebSocketServer = (ws.WebSocketServer || ws.Server) as WebSocketServerConstructor
+				result.WebSocket = (ws.WebSocket || ws) as WebSocketConstructor
 				result.loaded = true
 				return result
 			}
@@ -60,7 +91,7 @@ export function loadWebSocketModule(): WebSocketModule {
 
 	// Strategy 2: Try standard require with full module path
 	try {
-		const path = require('path')
+		const path = require('path') as PathModule
 
 		// Get Obsidian's app path - use configDir instead of hardcoded .obsidian
 		const app = (window as unknown as { app?: { vault?: { adapter?: { basePath?: string }, configDir?: string } } }).app
@@ -69,11 +100,11 @@ export function loadWebSocketModule(): WebSocketModule {
 			const configDir = app.vault.configDir
 			const wsPath = path.join(vaultPath, configDir, 'plugins', 'teleprompter-plus', 'node_modules', 'ws')
 
-			const ws = require(wsPath)
+			const ws = require(wsPath) as WsModule | undefined
 
 			if (ws) {
-				result.WebSocketServer = ws.WebSocketServer || ws.Server
-				result.WebSocket = ws.WebSocket || ws
+				result.WebSocketServer = (ws.WebSocketServer || ws.Server) as WebSocketServerConstructor
+				result.WebSocket = (ws.WebSocket || ws) as WebSocketConstructor
 				result.loaded = true
 				return result
 			}
@@ -84,8 +115,8 @@ export function loadWebSocketModule(): WebSocketModule {
 
 	// Strategy 3: Try using process.cwd() to build path
 	try {
-		const path = require('path')
-		const process = require('process')
+		const path = require('path') as PathModule
+		const process = require('process') as ProcessModule
 
 		const cwd = process.cwd()
 		// Get configDir from app if available
@@ -102,11 +133,11 @@ export function loadWebSocketModule(): WebSocketModule {
 
 		for (const wsPath of possiblePaths) {
 			try {
-				const ws = require(wsPath)
+				const ws = require(wsPath) as WsModule | undefined
 
 				if (ws) {
-					result.WebSocketServer = ws.WebSocketServer || ws.Server
-					result.WebSocket = ws.WebSocket || ws
+					result.WebSocketServer = (ws.WebSocketServer || ws.Server) as WebSocketServerConstructor
+					result.WebSocket = (ws.WebSocket || ws) as WebSocketConstructor
 					result.loaded = true
 					return result
 				}
@@ -120,18 +151,18 @@ export function loadWebSocketModule(): WebSocketModule {
 
 	// Strategy 4: Try to load from Obsidian's app resources
 	try {
-		const path = require('path')
-		const process = require('process')
+		const path = require('path') as PathModule
+		const process = require('process') as ProcessModule
 
 		// Electron apps often have resources in app.asar
 		const appPath = process.resourcesPath || ''
 		const wsPath = path.join(appPath, 'app.asar', 'node_modules', 'ws')
 
-		const ws = require(wsPath)
+		const ws = require(wsPath) as WsModule | undefined
 
 		if (ws) {
-			result.WebSocketServer = ws.WebSocketServer || ws.Server
-			result.WebSocket = ws.WebSocket || ws
+			result.WebSocketServer = (ws.WebSocketServer || ws.Server) as WebSocketServerConstructor
+			result.WebSocket = (ws.WebSocket || ws) as WebSocketConstructor
 			result.loaded = true
 			return result
 		}
@@ -141,11 +172,11 @@ export function loadWebSocketModule(): WebSocketModule {
 
 	// Strategy 5: Last resort - try just 'ws'
 	try {
-		const ws = require('ws')
+		const ws = require('ws') as WsModule | undefined
 
 		if (ws) {
-			result.WebSocketServer = ws.WebSocketServer || ws.Server
-			result.WebSocket = ws.WebSocket || ws
+			result.WebSocketServer = (ws.WebSocketServer || ws.Server) as WebSocketServerConstructor
+			result.WebSocket = (ws.WebSocket || ws) as WebSocketConstructor
 			result.loaded = true
 			return result
 		}
@@ -167,7 +198,7 @@ export function getDiagnostics(): Record<string, unknown> {
 	const diagnostics: Record<string, unknown> = {}
 
 	try {
-		const process = require('process')
+		const process = require('process') as ProcessModule
 		diagnostics.cwd = process.cwd()
 		diagnostics.execPath = process.execPath
 		diagnostics.resourcesPath = process.resourcesPath
@@ -179,7 +210,7 @@ export function getDiagnostics(): Record<string, unknown> {
 	}
 
 	try {
-		const path = require('path')
+		const path = require('path') as PathModule
 		const app = (window as unknown as { app?: { vault?: { adapter?: { basePath?: string }, configDir?: string } } }).app
 
 		if (app?.vault?.adapter?.basePath && app.vault.configDir) {

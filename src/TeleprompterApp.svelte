@@ -1,5 +1,30 @@
+<script lang="ts" module>
+  // Declare require for Electron/Node environment (module-level for ambient declaration)
+  declare function require(_name: string): unknown
+
+  // Module interfaces for type casting
+  interface PathModule {
+    join: (..._args: string[]) => string
+  }
+
+  interface FsModule {
+    appendFileSync: (_path: string, _data: string, _encoding: string) => void
+  }
+
+  interface PowerSaveBlocker {
+    start: (_type: string) => number
+    stop: (_id: number) => void
+    isStarted: (_id: number) => boolean
+  }
+
+  interface ElectronModule {
+    remote?: { powerSaveBlocker?: PowerSaveBlocker }
+    powerSaveBlocker?: PowerSaveBlocker
+  }
+</script>
+
 <script lang="ts">
-  import type { App as ObsidianApp } from 'obsidian'
+  import type { App as ObsidianApp, TFile } from 'obsidian'
   import { MarkdownView, setIcon } from 'obsidian'
   import { onMount } from 'svelte'
   import { marked } from 'marked'
@@ -36,19 +61,23 @@
     return `<h${level} id="${headerId}" data-header-id="${headerId}">${text}</h${level}>\n`
   }
 
-  // Configure marked to use highlight.js and custom renderer
+  // Override code block renderer to use highlight.js
+  renderer.code = function({ text, lang }) {
+    if (lang && hljs.getLanguage(lang)) {
+      try {
+        const highlighted = hljs.highlight(text, { language: lang }).value
+        return `<pre><code class="hljs language-${lang}">${highlighted}</code></pre>\n`
+      } catch (err) {
+        console.error('Syntax highlighting error:', err)
+      }
+    }
+    // Return unhighlighted if language not found
+    return `<pre><code>${text}</code></pre>\n`
+  }
+
+  // Configure marked with custom renderer
   marked.setOptions({
     renderer: renderer,
-    highlight: function (code, lang) {
-      if (lang && hljs.getLanguage(lang)) {
-        try {
-          return hljs.highlight(code, { language: lang }).value
-        } catch (err) {
-          console.error('Syntax highlighting error:', err)
-        }
-      }
-      return code // Return unhighlighted if language not found
-    },
     breaks: true, // Convert \n to <br>
     gfm: true // Enable GitHub Flavored Markdown
   })
@@ -272,9 +301,9 @@
 
         // Read the note content synchronously from cache
         const cache = app.metadataCache.getFileCache(file)
-        const noteContent = (app.vault as any).cachedRead ?
-          '' : // We can't use cachedRead synchronously, need async approach
-          ''
+        // Note: cachedRead requires async, this synchronous check is a placeholder
+        const _hasCache = Boolean(app.metadataCache.getFileCache(file))
+        void _hasCache // Mark as used
 
         // Use the cached content if available (stored in file metadata)
         // For now, we'll use a placeholder approach that works synchronously
@@ -283,14 +312,14 @@
         // Get content from vault cache (synchronous)
         let embeddedContent = ''
 
-        // Access the internal cache (Obsidian stores file content)
-        const cachedData = (app as any).vault.adapter
+        // Note: vault.adapter is an internal Obsidian API, we access it carefully
+        const _adapter = app.vault.adapter
 
         // For embedded notes, we'll read synchronously if possible
         // Otherwise show a placeholder
         try {
-          // Try to get content from Obsidian's internal file cache
-          const fileCache = (app as any).vault.fileMap?.[file.path]
+          // Check if file exists via metadata cache
+          const fileCache = app.metadataCache.getFileCache(file)
           if (fileCache) {
             // File exists in cache
           }
@@ -343,7 +372,7 @@
       try {
         const file = app.vault.getAbstractFileByPath(notePath)
         if (file && 'extension' in file) {
-          const noteContent = await app.vault.cachedRead(file as any)
+          const noteContent = await app.vault.cachedRead(file as TFile)
 
           // Strip YAML frontmatter from embedded content
           const contentWithoutYaml = noteContent.replace(/^---\n[\s\S]*?\n---\n?/, '')
@@ -418,7 +447,7 @@
   }
 
   // Toolbar control definitions - maps IDs to their type for rendering
-  type ToolbarControlType = 'icon-button' | 'text-button' | 'popup-slider' | 'popup-multi' | 'popup-list' | 'color-picker'
+  type ToolbarControlType = 'icon-button' | 'text-button' | 'popup-slider' | 'popup-multi' | 'popup-list' | 'color-picker' | 'info-display'
 
   interface ToolbarControlDef {
     id: string
@@ -1029,9 +1058,13 @@
   // Write error log to file for debugging
   function writeErrorLog(errorType: string, errorData: Record<string, unknown>) {
     try {
-      const fs = require('fs')
-      const path = require('path')
-      const logDir = path.join(app.vault.adapter.basePath, '.obsidian', 'plugins', 'teleprompter-plus')
+      const fs = require('fs') as FsModule
+      const path = require('path') as PathModule
+      // Cast to access basePath property that exists at runtime
+      const adapter = app.vault.adapter as { basePath?: string }
+      if (!adapter.basePath) return
+
+      const logDir = path.join(adapter.basePath, '.obsidian', 'plugins', 'teleprompter-plus')
       const logFile = path.join(logDir, 'error-log.jsonl')
 
       // Format as JSON Lines (one JSON object per line)
@@ -1123,7 +1156,7 @@
     if (!header.parentId) return true
 
     // Check if any ancestor is collapsed
-    let currentParentId = header.parentId
+    let currentParentId: string | undefined = header.parentId
     while (currentParentId) {
       if (collapsedHeaders.has(currentParentId)) {
         return false
@@ -1900,7 +1933,7 @@
     // Manually reload the pinned note
     const file = app.vault.getAbstractFileByPath(pinnedNotePath)
     if (file && 'extension' in file) {
-      app.vault.read(file).then((fileContent) => {
+      app.vault.read(file as TFile).then((fileContent) => {
         const result = removeYAMLFrontmatter(fileContent)
         content = result.content
         yamlLineOffset = result.linesRemoved
@@ -1912,8 +1945,8 @@
   function toggleKeepAwake() {
     try {
       // Access Electron's powerSaveBlocker API
-      const electron = require('electron')
-      const { powerSaveBlocker } = electron.remote || electron
+      const electron = require('electron') as ElectronModule
+      const powerSaveBlocker = electron.remote?.powerSaveBlocker || electron.powerSaveBlocker
 
       if (!powerSaveBlocker) {
         console.error('[KeepAwake] powerSaveBlocker API not available')
@@ -1945,8 +1978,8 @@
   function stopKeepAwake() {
     if (isKeepAwake && powerSaveBlockerId !== null) {
       try {
-        const electron = require('electron')
-        const { powerSaveBlocker } = electron.remote || electron
+        const electron = require('electron') as ElectronModule
+        const powerSaveBlocker = electron.remote?.powerSaveBlocker || electron.powerSaveBlocker
         if (powerSaveBlocker) {
           powerSaveBlocker.stop(powerSaveBlockerId)
           debugLog('[KeepAwake] Cleanup: Stopped screen sleep prevention')
@@ -1956,6 +1989,13 @@
       }
       powerSaveBlockerId = null
       isKeepAwake = false
+    }
+  }
+
+  // Start keep awake (enable screen sleep prevention)
+  function startKeepAwake() {
+    if (!isKeepAwake) {
+      toggleKeepAwake()
     }
   }
 
@@ -2229,7 +2269,7 @@
     const file = app.vault.getAbstractFileByPath(filePath)
     if (file && 'extension' in file && file.extension === 'md') {
       try {
-        const fileContent = await app.vault.read(file as any)
+        const fileContent = await app.vault.read(file as TFile)
         const result = removeYAMLFrontmatter(fileContent)
         content = result.content
         yamlLineOffset = result.linesRemoved
@@ -3355,7 +3395,7 @@
         if (data.lineHeight !== undefined) lineHeight = data.lineHeight
         if (data.letterSpacing !== undefined) letterSpacing = data.letterSpacing
         if (data.opacity !== undefined) opacity = data.opacity
-        if (data.textAlignment !== undefined) textAlignment = data.textAlignment
+        if (data.textAlignment !== undefined) textAlignment = data.textAlignment as 'left' | 'center' | 'right' | 'rtl'
         if (data.countdownSeconds !== undefined) countdownSeconds = data.countdownSeconds
         if (data.isPinned !== undefined) isPinned = data.isPinned
         if (data.isKeepAwake !== undefined) {
@@ -3366,8 +3406,8 @@
         }
         if (data.flipHorizontal !== undefined) flipHorizontal = data.flipHorizontal
         if (data.flipVertical !== undefined) flipVertical = data.flipVertical
-        if (data.viewMode !== undefined) viewMode = data.viewMode
-        if (data.progressIndicatorStyle !== undefined) progressIndicatorStyle = data.progressIndicatorStyle
+        if (data.viewMode !== undefined) viewMode = data.viewMode as 'rendered' | 'plain'
+        if (data.progressIndicatorStyle !== undefined) progressIndicatorStyle = data.progressIndicatorStyle as 'progress-bar' | 'scrollbar' | 'none'
         if (data.fontFamily !== undefined) fontFamily = data.fontFamily
         if (data.paddingTop !== undefined) paddingTop = data.paddingTop
         if (data.paddingRight !== undefined) paddingRight = data.paddingRight

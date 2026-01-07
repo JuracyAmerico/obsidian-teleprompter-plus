@@ -372,7 +372,7 @@ export class OBSService {
 
 		try {
 			const response = await this.obs.call('GetSceneList')
-			return response.scenes.map((scene: { sceneName: string }) => scene.sceneName)
+			return (response.scenes as Array<{ sceneName: string }>).map((scene) => scene.sceneName)
 		} catch (err) {
 			console.error('[OBS] Failed to get scenes:', err)
 			return []
