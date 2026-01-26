@@ -1881,7 +1881,7 @@ export class TeleprompterSettingTab extends PluginSettingTab {
 	// ========================================
 	private displayConnectionTab(containerEl: HTMLElement): void {
 		containerEl.createEl('p', {
-			text: 'Configure websocket server for stream deck and external control',
+			text: 'Configure server for external devices and remote control',
 			cls: 'setting-item-description',
 		})
 
@@ -1942,7 +1942,7 @@ export class TeleprompterSettingTab extends PluginSettingTab {
 
 		new Setting(containerEl)
 			.setName('Port')
-			.setDesc('Websocket server port (requires restart)')
+			.setDesc('Server port (requires restart)')
 			.addText(t => t
 				.setPlaceholder('8765')
 				.setValue(this.plugin.settings.wsPort.toString())
@@ -2075,7 +2075,7 @@ export class TeleprompterSettingTab extends PluginSettingTab {
 
 		const remoteSteps = remoteGuide.createEl('ol')
 		remoteSteps.createEl('li', { text: 'Ensure your phone is on the same network as this computer' })
-		remoteSteps.createEl('li', { text: 'Open the URL above in your phone\'s browser' })
+		remoteSteps.createEl('li', { text: 'Open the address above in your phone\'s browser' })
 		remoteSteps.createEl('li', { text: 'Use the play/pause button to control playback' })
 		remoteSteps.createEl('li', { text: 'Adjust speed, jump to sections, and more from your phone' })
 
@@ -2087,28 +2087,28 @@ export class TeleprompterSettingTab extends PluginSettingTab {
 			ipHint.createEl('strong', { text: 'Tip: ' })
 			ipHint.appendText('To access from your phone, change the host setting above to ')
 			ipHint.createEl('code', { text: '0.0.0.0' })
-			ipHint.appendText(' and use your computer\'s local IP address. On macOS: System Settings → WiFi → Details → TCP/IP → IP address. Or run ')
+			ipHint.appendText(' and use your computer\'s local IP address. On macOS: System Settings → Network → Details → TCP/IP → IP address. Or run ')
 			ipHint.createEl('code', { text: 'ipconfig getifaddr en0' })  // Terminal command - not sentence case
 			ipHint.appendText(' in terminal.')
 		}
 
-		// Stream Deck Guide
+		// External Control Guide
 		const guideSection = containerEl.createDiv('tp-section-header')
 		const guideIcon = guideSection.createDiv('tp-section-header-icon')
 		setIcon(guideIcon, 'help-circle')
-		guideSection.createSpan({ text: 'Stream deck', cls: 'tp-section-header-title' })
+		guideSection.createSpan({ text: 'External control', cls: 'tp-section-header-title' })
 
 		const guideEl = containerEl.createDiv()
 		guideEl.createEl('p', {
-			text: 'To control the teleprompter from stream deck:',
+			text: 'To control the teleprompter from external devices:',
 			cls: 'setting-item-description'
 		})
 
 		const steps = guideEl.createEl('ol')
-		steps.createEl('li', { text: 'Ensure the websocket server is running (see status above)' })
-		steps.createEl('li', { text: 'Install the stream deck plugin' })
+		steps.createEl('li', { text: 'Ensure the server is running (see status above)' })
+		steps.createEl('li', { text: 'Install the plugin for your control device' })
 		steps.createEl('li', { text: `Configure the plugin to connect to ws://${this.plugin.settings.wsHost}:${this.plugin.settings.wsPort}` })
-		steps.createEl('li', { text: 'Add actions to your stream deck buttons' })
+		steps.createEl('li', { text: 'Add actions to your device buttons' })
 
 		guideEl.createEl('p', {
 			text: 'By default, the server only accepts local connections for security.',
@@ -2234,7 +2234,7 @@ export class TeleprompterSettingTab extends PluginSettingTab {
 
 		new Setting(containerEl)
 			.setName('Host')
-			.setDesc('Websocket server host (usually 127.0.0.1)')
+			.setDesc('Server host (usually 127.0.0.1)')
 			.addText(t => t
 				.setPlaceholder('127.0.0.1')
 				.setValue(this.plugin.settings.obsHost)
@@ -2246,7 +2246,7 @@ export class TeleprompterSettingTab extends PluginSettingTab {
 
 		new Setting(containerEl)
 			.setName('Port')
-			.setDesc('Websocket server port (default: 4455)')
+			.setDesc('Server port (default: 4455)')
 			.addText(t => t
 				.setPlaceholder('4455')
 				.setValue(this.plugin.settings.obsPort.toString())
@@ -2261,7 +2261,7 @@ export class TeleprompterSettingTab extends PluginSettingTab {
 
 		new Setting(containerEl)
 			.setName('Password')
-			.setDesc('Websocket server password (leave empty if not set)')
+			.setDesc('Server password (leave empty if not set)')
 			.addText(t => {
 				t.inputEl.type = 'password'
 				t.setPlaceholder('••••••••')

@@ -30,8 +30,8 @@ export class PromptModal extends Modal {
 		contentEl.empty()
 		contentEl.addClass('teleprompter-prompt-modal')
 
-		// Title
-		contentEl.createEl('h3', { text: this.title })
+		// Title - use Setting with setHeading for consistency
+		new Setting(contentEl).setName(this.title).setHeading()
 
 		let inputValue = this.defaultValue
 

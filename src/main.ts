@@ -147,7 +147,7 @@ export default class TeleprompterPlusPlugin extends Plugin {
 		// Auto-connect to OBS if enabled
 		if (this.settings.obsEnabled && this.settings.obsAutoConnect) {
 			// Delay connection slightly to ensure everything is ready
-			setTimeout(() => this.connectOBS(), 2000)
+			setTimeout(() => void this.connectOBS(), 2000)
 		}
 
 		// Listen for teleprompter play/pause events to sync with OBS
@@ -1055,7 +1055,7 @@ export default class TeleprompterPlusPlugin extends Plugin {
 	 */
 	private showWebSocketInfo(): void {
 		if (!this.wsServer) {
-			new Notice('Websocket server not running')
+			new Notice('Remote server not running')
 			return
 		}
 
