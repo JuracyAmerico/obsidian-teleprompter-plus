@@ -553,7 +553,7 @@
   let currentPresetIndex = $state(SPEED_PRESETS.indexOf(2)) // Default to 2x
   let fontSize = $state(24) // Font size in pixels
   let contentArea: HTMLElement | undefined = $state()
-  let showNavigation = $state(settings.rememberNavigationState ? (localStorage.getItem('teleprompter-navigation-open') === 'true') : false)
+  let showNavigation = $state(settings.rememberNavigationState ? (app.loadLocalStorage('teleprompter-navigation-open') === 'true') : false)
   let headerElements = $state<Map<string, HTMLElement>>(new Map())
   let currentFileName = $state('')
   let collapsedHeaders = $state<Set<string>>(new Set())
@@ -807,56 +807,48 @@
     }
   })
 
-  // Load saved navigation width from localStorage
-  if (typeof localStorage !== 'undefined') {
-    const savedWidth = localStorage.getItem('teleprompter-nav-width')
-    if (savedWidth) navigationWidth = parseInt(savedWidth)
+  // Load saved navigation width using Obsidian's localStorage API
+  const savedWidth = app.loadLocalStorage('teleprompter-nav-width')
+  if (savedWidth) navigationWidth = parseInt(savedWidth)
 
-    // Load saved eyeline position and visibility
-    const savedEyelinePos = localStorage.getItem('teleprompter-eyeline-position')
-    if (savedEyelinePos) {
-      const parsed = parseFloat(savedEyelinePos)
-      // Clamp to reasonable range (5-95%) so eyeline is always visible and draggable
-      eyelinePosition = Math.max(5, Math.min(95, parsed))
-    }
+  // Load saved eyeline position and visibility
+  const savedEyelinePos = app.loadLocalStorage('teleprompter-eyeline-position')
+  if (savedEyelinePos) {
+    const parsed = parseFloat(savedEyelinePos)
+    // Clamp to reasonable range (5-95%) so eyeline is always visible and draggable
+    eyelinePosition = Math.max(5, Math.min(95, parsed))
+  }
 
-    const savedEyelineVisible = localStorage.getItem('teleprompter-eyeline-visible')
-    // Check for migration flag - reset eyeline if bad position was saved
-    const needsReset = localStorage.getItem('teleprompter-eyeline-reset-v1') !== 'done'
-    if (needsReset && savedEyelinePos && parseFloat(savedEyelinePos) >= 95) {
-      // One-time reset: position was at extreme, reset to defaults
-      eyelinePosition = 50 // Middle
-      showEyeline = true
-      localStorage.setItem('teleprompter-eyeline-position', '50')
-      localStorage.setItem('teleprompter-eyeline-visible', 'true')
-      localStorage.setItem('teleprompter-eyeline-reset-v1', 'done')
-    } else if (savedEyelineVisible !== null) {
-      showEyeline = savedEyelineVisible === 'true'
-    } else {
-      // Default to true if not set
-      showEyeline = true
-    }
+  const savedEyelineVisible = app.loadLocalStorage('teleprompter-eyeline-visible')
+  // Check for migration flag - reset eyeline if bad position was saved
+  const needsReset = app.loadLocalStorage('teleprompter-eyeline-reset-v1') !== 'done'
+  if (needsReset && savedEyelinePos && parseFloat(savedEyelinePos) >= 95) {
+    // One-time reset: position was at extreme, reset to defaults
+    eyelinePosition = 50 // Middle
+    showEyeline = true
+    app.saveLocalStorage('teleprompter-eyeline-position', '50')
+    app.saveLocalStorage('teleprompter-eyeline-visible', 'true')
+    app.saveLocalStorage('teleprompter-eyeline-reset-v1', 'done')
+  } else if (savedEyelineVisible !== null) {
+    showEyeline = savedEyelineVisible === 'true'
+  } else {
+    // Default to true if not set
+    showEyeline = true
   }
 
   // Save navigation width whenever it changes
   $effect(() => {
-    if (typeof localStorage !== 'undefined') {
-      localStorage.setItem('teleprompter-nav-width', navigationWidth.toString())
-    }
+    app.saveLocalStorage('teleprompter-nav-width', navigationWidth.toString())
   })
 
   // Save eyeline position whenever it changes
   $effect(() => {
-    if (typeof localStorage !== 'undefined') {
-      localStorage.setItem('teleprompter-eyeline-position', eyelinePosition.toString())
-    }
+    app.saveLocalStorage('teleprompter-eyeline-position', eyelinePosition.toString())
   })
 
   // Save eyeline visibility whenever it changes
   $effect(() => {
-    if (typeof localStorage !== 'undefined') {
-      localStorage.setItem('teleprompter-eyeline-visible', showEyeline.toString())
-    }
+    app.saveLocalStorage('teleprompter-eyeline-visible', showEyeline.toString())
   })
 
   // Update elapsed time and time estimation every second
@@ -1064,7 +1056,9 @@
       const adapter = app.vault.adapter as { basePath?: string }
       if (!adapter.basePath) return
 
-      const logDir = path.join(adapter.basePath, '.obsidian', 'plugins', 'teleprompter-plus')
+      // Use configDir instead of hardcoded .obsidian
+      const configDir = app.vault.configDir
+      const logDir = path.join(adapter.basePath, configDir, 'plugins', 'teleprompter-plus')
       const logFile = path.join(logDir, 'error-log.jsonl')
 
       // Format as JSON Lines (one JSON object per line)
@@ -1752,7 +1746,7 @@
     showNavigation = !showNavigation
     // Save navigation state if remember setting is enabled
     if (settings.rememberNavigationState) {
-      localStorage.setItem('teleprompter-navigation-open', String(showNavigation))
+      app.saveLocalStorage('teleprompter-navigation-open', String(showNavigation))
     }
     broadcastState({ showNavigation })
   }
