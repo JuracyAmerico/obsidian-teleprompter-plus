@@ -1,5 +1,4 @@
-import { ItemView } from 'obsidian'
-import type { WorkspaceLeaf } from 'obsidian'
+import { ItemView, WorkspaceLeaf } from 'obsidian'
 import type TeleprompterPlusPlugin from './main'
 import { mount, unmount } from 'svelte'
 import TeleprompterApp from './TeleprompterApp.svelte'
@@ -27,7 +26,7 @@ export class TeleprompterView extends ItemView {
 		return 'teleprompter-final'
 	}
 
-	async onOpen(): Promise<void> {
+	onOpen(): void {
 		const container = this.containerEl.children[1]
 		container.empty()
 
@@ -51,7 +50,7 @@ export class TeleprompterView extends ItemView {
 		})
 	}
 
-	async onClose(): Promise<void> {
+	onClose(): void {
 		// Unmount Svelte 5 component
 		if (this.component) {
 			void unmount(this.component)

@@ -31,10 +31,10 @@ export class WhatsNewModal extends Modal {
 		const logoText = logoSvg.createSvg('text', { attr: { x: '50', y: '62', 'text-anchor': 'middle', fill: 'white', 'font-size': '32', 'font-weight': 'bold', 'font-family': 'system-ui' } })
 		logoText.textContent = 'T+'
 
-		// Title and version
+		// Title and version - using div instead of h2 for Obsidian plugin guidelines
 		const titleContainer = header.createDiv({ cls: 'whats-new-title-container' })
-		titleContainer.createEl('h2', { text: 'Teleprompter Plus', cls: 'whats-new-title' })  // Plugin name - intentional title case
-		titleContainer.createEl('span', { text: `v${this.version}`, cls: 'whats-new-version' })
+		titleContainer.createDiv({ text: 'Teleprompter Plus', cls: 'whats-new-title' })  // Plugin name - intentional title case
+		titleContainer.createSpan({ text: `v${this.version}`, cls: 'whats-new-version' })
 
 		// Welcome message
 		const isFirstInstall = !this.plugin.settings.lastSeenVersion
@@ -44,36 +44,36 @@ export class WhatsNewModal extends Modal {
 
 		contentEl.createEl('p', { text: welcomeText, cls: 'whats-new-welcome' })
 
-		// Release highlights
+		// Release highlights - using Setting.setHeading() for section headers
 		const highlights = contentEl.createDiv({ cls: 'whats-new-highlights' })
-		highlights.createEl('h3', { text: `What's New in v${this.version}` })
+		new Setting(highlights).setName(`What's new in v${this.version}`).setHeading()
 
 		const featureList = highlights.createEl('ul', { cls: 'whats-new-features' })
 
 		const features = [
 			{
 				icon: '📱',
-				title: 'Remote Web Interface',
+				title: 'Remote web interface',
 				description: 'Control from any device on your network - phone, tablet, or second computer'
 			},
 			{
 				icon: '⏱️',
-				title: 'Countdown Timer',
+				title: 'Countdown timer',
 				description: 'Get ready with a visual countdown before auto-scroll starts'
 			},
 			{
 				icon: '📍',
-				title: 'Section Navigation',
+				title: 'Section navigation',
 				description: 'Jump to headers/sections with a tap - works from mobile remote too'
 			},
 			{
 				icon: '🎛️',
-				title: 'Stream Deck Integration',
+				title: 'External device integration',
 				description: '55+ actions for professional teleprompter control'
 			},
 			{
 				icon: '🎤',
-				title: 'Voice Tracking (Beta)',
+				title: 'Voice tracking (beta)',
 				description: 'Experimental feature - scrolls as you speak'
 			}
 		]
@@ -88,7 +88,7 @@ export class WhatsNewModal extends Modal {
 
 		// Ko-fi support section
 		const supportSection = contentEl.createDiv({ cls: 'whats-new-support' })
-		supportSection.createEl('h3', { text: 'Support development' })
+		new Setting(supportSection).setName('Support development').setHeading()
 		supportSection.createEl('p', {
 			text: 'If this plugin helps your workflow, consider supporting its development!',
 			cls: 'support-text'
