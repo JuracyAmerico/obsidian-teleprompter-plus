@@ -23,7 +23,7 @@ export default class TeleprompterPlusPlugin extends Plugin {
 	wsServer: TeleprompterWebSocketServer | null = null
 	private obsService: OBSService | null = null
 
-	onload(): void {
+	async onload(): Promise<void> {
 		// Teleprompter icon - CORRECT FORMAT per Obsidian docs
 		// NO <svg> wrapper, coordinates for 100x100 viewBox
 		const iconSvg = `<path d="M 15 10 L 85 10 L 75 70 L 25 70 Z" fill="currentColor"></path><rect x="47" y="70" width="6" height="15" fill="currentColor"></rect><rect x="30" y="85" width="40" height="8" fill="currentColor"></rect><line x1="30" y1="35" x2="70" y2="35" stroke="currentColor" stroke-width="3" opacity="0.5"></line>`
@@ -118,11 +118,8 @@ export default class TeleprompterPlusPlugin extends Plugin {
 		addIcon('tp-font-slab', `<path d="M 25 75 L 50 20 L 75 75 M 35 55 L 65 55" stroke="currentColor" stroke-width="10" fill="none" stroke-linecap="square" stroke-linejoin="miter"></path><line x1="18" y1="75" x2="32" y2="75" stroke="currentColor" stroke-width="6"></line><line x1="68" y1="75" x2="82" y2="75" stroke="currentColor" stroke-width="6"></line><line x1="45" y1="20" x2="55" y2="20" stroke="currentColor" stroke-width="6"></line>`)
 
 		
-		// Load settings
-		void this.loadSettings().then(() => {
-			// Show What's New modal if version changed
-			this.showWhatsNewIfNeeded()
-		})
+		// Load settings FIRST - must await before using this.settings
+		await this.loadSettings()
 
 		// Register settings tab
 		this.addSettingTab(new TeleprompterSettingTab(this.app, this))
@@ -133,7 +130,7 @@ export default class TeleprompterPlusPlugin extends Plugin {
 			(leaf) => new TeleprompterView(leaf, this)
 		)
 
-		// Start WebSocket server if enabled
+		// Start WebSocket server if enabled (settings now guaranteed to be loaded)
 		if (this.settings.autoStartWebSocket) {
 			void this.startWebSocketServer()
 		}
@@ -149,6 +146,9 @@ export default class TeleprompterPlusPlugin extends Plugin {
 			// Delay connection slightly to ensure everything is ready
 			setTimeout(() => void this.connectOBS(), 2000)
 		}
+
+		// Show What's New modal if version changed
+		this.showWhatsNewIfNeeded()
 
 		// Listen for teleprompter play/pause events to sync with OBS
 		this.registerDomEvent(window, 'teleprompter:play-started' as keyof WindowEventMap, () => {
