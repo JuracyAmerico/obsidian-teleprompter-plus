@@ -1,9 +1,9 @@
 {
   "id": "teleprompter-plus",
   "name": "Teleprompter Plus",
-  "version": "0.9.12",
+  "version": "0.9.13",
   "minAppVersion": "1.0.0",
-  "description": "Professional teleprompter with mobile remote control, Stream Deck integration, countdown timer, and voice tracking.",
+  "description": "Professional teleprompter with mobile remote control, external device integration, countdown timer, and voice tracking.",
   "author": "JuracyAmerico",
   "authorUrl": "https://github.com/JuracyAmerico",
   "fundingUrl": "https://ko-fi.com/americocanada",
