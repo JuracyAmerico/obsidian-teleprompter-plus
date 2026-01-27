@@ -595,6 +595,9 @@
   let minimapElement: HTMLElement | undefined = $state() // Reference to minimap element
   let scrollPosition = $state(0) // Track scroll position for minimap viewport indicator
   let scrollPercentage = $state(0) // Scroll percentage (0-100) for progress display
+  // Per-note scroll position preservation (stores scrollTop per file path)
+  let scrollPositionPerNote = $state<Map<string, number>>(new Map())
+  let currentNotePath = $state<string | null>(null) // Track current note path for scroll position saving
   // Focus mode state
   let focusMode = $state(false) // Dim text outside eyeline area
   let focusModeOpacity = $state(0.3) // Opacity for dimmed text (0.1-0.5)
@@ -957,6 +960,16 @@
 
     const activeFile = app.workspace.getActiveFile()
     if (activeFile) {
+      // Save scroll position for the current note BEFORE switching
+      if (currentNotePath && contentArea) {
+        scrollPositionPerNote.set(currentNotePath, contentArea.scrollTop)
+        debugLog(`[Scroll] Saved position ${contentArea.scrollTop}px for ${currentNotePath}`)
+      }
+
+      // Check if this is actually a different file
+      const newPath = activeFile.path
+      const isSameFile = currentNotePath === newPath
+
       app.vault.read(activeFile).then((fileContent) => {
         // Remove YAML frontmatter and track offset
         const result = removeYAMLFrontmatter(fileContent)
@@ -964,9 +977,34 @@
         yamlLineOffset = result.linesRemoved
         currentFileName = activeFile.basename
 
-        // Reset countdown flag when new document loads
-        hasUsedCountdown = false
-        debugLog('[Document] New document loaded - countdown flag reset')
+        // Update current note path
+        currentNotePath = newPath
+
+        // Reset countdown flag when new document loads (only for different documents)
+        if (!isSameFile) {
+          hasUsedCountdown = false
+          debugLog('[Document] New document loaded - countdown flag reset')
+        }
+
+        // Restore scroll position for this note (if previously saved)
+        const savedPosition = scrollPositionPerNote.get(newPath)
+        if (savedPosition !== undefined && savedPosition > 0) {
+          // Use requestAnimationFrame to ensure DOM has updated
+          requestAnimationFrame(() => {
+            if (contentArea) {
+              contentArea.scrollTop = savedPosition
+              debugLog(`[Scroll] Restored position ${savedPosition}px for ${newPath}`)
+            }
+          })
+        } else if (!isSameFile) {
+          // Reset to top for new documents without saved position
+          requestAnimationFrame(() => {
+            if (contentArea) {
+              contentArea.scrollTop = 0
+              debugLog(`[Scroll] Reset to top for new document ${newPath}`)
+            }
+          })
+        }
       })
     }
   }
