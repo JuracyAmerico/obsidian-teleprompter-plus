@@ -1,10 +1,10 @@
 {
   "id": "teleprompter-plus",
   "name": "Teleprompter Plus",
-  "version": "0.9.14",
+  "version": "0.9.15",
   "minAppVersion": "1.0.0",
   "description": "Professional teleprompter with mobile remote control, external device integration, countdown timer, and voice tracking.",
-  "author": "JuracyAmerico",
+  "author": "Americo",
   "authorUrl": "https://github.com/JuracyAmerico",
   "fundingUrl": "https://ko-fi.com/americocanada",
   "isDesktopOnly": true

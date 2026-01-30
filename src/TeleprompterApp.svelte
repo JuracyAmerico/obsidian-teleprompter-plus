@@ -75,6 +75,86 @@
     return `<pre><code>${text}</code></pre>\n`
   }
 
+  // Callout type configuration with icons and default titles
+  const calloutConfig: Record<string, { icon: string; defaultTitle: string }> = {
+    'info': { icon: 'ℹ️', defaultTitle: 'Info' },
+    'tip': { icon: '💡', defaultTitle: 'Tip' },
+    'hint': { icon: '💡', defaultTitle: 'Hint' },
+    'important': { icon: '🔥', defaultTitle: 'Important' },
+    'warning': { icon: '⚠️', defaultTitle: 'Warning' },
+    'caution': { icon: '⚠️', defaultTitle: 'Caution' },
+    'attention': { icon: '⚠️', defaultTitle: 'Attention' },
+    'note': { icon: '📝', defaultTitle: 'Note' },
+    'success': { icon: '✅', defaultTitle: 'Success' },
+    'check': { icon: '✅', defaultTitle: 'Check' },
+    'done': { icon: '✅', defaultTitle: 'Done' },
+    'question': { icon: '❓', defaultTitle: 'Question' },
+    'help': { icon: '❓', defaultTitle: 'Help' },
+    'faq': { icon: '❓', defaultTitle: 'FAQ' },
+    'danger': { icon: '🔴', defaultTitle: 'Danger' },
+    'error': { icon: '❌', defaultTitle: 'Error' },
+    'bug': { icon: '🐛', defaultTitle: 'Bug' },
+    'example': { icon: '📋', defaultTitle: 'Example' },
+    'quote': { icon: '💬', defaultTitle: 'Quote' },
+    'cite': { icon: '💬', defaultTitle: 'Cite' },
+    'abstract': { icon: '📄', defaultTitle: 'Abstract' },
+    'summary': { icon: '📄', defaultTitle: 'Summary' },
+    'tldr': { icon: '📄', defaultTitle: 'TL;DR' },
+    'todo': { icon: '☑️', defaultTitle: 'Todo' },
+    'failure': { icon: '❌', defaultTitle: 'Failure' },
+    'fail': { icon: '❌', defaultTitle: 'Fail' },
+    'missing': { icon: '❌', defaultTitle: 'Missing' },
+    'video': { icon: '🎬', defaultTitle: 'Video' },
+  }
+
+  // Override blockquote renderer to support Obsidian callouts
+  renderer.blockquote = function({ text }) {
+    // Check if this is an Obsidian callout: [!type] or [!type] Title
+    // marked passes raw text with newlines, not HTML
+    // [^\n]+ captures title until newline (greedy, not lazy)
+    const calloutMatch = text.match(/^\[!(\w+)\](?:\s+([^\n]+))?\n?([\s\S]*)/i)
+
+    if (calloutMatch) {
+      const calloutType = calloutMatch[1].toLowerCase()
+      let customTitle = calloutMatch[2]?.trim() || ''
+      let content = calloutMatch[3]?.trim() || ''
+
+      // Convert remaining content newlines and parse inline markdown (bold, italic, links, etc.)
+      content = content.split('\n').map(line => `<p>${marked.parseInline(line)}</p>`).join('\n')
+
+      // Get config for this callout type, default to 'note' style
+      const config = calloutConfig[calloutType] || { icon: '📌', defaultTitle: calloutType.charAt(0).toUpperCase() + calloutType.slice(1) }
+      const title = customTitle || config.defaultTitle
+      const icon = config.icon
+
+      // Determine color class based on type
+      let colorClass = 'callout-default'
+      if (['info'].includes(calloutType)) colorClass = 'callout-info'
+      else if (['tip', 'hint', 'important'].includes(calloutType)) colorClass = 'callout-tip'
+      else if (['warning', 'caution', 'attention'].includes(calloutType)) colorClass = 'callout-warning'
+      else if (['note'].includes(calloutType)) colorClass = 'callout-note'
+      else if (['success', 'check', 'done'].includes(calloutType)) colorClass = 'callout-success'
+      else if (['question', 'help', 'faq'].includes(calloutType)) colorClass = 'callout-question'
+      else if (['danger', 'error', 'bug', 'failure', 'fail', 'missing'].includes(calloutType)) colorClass = 'callout-danger'
+      else if (['example'].includes(calloutType)) colorClass = 'callout-example'
+      else if (['quote', 'cite'].includes(calloutType)) colorClass = 'callout-quote'
+      else if (['abstract', 'summary', 'tldr'].includes(calloutType)) colorClass = 'callout-abstract'
+      else if (['todo'].includes(calloutType)) colorClass = 'callout-todo'
+      else if (['video'].includes(calloutType)) colorClass = 'callout-video'
+
+      return `<div class="callout ${colorClass}" data-callout="${calloutType}">
+        <div class="callout-title">
+          <span class="callout-icon">${icon}</span>
+          <span class="callout-title-text">${title}</span>
+        </div>
+        <div class="callout-content">${content}</div>
+      </div>\n`
+    }
+
+    // Regular blockquote (not a callout)
+    return `<blockquote>${text}</blockquote>\n`
+  }
+
   // Configure marked with custom renderer
   marked.setOptions({
     renderer: renderer,
@@ -5406,6 +5486,172 @@
     margin: 1rem 0;
     color: var(--text-muted);
     font-style: italic;
+  }
+
+  /* Obsidian Callouts */
+  .markdown-content :global(.callout) {
+    margin: 1.5rem 0;
+    padding: 0;
+    border-radius: 8px;
+    overflow: hidden;
+    font-style: normal;
+  }
+
+  .markdown-content :global(.callout-title) {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.75rem 1rem;
+    font-weight: 600;
+    font-size: calc(var(--base-font-size) * 0.95);
+  }
+
+  .markdown-content :global(.callout-icon) {
+    font-size: calc(var(--base-font-size) * 1.1);
+    line-height: 1;
+  }
+
+  .markdown-content :global(.callout-title-text) {
+    flex: 1;
+  }
+
+  .markdown-content :global(.callout-content) {
+    padding: 0.75rem 1rem 1rem 1rem;
+    font-size: var(--base-font-size);
+    line-height: var(--line-height, 1.6);
+  }
+
+  .markdown-content :global(.callout-content p) {
+    margin: 0.5rem 0;
+  }
+
+  .markdown-content :global(.callout-content p:first-child) {
+    margin-top: 0;
+  }
+
+  .markdown-content :global(.callout-content p:last-child) {
+    margin-bottom: 0;
+  }
+
+  /* Callout color variants */
+  .markdown-content :global(.callout-info) {
+    background: rgba(59, 130, 246, 0.15);
+    border-left: 4px solid #3b82f6;
+  }
+  .markdown-content :global(.callout-info .callout-title) {
+    background: rgba(59, 130, 246, 0.2);
+    color: #60a5fa;
+  }
+
+  .markdown-content :global(.callout-tip) {
+    background: rgba(34, 197, 94, 0.15);
+    border-left: 4px solid #22c55e;
+  }
+  .markdown-content :global(.callout-tip .callout-title) {
+    background: rgba(34, 197, 94, 0.2);
+    color: #4ade80;
+  }
+
+  .markdown-content :global(.callout-warning) {
+    background: rgba(245, 158, 11, 0.15);
+    border-left: 4px solid #f59e0b;
+  }
+  .markdown-content :global(.callout-warning .callout-title) {
+    background: rgba(245, 158, 11, 0.2);
+    color: #fbbf24;
+  }
+
+  .markdown-content :global(.callout-note) {
+    background: rgba(148, 163, 184, 0.15);
+    border-left: 4px solid #94a3b8;
+  }
+  .markdown-content :global(.callout-note .callout-title) {
+    background: rgba(148, 163, 184, 0.2);
+    color: #cbd5e1;
+  }
+
+  .markdown-content :global(.callout-success) {
+    background: rgba(34, 197, 94, 0.15);
+    border-left: 4px solid #22c55e;
+  }
+  .markdown-content :global(.callout-success .callout-title) {
+    background: rgba(34, 197, 94, 0.2);
+    color: #4ade80;
+  }
+
+  .markdown-content :global(.callout-question) {
+    background: rgba(168, 85, 247, 0.15);
+    border-left: 4px solid #a855f7;
+  }
+  .markdown-content :global(.callout-question .callout-title) {
+    background: rgba(168, 85, 247, 0.2);
+    color: #c084fc;
+  }
+
+  .markdown-content :global(.callout-danger) {
+    background: rgba(239, 68, 68, 0.15);
+    border-left: 4px solid #ef4444;
+  }
+  .markdown-content :global(.callout-danger .callout-title) {
+    background: rgba(239, 68, 68, 0.2);
+    color: #f87171;
+  }
+
+  .markdown-content :global(.callout-example) {
+    background: rgba(139, 92, 246, 0.15);
+    border-left: 4px solid #8b5cf6;
+  }
+  .markdown-content :global(.callout-example .callout-title) {
+    background: rgba(139, 92, 246, 0.2);
+    color: #a78bfa;
+  }
+
+  .markdown-content :global(.callout-quote) {
+    background: rgba(148, 163, 184, 0.1);
+    border-left: 4px solid #64748b;
+  }
+  .markdown-content :global(.callout-quote .callout-title) {
+    background: rgba(148, 163, 184, 0.15);
+    color: #94a3b8;
+  }
+  .markdown-content :global(.callout-quote .callout-content) {
+    font-style: italic;
+  }
+
+  .markdown-content :global(.callout-abstract) {
+    background: rgba(6, 182, 212, 0.15);
+    border-left: 4px solid #06b6d4;
+  }
+  .markdown-content :global(.callout-abstract .callout-title) {
+    background: rgba(6, 182, 212, 0.2);
+    color: #22d3ee;
+  }
+
+  .markdown-content :global(.callout-todo) {
+    background: rgba(59, 130, 246, 0.15);
+    border-left: 4px solid #3b82f6;
+  }
+  .markdown-content :global(.callout-todo .callout-title) {
+    background: rgba(59, 130, 246, 0.2);
+    color: #60a5fa;
+  }
+
+  .markdown-content :global(.callout-video) {
+    background: rgba(236, 72, 153, 0.15);
+    border-left: 4px solid #ec4899;
+  }
+  .markdown-content :global(.callout-video .callout-title) {
+    background: rgba(236, 72, 153, 0.2);
+    color: #f472b6;
+  }
+
+  .markdown-content :global(.callout-default) {
+    background: rgba(148, 163, 184, 0.15);
+    border-left: 4px solid #94a3b8;
+  }
+  .markdown-content :global(.callout-default .callout-title) {
+    background: rgba(148, 163, 184, 0.2);
+    color: #cbd5e1;
   }
 
   /* Horizontal rules */
