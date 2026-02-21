@@ -28,7 +28,7 @@ export class VoskRecognizer {
   private recognizer: KaldiRecognizer | null = null
   private audioContext: AudioContext | null = null
   private mediaStream: MediaStream | null = null
-  private processor: ScriptProcessorNode | null = null
+  private processor: AudioWorkletNode | null = null
   private source: MediaStreamAudioSourceNode | null = null
 
   private language: string = 'en-US'
@@ -202,21 +202,33 @@ export class VoskRecognizer {
       // Create source from microphone
       this.source = this.audioContext.createMediaStreamSource(this.mediaStream)
 
-      // Create script processor for audio processing
-      // Note: ScriptProcessorNode is deprecated but still widely supported
-      // AudioWorklet would be better but requires more setup
-      this.processor = this.audioContext.createScriptProcessor(4096, 1, 1)
+      // Create AudioWorklet processor inline via Blob URL
+      // (Obsidian plugins cannot easily serve separate worklet files)
+      const processorCode = `
+class VoskProcessor extends AudioWorkletProcessor {
+  process(inputs, outputs, parameters) {
+    const input = inputs[0];
+    if (input && input.length > 0 && input[0].length > 0) {
+      this.port.postMessage(input[0]);
+    }
+    return true;
+  }
+}
+registerProcessor('vosk-processor', VoskProcessor);
+`
+      const blob = new Blob([processorCode], { type: 'application/javascript' })
+      const url = URL.createObjectURL(blob)
+      await this.audioContext.audioWorklet.addModule(url)
+      URL.revokeObjectURL(url)
 
-      // Process audio data
-      this.processor.onaudioprocess = (event: AudioProcessingEvent) => {
+      this.processor = new AudioWorkletNode(this.audioContext, 'vosk-processor')
+      this.processor.port.onmessage = (event: MessageEvent<Float32Array>) => {
         if (this.recognizer && this.isListening) {
-          const audioData = event.inputBuffer.getChannelData(0)
-          // Use acceptWaveformFloat for Float32Array data
-          this.recognizer.acceptWaveformFloat(audioData, this.audioContext!.sampleRate)
+          this.recognizer.acceptWaveformFloat(event.data, this.audioContext!.sampleRate)
         }
       }
 
-      // Connect the audio graph
+      // Connect the audio graph: source -> workletNode -> destination
       this.source.connect(this.processor)
       this.processor.connect(this.audioContext.destination)
 
@@ -250,8 +262,10 @@ export class VoskRecognizer {
       this.recognizer.retrieveFinalResult()
     }
 
-    // Disconnect audio processing
+    // Disconnect audio worklet node
     if (this.processor) {
+      this.processor.port.onmessage = null
+      this.processor.port.close()
       this.processor.disconnect()
       this.processor = null
     }
