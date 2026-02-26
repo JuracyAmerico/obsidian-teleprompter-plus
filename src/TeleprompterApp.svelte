@@ -4027,7 +4027,7 @@
           onclick={toggleFullScreen}
           class="btn-fullscreen icon-btn"
           class:active={isFullScreen}
-          title={isFullScreen ? 'Exit Full-Screen Mode (f)' : 'Enter Full-Screen Mode (f)'}
+          title={isFullScreen ? 'Exit full-screen mode (f)' : 'Enter full-screen mode (f)'}
         >
         </button>
       {:else if control.id === 'navigation'}
@@ -4036,7 +4036,7 @@
           onclick={toggleNavigation}
           class="btn-nav icon-btn"
           class:active={showNavigation}
-          title="Toggle Navigation Panel (n)"
+          title="Toggle navigation panel (n)"
         >
         </button>
       {:else if control.id === 'eyeline'}
@@ -4045,7 +4045,7 @@
           onclick={toggleEyeline}
           class="btn-eyeline icon-btn"
           class:active={showEyeline}
-          title="Toggle Eyeline Indicator"
+          title="Toggle eyeline indicator"
         >
         </button>
       {:else if control.id === 'focus-mode'}
@@ -4054,7 +4054,7 @@
           onclick={toggleFocusMode}
           class="btn-focus-mode icon-btn"
           class:active={focusMode}
-          title={focusMode ? 'Focus Mode: ON (Dims text outside eyeline)' : 'Focus Mode: OFF (Click to dim text outside eyeline)'}
+          title={focusMode ? 'Focus mode: ON (dims text outside eyeline)' : 'Focus mode: OFF (click to dim text outside eyeline)'}
         >
         </button>
       {:else if control.id === 'pin'}
@@ -4063,7 +4063,7 @@
           onclick={togglePin}
           class="btn-pin icon-btn"
           class:active={isPinned}
-          title={isPinned ? `Pinned: ${currentFileName}` : 'Pin Current Note (Lock content)'}
+          title={isPinned ? `Pinned: ${currentFileName}` : 'Pin current note (lock content)'}
         >
         </button>
       {:else if control.id === 'keep-awake'}
@@ -4072,7 +4072,7 @@
           onclick={toggleKeepAwake}
           class="btn-keep-awake icon-btn"
           class:active={isKeepAwake}
-          title={isKeepAwake ? 'Keep Awake: ON (Screen won\'t sleep)' : 'Keep Awake: OFF (Click to prevent sleep)'}
+          title={isKeepAwake ? 'Keep awake: ON (screen won\'t sleep)' : 'Keep awake: OFF (click to prevent sleep)'}
         >
         </button>
       {:else if control.id === 'voice-tracking'}
@@ -4085,7 +4085,7 @@
             class:loading={voiceTrackingStatus === 'initializing'}
             class:error={voiceTrackingStatus === 'error'}
             disabled={!settings.voiceTrackingEnabled}
-            title={!settings.voiceTrackingEnabled ? 'Voice Tracking (disabled in settings)' : voiceTrackingActive ? 'Stop Voice Tracking (V)' : voiceTrackingStatus === 'initializing' ? 'Initializing...' : 'Start Voice Tracking (V)'}
+            title={!settings.voiceTrackingEnabled ? 'Voice tracking (disabled in settings)' : voiceTrackingActive ? 'Stop voice tracking (V)' : voiceTrackingStatus === 'initializing' ? 'Initializing...' : 'Start voice tracking (V)'}
           >
           </button>
           {#if settings.voiceTrackingEnabled}
@@ -4094,7 +4094,7 @@
               onclick={toggleVoiceSettings}
               class="btn-voice-settings icon-btn-small"
               class:active={showVoiceSettings}
-              title="Voice Pace Settings"
+              title="Voice pace settings"
             >
             </button>
           {/if}
@@ -4174,11 +4174,11 @@
           onclick={togglePlay}
           class="btn-play icon-btn"
           class:active={isPlaying || isCountingDown}
-          title={isPlaying ? 'Pause (Space)' : isCountingDown ? 'Cancel Countdown (Space)' : 'Play (Space)'}
+          title={isPlaying ? 'Pause (Space)' : isCountingDown ? 'Cancel countdown (Space)' : 'Play (Space)'}
         >
         </button>
       {:else if control.id === 'reset'}
-        <button use:setIconAction={'tp-reset-top'} onclick={resetToTop} class="btn-reset icon-btn" title="Reset to Top (Home)">
+        <button use:setIconAction={'tp-reset-top'} onclick={resetToTop} class="btn-reset icon-btn" title="Reset to top (Home)">
         </button>
       {:else if control.id === 'speed'}
         <div class="control-with-popup">
@@ -4261,7 +4261,7 @@
           onclick={toggleFlipHorizontal}
           class="btn-flip-h icon-btn"
           class:active={flipHorizontal}
-          title={flipHorizontal ? 'Flip Horizontal: ON' : 'Flip Horizontal: OFF'}
+          title={flipHorizontal ? 'Flip horizontal: ON' : 'Flip horizontal: OFF'}
         >
         </button>
       {:else if control.id === 'flip-v'}
@@ -4270,7 +4270,7 @@
           onclick={toggleFlipVertical}
           class="btn-flip-v icon-btn"
           class:active={flipVertical}
-          title={flipVertical ? 'Flip Vertical: ON' : 'Flip Vertical: OFF'}
+          title={flipVertical ? 'Flip vertical: ON' : 'Flip vertical: OFF'}
         >
         </button>
       {:else if control.id === 'minimap'}
@@ -4287,7 +4287,7 @@
           use:setIconAction={isInPopoutWindow() ? 'x' : 'tp-detach'}
           onclick={detachWindow}
           class="btn-detach icon-btn"
-          title={isInPopoutWindow() ? 'Close Window' : 'Open in New Window'}
+          title={isInPopoutWindow() ? 'Close window' : 'Open in new window'}
         >
         </button>
       {:else if control.id === 'line-height'}
@@ -4315,12 +4315,12 @@
             onclick={toggleLetterSpacingSlider}
             class="icon-btn"
             class:active={showLetterSpacingSlider}
-            title="Letter Spacing: {letterSpacing}px (click to adjust)"
+            title="Letter spacing: {letterSpacing}px (click to adjust)"
           ></button>
           {#if showLetterSpacingSlider}
             <div class="popup-slider">
               <label class="slider-label">
-                <span>Letter Spacing: {letterSpacing}px</span>
+                <span>Letter spacing: {letterSpacing}px</span>
                 <input type="range" bind:value={letterSpacing} oninput={() => broadcastState({ letterSpacing })} min="-5" max="20" step="0.5" />
               </label>
             </div>
@@ -4376,13 +4376,13 @@
             onclick={toggleFontFamilyList}
             class="icon-btn"
             class:active={showFontFamilyList}
-            title="Font Family (click to choose)"
+            title="Font family (click to choose)"
           ></button>
           {#if showFontFamilyList}
             <div class="popup-font-list">
-              <div class="font-list-header">Font Family</div>
+              <div class="font-list-header">Font family</div>
               <div class="font-options">
-                <button class="font-option" class:selected={fontFamily === 'inherit'} onclick={() => setFontFamily('inherit')}><span style="font-family: inherit;">System Default</span></button>
+                <button class="font-option" class:selected={fontFamily === 'inherit'} onclick={() => setFontFamily('inherit')}><span style="font-family: inherit;">System default</span></button>
                 <button class="font-option" class:selected={fontFamily === 'Arial, "Helvetica Neue", Helvetica, sans-serif'} onclick={() => setFontFamily('Arial, "Helvetica Neue", Helvetica, sans-serif')}><span style="font-family: Arial, sans-serif;">Arial</span></button>
                 <button class="font-option" class:selected={fontFamily === '"Courier New", Courier, Monaco, "Lucida Console", monospace'} onclick={() => setFontFamily('"Courier New", Courier, Monaco, "Lucida Console", monospace')}><span style="font-family: 'Courier New', monospace;">Courier New</span></button>
                 <button class="font-option" class:selected={fontFamily === 'Georgia, "Times New Roman", Times, serif'} onclick={() => setFontFamily('Georgia, "Times New Roman", Times, serif')}><span style="font-family: Georgia, serif;">Georgia</span></button>
@@ -4404,11 +4404,11 @@
             onclick={toggleTextColorPicker}
             class="icon-btn"
             class:active={showTextColorPicker}
-            title="Text Color (click to choose)"
+            title="Text color (click to choose)"
           ></button>
           {#if showTextColorPicker}
             <div class="popup-color-picker">
-              <div class="color-picker-header">Text Color</div>
+              <div class="color-picker-header">Text color</div>
               <div class="color-preview" style="background-color: {textColor};"></div>
               <div class="color-presets">
                 {#each textColorPresets as preset}
@@ -4438,11 +4438,11 @@
             onclick={toggleBgColorPicker}
             class="icon-btn"
             class:active={showBgColorPicker}
-            title="Background Color (click to choose)"
+            title="Background color (click to choose)"
           ></button>
           {#if showBgColorPicker}
             <div class="popup-color-picker">
-              <div class="color-picker-header">Background Color</div>
+              <div class="color-picker-header">Background color</div>
               <div class="color-preview" style="background-color: {backgroundColor};"></div>
               <div class="color-presets">
                 {#each backgroundColorPresets as preset}
@@ -4471,7 +4471,7 @@
           onclick={toggleAutoPauseOnEdit}
           class="btn-auto-pause icon-btn"
           class:active={autoPauseOnEdit}
-          title={autoPauseOnEdit ? 'Auto-Pause: ON (Pauses when you edit)' : 'Auto-Pause: OFF (Click to enable)'}
+          title={autoPauseOnEdit ? 'Auto-pause: ON (pauses when you edit)' : 'Auto-pause: OFF (click to enable)'}
         >
         </button>
       {:else if control.id === 'progress-indicator'}
@@ -4480,7 +4480,7 @@
           onclick={cycleProgressIndicatorStyle}
           class="btn-progress-indicator icon-btn"
           class:active={progressIndicatorStyle !== 'none'}
-          title={`Progress Indicator: ${progressIndicatorStyle === 'progress-bar' ? 'Bar' : progressIndicatorStyle === 'scrollbar' ? 'Scrollbar' : 'Off'} (click to cycle)`}
+          title={`Progress indicator: ${progressIndicatorStyle === 'progress-bar' ? 'bar' : progressIndicatorStyle === 'scrollbar' ? 'scrollbar' : 'off'} (click to cycle)`}
         >
           {progressIndicatorStyle === 'progress-bar' ? '▔' : progressIndicatorStyle === 'scrollbar' ? '▮' : '○'}
         </button>
@@ -4489,7 +4489,7 @@
           bind:this={btnAlignment}
           onclick={cycleTextAlignment}
           class="btn-alignment icon-btn"
-          title={`Text Alignment: ${textAlignment.toUpperCase()} (click to cycle)`}
+          title={`Text alignment: ${textAlignment.toUpperCase()} (click to cycle)`}
         >
           {textAlignment === 'left' ? '⊣' : textAlignment === 'center' ? '☰' : textAlignment === 'right' ? '⊢' : 'ﺭ'}
         </button>
@@ -4500,11 +4500,11 @@
             onclick={toggleQuickPresetsMenu}
             class="icon-btn"
             class:active={showQuickPresetsMenu}
-            title="Quick Setup Presets - One-click configurations"
+            title="Quick setup presets - one-click configurations"
           ></button>
           {#if showQuickPresetsMenu}
             <div class="popup-preset-menu">
-              <div class="preset-menu-header">Quick Setup Presets</div>
+              <div class="preset-menu-header">Quick setup presets</div>
               <div class="preset-menu-list">
                 {#each quickSetupPresets as preset}
                   <button class="preset-menu-item" onclick={() => { applyQuickPreset(preset); toggleQuickPresetsMenu(); }} title={preset.desc}>
@@ -4564,7 +4564,7 @@
         use:setIconAction={'tp-refresh'}
         onclick={refreshPinnedNote}
         class="btn-refresh icon-btn"
-        title="Refresh Pinned Note"
+        title="Refresh pinned note"
       >
       </button>
     {/if}

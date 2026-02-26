@@ -1153,7 +1153,7 @@ export class TeleprompterSettingTab extends PluginSettingTab {
 						desc: 'Choose a font family',
 						type: 'dropdown',
 						options: [
-							{ value: 'inherit', label: 'System Default' },
+							{ value: 'inherit', label: 'System default' },
 							{ value: 'Arial, "Helvetica Neue", Helvetica, sans-serif', label: 'Arial' },
 							{ value: '"Courier New", Courier, Monaco, "Lucida Console", monospace', label: 'Courier New' },
 							{ value: 'Georgia, "Times New Roman", Times, serif', label: 'Georgia' },
@@ -2413,8 +2413,8 @@ export class TeleprompterSettingTab extends PluginSettingTab {
 		const featuresGrid = containerEl.createDiv('tp-health-grid')
 
 		const features = [
-			{ icon: 'play', label: 'Auto-Scroll', desc: 'Adjustable speed' },
-			{ icon: 'palette', label: 'Custom Icons', desc: '46+ designs' },
+			{ icon: 'play', label: 'Auto-scroll', desc: 'Adjustable speed' },
+			{ icon: 'palette', label: 'Custom icons', desc: '46+ designs' },
 			{ icon: 'maximize', label: 'Fullscreen', desc: 'Persistent toolbar' },
 			{ icon: 'map', label: 'Navigation', desc: 'Minimap & sections' },
 			{ icon: 'wifi', label: 'External control', desc: 'Remote API' },
