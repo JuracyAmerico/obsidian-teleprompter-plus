@@ -21,6 +21,23 @@ type ErrorSubscriber = (_error: VoiceTrackingError, _message: string) => void
 type ProgressSubscriber = (_loaded: number, _total: number) => void
 
 /**
+ * AudioWorklet processor source code (inline).
+ * Runs in a separate thread — forwards raw audio samples to the main thread via MessagePort.
+ */
+const WORKLET_PROCESSOR_SOURCE = `
+class TeleprompterAudioProcessor extends AudioWorkletProcessor {
+  process(inputs) {
+    const input = inputs[0];
+    if (input && input[0] && input[0].length > 0) {
+      this.port.postMessage(input[0]);
+    }
+    return true;
+  }
+}
+registerProcessor('teleprompter-audio-processor', TeleprompterAudioProcessor);
+`
+
+/**
  * VoskRecognizer class - wraps vosk-browser for speech recognition.
  */
 export class VoskRecognizer {
@@ -28,8 +45,9 @@ export class VoskRecognizer {
   private recognizer: KaldiRecognizer | null = null
   private audioContext: AudioContext | null = null
   private mediaStream: MediaStream | null = null
-  private processor: AudioWorkletNode | null = null
+  private workletNode: AudioWorkletNode | null = null
   private source: MediaStreamAudioSourceNode | null = null
+  private workletBlobUrl: string | null = null
 
   private language: string = 'en-US'
   private isListening: boolean = false
@@ -199,38 +217,28 @@ export class VoskRecognizer {
       // Create audio context with 48kHz sample rate
       this.audioContext = new AudioContext({ sampleRate: 48000 })
 
+      // Register AudioWorklet processor from inline source via Blob URL
+      const blob = new Blob([WORKLET_PROCESSOR_SOURCE], { type: 'application/javascript' })
+      this.workletBlobUrl = URL.createObjectURL(blob)
+      await this.audioContext.audioWorklet.addModule(this.workletBlobUrl)
+
       // Create source from microphone
       this.source = this.audioContext.createMediaStreamSource(this.mediaStream)
 
-      // Create AudioWorklet processor inline via Blob URL
-      // (Obsidian plugins cannot easily serve separate worklet files)
-      const processorCode = `
-class VoskProcessor extends AudioWorkletProcessor {
-  process(inputs, outputs, parameters) {
-    const input = inputs[0];
-    if (input && input.length > 0 && input[0].length > 0) {
-      this.port.postMessage(input[0]);
-    }
-    return true;
-  }
-}
-registerProcessor('vosk-processor', VoskProcessor);
-`
-      const blob = new Blob([processorCode], { type: 'application/javascript' })
-      const url = URL.createObjectURL(blob)
-      await this.audioContext.audioWorklet.addModule(url)
-      URL.revokeObjectURL(url)
+      // Create AudioWorkletNode for audio processing
+      this.workletNode = new AudioWorkletNode(this.audioContext, 'teleprompter-audio-processor')
 
-      this.processor = new AudioWorkletNode(this.audioContext, 'vosk-processor')
-      this.processor.port.onmessage = (event: MessageEvent<Float32Array>) => {
+      // Process audio data received from the worklet thread
+      this.workletNode.port.onmessage = (event: MessageEvent) => {
         if (this.recognizer && this.isListening) {
-          this.recognizer.acceptWaveformFloat(event.data, this.audioContext!.sampleRate)
+          const audioData = event.data as Float32Array
+          this.recognizer.acceptWaveformFloat(audioData, this.audioContext!.sampleRate)
         }
       }
 
-      // Connect the audio graph: source -> workletNode -> destination
-      this.source.connect(this.processor)
-      this.processor.connect(this.audioContext.destination)
+      // Connect the audio graph
+      this.source.connect(this.workletNode)
+      this.workletNode.connect(this.audioContext.destination)
 
       this.isListening = true
       this.emitStatus('listening')
@@ -262,12 +270,11 @@ registerProcessor('vosk-processor', VoskProcessor);
       this.recognizer.retrieveFinalResult()
     }
 
-    // Disconnect audio worklet node
-    if (this.processor) {
-      this.processor.port.onmessage = null
-      this.processor.port.close()
-      this.processor.disconnect()
-      this.processor = null
+    // Disconnect audio processing
+    if (this.workletNode) {
+      this.workletNode.port.onmessage = null
+      this.workletNode.disconnect()
+      this.workletNode = null
     }
 
     if (this.source) {
@@ -455,6 +462,12 @@ registerProcessor('vosk-processor', VoskProcessor);
   dispose(): void {
     this.stop()
     this.clearSubscribers()
+
+    // Revoke worklet blob URL
+    if (this.workletBlobUrl) {
+      URL.revokeObjectURL(this.workletBlobUrl)
+      this.workletBlobUrl = null
+    }
 
     // Remove recognizer
     if (this.recognizer) {
