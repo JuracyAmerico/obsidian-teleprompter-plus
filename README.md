@@ -120,6 +120,7 @@ flowchart TB
         Navigation["Header Navigation\n(Hierarchical Tree)"]
         Minimap["Minimap\n(Abstract Scrollbar)"]
         Flip["Flip Modes\n(H/V Mirror)"]
+        TTS["Text-to-Speech\n(Kokoro MLX / macOS Say)"]
     end
 
     Plugin --> WS
@@ -127,6 +128,7 @@ flowchart TB
     Svelte --> Navigation
     Svelte --> Minimap
     Svelte --> Flip
+    Svelte --> TTS
 
     StreamDeck <--> WS
     Mobile <--> WS
@@ -197,6 +199,15 @@ flowchart TB
 - **Callouts** - Obsidian callout boxes
 - **Links** - Both internal and external links
 - **Diagram placeholders** - Mermaid, PlantUML, and other diagrams shown as clean placeholders
+
+### 🔊 Text-to-Speech (TTS)
+- **Kokoro neural TTS** - High-quality neural voices via MLX on Apple Silicon ([setup guide](docs/tts-setup.md))
+- **22 voice presets** - Male, female, American, and British English voices
+- **Audio-synced scrolling** - Teleprompter scrolls in sync with spoken audio
+- **Sentence highlighting** - Current sentence highlighted as it's read
+- **Citation resolution** - `[@ries2011]` spoken as "(Ries, 2011)" using .bib files
+- **Multiple engines** - Kokoro (best), macOS Say, Web Speech API (fallback)
+- **Pause/Resume** - Full playback control with toolbar and keyboard
 
 ### 🆕 v0.9.0 Features
 - **Speed presets** - Cycle through 6 preset speeds (0.5x, 1x, 1.5x, 2x, 3x, 5x)

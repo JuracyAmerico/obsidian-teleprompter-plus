@@ -30,6 +30,8 @@
   import { marked } from 'marked'
   import { VOICE_TRACKING_PRESETS, type VoiceTrackingPacePreset } from './settings'
   import type { VoiceTrackingService } from './voice'
+  import { TTSService } from './tts'
+  import type { TTSState, TTSPlaybackState, TTSVoice } from './tts'
   import hljs from 'highlight.js/lib/core'
   // Import common languages for syntax highlighting
   import javascript from 'highlight.js/lib/languages/javascript'
@@ -224,6 +226,10 @@
     showMinimap?: boolean
     isFullScreen?: boolean
     focusMode?: boolean
+    ttsPlaybackState?: TTSPlaybackState
+    ttsCurrentSentence?: number
+    ttsTotalSentences?: number
+    ttsRate?: number
   }
 
   function broadcastState(partialState: SyncState) {
@@ -460,8 +466,10 @@
           // Process wiki-links in embedded content (with circular reference tracking)
           const processedContent = convertObsidianWikiLinks(contentWithoutYaml, notePath, newProcessedPaths)
 
-          // Strip HTML comments
-          const cleanContent = processedContent.replace(/<!--[\s\S]*?-->/g, '')
+          // Strip HTML comments and Pandoc raw blocks
+          const cleanContent = processedContent
+            .replace(/<!--[\s\S]*?-->/g, '')
+            .replace(/```\{=[a-z]+\}\r?\n[\s\S]*?\r?\n```/g, '')
 
           // Render markdown
           const renderedContent = marked.parse(cleanContent) as string
@@ -570,6 +578,8 @@
     { id: 'time-display', type: 'info-display', name: 'Time display' },
     // Voice tracking
     { id: 'voice-tracking', type: 'icon-button', name: 'Voice tracking' },
+    // Text-to-speech
+    { id: 'tts', type: 'icon-button', name: 'Text-to-speech' },
   ]
 
   // Build ordered list of visible toolbar controls from settings
@@ -722,6 +732,18 @@
   let voiceTrackingService: VoiceTrackingService | null = null // Voice tracking service instance
   let voiceDownloadProgress = $state(0) // Model download progress (0-100)
 
+  // TTS (Text-to-Speech) state
+  let ttsService: TTSService | null = null
+  let ttsPlaybackState = $state<TTSPlaybackState>('idle')
+  let ttsCurrentSentence = $state(0)
+  let ttsTotalSentences = $state(0)
+  let ttsRate = $state(1.0)
+  let showTTSControls = $state(false)
+  let ttsInitialized = $state(false)
+  let ttsInitializedEngine = '' // Track which engine was initialized
+  let ttsVoices = $state<TTSVoice[]>([])
+  let ttsCurrentVoice = $state(settings.ttsVoice || '')
+
   // Update voice tracking config when settings change (real-time)
   $effect(() => {
     if (voiceTrackingService) {
@@ -740,6 +762,7 @@
 
   // Button refs for controls that need dynamic icon updates
   let btnPlay: HTMLButtonElement | undefined = $state()
+  let btnTTS: HTMLButtonElement | undefined = $state()
   let btnProgressIndicator: HTMLButtonElement | undefined = $state()
   let btnAlignment: HTMLButtonElement | undefined = $state()
 
@@ -837,6 +860,15 @@
       const iconName = isPlaying ? 'tp-pause' : isCountingDown ? 'x' : 'tp-play'
       btnPlay.innerHTML = '' // Clear previous icon
       setIcon(btnPlay, iconName)
+    }
+  })
+
+  // Update TTS button icon when playback state changes
+  $effect(() => {
+    if (btnTTS) {
+      const iconName = ttsPlaybackState === 'playing' ? 'tp-tts-playing' : ttsPlaybackState === 'paused' ? 'tp-tts-paused' : 'tp-tts'
+      btnTTS.innerHTML = ''
+      setIcon(btnTTS, iconName)
     }
   })
 
@@ -981,6 +1013,9 @@
       // Strip HTML comments (<!-- ... -->) from content
       processedContent = processedContent.replace(/<!--[\s\S]*?-->/g, '')
 
+      // Strip Pandoc raw blocks ({=openxml}, {=latex}, {=html}, etc.)
+      processedContent = processedContent.replace(/```\{=[a-z]+\}\r?\n[\s\S]*?\r?\n```/g, '')
+
       // Replace Mermaid diagram code blocks with readable placeholders
       processedContent = replaceDiagramBlocks(processedContent)
 
@@ -1050,26 +1085,37 @@
       const newPath = activeFile.path
       const isSameFile = currentNotePath === newPath
 
-      app.vault.read(activeFile).then((fileContent) => {
-        // Remove YAML frontmatter and track offset
-        const result = removeYAMLFrontmatter(fileContent)
-        content = result.content
-        yamlLineOffset = result.linesRemoved
-        currentFileName = activeFile.basename
+      const isPDF = activeFile.extension === 'pdf'
 
-        // Update current note path
+      const loadContent = async () => {
+        if (isPDF) {
+          // Extract text from PDF using pdftotext
+          const pdfText = await extractPDFText(newPath)
+          if (pdfText) {
+            content = pdfText
+            yamlLineOffset = 0
+            debugLog(`[PDF] Extracted text from ${activeFile.basename}`)
+          } else {
+            content = `# ${activeFile.basename}\n\nPDF text extraction requires \`pdftotext\` (poppler).\n\nInstall with: \`brew install poppler\``
+            yamlLineOffset = 0
+          }
+        } else {
+          const fileContent = await app.vault.read(activeFile)
+          const result = removeYAMLFrontmatter(fileContent)
+          content = result.content
+          yamlLineOffset = result.linesRemoved
+        }
+
+        currentFileName = activeFile.basename
         currentNotePath = newPath
 
-        // Reset countdown flag when new document loads (only for different documents)
         if (!isSameFile) {
           hasUsedCountdown = false
           debugLog('[Document] New document loaded - countdown flag reset')
         }
 
-        // Restore scroll position for this note (if previously saved)
         const savedPosition = scrollPositionPerNote.get(newPath)
         if (savedPosition !== undefined && savedPosition > 0) {
-          // Use requestAnimationFrame to ensure DOM has updated
           requestAnimationFrame(() => {
             if (contentArea) {
               contentArea.scrollTop = savedPosition
@@ -1077,7 +1123,6 @@
             }
           })
         } else if (!isSameFile) {
-          // Reset to top for new documents without saved position
           requestAnimationFrame(() => {
             if (contentArea) {
               contentArea.scrollTop = 0
@@ -1085,11 +1130,52 @@
             }
           })
         }
-      })
+      }
+
+      void loadContent()
     }
   }
 
   // Remove YAML frontmatter from content
+  /**
+   * Extract readable text from a PDF file using pdftotext (poppler).
+   * Returns markdown-formatted text, or null if extraction fails.
+   */
+  async function extractPDFText(filePath: string): Promise<string | null> {
+    try {
+      const adapter = app.vault.adapter as { basePath?: string }
+      if (!adapter.basePath) return null
+
+      const pathMod = require('path') as PathModule
+      const fullPath = pathMod.join(adapter.basePath, filePath)
+
+      const cp = require('child_process') as {
+        execSync: (cmd: string, opts: Record<string, unknown>) => string
+      }
+
+      // Use pdftotext with -layout to preserve paragraph structure
+      const text = cp.execSync(
+        `pdftotext -layout "${fullPath}" -`,
+        { encoding: 'utf-8', timeout: 15000, maxBuffer: 10 * 1024 * 1024 } as Record<string, unknown>
+      ) as string
+
+      if (!text || text.trim().length === 0) return null
+
+      // Clean up extracted text for teleprompter display
+      const cleaned = text
+        // Collapse multiple blank lines to double newline (paragraph breaks)
+        .replace(/\n{3,}/g, '\n\n')
+        // Remove form feed characters (page breaks)
+        .replace(/\f/g, '\n\n---\n\n')
+        .trim()
+
+      return cleaned
+    } catch {
+      // pdftotext not installed or extraction failed
+      return null
+    }
+  }
+
   function removeYAMLFrontmatter(text: string): { content: string; linesRemoved: number } {
     // Check if starts with ---
     if (text.startsWith('---\n')) {
@@ -2022,6 +2108,225 @@
     }
   }
 
+  // ==========================================================================
+  // TTS (Text-to-Speech) functions
+  // ==========================================================================
+
+  async function initTTS(): Promise<void> {
+    // Reinitialize if engine setting changed since last init
+    const engineChanged = ttsInitialized && ttsInitializedEngine !== settings.ttsEngine
+    if (ttsInitialized && ttsService && !engineChanged) return
+
+    // Destroy previous engine if reinitializing
+    if (ttsService) {
+      ttsService.destroy()
+      ttsService = null
+      ttsInitialized = false
+    }
+
+    ttsService = new TTSService({
+      engineType: settings.ttsEngine,
+      rate: settings.ttsRate,
+      voice: settings.ttsVoice,
+      language: settings.ttsLanguage,
+      resolveCitations: settings.ttsResolveCitations,
+      skipCodeBlocks: settings.ttsSkipCodeBlocks,
+      skipTables: settings.ttsSkipTables,
+    })
+
+    // Subscribe to TTS events
+    ttsService.onSentenceStartEvent(({ index }) => {
+      ttsCurrentSentence = index
+      highlightTTSSentence(index)
+      scrollToTTSSentence(index)
+    })
+
+    ttsService.onStateChange((state: TTSState) => {
+      ttsPlaybackState = state.playbackState
+      ttsCurrentSentence = state.currentSentenceIndex
+      ttsTotalSentences = state.totalSentences
+      ttsRate = state.rate
+      broadcastState({ ttsPlaybackState, ttsCurrentSentence, ttsTotalSentences })
+    })
+
+    ttsService.onError(({ message }) => {
+      console.error('[TTS] Error:', message)
+    })
+
+    await ttsService.initialize()
+    ttsInitialized = true
+    ttsInitializedEngine = settings.ttsEngine
+    ttsRate = settings.ttsRate
+
+    // Log which engine was actually selected
+    const engineState = ttsService.getState()
+    debugLog(`[TTS] Engine requested: "${settings.ttsEngine}", got: "${engineState.engineName}"`)
+
+    // Notify user if engine fell back to a different one
+    if (settings.ttsEngine === 'kokoro' && engineState.engineName !== 'Kokoro') {
+      new Notice(`TTS: Kokoro not available, using ${engineState.engineName}. Check Python venv at ~/.local/share/mlx-tts-venv`, 8000)
+    } else if (settings.ttsEngine !== 'auto') {
+      new Notice(`TTS: Using ${engineState.engineName} engine`, 3000)
+    }
+
+    // Load available voices
+    const voices = await ttsService.getVoices()
+    ttsVoices = voices
+    if (!ttsCurrentVoice && voices.length > 0) {
+      const defaultVoice = voices.find(v => v.isDefault) || voices[0]
+      ttsCurrentVoice = defaultVoice.id
+    }
+
+    // Subscribe to voices loaded event (some engines load async)
+    ttsService.onVoicesLoaded((voices) => {
+      ttsVoices = voices
+    })
+
+    debugLog(`[TTS] Initialized with ${voices.length} voices`)
+  }
+
+  function setTTSVoice(voiceId: string): void {
+    ttsCurrentVoice = voiceId
+    settings.ttsVoice = voiceId
+    plugin?.saveSettings()
+    ttsService?.setVoice(voiceId)
+  }
+
+  function prepareTTSDocument(): void {
+    if (!ttsService || !content) return
+
+    // Load bibliography if configured
+    let bibContent: string | undefined
+    const bibPath = settings.ttsBibPath
+    if (bibPath && settings.ttsResolveCitations) {
+      // Try to read bib file from vault
+      const bibFile = app.vault.getAbstractFileByPath(bibPath)
+      if (bibFile && 'extension' in bibFile) {
+        // Will be loaded asynchronously, but for now just prepare without it
+        void app.vault.read(bibFile as import('obsidian').TFile).then(bibData => {
+          ttsService?.prepareDocument(content, bibData, bibPath)
+          ttsTotalSentences = ttsService?.getDocument()?.allSentences.length || 0
+        })
+        return
+      }
+    }
+
+    ttsService.prepareDocument(content, bibContent)
+    ttsTotalSentences = ttsService.getDocument()?.allSentences.length || 0
+  }
+
+  async function toggleTTS(): Promise<void> {
+    if (!ttsInitialized) {
+      await initTTS()
+    }
+
+    if (!ttsService) return
+
+    if (ttsPlaybackState === 'idle') {
+      // Prepare document and start
+      prepareTTSDocument()
+
+      // Stop auto-scroll if playing
+      if (isPlaying) {
+        isPlaying = false
+        broadcastState({ isPlaying })
+      }
+
+      await ttsService.play()
+    } else {
+      await ttsService.togglePlayPause()
+    }
+  }
+
+  function stopTTS(): void {
+    ttsService?.stop()
+    clearTTSHighlight()
+  }
+
+  async function ttsNextSentence(): Promise<void> {
+    await ttsService?.nextSentence()
+  }
+
+  async function ttsPrevSentence(): Promise<void> {
+    await ttsService?.previousSentence()
+  }
+
+  function onTTSRateChange(): void {
+    ttsService?.setRate(ttsRate)
+    broadcastState({ ttsRate })
+  }
+
+  function toggleTTSControls(): void {
+    showTTSControls = !showTTSControls
+  }
+
+  function highlightTTSSentence(index: number): void {
+    if (!contentArea) return
+
+    // Remove previous highlight
+    clearTTSHighlight()
+
+    // Find the sentence in rendered content by mapping to paragraph elements
+    const doc = ttsService?.getDocument()
+    if (!doc || index >= doc.allSentences.length) return
+
+    const sentenceText = doc.allSentences[index]
+    if (!sentenceText) return
+
+    // Search through text nodes in rendered HTML to find matching sentence
+    const walker = document.createTreeWalker(
+      contentArea,
+      NodeFilter.SHOW_TEXT,
+      null
+    )
+
+    let node: Node | null
+    while ((node = walker.nextNode())) {
+      const textContent = node.textContent || ''
+      // Check if this text node contains the start of the sentence
+      const cleanSentence = sentenceText.slice(0, 40) // First 40 chars for matching
+      if (textContent.includes(cleanSentence)) {
+        // Highlight the parent element
+        const parentEl = node.parentElement
+        if (parentEl) {
+          parentEl.classList.add('tp-tts-active-sentence')
+        }
+        break
+      }
+    }
+  }
+
+  function clearTTSHighlight(): void {
+    if (!contentArea) return
+    const highlighted = contentArea.querySelectorAll('.tp-tts-active-sentence')
+    highlighted.forEach(el => el.classList.remove('tp-tts-active-sentence'))
+  }
+
+  function scrollToTTSSentence(index: number): void {
+    if (!contentArea) return
+
+    const activeEl = contentArea.querySelector('.tp-tts-active-sentence')
+    if (!activeEl) return
+
+    // Scroll to place the sentence at the eyeline position
+    const containerRect = contentArea.getBoundingClientRect()
+    const elementRect = activeEl.getBoundingClientRect()
+    const eyelineOffset = containerRect.height * (eyelinePosition / 100)
+    const targetScroll = contentArea.scrollTop + (elementRect.top - containerRect.top) - eyelineOffset
+
+    contentArea.scrollTo({
+      top: Math.max(0, targetScroll),
+      behavior: 'smooth'
+    })
+
+    // Update scroll tracking
+    scrollPosition = contentArea.scrollTop
+    const scrollableHeight = contentArea.scrollHeight - contentArea.clientHeight
+    scrollPercentage = scrollableHeight > 0
+      ? Math.round((contentArea.scrollTop / scrollableHeight) * 100)
+      : 0
+  }
+
   function togglePin() {
     isPinned = !isPinned
 
@@ -2665,6 +2970,9 @@
       case 'toggleVoiceTracking':
         toggleVoiceTracking()
         return true
+      case 'toggleTTS':
+        void toggleTTS()
+        return true
       default:
         return false
     }
@@ -3171,6 +3479,27 @@
       case 'teleprompter:voice-toggle':
         toggleVoiceTracking()
         break
+      // TTS commands
+      case 'teleprompter:tts-toggle':
+        void toggleTTS()
+        break
+      case 'teleprompter:tts-stop':
+        stopTTS()
+        break
+      case 'teleprompter:tts-next-sentence':
+        void ttsNextSentence()
+        break
+      case 'teleprompter:tts-prev-sentence':
+        void ttsPrevSentence()
+        break
+      case 'teleprompter:tts-speed-up':
+        ttsRate = Math.min(2.0, ttsRate + 0.25)
+        onTTSRateChange()
+        break
+      case 'teleprompter:tts-speed-down':
+        ttsRate = Math.max(0.5, ttsRate - 0.25)
+        onTTSRateChange()
+        break
       case 'teleprompter:get-voice-status':
         // Update WebSocket state with voice status
         if (plugin?.wsServer) {
@@ -3472,6 +3801,13 @@
       'teleprompter:voice-stop',
       'teleprompter:voice-toggle',
       'teleprompter:get-voice-status',
+      // TTS events
+      'teleprompter:tts-toggle',
+      'teleprompter:tts-stop',
+      'teleprompter:tts-next-sentence',
+      'teleprompter:tts-prev-sentence',
+      'teleprompter:tts-speed-up',
+      'teleprompter:tts-speed-down',
       // Countdown events
       'teleprompter:countdown-increase',
       'teleprompter:countdown-decrease',
@@ -3527,6 +3863,10 @@
         if (data.paddingLeft !== undefined) paddingLeft = data.paddingLeft
         if (data.showMinimap !== undefined) showMinimap = data.showMinimap
         if (data.isFullScreen !== undefined) isFullScreen = data.isFullScreen
+        if (data.ttsPlaybackState !== undefined) ttsPlaybackState = data.ttsPlaybackState
+        if (data.ttsCurrentSentence !== undefined) ttsCurrentSentence = data.ttsCurrentSentence
+        if (data.ttsTotalSentences !== undefined) ttsTotalSentences = data.ttsTotalSentences
+        if (data.ttsRate !== undefined) ttsRate = data.ttsRate
 
         // Allow broadcasting again after state is applied
         setTimeout(() => { isReceivingBroadcast = false }, 50)
@@ -3557,6 +3897,13 @@
 
       // Cleanup keep awake
       stopKeepAwake()
+
+      // Cleanup TTS
+      if (ttsService) {
+        ttsService.destroy()
+        ttsService = null
+        ttsInitialized = false
+      }
 
       // Cleanup BroadcastChannel
       stateChannel.removeEventListener('message', handleBroadcastMessage)
@@ -4016,6 +4363,19 @@
     </div>
   {/if}
 
+  <!-- TTS status indicator -->
+  {#if ttsPlaybackState !== 'idle'}
+    <div class="tts-status-overlay">
+      <div class="tts-status-indicator" class:playing={ttsPlaybackState === 'playing'}>
+        <span class="tts-status-icon">{ttsPlaybackState === 'playing' ? '🔊' : '⏸'}</span>
+        <span class="tts-status-text">
+          {ttsPlaybackState === 'playing' ? 'Reading aloud' : 'TTS paused'}
+        </span>
+        <span class="tts-sentence-info">{ttsCurrentSentence + 1}/{ttsTotalSentences}</span>
+      </div>
+    </div>
+  {/if}
+
   <!-- Show controls always (including in full-screen mode) -->
   <!-- Controls visibility and order is configurable via Settings > Toolbar -->
   <div class="controls" class:fullscreen-controls={isFullScreen}>
@@ -4163,6 +4523,63 @@
                   {#if settings.voiceTrackingPacePreset === 'responsive'}
                     <div class="preset-check">✓</div>
                   {/if}
+                </button>
+              </div>
+            </div>
+          {/if}
+        </div>
+      {:else if control.id === 'tts'}
+        <div class="control-with-popup tts-control-group">
+          <button
+            bind:this={btnTTS}
+            onclick={toggleTTS}
+            oncontextmenu={(e) => { e.preventDefault(); toggleTTSControls() }}
+            class="btn-tts icon-btn"
+            class:active={ttsPlaybackState === 'playing'}
+            class:paused={ttsPlaybackState === 'paused'}
+            title={ttsPlaybackState === 'playing' ? 'Pause TTS (T)' : ttsPlaybackState === 'paused' ? 'Resume TTS (T)' : 'Start TTS reading (T) — Right-click for voice & controls'}
+          >
+          </button>
+          {#if ttsPlaybackState !== 'idle'}
+            <button
+              use:setIconAction={'tp-tts-stop'}
+              onclick={stopTTS}
+              class="btn-tts-stop icon-btn-small"
+              title="Stop TTS"
+            >
+            </button>
+          {/if}
+          {#if showTTSControls}
+            <div class="popup-panel tts-controls-panel">
+              <div class="preset-header">TTS CONTROLS</div>
+              {#if ttsVoices.length > 0}
+                <div class="tts-voice-selector">
+                  <span class="tts-voice-label">Voice</span>
+                  <div class="tts-voice-list">
+                    {#each ttsVoices as voice}
+                      <button
+                        class="tts-voice-option"
+                        class:selected={ttsCurrentVoice === voice.id}
+                        onclick={() => setTTSVoice(voice.id)}
+                        title={voice.language}
+                      >
+                        {voice.name}
+                      </button>
+                    {/each}
+                  </div>
+                </div>
+              {/if}
+              <label class="slider-label">
+                <span>Speed: {ttsRate}x</span>
+                <input type="range" bind:value={ttsRate} oninput={onTTSRateChange} min="0.5" max="2.0" step="0.25" />
+              </label>
+              <div class="tts-sentence-nav">
+                <button onclick={ttsPrevSentence} class="icon-btn-small" title="Previous sentence">
+                  <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 18 9 12 15 6"/></svg>
+                </button>
+                <span class="tts-sentence-counter">{ttsCurrentSentence + 1}/{ttsTotalSentences}</span>
+                <button onclick={ttsNextSentence} class="icon-btn-small" title="Next sentence">
+                  <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>
                 </button>
               </div>
             </div>
@@ -5863,6 +6280,150 @@
   .btn-voice:disabled {
     opacity: 0.4;
     cursor: not-allowed;
+  }
+
+  /* TTS Status Overlay */
+  .tts-status-overlay {
+    position: absolute;
+    top: 12px;
+    left: 12px;
+    z-index: 50;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    pointer-events: none;
+  }
+
+  .tts-status-indicator {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 10px;
+    background: rgba(0, 0, 0, 0.7);
+    border-radius: 6px;
+    font-size: 0.8rem;
+    color: rgba(255, 255, 255, 0.9);
+    backdrop-filter: blur(4px);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+  }
+
+  .tts-status-indicator.playing {
+    border-color: rgba(76, 175, 80, 0.5);
+  }
+
+  .tts-status-icon {
+    font-size: 0.9rem;
+  }
+
+  .tts-status-text {
+    font-weight: 500;
+  }
+
+  .tts-sentence-info {
+    margin-left: 4px;
+    font-size: 0.7rem;
+    color: rgba(255, 255, 255, 0.6);
+  }
+
+  /* TTS Active Sentence Highlight */
+  :global(.tp-tts-active-sentence) {
+    background: linear-gradient(135deg, rgba(33, 150, 243, 0.25), rgba(30, 136, 229, 0.15));
+    border-radius: 4px;
+    padding: 2px 4px;
+    margin: -2px -4px;
+    transition: background 0.3s ease;
+    box-shadow: 0 0 12px rgba(33, 150, 243, 0.2);
+  }
+
+  :global(.theme-light .tp-tts-active-sentence) {
+    background: linear-gradient(135deg, rgba(33, 150, 243, 0.15), rgba(30, 136, 229, 0.08));
+    box-shadow: 0 2px 8px rgba(33, 150, 243, 0.15);
+  }
+
+  /* TTS Toolbar Controls */
+  .tts-control-group {
+    display: flex;
+    align-items: center;
+    gap: 2px;
+  }
+
+  .btn-tts.active {
+    color: #4CAF50;
+  }
+
+  .btn-tts.paused {
+    color: #FF9800;
+  }
+
+  .tts-controls-panel {
+    min-width: 240px;
+    max-height: 400px;
+  }
+
+  .tts-voice-selector {
+    margin-bottom: 8px;
+  }
+
+  .tts-voice-label {
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--text-muted);
+    display: block;
+    margin-bottom: 4px;
+  }
+
+  .tts-voice-list {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    max-height: 200px;
+    overflow-y: auto;
+    border: 1px solid var(--background-modifier-border);
+    border-radius: 6px;
+    padding: 4px;
+  }
+
+  .tts-voice-option {
+    background: transparent;
+    border: none;
+    border-radius: 4px;
+    padding: 4px 8px;
+    text-align: left;
+    font-size: 0.85rem;
+    color: var(--text-normal);
+    cursor: pointer;
+    transition: background 0.15s;
+    white-space: nowrap;
+  }
+
+  .tts-voice-option:hover {
+    background: var(--background-modifier-hover);
+  }
+
+  .tts-voice-option.selected {
+    background: var(--interactive-accent);
+    color: var(--text-on-accent);
+    font-weight: 500;
+  }
+
+  .tts-sentence-nav {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    margin-top: 8px;
+    padding-top: 8px;
+    border-top: 1px solid var(--background-modifier-border);
+  }
+
+  .tts-sentence-counter {
+    font-size: 0.8rem;
+    font-variant-numeric: tabular-nums;
+    min-width: 50px;
+    text-align: center;
+    color: var(--text-muted);
   }
 
   /* Control with Popup Slider */
