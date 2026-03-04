@@ -63,6 +63,12 @@ export default class TeleprompterPlusPlugin extends Plugin {
 		// Navigation panel - Editorial sidebar style
 		addIcon('tp-navigation', `<rect x="15" y="15" width="28" height="70" fill="none" stroke="currentColor" stroke-width="5" rx="4"></rect><rect x="57" y="15" width="28" height="70" fill="none" stroke="currentColor" stroke-width="5" rx="4"></rect>`)
 
+		// TTS controls - Editorial dashed-circle style (consistent with tp-play-pause, tp-auto-pause)
+		addIcon('tp-tts', `<circle cx="50" cy="50" r="35" fill="none" stroke="currentColor" stroke-width="4" stroke-dasharray="6,3"></circle><rect x="30" y="40" width="14" height="20" rx="2" fill="currentColor"></rect><polygon points="44,40 58,30 58,70 44,60" fill="currentColor"></polygon><path d="M 62 38 Q 72 50 62 62" stroke="currentColor" stroke-width="4" fill="none" stroke-linecap="round"></path><path d="M 62 28 Q 80 50 62 72" stroke="currentColor" stroke-width="3" fill="none" stroke-linecap="round"></path>`)
+		addIcon('tp-tts-playing', `<circle cx="50" cy="50" r="35" fill="none" stroke="currentColor" stroke-width="4" stroke-dasharray="6,3"></circle><rect x="36" y="34" width="10" height="32" rx="2" fill="currentColor"></rect><rect x="54" y="34" width="10" height="32" rx="2" fill="currentColor"></rect>`)
+		addIcon('tp-tts-paused', `<circle cx="50" cy="50" r="35" fill="none" stroke="currentColor" stroke-width="4" stroke-dasharray="6,3"></circle><rect x="30" y="40" width="14" height="20" rx="2" fill="currentColor"></rect><polygon points="44,40 58,30 58,70 44,60" fill="currentColor"></polygon><path d="M 62 38 Q 72 50 62 62" stroke="currentColor" stroke-width="4" fill="none" stroke-linecap="round"></path>`)
+		addIcon('tp-tts-stop', `<circle cx="50" cy="50" r="35" fill="none" stroke="currentColor" stroke-width="4" stroke-dasharray="6,3"></circle><rect x="35" y="35" width="30" height="30" rx="3" fill="currentColor"></rect>`)
+
 		// Detach/Open in window - Editorial overlapping windows
 		addIcon('tp-detach', `<rect x="18" y="18" width="42" height="35" fill="none" stroke="currentColor" stroke-width="5" rx="4"></rect><rect x="40" y="47" width="42" height="35" fill="none" stroke="currentColor" stroke-width="5" rx="4"></rect><path d="M 68 32 L 78 22 M 78 22 L 68 22 M 78 22 L 78 32" stroke="currentColor" stroke-width="4" fill="none" stroke-linecap="round" stroke-linejoin="round"></path>`)
 
@@ -452,6 +458,55 @@ export default class TeleprompterPlusPlugin extends Plugin {
 			name: 'Stop streaming',
 			callback: () => {
 				void this.stopOBSStreaming()
+			},
+		})
+
+		// ===== TTS Commands =====
+		this.addCommand({
+			id: 'tts-toggle',
+			name: 'Toggle text-to-speech',
+			callback: () => {
+				window.dispatchEvent(new CustomEvent('teleprompter:tts-toggle'))
+			},
+		})
+
+		this.addCommand({
+			id: 'tts-stop',
+			name: 'Stop text-to-speech',
+			callback: () => {
+				window.dispatchEvent(new CustomEvent('teleprompter:tts-stop'))
+			},
+		})
+
+		this.addCommand({
+			id: 'tts-next-sentence',
+			name: 'Next sentence (text-to-speech)',
+			callback: () => {
+				window.dispatchEvent(new CustomEvent('teleprompter:tts-next-sentence'))
+			},
+		})
+
+		this.addCommand({
+			id: 'tts-prev-sentence',
+			name: 'Previous sentence (text-to-speech)',
+			callback: () => {
+				window.dispatchEvent(new CustomEvent('teleprompter:tts-prev-sentence'))
+			},
+		})
+
+		this.addCommand({
+			id: 'tts-speed-up',
+			name: 'Increase speech speed',
+			callback: () => {
+				window.dispatchEvent(new CustomEvent('teleprompter:tts-speed-up'))
+			},
+		})
+
+		this.addCommand({
+			id: 'tts-speed-down',
+			name: 'Decrease speech speed',
+			callback: () => {
+				window.dispatchEvent(new CustomEvent('teleprompter:tts-speed-down'))
 			},
 		})
 
@@ -1238,6 +1293,23 @@ Use this address to connect from external devices.`
 
 		// Validate and sanitize loaded settings
 		this.validateSettings()
+
+		// Migrate: add TTS toolbar control if not present in any layout section
+		this.migrateToolbarControls()
+	}
+
+	/**
+	 * Add new toolbar controls to existing layouts (settings migration)
+	 */
+	private migrateToolbarControls(): void {
+		const layout = this.settings.toolbarLayout
+		const allControls = [...layout.primary, ...layout.secondary, ...layout.hidden]
+
+		// Add 'tts' if not in any toolbar section
+		if (!allControls.includes('tts')) {
+			layout.secondary.push('tts')
+			void this.saveSettings()
+		}
 	}
 
 	/**

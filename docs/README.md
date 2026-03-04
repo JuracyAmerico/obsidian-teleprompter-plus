@@ -364,6 +364,9 @@ cp icon@2x.png imgs/actions/action/icon@2x.png
 
 ## 🔗 Related Documentation
 
+**Feature Guides:**
+- [tts-setup.md](./tts-setup.md) - Text-to-Speech setup and configuration (Kokoro, macOS Say, Web Speech)
+
 **Main Project:**
 - [README.md](../README.md) - Teleprompter Plus overview
 - [CHANGELOG.md](../CHANGELOG.md) - Version history

@@ -19,6 +19,7 @@ export type HotkeyAction =
 	| 'toggleFullscreen'
 	| 'toggleEyeline'
 	| 'toggleVoiceTracking'
+	| 'toggleTTS'
 
 // Hotkey configuration (key -> action)
 export interface HotkeyConfig {
@@ -149,6 +150,16 @@ export interface TeleprompterSettings {
 	voiceTrackingPauseDetection: boolean     // Enable pause detection (default: true)
 	voiceTrackingPauseThresholdMs: number    // Time without speech to pause scrolling (default: 1500ms)
 	voiceTrackingScrollPosition: number      // Where current word appears on screen (0-100%, default: 30)
+	// TTS (Text-to-Speech) settings
+	ttsEngine: 'auto' | 'mac-say' | 'web-speech' | 'kokoro'
+	ttsVoice: string                   // Voice ID (engine-specific)
+	ttsLanguage: string                // Language code (e.g., 'en', 'pt', 'fr')
+	ttsRate: number                    // Speech rate (0.5 - 2.0)
+	ttsBibPath: string                 // Default bibliography file path
+	ttsResolveCitations: boolean       // Convert [@key] to APA format
+	ttsSkipCodeBlocks: boolean         // Don't read code aloud
+	ttsSkipTables: boolean             // Don't read tables aloud
+	ttsPythonPath: string              // Python path for Kokoro engine
 	// Progress indicator style
 	progressIndicatorStyle: 'progress-bar' | 'scrollbar' | 'none'
 	// NEW: Toolbar configuration
@@ -255,6 +266,8 @@ export const DEFAULT_SETTINGS: TeleprompterSettings = {
 		'e': 'toggleEyeline',
 		'v': 'toggleVoiceTracking',
 		'V': 'toggleVoiceTracking',
+		't': 'toggleTTS',
+		'T': 'toggleTTS',
 	},
 	// Double-click to edit
 	doubleClickToEdit: true,
@@ -279,12 +292,22 @@ export const DEFAULT_SETTINGS: TeleprompterSettings = {
 	voiceTrackingPauseDetection: true,      // Pause when user stops speaking
 	voiceTrackingPauseThresholdMs: 1200,    // Faster pause detection (1.2 seconds)
 	voiceTrackingScrollPosition: 20,        // Current word at 20% from top (more runway below)
+	// TTS (Text-to-Speech) defaults
+	ttsEngine: 'auto' as const,
+	ttsVoice: '',
+	ttsLanguage: 'en',
+	ttsRate: 1.0,
+	ttsBibPath: '',
+	ttsResolveCitations: true,
+	ttsSkipCodeBlocks: true,
+	ttsSkipTables: true,
+	ttsPythonPath: 'python3',
 	// Progress indicator style
 	progressIndicatorStyle: 'progress-bar' as const,
 	// NEW: Toolbar configuration
 	toolbarLayout: {
 		primary: ['play-pause', 'speed', 'countdown', 'reset', 'font-size', 'line-height', 'letter-spacing', 'font-family', 'opacity', 'padding', 'text-color', 'bg-color'],
-		secondary: ['eyeline', 'focus-mode', 'navigation', 'fullscreen', 'flip-h', 'flip-v', 'minimap', 'auto-pause', 'progress-indicator', 'alignment', 'keep-awake', 'pin', 'detach', 'quick-presets', 'time-display'],
+		secondary: ['eyeline', 'focus-mode', 'navigation', 'fullscreen', 'flip-h', 'flip-v', 'minimap', 'auto-pause', 'progress-indicator', 'alignment', 'keep-awake', 'pin', 'detach', 'quick-presets', 'time-display', 'tts'],
 		hidden: []
 	},
 	// NEW: Profiles
@@ -450,6 +473,8 @@ const TOOLBAR_CONTROLS = [
 	{ id: 'time-display', name: 'Time display', icon: 'clock' },
 	// Voice tracking
 	{ id: 'voice-tracking', name: 'Voice tracking', icon: 'mic' },
+	// TTS
+	{ id: 'tts', name: 'Text-to-speech', icon: 'volume-2' },
 ]
 
 export class TeleprompterSettingTab extends PluginSettingTab {
@@ -1524,6 +1549,141 @@ export class TeleprompterSettingTab extends PluginSettingTab {
 						value: this.plugin.settings.voiceTrackingScrollPosition,
 						onChange: (value) => {
 							this.plugin.settings.voiceTrackingScrollPosition = value as number
+							void this.plugin.saveSettings()
+						}
+					}
+				]
+			}
+		])
+
+		// TTS (Text-to-Speech) Feature Group
+		this.createFeatureGroup(containerEl, 'tts', 'Text-to-speech', 'volume-2', [
+			{
+				id: 'tts-engine',
+				name: 'Speech engine',
+				icon: 'volume-2',
+				hasToggle: false,
+				settings: [
+					{
+						name: 'Engine',
+						desc: 'Speech engine to use (auto-detect recommended)',
+						type: 'dropdown',
+						options: [
+							{ value: 'auto', label: 'Auto-detect (Kokoro > macOS Say > Web Speech)' },
+							{ value: 'kokoro', label: 'Kokoro (neural, best quality)' },
+							{ value: 'mac-say', label: 'macOS Say (native, good quality)' },
+							{ value: 'web-speech', label: 'Web Speech API (basic fallback)' },
+						],
+						value: this.plugin.settings.ttsEngine,
+						onChange: (value) => {
+							this.plugin.settings.ttsEngine = value as 'auto' | 'mac-say' | 'web-speech' | 'kokoro'
+							void this.plugin.saveSettings()
+						}
+					},
+					{
+						name: 'Voice',
+						desc: 'Select a voice preset (22 neural voices available with Kokoro)',
+						type: 'dropdown',
+						options: [
+							{ value: '', label: 'Default' },
+							{ value: 'af_heart', label: 'Heart (Female)' },
+							{ value: 'af_alloy', label: 'Alloy (Female)' },
+							{ value: 'af_aoede', label: 'Aoede (Female)' },
+							{ value: 'af_bella', label: 'Bella (Female)' },
+							{ value: 'af_jessica', label: 'Jessica (Female)' },
+							{ value: 'af_kore', label: 'Kore (Female)' },
+							{ value: 'af_nicole', label: 'Nicole (Female)' },
+							{ value: 'af_nova', label: 'Nova (Female)' },
+							{ value: 'af_river', label: 'River (Female)' },
+							{ value: 'af_sarah', label: 'Sarah (Female)' },
+							{ value: 'af_sky', label: 'Sky (Female)' },
+							{ value: 'am_adam', label: 'Adam (Male)' },
+							{ value: 'am_echo', label: 'Echo (Male)' },
+							{ value: 'am_eric', label: 'Eric (Male)' },
+							{ value: 'am_liam', label: 'Liam (Male)' },
+							{ value: 'am_michael', label: 'Michael (Male)' },
+							{ value: 'am_onyx', label: 'Onyx (Male)' },
+							{ value: 'bf_emma', label: 'Emma (British F)' },
+							{ value: 'bf_isabella', label: 'Isabella (British F)' },
+							{ value: 'bm_daniel', label: 'Daniel (British M)' },
+							{ value: 'bm_george', label: 'George (British M)' },
+							{ value: 'bm_lewis', label: 'Lewis (British M)' },
+						],
+						value: this.plugin.settings.ttsVoice,
+						onChange: (value) => {
+							this.plugin.settings.ttsVoice = value as string
+							void this.plugin.saveSettings()
+						}
+					},
+					{
+						name: 'Language',
+						desc: 'Language code for speech (e.g., en, pt, fr)',
+						type: 'text',
+						value: this.plugin.settings.ttsLanguage,
+						onChange: (value) => {
+							this.plugin.settings.ttsLanguage = value as string
+							void this.plugin.saveSettings()
+						}
+					},
+					{
+						name: 'Speed',
+						desc: 'Speech rate (0.5 = slow, 1.0 = normal, 2.0 = fast)',
+						type: 'slider',
+						min: 0.5, max: 2.0, step: 0.25,
+						value: this.plugin.settings.ttsRate,
+						onChange: (value) => {
+							this.plugin.settings.ttsRate = value as number
+							void this.plugin.saveSettings()
+						}
+					}
+				]
+			},
+			{
+				id: 'tts-citations',
+				name: 'Citation handling',
+				icon: 'book-open',
+				hasToggle: true,
+				toggleValue: this.plugin.settings.ttsResolveCitations,
+				onToggle: (value: boolean) => {
+					this.plugin.settings.ttsResolveCitations = value
+					void this.plugin.saveSettings()
+				},
+				settings: [
+					{
+						name: 'Default bibliography path',
+						desc: 'Path to .bib file (relative to vault root)',
+						type: 'text',
+						value: this.plugin.settings.ttsBibPath,
+						onChange: (value) => {
+							this.plugin.settings.ttsBibPath = value as string
+							void this.plugin.saveSettings()
+						}
+					}
+				]
+			},
+			{
+				id: 'tts-content',
+				name: 'Content filtering',
+				icon: 'filter',
+				hasToggle: false,
+				settings: [
+					{
+						name: 'Skip code blocks',
+						desc: 'Skip fenced code blocks when reading',
+						type: 'toggle',
+						value: this.plugin.settings.ttsSkipCodeBlocks,
+						onChange: (value) => {
+							this.plugin.settings.ttsSkipCodeBlocks = value as boolean
+							void this.plugin.saveSettings()
+						}
+					},
+					{
+						name: 'Skip tables',
+						desc: 'Skip tables when reading',
+						type: 'toggle',
+						value: this.plugin.settings.ttsSkipTables,
+						onChange: (value) => {
+							this.plugin.settings.ttsSkipTables = value as boolean
 							void this.plugin.saveSettings()
 						}
 					}

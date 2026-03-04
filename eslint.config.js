@@ -1,6 +1,7 @@
 import eslint from '@eslint/js';
 import tseslint from '@typescript-eslint/eslint-plugin';
 import tsparser from '@typescript-eslint/parser';
+import obsidianmd from 'eslint-plugin-obsidianmd';
 
 export default [
   eslint.configs.recommended,
@@ -74,7 +75,8 @@ export default [
       }
     },
     plugins: {
-      '@typescript-eslint': tseslint
+      '@typescript-eslint': tseslint,
+      'obsidianmd': obsidianmd
     },
     rules: {
       // ObsidianReviewBot requirements
@@ -87,6 +89,16 @@ export default [
       '@typescript-eslint/no-non-null-assertion': 'warn',
       '@typescript-eslint/no-floating-promises': 'error',
       '@typescript-eslint/require-await': 'error',
+
+      // Obsidian plugin rules (from eslint-plugin-obsidianmd)
+      'obsidianmd/hardcoded-config-path': 'error',
+      'obsidianmd/no-static-styles-assignment': 'warn',
+      'obsidianmd/object-assign': 'warn',
+      'obsidianmd/no-sample-code': 'warn',
+      'obsidianmd/sample-names': 'warn',
+      'obsidianmd/regex-lookbehind': 'error',
+      'obsidianmd/no-forbidden-elements': 'warn',
+      'obsidianmd/ui/sentence-case': 'warn',
 
       // General
       'no-undef': 'off',

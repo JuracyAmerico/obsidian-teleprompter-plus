@@ -1,6 +1,6 @@
 {
   "name": "teleprompter-plus",
-  "version": "0.9.16",
+  "version": "0.10.0",
   "description": "Professional teleprompter for Obsidian with mobile remote control, external device integration, countdown timer, and voice tracking",
   "private": true,
   "type": "module",
@@ -21,7 +21,9 @@
     "presentation",
     "video",
     "recording",
-    "scrolling"
+    "scrolling",
+    "tts",
+    "text-to-speech"
   ],
   "scripts": {
     "dev": "vite",
