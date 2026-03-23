@@ -63,11 +63,15 @@ export default class TeleprompterPlusPlugin extends Plugin {
 		// Navigation panel - Editorial sidebar style
 		addIcon('tp-navigation', `<rect x="15" y="15" width="28" height="70" fill="none" stroke="currentColor" stroke-width="5" rx="4"></rect><rect x="57" y="15" width="28" height="70" fill="none" stroke="currentColor" stroke-width="5" rx="4"></rect>`)
 
-		// TTS controls - Editorial dashed-circle style (consistent with tp-play-pause, tp-auto-pause)
-		addIcon('tp-tts', `<circle cx="50" cy="50" r="35" fill="none" stroke="currentColor" stroke-width="4" stroke-dasharray="6,3"></circle><rect x="30" y="40" width="14" height="20" rx="2" fill="currentColor"></rect><polygon points="44,40 58,30 58,70 44,60" fill="currentColor"></polygon><path d="M 62 38 Q 72 50 62 62" stroke="currentColor" stroke-width="4" fill="none" stroke-linecap="round"></path><path d="M 62 28 Q 80 50 62 72" stroke="currentColor" stroke-width="3" fill="none" stroke-linecap="round"></path>`)
-		addIcon('tp-tts-playing', `<circle cx="50" cy="50" r="35" fill="none" stroke="currentColor" stroke-width="4" stroke-dasharray="6,3"></circle><rect x="36" y="34" width="10" height="32" rx="2" fill="currentColor"></rect><rect x="54" y="34" width="10" height="32" rx="2" fill="currentColor"></rect>`)
-		addIcon('tp-tts-paused', `<circle cx="50" cy="50" r="35" fill="none" stroke="currentColor" stroke-width="4" stroke-dasharray="6,3"></circle><rect x="30" y="40" width="14" height="20" rx="2" fill="currentColor"></rect><polygon points="44,40 58,30 58,70 44,60" fill="currentColor"></polygon><path d="M 62 38 Q 72 50 62 62" stroke="currentColor" stroke-width="4" fill="none" stroke-linecap="round"></path>`)
-		addIcon('tp-tts-stop', `<circle cx="50" cy="50" r="35" fill="none" stroke="currentColor" stroke-width="4" stroke-dasharray="6,3"></circle><rect x="35" y="35" width="30" height="30" rx="3" fill="currentColor"></rect>`)
+		// TTS controls - Headphones style for "listen/read aloud"
+		// Idle: headphones with text lines — "read this to me"
+		addIcon('tp-tts', `<path d="M20 55 C20 33 35 18 50 18 C65 18 80 33 80 55" stroke="currentColor" stroke-width="5" fill="none" stroke-linecap="round"></path><rect x="16" y="52" width="12" height="22" rx="6" fill="currentColor"></rect><rect x="72" y="52" width="12" height="22" rx="6" fill="currentColor"></rect><line x1="38" y1="42" x2="62" y2="42" stroke="currentColor" stroke-width="3" stroke-linecap="round" opacity="0.4"></line><line x1="40" y1="50" x2="60" y2="50" stroke="currentColor" stroke-width="3" stroke-linecap="round" opacity="0.4"></line><line x1="42" y1="58" x2="58" y2="58" stroke="currentColor" stroke-width="3" stroke-linecap="round" opacity="0.4"></line>`)
+		// Playing: headphones with animated sound waves
+		addIcon('tp-tts-playing', `<path d="M20 55 C20 33 35 18 50 18 C65 18 80 33 80 55" stroke="currentColor" stroke-width="5" fill="none" stroke-linecap="round"></path><rect x="16" y="52" width="12" height="22" rx="6" fill="currentColor"></rect><rect x="72" y="52" width="12" height="22" rx="6" fill="currentColor"></rect><line x1="42" y1="38" x2="42" y2="62" stroke="currentColor" stroke-width="4" stroke-linecap="round"></line><line x1="50" y1="34" x2="50" y2="66" stroke="currentColor" stroke-width="4" stroke-linecap="round"></line><line x1="58" y1="40" x2="58" y2="60" stroke="currentColor" stroke-width="4" stroke-linecap="round"></line>`)
+		// Paused: headphones with pause bars
+		addIcon('tp-tts-paused', `<path d="M20 55 C20 33 35 18 50 18 C65 18 80 33 80 55" stroke="currentColor" stroke-width="5" fill="none" stroke-linecap="round"></path><rect x="16" y="52" width="12" height="22" rx="6" fill="currentColor"></rect><rect x="72" y="52" width="12" height="22" rx="6" fill="currentColor"></rect><rect x="40" y="38" width="7" height="24" rx="2" fill="currentColor"></rect><rect x="53" y="38" width="7" height="24" rx="2" fill="currentColor"></rect>`)
+		// Stop: headphones with stop square
+		addIcon('tp-tts-stop', `<path d="M20 55 C20 33 35 18 50 18 C65 18 80 33 80 55" stroke="currentColor" stroke-width="5" fill="none" stroke-linecap="round"></path><rect x="16" y="52" width="12" height="22" rx="6" fill="currentColor"></rect><rect x="72" y="52" width="12" height="22" rx="6" fill="currentColor"></rect><rect x="38" y="38" width="24" height="24" rx="3" fill="currentColor"></rect>`)
 
 		// Detach/Open in window - Editorial overlapping windows
 		addIcon('tp-detach', `<rect x="18" y="18" width="42" height="35" fill="none" stroke="currentColor" stroke-width="5" rx="4"></rect><rect x="40" y="47" width="42" height="35" fill="none" stroke="currentColor" stroke-width="5" rx="4"></rect><path d="M 68 32 L 78 22 M 78 22 L 68 22 M 78 22 L 78 32" stroke="currentColor" stroke-width="4" fill="none" stroke-linecap="round" stroke-linejoin="round"></path>`)
@@ -1102,6 +1106,29 @@ export default class TeleprompterPlusPlugin extends Plugin {
 					obsScenes: scenes
 				})
 			}
+		})
+
+		// PAI Stage integration — load speaker notes as teleprompter content
+		this.wsServer.registerCommand('load-speaker-notes', (cmd) => {
+			const content = (cmd as Record<string, unknown>)?.content as string
+			const slide = (cmd as Record<string, unknown>)?.slide as number
+			const total = (cmd as Record<string, unknown>)?.totalSlides as number
+			if (content) {
+				window.dispatchEvent(new CustomEvent('teleprompter:load-speaker-notes', {
+					detail: { content, slide, totalSlides: total }
+				}))
+			}
+		})
+
+		// TTS controls via WebSocket (for bridge rehearsal mode)
+		this.wsServer.registerCommand('toggleTTS', () => {
+			window.dispatchEvent(new CustomEvent('teleprompter:toggleTTS'))
+		})
+		this.wsServer.registerCommand('startTTS', () => {
+			window.dispatchEvent(new CustomEvent('teleprompter:startTTS'))
+		})
+		this.wsServer.registerCommand('stopTTS', () => {
+			window.dispatchEvent(new CustomEvent('teleprompter:stopTTS'))
 		})
 	}
 

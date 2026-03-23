@@ -25,13 +25,16 @@
 
 <script lang="ts">
   import type { App as ObsidianApp, TFile } from 'obsidian'
-  import { MarkdownView, setIcon } from 'obsidian'
+  import { MarkdownView, setIcon, sanitizeHTMLToDom } from 'obsidian'
   import { onMount } from 'svelte'
   import { marked } from 'marked'
   import { VOICE_TRACKING_PRESETS, type VoiceTrackingPacePreset } from './settings'
   import type { VoiceTrackingService } from './voice'
   import { TTSService } from './tts'
   import type { TTSState, TTSPlaybackState, TTSVoice } from './tts'
+  import { resolveCitations, loadBibliography } from './parser/citation-resolver'
+  import { extractBibPath, splitSentences } from './parser/text-cleaner'
+  import type { TTSDocument, TTSSection } from './tts/tts-types'
   import hljs from 'highlight.js/lib/core'
   // Import common languages for syntax highlighting
   import javascript from 'highlight.js/lib/languages/javascript'
@@ -321,6 +324,38 @@
   }
 
   /**
+   * Resolve relative image paths in standard markdown images to Obsidian vault resource URLs.
+   * Converts ![alt](images/foo.png) to ![alt](app://...) so images render in the teleprompter.
+   */
+  function resolveImagePaths(text: string, sourcePath: string): string {
+    // Match standard markdown images: ![alt](path)
+    return text.replace(/!\[([^\]]*)\]\(([^)]+)\)/g, (_match, alt: string, imgPath: string) => {
+      // Skip absolute URLs (http/https/data URIs)
+      if (/^(https?:|data:)/.test(imgPath)) return _match
+
+      // Resolve relative path against the document's directory
+      const dir = sourcePath.substring(0, sourcePath.lastIndexOf('/'))
+      const fullPath = dir ? `${dir}/${imgPath}` : imgPath
+
+      // Look up the file in the vault
+      const file = app.vault.getAbstractFileByPath(fullPath)
+      if (file && 'extension' in file) {
+        const resourcePath = app.vault.getResourcePath(file as TFile)
+        return `![${alt}](${resourcePath})`
+      }
+
+      // Try metadataCache lookup as fallback
+      const linkedFile = app.metadataCache.getFirstLinkpathDest(imgPath, sourcePath)
+      if (linkedFile && isImageFile(linkedFile.name)) {
+        const resourcePath = app.vault.getResourcePath(linkedFile)
+        return `![${alt}](${resourcePath})`
+      }
+
+      return _match
+    })
+  }
+
+  /**
    * Convert Obsidian wiki-link embeds to rendered content
    * Handles: ![[image.png]], ![[note]], ![[note|heading]]
    * - Images: converts to standard markdown/HTML
@@ -447,7 +482,7 @@
       if (processedPaths.has(notePath)) {
         const contentDiv = embed.querySelector('.embedded-note-content')
         if (contentDiv) {
-          contentDiv.innerHTML = '<p class="embed-error">⚠️ Circular reference</p>'
+          contentDiv.replaceChildren(sanitizeHTMLToDom('<p class="embed-error">⚠️ Circular reference</p>'))
         }
         continue
       }
@@ -476,7 +511,7 @@
 
           const contentDiv = embed.querySelector('.embedded-note-content')
           if (contentDiv) {
-            contentDiv.innerHTML = renderedContent
+            contentDiv.replaceChildren(sanitizeHTMLToDom(renderedContent))
           }
 
           // Recursively process any nested embeds
@@ -486,7 +521,7 @@
         console.error(`[WikiLink] Error loading embedded note: ${notePath}`, err)
         const contentDiv = embed.querySelector('.embedded-note-content')
         if (contentDiv) {
-          contentDiv.innerHTML = '<p class="embed-error">⚠️ Failed to load</p>'
+          contentDiv.replaceChildren(sanitizeHTMLToDom('<p class="embed-error">⚠️ Failed to load</p>'))
         }
       }
     }
@@ -737,12 +772,59 @@
   let ttsPlaybackState = $state<TTSPlaybackState>('idle')
   let ttsCurrentSentence = $state(0)
   let ttsTotalSentences = $state(0)
+  // Maps each TTS sentence index to the DOM element it came from
+  let ttsSentenceElements: HTMLElement[] = []
   let ttsRate = $state(1.0)
   let showTTSControls = $state(false)
   let ttsInitialized = $state(false)
   let ttsInitializedEngine = '' // Track which engine was initialized
   let ttsVoices = $state<TTSVoice[]>([])
   let ttsCurrentVoice = $state(settings.ttsVoice || '')
+
+  // Citation resolution cache for visual rendering (must be $state for render effect reactivity)
+  let cachedBibEntries = $state<Map<string, { key: string; authors: string[]; year: string; isInstitutional: boolean }> | null>(null)
+  let cachedBibPath = $state('')
+  let lastRenderedContent = $state('')
+
+  // Load bibliography file for citation resolution (visual + TTS)
+  $effect(() => {
+    if (!settings.ttsResolveCitations || !content) return
+
+    // Read raw file to extract bib path from frontmatter (content has YAML already stripped)
+    const activeFile = app.workspace.getActiveFile()
+    if (!activeFile) return
+
+    void app.vault.read(activeFile).then(rawFileContent => {
+      const frontmatterBib = extractBibPath(rawFileContent)
+      const rawBibPath = frontmatterBib || settings.ttsBibPath
+      if (!rawBibPath) {
+        cachedBibEntries = null
+        cachedBibPath = ''
+        return
+      }
+
+      // Resolve relative bib path against the document's directory
+      let bibPath = rawBibPath
+      if (!rawBibPath.includes('/')) {
+        const dir = activeFile.path.substring(0, activeFile.path.lastIndexOf('/'))
+        bibPath = dir ? `${dir}/${rawBibPath}` : rawBibPath
+      }
+
+      // Skip if already loaded for this bib file
+      if (bibPath === cachedBibPath && cachedBibEntries) return
+
+      // Load bib file from vault
+      const bibFile = app.vault.getAbstractFileByPath(bibPath)
+      if (bibFile && 'extension' in bibFile) {
+        void app.vault.read(bibFile as TFile).then(bibData => {
+          cachedBibEntries = loadBibliography(bibData, bibPath)
+          cachedBibPath = bibPath
+          // Force re-render by clearing last content cache
+          lastRenderedContent = ''
+        })
+      }
+    })
+  })
 
   // Update voice tracking config when settings change (real-time)
   $effect(() => {
@@ -858,7 +940,7 @@
   $effect(() => {
     if (btnPlay) {
       const iconName = isPlaying ? 'tp-pause' : isCountingDown ? 'x' : 'tp-play'
-      btnPlay.innerHTML = '' // Clear previous icon
+      while (btnPlay.firstChild) btnPlay.removeChild(btnPlay.firstChild)
       setIcon(btnPlay, iconName)
     }
   })
@@ -867,7 +949,7 @@
   $effect(() => {
     if (btnTTS) {
       const iconName = ttsPlaybackState === 'playing' ? 'tp-tts-playing' : ttsPlaybackState === 'paused' ? 'tp-tts-paused' : 'tp-tts'
-      btnTTS.innerHTML = ''
+      while (btnTTS.firstChild) btnTTS.removeChild(btnTTS.firstChild)
       setIcon(btnTTS, iconName)
     }
   })
@@ -994,9 +1076,6 @@
   })
 
   // Render markdown whenever content changes
-  // Performance optimization: Track last rendered content to avoid unnecessary re-renders
-  let lastRenderedContent = ''
-
   $effect(() => {
     // Skip if content hasn't changed (performance optimization)
     if (content === lastRenderedContent && renderedHTML) return
@@ -1016,8 +1095,19 @@
       // Strip Pandoc raw blocks ({=openxml}, {=latex}, {=html}, etc.)
       processedContent = processedContent.replace(/```\{=[a-z]+\}\r?\n[\s\S]*?\r?\n```/g, '')
 
+      // Strip Pandoc/Quarto attributes ({width=70%}, {#id .class}, {.unnumbered}, etc.)
+      processedContent = processedContent.replace(/\{[#.]?[^}]*(?:width|height|fig-|\.unnumbered|\.unlisted)[^}]*\}/g, '')
+
+      // Resolve relative image paths to Obsidian vault resource URLs
+      processedContent = resolveImagePaths(processedContent, sourcePath)
+
       // Replace Mermaid diagram code blocks with readable placeholders
       processedContent = replaceDiagramBlocks(processedContent)
+
+      // Resolve Pandoc citations [@key] -> (Author, Year) if bib data is loaded
+      if (settings.ttsResolveCitations && cachedBibEntries) {
+        processedContent = resolveCitations(processedContent, cachedBibEntries)
+      }
 
       renderedHTML = marked.parse(processedContent) as string
       lastRenderedContent = content
@@ -1102,7 +1192,7 @@
         } else {
           const fileContent = await app.vault.read(activeFile)
           const result = removeYAMLFrontmatter(fileContent)
-          content = result.content
+          content = removeReferencesSection(result.content)
           yamlLineOffset = result.linesRemoved
         }
 
@@ -1191,6 +1281,51 @@
       }
     }
     return { content: text, linesRemoved: 0 }
+  }
+
+  // Remove references/bibliography section from end of content
+  // Uses indexOf-based search (no regex backtracking risk on large files)
+  function removeReferencesSection(text: string): string {
+    // Strategy: find the last occurrence of a References heading or ::: {#refs} block
+    // and truncate everything from there to the end
+
+    // Check for Pandoc ::: {#refs} block first (most specific)
+    const refsBlockIdx = text.lastIndexOf('::: {#refs}')
+    if (refsBlockIdx !== -1) {
+      // Find the References heading before the block (if any)
+      const beforeBlock = text.lastIndexOf('\n#', refsBlockIdx)
+      if (beforeBlock !== -1) {
+        const headingLine = text.slice(beforeBlock + 1, text.indexOf('\n', beforeBlock + 1))
+        if (/^#{1,3}\s*References?\s*$/i.test(headingLine)) {
+          return text.slice(0, beforeBlock).trimEnd()
+        }
+      }
+      // No heading found — just cut from the ::: {#refs} block
+      // Find the newline before the block
+      const lineStart = text.lastIndexOf('\n', refsBlockIdx)
+      return text.slice(0, lineStart > 0 ? lineStart : refsBlockIdx).trimEnd()
+    }
+
+    // Check for "# References" heading at end of document (without Pandoc block)
+    const lines = text.split('\n')
+    for (let i = lines.length - 1; i >= 0; i--) {
+      const line = lines[i].trim()
+      if (/^#{1,3}\s*References?\s*$/i.test(line)) {
+        // Verify content after heading looks like a bibliography
+        const refsContent = lines.slice(i + 1).join('\n')
+        const bibIndicators = /\(\d{4}[a-z]?\)|doi:|https?:\/\/|ISBN|Retrieved from/i
+        if (bibIndicators.test(refsContent)) {
+          return lines.slice(0, i).join('\n').trimEnd()
+        }
+        break // Found heading but not a bibliography — stop searching
+      }
+      // Stop searching if we hit another heading (references should be last)
+      if (/^#{1,3}\s+\S/.test(line) && !/^#{1,3}\s*References?\s*$/i.test(line)) {
+        break
+      }
+    }
+
+    return text
   }
 
   // Calculate word count from text content
@@ -1851,7 +1986,7 @@
     setIcon(node, iconName)
     return {
       update(newIconName: string) {
-        node.innerHTML = '' // Clear previous icon
+        while (node.firstChild) node.removeChild(node.firstChild)
         setIcon(node, newIconName)
       }
     }
@@ -2192,27 +2327,113 @@
     ttsService?.setVoice(voiceId)
   }
 
+  /**
+   * Build TTS document directly from the rendered DOM.
+   * This ensures TTS reads exactly what's on screen — no dual-pipeline mismatch.
+   */
   function prepareTTSDocument(): void {
-    if (!ttsService || !content) return
+    if (!ttsService || !contentArea) return
 
-    // Load bibliography if configured
-    let bibContent: string | undefined
-    const bibPath = settings.ttsBibPath
-    if (bibPath && settings.ttsResolveCitations) {
-      // Try to read bib file from vault
-      const bibFile = app.vault.getAbstractFileByPath(bibPath)
-      if (bibFile && 'extension' in bibFile) {
-        // Will be loaded asynchronously, but for now just prepare without it
-        void app.vault.read(bibFile as import('obsidian').TFile).then(bibData => {
-          ttsService?.prepareDocument(content, bibData, bibPath)
-          ttsTotalSentences = ttsService?.getDocument()?.allSentences.length || 0
-        })
-        return
+    const sections: TTSSection[] = []
+    const allSentences: string[] = []
+    const sectionMap: number[] = []
+    ttsSentenceElements = []
+
+    let currentHeading = ''
+    let currentHeadingId = 'section-0'
+    let currentSectionSentences: string[] = []
+    let sectionIndex = 0
+
+    // Walk all block-level children of the content area
+    const blocks = contentArea.querySelectorAll('h1, h2, h3, h4, h5, h6, p, li, blockquote, table')
+
+    for (const block of blocks) {
+      const el = block as HTMLElement
+      const tag = el.tagName.toLowerCase()
+
+      // Headings start new sections
+      if (/^h[1-6]$/.test(tag)) {
+        // Save previous section
+        if (currentSectionSentences.length > 0) {
+          sections.push({ heading: currentHeading, headingId: currentHeadingId, sentences: [...currentSectionSentences] })
+          sectionIndex = sections.length
+          currentSectionSentences = []
+        }
+
+        currentHeading = el.textContent?.trim() || ''
+        currentHeadingId = el.getAttribute('data-header-id') || `header-${sectionIndex}`
+
+        // Add heading as a sentence so TTS reads it aloud
+        if (currentHeading) {
+          allSentences.push(currentHeading + '.')
+          sectionMap.push(sectionIndex)
+          ttsSentenceElements.push(el)
+          currentSectionSentences.push(currentHeading + '.')
+        }
+        continue
+      }
+
+      // Tables: announce headers once, then read each row as values only
+      if (tag === 'table') {
+        const rows = el.querySelectorAll('tr')
+        const headerCells = rows[0]?.querySelectorAll('th, td')
+        const headers: string[] = []
+        headerCells?.forEach(th => headers.push(th.textContent?.trim() || ''))
+
+        // Announce column headers once
+        if (headers.length > 0 && headers.some(h => h)) {
+          const headerIntro = `Table with columns: ${headers.filter(h => h).join(', ')}.`
+          allSentences.push(headerIntro)
+          sectionMap.push(Math.max(0, sections.length))
+          ttsSentenceElements.push(rows[0] as HTMLElement)
+          currentSectionSentences.push(headerIntro)
+        }
+
+        // Read data rows — values only, no header repetition
+        for (let r = 1; r < rows.length; r++) {
+          const cells = rows[r].querySelectorAll('td')
+          if (cells.length === 0) continue
+
+          const parts: string[] = []
+          cells.forEach((cell) => {
+            const value = cell.textContent?.trim() || ''
+            if (!value || value === '-' || value === 'None' || value === 'N/A') return
+            parts.push(value)
+          })
+
+          if (parts.length > 0) {
+            const rowSentence = parts.join('. ') + '.'
+            allSentences.push(rowSentence)
+            sectionMap.push(Math.max(0, sections.length))
+            ttsSentenceElements.push(rows[r] as HTMLElement)
+            currentSectionSentences.push(rowSentence)
+          }
+        }
+        continue
+      }
+
+      // Paragraphs, list items, blockquotes: extract text and split sentences
+      const text = el.textContent?.trim() || ''
+      if (!text) continue
+
+      const sentences = splitSentences(text)
+      for (const sentence of sentences) {
+        if (!sentence.trim()) continue
+        allSentences.push(sentence)
+        sectionMap.push(Math.max(0, sections.length))
+        ttsSentenceElements.push(el)
+        currentSectionSentences.push(sentence)
       }
     }
 
-    ttsService.prepareDocument(content, bibContent)
-    ttsTotalSentences = ttsService.getDocument()?.allSentences.length || 0
+    // Save last section
+    if (currentSectionSentences.length > 0) {
+      sections.push({ heading: currentHeading, headingId: currentHeadingId, sentences: currentSectionSentences })
+    }
+
+    const doc: TTSDocument = { sections, allSentences, sectionMap }
+    ttsService.setDocument(doc)
+    ttsTotalSentences = allSentences.length
   }
 
   async function toggleTTS(): Promise<void> {
@@ -2263,43 +2484,23 @@
   function highlightTTSSentence(index: number): void {
     if (!contentArea) return
 
-    // Remove previous highlight
+    // Remove previous highlight — CSS class only, zero DOM mutation
     clearTTSHighlight()
 
-    // Find the sentence in rendered content by mapping to paragraph elements
-    const doc = ttsService?.getDocument()
-    if (!doc || index >= doc.allSentences.length) return
-
-    const sentenceText = doc.allSentences[index]
-    if (!sentenceText) return
-
-    // Search through text nodes in rendered HTML to find matching sentence
-    const walker = document.createTreeWalker(
-      contentArea,
-      NodeFilter.SHOW_TEXT,
-      null
-    )
-
-    let node: Node | null
-    while ((node = walker.nextNode())) {
-      const textContent = node.textContent || ''
-      // Check if this text node contains the start of the sentence
-      const cleanSentence = sentenceText.slice(0, 40) // First 40 chars for matching
-      if (textContent.includes(cleanSentence)) {
-        // Highlight the parent element
-        const parentEl = node.parentElement
-        if (parentEl) {
-          parentEl.classList.add('tp-tts-active-sentence')
-        }
-        break
-      }
+    // Direct element lookup from DOM extraction map
+    const el = ttsSentenceElements[index]
+    if (el) {
+      el.classList.add('tp-tts-active-sentence')
     }
   }
 
   function clearTTSHighlight(): void {
     if (!contentArea) return
-    const highlighted = contentArea.querySelectorAll('.tp-tts-active-sentence')
-    highlighted.forEach(el => el.classList.remove('tp-tts-active-sentence'))
+    // CSS class only — no DOM mutation, no normalize(), no crash risk
+    const highlighted = Array.from(contentArea.querySelectorAll('.tp-tts-active-sentence'))
+    for (const el of highlighted) {
+      el.classList.remove('tp-tts-active-sentence')
+    }
   }
 
   function scrollToTTSSentence(index: number): void {
@@ -2352,7 +2553,7 @@
     if (file && 'extension' in file) {
       app.vault.read(file as TFile).then((fileContent) => {
         const result = removeYAMLFrontmatter(fileContent)
-        content = result.content
+        content = removeReferencesSection(result.content)
         yamlLineOffset = result.linesRemoved
         debugLog('[Pin] Manually refreshed pinned note')
       })
@@ -2688,7 +2889,7 @@
       try {
         const fileContent = await app.vault.read(file as TFile)
         const result = removeYAMLFrontmatter(fileContent)
-        content = result.content
+        content = removeReferencesSection(result.content)
         yamlLineOffset = result.linesRemoved
         currentFileName = file.name.replace('.md', '')
         hasUsedCountdown = false
@@ -3509,6 +3710,28 @@
           })
         }
         break
+
+      // PAI Stage integration
+      case 'teleprompter:load-speaker-notes': {
+        const detail = (event as CustomEvent).detail
+        if (detail?.content) {
+          // Set content directly — this overrides the current file content
+          content = detail.content
+          currentFileName = detail.slide ? `Slide ${detail.slide}/${detail.totalSlides || '?'}` : 'Speaker Notes'
+          // Reset scroll to top for new slide
+          if (contentArea) contentArea.scrollTop = 0
+        }
+        break
+      }
+      case 'teleprompter:toggleTTS':
+        void toggleTTS()
+        break
+      case 'teleprompter:startTTS':
+        if (ttsPlaybackState === 'idle') void toggleTTS()
+        break
+      case 'teleprompter:stopTTS':
+        stopTTS()
+        break
     }
   }
 
@@ -3813,6 +4036,11 @@
       'teleprompter:countdown-decrease',
       'teleprompter:set-countdown',
       'teleprompter:start-countdown',
+      // PAI Stage integration
+      'teleprompter:load-speaker-notes',
+      'teleprompter:toggleTTS',
+      'teleprompter:startTTS',
+      'teleprompter:stopTTS',
     ]
 
     wsEvents.forEach(eventType => {
@@ -4036,6 +4264,11 @@
         isProgrammaticJump = false
       }, 100)
 
+      // If TTS is active, also jump TTS to this section
+      if (ttsService && ttsPlaybackState !== 'idle') {
+        void ttsService.jumpToSection(headerId)
+      }
+
       // Also jump to header in the actual note editor
       const header = headers().find(h => h.id === headerId)
       if (header) {
@@ -4051,6 +4284,38 @@
           editor.scrollIntoView({ from: { line: actualLineNumber, ch: 0 }, to: { line: actualLineNumber, ch: 0 } }, true)
         }
       }
+    }
+  }
+
+  // Start TTS from a specific section (right-click on nav item)
+  async function startTTSFromSection(headerId: string): Promise<void> {
+    if (!ttsInitialized) {
+      await initTTS()
+    }
+    if (!ttsService) return
+
+    // Prepare document if not already done
+    if (ttsPlaybackState === 'idle') {
+      prepareTTSDocument()
+      // Wait a tick for async bib loading to complete
+      await new Promise(resolve => setTimeout(resolve, 100))
+    }
+
+    // Stop current playback if any
+    if (ttsPlaybackState === 'playing') {
+      ttsService.stop()
+    }
+
+    // Stop auto-scroll
+    if (isPlaying) {
+      isPlaying = false
+      broadcastState({ isPlaying: false })
+    }
+
+    // Jump to the section and start playing
+    await ttsService.jumpToSection(headerId)
+    if (ttsPlaybackState !== 'playing') {
+      await ttsService.play()
     }
   }
 
@@ -4550,36 +4815,55 @@
             </button>
           {/if}
           {#if showTTSControls}
+            <!-- svelte-ignore a11y_no_static_element_interactions -->
+            <div class="tts-backdrop" onclick={toggleTTSControls}></div>
             <div class="popup-panel tts-controls-panel">
-              <div class="preset-header">TTS CONTROLS</div>
+              <div class="tts-panel-header">
+                <span class="tts-panel-title">Read aloud</span>
+                <button class="tts-panel-close" onclick={toggleTTSControls} title="Close">
+                  <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                </button>
+              </div>
+
               {#if ttsVoices.length > 0}
-                <div class="tts-voice-selector">
-                  <span class="tts-voice-label">Voice</span>
-                  <div class="tts-voice-list">
+                <div class="tts-field">
+                  <label class="tts-field-label" for="tts-voice-select">Voice</label>
+                  <select
+                    id="tts-voice-select"
+                    class="tts-voice-dropdown"
+                    value={ttsCurrentVoice}
+                    onchange={(e) => setTTSVoice((e.target as HTMLSelectElement).value)}
+                  >
                     {#each ttsVoices as voice}
-                      <button
-                        class="tts-voice-option"
-                        class:selected={ttsCurrentVoice === voice.id}
-                        onclick={() => setTTSVoice(voice.id)}
-                        title={voice.language}
-                      >
-                        {voice.name}
-                      </button>
+                      <option value={voice.id}>{voice.name}</option>
                     {/each}
-                  </div>
+                  </select>
                 </div>
               {/if}
-              <label class="slider-label">
-                <span>Speed: {ttsRate}x</span>
-                <input type="range" bind:value={ttsRate} oninput={onTTSRateChange} min="0.5" max="2.0" step="0.25" />
-              </label>
+
+              <div class="tts-field">
+                <label class="tts-field-label">Speed</label>
+                <div class="tts-speed-row">
+                  <div class="tts-speed-presets">
+                    {#each [0.75, 1, 1.25, 1.5, 2] as preset}
+                      <button
+                        class="tts-speed-btn"
+                        class:active={ttsRate === preset}
+                        onclick={() => { ttsRate = preset; onTTSRateChange() }}
+                      >{preset}x</button>
+                    {/each}
+                  </div>
+                  <input type="range" class="tts-speed-slider" bind:value={ttsRate} oninput={onTTSRateChange} min="0.5" max="2.0" step="0.05" />
+                </div>
+              </div>
+
               <div class="tts-sentence-nav">
-                <button onclick={ttsPrevSentence} class="icon-btn-small" title="Previous sentence">
-                  <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 18 9 12 15 6"/></svg>
+                <button onclick={ttsPrevSentence} class="tts-nav-btn" title="Previous sentence">
+                  <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 18 9 12 15 6"/></svg>
                 </button>
-                <span class="tts-sentence-counter">{ttsCurrentSentence + 1}/{ttsTotalSentences}</span>
-                <button onclick={ttsNextSentence} class="icon-btn-small" title="Next sentence">
-                  <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>
+                <span class="tts-sentence-counter">{ttsCurrentSentence + 1} / {ttsTotalSentences}</span>
+                <button onclick={ttsNextSentence} class="tts-nav-btn" title="Next sentence">
+                  <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>
                 </button>
               </div>
             </div>
@@ -5082,6 +5366,8 @@
                   class="nav-item"
                   class:active={index === currentHeaderIndex}
                   onclick={() => jumpToHeader(header.id)}
+                  oncontextmenu={(e) => { e.preventDefault(); void startTTSFromSection(header.id) }}
+                  title="Click: jump to section | Right-click: read from here"
                 >
                   {header.text}
                 </button>
@@ -5461,7 +5747,8 @@
 
   .main-content {
     display: flex;
-    flex: 1;
+    flex: 1 1 0;
+    min-height: 0;
     overflow: hidden;
   }
 
@@ -5469,9 +5756,9 @@
     border-left: 1px solid var(--background-modifier-border);
     display: flex;
     flex-direction: column;
-    overflow: hidden;
     position: relative;
     flex-shrink: 0;
+    min-height: 0;
   }
 
   .resize-handle {
@@ -5516,6 +5803,7 @@
     padding: 1rem;
     border-bottom: 1px solid var(--background-modifier-border);
     font-size: 0.9rem;
+    flex-shrink: 0;
   }
 
   /* Navigation Progress Summary */
@@ -5526,6 +5814,7 @@
     display: flex;
     flex-direction: column;
     gap: 8px;
+    flex-shrink: 0;
   }
 
   .nav-progress-bar-container {
@@ -5581,9 +5870,10 @@
   }
 
   .nav-items {
-    flex: 1;
+    flex: 1 1 0;
+    min-height: 0;
     overflow-y: auto;
-    padding: 0.5rem 0;
+    padding: 0.5rem 0 2rem 0;
   }
 
   .nav-item-wrapper {
@@ -5682,14 +5972,13 @@
   }
 
   .content-area {
-    flex: 1;
+    flex: 1 1 0;
+    min-height: 0;
     overflow-y: auto;
     overflow-x: hidden;
     padding: 2rem;
     padding-top: 4rem; /* Add extra top padding to avoid control bar overlap */
     position: relative;
-    /* Ensure it has a defined height for scrolling */
-    min-height: 400px;
   }
 
   /* Focus Mode - dims text outside the eyeline area */
@@ -6325,18 +6614,19 @@
     color: rgba(255, 255, 255, 0.6);
   }
 
-  /* TTS Active Sentence Highlight */
+  /* TTS Active Sentence Highlight — inline span wrapping just the spoken sentence */
   :global(.tp-tts-active-sentence) {
-    background: linear-gradient(135deg, rgba(33, 150, 243, 0.25), rgba(30, 136, 229, 0.15));
+    background: linear-gradient(135deg, rgba(33, 150, 243, 0.3), rgba(30, 136, 229, 0.18));
     border-radius: 4px;
-    padding: 2px 4px;
-    margin: -2px -4px;
-    transition: background 0.3s ease;
-    box-shadow: 0 0 12px rgba(33, 150, 243, 0.2);
+    padding: 2px 6px;
+    margin: -2px -6px;
+    box-shadow: 0 0 16px rgba(33, 150, 243, 0.25);
+    box-decoration-break: clone;
+    -webkit-box-decoration-break: clone;
   }
 
   :global(.theme-light .tp-tts-active-sentence) {
-    background: linear-gradient(135deg, rgba(33, 150, 243, 0.15), rgba(30, 136, 229, 0.08));
+    background: linear-gradient(135deg, rgba(33, 150, 243, 0.2), rgba(30, 136, 229, 0.1));
     box-shadow: 0 2px 8px rgba(33, 150, 243, 0.15);
   }
 
@@ -6355,73 +6645,161 @@
     color: #FF9800;
   }
 
+  .tts-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 99;
+  }
+
   .tts-controls-panel {
-    min-width: 240px;
-    max-height: 400px;
+    width: 260px;
+    right: 0;
+    left: auto;
+    transform: none;
+    z-index: 100;
+    padding: 0;
+    overflow: hidden;
   }
 
-  .tts-voice-selector {
-    margin-bottom: 8px;
+  .tts-panel-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 14px;
+    border-bottom: 1px solid var(--background-modifier-border);
+    background: var(--background-secondary);
   }
 
-  .tts-voice-label {
-    font-size: 0.75rem;
+  .tts-panel-title {
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: var(--text-normal);
+  }
+
+  .tts-panel-close {
+    background: none;
+    border: none;
+    color: var(--text-muted);
+    cursor: pointer;
+    padding: 2px;
+    border-radius: 4px;
+    display: flex;
+    align-items: center;
+  }
+
+  .tts-panel-close:hover {
+    background: var(--background-modifier-hover);
+    color: var(--text-normal);
+  }
+
+  .tts-field {
+    padding: 10px 14px;
+    border-bottom: 1px solid var(--background-modifier-border);
+  }
+
+  .tts-field:last-of-type {
+    border-bottom: none;
+  }
+
+  .tts-field-label {
+    font-size: 0.7rem;
     font-weight: 600;
     text-transform: uppercase;
     letter-spacing: 0.05em;
     color: var(--text-muted);
     display: block;
-    margin-bottom: 4px;
+    margin-bottom: 6px;
   }
 
-  .tts-voice-list {
-    display: flex;
-    flex-direction: column;
-    gap: 2px;
-    max-height: 200px;
-    overflow-y: auto;
+  .tts-voice-dropdown {
+    width: 100%;
+    padding: 6px 10px;
     border: 1px solid var(--background-modifier-border);
     border-radius: 6px;
-    padding: 4px;
-  }
-
-  .tts-voice-option {
-    background: transparent;
-    border: none;
-    border-radius: 4px;
-    padding: 4px 8px;
-    text-align: left;
-    font-size: 0.85rem;
+    background: var(--background-primary);
     color: var(--text-normal);
+    font-size: 0.85rem;
     cursor: pointer;
-    transition: background 0.15s;
-    white-space: nowrap;
+    appearance: auto;
   }
 
-  .tts-voice-option:hover {
+  .tts-voice-dropdown:focus {
+    border-color: var(--interactive-accent);
+    outline: none;
+    box-shadow: 0 0 0 2px rgba(var(--interactive-accent-rgb), 0.2);
+  }
+
+  .tts-speed-row {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .tts-speed-presets {
+    display: flex;
+    gap: 4px;
+  }
+
+  .tts-speed-btn {
+    flex: 1;
+    padding: 4px 0;
+    border: 1px solid var(--background-modifier-border);
+    border-radius: 6px;
+    background: var(--background-primary);
+    color: var(--text-muted);
+    font-size: 0.75rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+
+  .tts-speed-btn:hover {
     background: var(--background-modifier-hover);
+    color: var(--text-normal);
   }
 
-  .tts-voice-option.selected {
+  .tts-speed-btn.active {
     background: var(--interactive-accent);
     color: var(--text-on-accent);
-    font-weight: 500;
+    border-color: var(--interactive-accent);
+  }
+
+  .tts-speed-slider {
+    width: 100%;
+    height: 4px;
+    accent-color: var(--interactive-accent);
   }
 
   .tts-sentence-nav {
     display: flex;
     align-items: center;
     justify-content: center;
-    gap: 8px;
-    margin-top: 8px;
-    padding-top: 8px;
-    border-top: 1px solid var(--background-modifier-border);
+    gap: 12px;
+    padding: 10px 14px;
+    background: var(--background-secondary);
+  }
+
+  .tts-nav-btn {
+    background: none;
+    border: 1px solid var(--background-modifier-border);
+    border-radius: 6px;
+    color: var(--text-muted);
+    cursor: pointer;
+    padding: 4px 8px;
+    display: flex;
+    align-items: center;
+    transition: all 0.15s;
+  }
+
+  .tts-nav-btn:hover {
+    background: var(--background-modifier-hover);
+    color: var(--text-normal);
   }
 
   .tts-sentence-counter {
     font-size: 0.8rem;
     font-variant-numeric: tabular-nums;
-    min-width: 50px;
+    min-width: 60px;
     text-align: center;
     color: var(--text-muted);
   }

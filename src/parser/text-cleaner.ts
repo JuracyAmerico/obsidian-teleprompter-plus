@@ -23,6 +23,38 @@ function stripFrontmatter(text: string): string {
 	return text
 }
 
+/** Strip references/bibliography section from end of content (indexOf-based, no backtracking risk) */
+function stripReferencesSection(text: string): string {
+	// Check for Pandoc ::: {#refs} block first
+	const refsBlockIdx = text.lastIndexOf('::: {#refs}')
+	if (refsBlockIdx !== -1) {
+		const beforeBlock = text.lastIndexOf('\n#', refsBlockIdx)
+		if (beforeBlock !== -1) {
+			const headingLine = text.slice(beforeBlock + 1, text.indexOf('\n', beforeBlock + 1))
+			if (/^#{1,3}\s*References?\s*$/i.test(headingLine)) {
+				return text.slice(0, beforeBlock).trimEnd()
+			}
+		}
+		const lineStart = text.lastIndexOf('\n', refsBlockIdx)
+		return text.slice(0, lineStart > 0 ? lineStart : refsBlockIdx).trimEnd()
+	}
+
+	// Check for "# References" heading at end
+	const lines = text.split('\n')
+	for (let i = lines.length - 1; i >= 0; i--) {
+		const line = lines[i].trim()
+		if (/^#{1,3}\s*References?\s*$/i.test(line)) {
+			const refsContent = lines.slice(i + 1).join('\n')
+			if (/\(\d{4}[a-z]?\)|doi:|https?:\/\/|ISBN/i.test(refsContent)) {
+				return lines.slice(0, i).join('\n').trimEnd()
+			}
+			break
+		}
+		if (/^#{1,3}\s+\S/.test(line) && !/^#{1,3}\s*References?\s*$/i.test(line)) break
+	}
+	return text
+}
+
 /** Extract bibliography path from YAML frontmatter */
 export function extractBibPath(text: string): string | null {
 	const match = text.match(/^---\r?\n([\s\S]*?)\r?\n---/)
@@ -42,9 +74,11 @@ function stripRawBlocks(text: string): string {
 	return text.replace(/```\{=[a-z]+\}\r?\n[\s\S]*?\r?\n```/g, '')
 }
 
-/** Strip fenced code blocks */
+/** Replace fenced code blocks with a brief spoken placeholder */
 function stripCodeBlocks(text: string): string {
-	return text.replace(/```[\s\S]*?```/g, '')
+	return text.replace(/```(\w*)\n[\s\S]*?```/g, (_match, lang) => {
+		return lang ? `(Code block in ${lang}.)` : '(Code block.)'
+	})
 }
 
 /** Strip inline code */
@@ -68,6 +102,11 @@ function stripImages(text: string, readAltText: boolean): string {
 /** Strip Obsidian embeds (![[filename]]) */
 function stripEmbeds(text: string): string {
 	return text.replace(/!\[\[[^\]]+\]\]/g, '')
+}
+
+/** Strip Pandoc/Quarto attributes ({width=70%}, {#id .class}, {.unnumbered}, etc.) */
+function stripPandocAttributes(text: string): string {
+	return text.replace(/\{[#.]?[^}]*(?:width|height|fig-|\.unnumbered|\.unlisted)[^}]*\}/g, '')
 }
 
 /** Convert markdown links to just their text */
@@ -104,15 +143,25 @@ function stripMath(text: string): string {
 
 /** Strip tables */
 function stripTables(text: string): string {
-	// Remove lines that start with | (table rows) and separator lines (|---|)
+	// Replace tables with a brief spoken placeholder so the listener stays oriented
 	const lines = text.split('\n')
 	const result: string[] = []
 	let inTable = false
+	let tableInserted = false
 
 	for (const line of lines) {
 		const trimmed = line.trim()
 		if (trimmed.startsWith('|') && trimmed.endsWith('|')) {
-			inTable = true
+			if (!inTable) {
+				inTable = true
+				tableInserted = false
+			}
+			if (!tableInserted) {
+				// Extract column count from header row for context
+				const cols = trimmed.split('|').filter(c => c.trim()).length
+				result.push(`(Table with ${cols} columns.)`)
+				tableInserted = true
+			}
 			continue
 		}
 		if (inTable && trimmed === '') {
@@ -144,9 +193,47 @@ function stripFootnotes(text: string): string {
 	return text
 }
 
-/** Strip list markers but keep text */
-function stripListMarkers(text: string): string {
-	return text.replace(/^(\s*)([-*+]|\d+\.)\s+/gm, '$1')
+/** Convert list items into separate sentences for TTS.
+ * Strips markers (-, *, +, 1.) and ensures each item ends with
+ * sentence-ending punctuation so splitSentences() treats them individually.
+ * For numbered lists, prepends the ordinal (e.g., "First,", "Second,"). */
+function convertListItems(text: string): string {
+	const ordinals = ['First', 'Second', 'Third', 'Fourth', 'Fifth', 'Sixth', 'Seventh', 'Eighth', 'Ninth', 'Tenth']
+	const lines = text.split('\n')
+	const result: string[] = []
+	let listCounter = 0
+	let inList = false
+
+	for (let i = 0; i < lines.length; i++) {
+		const line = lines[i]
+		const numberedMatch = line.match(/^(\s*)(\d+)\.\s+(.+)$/)
+		const bulletMatch = line.match(/^(\s*)([-*+])\s+(.+)$/)
+
+		if (numberedMatch) {
+			if (!inList) { inList = true; listCounter = 0 }
+			let itemText = numberedMatch[3].trim()
+			// Ensure it ends with sentence-ending punctuation
+			if (!/[.!?]$/.test(itemText)) itemText += '.'
+			// Prepend ordinal for numbered lists
+			const ordinal = listCounter < ordinals.length ? ordinals[listCounter] + ', ' : ''
+			result.push(numberedMatch[1] + ordinal + itemText)
+			listCounter++
+		} else if (bulletMatch) {
+			if (!inList) { inList = true; listCounter = 0 }
+			let itemText = bulletMatch[3].trim()
+			// Ensure it ends with sentence-ending punctuation
+			if (!/[.!?]$/.test(itemText)) itemText += '.'
+			result.push(bulletMatch[1] + itemText)
+			listCounter++
+		} else {
+			if (inList && line.trim() === '') {
+				inList = false
+				listCounter = 0
+			}
+			result.push(line)
+		}
+	}
+	return result.join('\n')
 }
 
 /** Clean up whitespace: collapse multiple newlines, trim lines */
@@ -232,6 +319,7 @@ export function cleanDocument(rawContent: string, options: Partial<CleanerOption
 
 	// Step 1: Strip non-readable block content
 	text = stripFrontmatter(text)
+	text = stripReferencesSection(text)
 	text = stripRawBlocks(text)
 	if (opts.skipCodeBlocks) text = stripCodeBlocks(text)
 	if (opts.skipTables) text = stripTables(text)
@@ -263,6 +351,8 @@ export function cleanDocument(rawContent: string, options: Partial<CleanerOption
 			currentHeading = headingMatch[2].trim()
 			currentHeadingId = `header-${headingCounter++}`
 			currentContent = []
+			// Include heading text as the first content line so TTS reads it aloud
+			currentContent.push(currentHeading + '.')
 		} else {
 			currentContent.push(line)
 		}
@@ -298,6 +388,7 @@ export function cleanDocument(rawContent: string, options: Partial<CleanerOption
 /** Clean inline markdown content (bold, italic, links, etc.) to plain text */
 function cleanInlineContent(text: string, opts: CleanerOptions): string {
 	text = stripHorizontalRules(text)
+	text = stripPandocAttributes(text)
 	text = stripEmbeds(text)
 	text = stripImages(text, opts.readImageAltText)
 	text = stripLinks(text)
@@ -306,7 +397,7 @@ function cleanInlineContent(text: string, opts: CleanerOptions): string {
 	text = stripMath(text)
 	text = stripEmphasis(text)
 	text = stripBlockquotes(text)
-	text = stripListMarkers(text)
+	text = convertListItems(text)
 	text = normalizeWhitespace(text)
 	return text
 }

@@ -1,7 +1,7 @@
 {
   "name": "teleprompter-plus",
   "version": "0.10.0",
-  "description": "Professional teleprompter for Obsidian with mobile remote control, external device integration, countdown timer, and voice tracking",
+  "description": "Scroll notes as a teleprompter with mobile remote control, Stream Deck integration, countdown timer, and voice tracking.",
   "private": true,
   "type": "module",
   "repository": {
@@ -13,7 +13,7 @@
     "url": "https://github.com/JuracyAmerico/obsidian-teleprompter-plus/issues"
   },
   "license": "MIT",
-  "author": "JuracyAmerico",
+  "author": "Americo",
   "keywords": [
     "obsidian",
     "teleprompter",

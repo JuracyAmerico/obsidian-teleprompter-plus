@@ -60,10 +60,18 @@ export interface WebSocketModule {
 	error?: string
 }
 
+interface ObsidianApp {
+	vault?: {
+		adapter?: { basePath?: string }
+		configDir?: string
+	}
+}
+
 /**
  * Load the ws module using multiple fallback strategies
+ * @param app - The Obsidian app instance (avoids using window.app)
  */
-export function loadWebSocketModule(): WebSocketModule {
+export function loadWebSocketModule(app?: ObsidianApp): WebSocketModule {
 	const result: WebSocketModule = {
 		WebSocketServer: null,
 		WebSocket: null,
@@ -94,7 +102,6 @@ export function loadWebSocketModule(): WebSocketModule {
 		const path = require('path') as PathModule
 
 		// Get Obsidian's app path - use configDir instead of hardcoded .obsidian
-		const app = (window as unknown as { app?: { vault?: { adapter?: { basePath?: string }, configDir?: string } } }).app
 		if (app?.vault?.adapter?.basePath && app.vault.configDir) {
 			const vaultPath = app.vault.adapter.basePath
 			const configDir = app.vault.configDir
@@ -120,7 +127,6 @@ export function loadWebSocketModule(): WebSocketModule {
 
 		const cwd = process.cwd()
 		// Get configDir from app if available
-		const app = (window as unknown as { app?: { vault?: { configDir?: string } } }).app
 		const configDir = app?.vault?.configDir
 
 		// Try various possible paths
@@ -194,7 +200,7 @@ export function loadWebSocketModule(): WebSocketModule {
 /**
  * Get diagnostic information about the environment
  */
-export function getDiagnostics(): Record<string, unknown> {
+export function getDiagnostics(app?: ObsidianApp): Record<string, unknown> {
 	const diagnostics: Record<string, unknown> = {}
 
 	try {
@@ -211,8 +217,6 @@ export function getDiagnostics(): Record<string, unknown> {
 
 	try {
 		const path = require('path') as PathModule
-		const app = (window as unknown as { app?: { vault?: { adapter?: { basePath?: string }, configDir?: string } } }).app
-
 		if (app?.vault?.adapter?.basePath && app.vault.configDir) {
 			diagnostics.vaultPath = app.vault.adapter.basePath
 			diagnostics.pluginPath = path.join(

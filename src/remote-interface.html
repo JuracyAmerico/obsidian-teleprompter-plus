@@ -723,20 +723,26 @@
       }
     }
 
-    // Update sections list
+    // Update sections list using safe DOM APIs
     function updateSectionsList() {
+      sectionsList.textContent = '';
       if (!state.headers || state.headers.length === 0) {
-        sectionsList.innerHTML = '<div class="no-sections">No sections available</div>';
+        const noSections = document.createElement('div');
+        noSections.className = 'no-sections';
+        noSections.textContent = 'No sections available';
+        sectionsList.appendChild(noSections);
         return;
       }
 
-      sectionsList.innerHTML = state.headers.map((header, index) => {
+      state.headers.forEach((header, index) => {
         const isCurrent = index === state.currentHeaderIndex;
-        // header can be either a string or an object with { id, text, level }
         const headerText = typeof header === 'string' ? header : header.text;
-        return `<button class="section-item ${isCurrent ? 'current' : ''}"
-                        data-index="${index}">${headerText}</button>`;
-      }).join('');
+        const btn = document.createElement('button');
+        btn.className = 'section-item' + (isCurrent ? ' current' : '');
+        btn.setAttribute('data-index', String(index));
+        btn.textContent = headerText;
+        sectionsList.appendChild(btn);
+      });
     }
 
     // Update countdown selector buttons

@@ -733,21 +733,27 @@ export const REMOTE_INTERFACE_HTML = `<!DOCTYPE html>
       }
     }
 
-    // Update sections list
+    // Update sections list using safe DOM APIs
     function updateSectionsList() {
+      sectionsList.textContent = '';
       if (!state.headers || state.headers.length === 0) {
-        sectionsList.innerHTML = '<div class="no-sections">No sections available</div>';
+        var noSections = document.createElement('div');
+        noSections.className = 'no-sections';
+        noSections.textContent = 'No sections available';
+        sectionsList.appendChild(noSections);
         return;
       }
 
-      var html = '';
       for (var i = 0; i < state.headers.length; i++) {
         var header = state.headers[i];
         var text = typeof header === 'string' ? header : header.text;
         var isCurrent = i === state.currentHeaderIndex;
-        html += '<button class="section-item ' + (isCurrent ? 'current' : '') + '" data-index="' + i + '">' + text + '</button>';
+        var btn = document.createElement('button');
+        btn.className = 'section-item' + (isCurrent ? ' current' : '');
+        btn.setAttribute('data-index', String(i));
+        btn.textContent = text;
+        sectionsList.appendChild(btn);
       }
-      sectionsList.innerHTML = html;
     }
 
     // Update countdown selector buttons
