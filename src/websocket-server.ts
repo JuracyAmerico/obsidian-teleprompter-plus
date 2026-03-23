@@ -51,10 +51,9 @@ interface OsModule {
 	networkInterfaces: () => Record<string, OsNetworkInterface[]>
 }
 
-// Load WebSocket module at startup
-const wsModule = loadWebSocketModule()
-const WebSocketServerClass = wsModule.WebSocketServer
-// Note: wsModule.WebSocket is available but not currently used
+// WebSocket module loaded lazily when server starts (needs app instance)
+let wsModule: ReturnType<typeof loadWebSocketModule> | null = null
+let WebSocketServerClass: ReturnType<typeof loadWebSocketModule>['WebSocketServer'] = null
 
 // Type definitions for WebSocket instances
 type WebSocketServerInstance = {
@@ -79,13 +78,7 @@ interface WebSocketWithHealth {
 	isAlive?: boolean
 }
 
-// Log diagnostics if loading failed
-if (!wsModule.loaded) {
-	console.error('[TeleprompterWS] WebSocket module failed to load')
-	console.error('[TeleprompterWS] Error:', wsModule.error)
-	console.error('[TeleprompterWS] Diagnostics:', getDiagnostics())
-	console.error('[TeleprompterWS] Plugin will continue without WebSocket support')
-}
+// WebSocket loading diagnostics are logged when the server starts (see startServer)
 
 // ============================================================================
 // Protocol Type Definitions
@@ -144,6 +137,11 @@ export type TeleprompterCommand =
 	| { command: 'voice-stop' }
 	| { command: 'voice-toggle' }
 	| { command: 'get-voice-status' }
+	// PAI Stage integration
+	| { command: 'load-speaker-notes'; content: string; slide?: number; totalSlides?: number }
+	| { command: 'toggleTTS' }
+	| { command: 'startTTS' }
+	| { command: 'stopTTS' }
 
 /**
  * State updates sent FROM the teleprompter TO external devices
@@ -276,6 +274,19 @@ export class TeleprompterWebSocketServer {
 	async start(): Promise<void> {
 		if (this.wss) {
 			return
+		}
+
+		// Lazy-load WebSocket module with app instance (avoids window.app)
+		if (!wsModule) {
+			wsModule = loadWebSocketModule(this.plugin.app)
+			WebSocketServerClass = wsModule.WebSocketServer
+			if (!wsModule.loaded) {
+				console.error('[TeleprompterWS] WebSocket module failed to load')
+				console.error('[TeleprompterWS] Error:', wsModule.error)
+				console.error('[TeleprompterWS] Diagnostics:', getDiagnostics(this.plugin.app))
+				console.error('[TeleprompterWS] Plugin will continue without WebSocket support')
+				return // Cannot start server without ws module
+			}
 		}
 
 		return new Promise((resolve, reject) => {

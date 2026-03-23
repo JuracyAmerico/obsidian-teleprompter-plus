@@ -108,16 +108,28 @@ export class TTSService {
 		this.currentIndex = 0
 	}
 
+	/** Set a pre-built TTSDocument directly (for DOM-based extraction) */
+	setDocument(doc: TTSDocument): void {
+		this.document = doc
+		this.currentIndex = 0
+	}
+
 	/** Start or resume TTS playback */
 	async play(): Promise<void> {
 		if (!this.engine || !this.document) {
-			this.emitError('TTS not initialized or no document prepared')
+			// Silently ignore — this is expected during startup before a document is loaded
+			console.debug('[TTS] play() called before initialization or document preparation — ignoring')
 			return
 		}
 
 		if (this.playbackState === 'paused') {
-			this.engine.resume()
+			// Set state to 'playing' BEFORE resume — engine.resume() may
+			// synchronously fire endCallback if the process died while paused,
+			// and onSentenceEnd requires playbackState === 'playing'
 			this.setPlaybackState('playing')
+			this.engine.resume()
+			// Re-emit sentenceStart so highlight/scroll re-sync after pause
+			this.emitSentenceStart()
 			return
 		}
 
