@@ -623,7 +623,7 @@ export class TeleprompterWebSocketServer {
 		}
 
 		try {
-			const message: ClientMessage = JSON.parse(String(data))
+			const message = JSON.parse(String(data)) as ClientMessage
 
 			// Handle ping
 			if ('type' in message && message.type === 'ping') {

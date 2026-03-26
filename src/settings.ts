@@ -716,7 +716,7 @@ export class TeleprompterSettingTab extends PluginSettingTab {
 				const reader = new FileReader()
 				reader.onload = (event) => {
 					try {
-						const imported = JSON.parse(event.target?.result as string)
+						const imported = JSON.parse(event.target?.result as string) as Record<string, unknown>
 						const validKeys = Object.keys(DEFAULT_SETTINGS) as Array<keyof TeleprompterSettings>
 						const importedFiltered: Partial<TeleprompterSettings> = {}
 						for (const key of validKeys) {
@@ -2016,14 +2016,20 @@ export class TeleprompterSettingTab extends PluginSettingTab {
 				const reader = new FileReader()
 				reader.onload = (event) => {
 					try {
-						const imported = JSON.parse(event.target?.result as string)
+						const imported = JSON.parse(event.target?.result as string) as Record<string, unknown>
 						if (imported.name && imported.settings) {
-							imported.id = `custom-${Date.now()}`
-							imported.createdAt = Date.now()
-							imported.isBuiltIn = false
-							this.plugin.settings.profiles.custom.push(imported)
+							const profile: Profile = {
+								id: `custom-${Date.now()}`,
+								name: imported.name as string,
+								icon: (imported.icon as string) || '',
+								description: (imported.description as string) || '',
+								settings: imported.settings as Partial<TeleprompterSettings>,
+								createdAt: Date.now(),
+								isBuiltIn: false,
+							}
+							this.plugin.settings.profiles.custom.push(profile)
 							void this.plugin.saveSettings()
-							new Notice(`Profile "${imported.name}" imported`)
+							new Notice(`Profile "${profile.name}" imported`)
 							this.display()
 						} else {
 							new Notice('Invalid profile file')
