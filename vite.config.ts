@@ -10,6 +10,9 @@ export default defineConfig({
       '@': path.resolve(__dirname, './src'),
     },
   },
+  esbuild: {
+    pure: ['console.log'],
+  },
   build: {
     lib: {
       entry: path.resolve(__dirname, './src/main.ts'),
@@ -17,7 +20,7 @@ export default defineConfig({
       fileName: () => 'main.js',
     },
     rollupOptions: {
-      external: ['obsidian', 'ws', 'electron', 'fs', 'path', 'os', 'child_process', 'crypto'],
+      external: ['obsidian', 'ws', 'electron', 'fs', 'path', 'os', 'child_process', 'crypto', 'vosk-browser'],
       output: {
         globals: {
           obsidian: 'obsidian',

@@ -38,7 +38,8 @@ export function parseBibFile(content: string): Map<string, BibEntry> {
 
 		const authors = extractAuthors(body)
 		const year = extractField(body, 'year') || extractYearFromDate(body)
-		const isInstitutional = authors.length === 1 && authors[0].includes(' ')
+		const authorField = extractField(body, 'author') || ''
+		const isInstitutional = checkInstitutional(authorField)
 
 		entries.set(key, {
 			key,
@@ -56,10 +57,14 @@ function extractAuthors(body: string): string[] {
 	const authorField = extractField(body, 'author')
 	if (!authorField) return ['Unknown']
 
-	// Split on " and " (BibTeX standard)
+	// Split on " and " (BibTeX standard), but not inside braces
 	const authorParts = authorField.split(/\s+and\s+/)
 	return authorParts.map(author => {
-		const trimmed = author.trim()
+		let trimmed = author.trim()
+		// Handle institutional authors wrapped in braces: {Restaurants Canada}
+		if (trimmed.startsWith('{') && trimmed.endsWith('}')) {
+			return trimmed.slice(1, -1).trim()
+		}
 		// Handle "Last, First" format
 		if (trimmed.includes(',')) {
 			return trimmed.split(',')[0].trim()
@@ -70,14 +75,51 @@ function extractAuthors(body: string): string[] {
 	})
 }
 
+/** Check if an author list represents an institutional author */
+function checkInstitutional(authorField: string): boolean {
+	const trimmed = authorField.trim()
+	// BibTeX institutional authors are wrapped in double braces: {{Org Name}}
+	// After extractField strips outer braces, we see {Org Name}
+	if (trimmed.startsWith('{') && trimmed.endsWith('}')) return true
+	// Single author with spaces and no comma = likely institutional
+	if (!trimmed.includes(',') && !trimmed.includes(' and ') && trimmed.includes(' ')) return true
+	return false
+}
+
 /** Extract a field value from a bib entry body */
 function extractField(body: string, field: string): string | null {
-	// Match field = {value} or field = "value" or field = number
-	const regex = new RegExp(`${field}\\s*=\\s*(?:\\{([^}]*)\\}|"([^"]*)"|(\\d+))`, 'i')
-	const match = body.match(regex)
-	if (match) {
-		return (match[1] || match[2] || match[3] || '').trim()
+	// Find the field assignment start: field = {... or field = "... or field = number
+	const fieldStart = new RegExp(`${field}\\s*=\\s*`, 'i')
+	const startMatch = fieldStart.exec(body)
+	if (!startMatch) return null
+
+	const afterEquals = body.substring(startMatch.index + startMatch[0].length)
+
+	// Handle brace-delimited values with nested braces (e.g., {{Restaurants Canada}})
+	if (afterEquals.startsWith('{')) {
+		let depth = 0
+		let i = 0
+		for (; i < afterEquals.length; i++) {
+			if (afterEquals[i] === '{') depth++
+			else if (afterEquals[i] === '}') {
+				depth--
+				if (depth === 0) break
+			}
+		}
+		// Return content inside outermost braces
+		return afterEquals.substring(1, i).trim()
 	}
+
+	// Handle quoted values
+	if (afterEquals.startsWith('"')) {
+		const endQuote = afterEquals.indexOf('"', 1)
+		if (endQuote > 0) return afterEquals.substring(1, endQuote).trim()
+	}
+
+	// Handle bare numbers
+	const numMatch = afterEquals.match(/^(\d+)/)
+	if (numMatch) return numMatch[1]
+
 	return null
 }
 
@@ -172,24 +214,26 @@ export function resolveCitations(text: string, entries: Map<string, BibEntry>): 
 		return `(${formatted.join('; ')})`
 	})
 
-	// Handle narrative citations: @key (not in brackets, not preceded by [)
-	text = text.replace(/(?<!\[|-)@([a-zA-Z0-9_:-]+)/g, (_match, key: string) => {
+	// Handle narrative citations: @key (not in brackets, not preceded by [ or -)
+	// Avoid regex lookbehind (not supported on some iOS versions per ObsidianReviewBot)
+	// Instead, capture the preceding character and conditionally replace
+	text = text.replace(/(^|[^[\\-])@([a-zA-Z0-9_:-]+)/g, (_match, prefix: string, key: string) => {
 		const entry = entries.get(key)
-		if (!entry) return `@${key}` // Leave unknown keys as-is
+		if (!entry) return `${prefix}@${key}` // Leave unknown keys as-is
 
 		if (entry.isInstitutional) {
-			return `${entry.authors[0]} (${entry.year})`
+			return `${prefix}${entry.authors[0]} (${entry.year})`
 		}
 
 		if (entry.authors.length === 1) {
-			return `${entry.authors[0]} (${entry.year})`
+			return `${prefix}${entry.authors[0]} (${entry.year})`
 		}
 
 		if (entry.authors.length === 2) {
-			return `${entry.authors[0]} and ${entry.authors[1]} (${entry.year})`
+			return `${prefix}${entry.authors[0]} and ${entry.authors[1]} (${entry.year})`
 		}
 
-		return `${entry.authors[0]} et al. (${entry.year})`
+		return `${prefix}${entry.authors[0]} et al. (${entry.year})`
 	})
 
 	return text

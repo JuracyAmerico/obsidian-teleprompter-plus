@@ -94,8 +94,14 @@ export class VoskRecognizer {
     }
 
     try {
-      // Dynamically import vosk-browser
-      const vosk = await import('vosk-browser')
+      // Dynamically import vosk-browser (optional dependency)
+      let vosk: typeof import('vosk-browser')
+      try {
+        vosk = await import('vosk-browser')
+      } catch {
+        this.emitError('model-not-found', 'Voice tracking requires the vosk-browser package. Please install it manually.')
+        throw new Error('vosk-browser is not available. Voice tracking with offline recognition is disabled.')
+      }
 
       // Download model using Obsidian's requestUrl to bypass CORS
       const modelUrl = `https://alphacephei.com/vosk/models/${langConfig.voskModel}.zip`

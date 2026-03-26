@@ -30,6 +30,10 @@ export const REMOTE_INTERFACE_HTML = `<!DOCTYPE html>
       --border-radius: 12px;
     }
 
+    .hidden {
+      display: none !important;
+    }
+
     * {
       box-sizing: border-box;
       margin: 0;
@@ -448,7 +452,7 @@ export const REMOTE_INTERFACE_HTML = `<!DOCTYPE html>
         <svg id="playIcon" viewBox="0 0 24 24">
           <path d="M8 5v14l11-7z"/>
         </svg>
-        <svg id="pauseIcon" viewBox="0 0 24 24" style="display:none">
+        <svg id="pauseIcon" class="hidden" viewBox="0 0 24 24">
           <rect x="6" y="4" width="4" height="16"/>
           <rect x="14" y="4" width="4" height="16"/>
         </svg>
@@ -512,7 +516,7 @@ export const REMOTE_INTERFACE_HTML = `<!DOCTYPE html>
     </section>
 
     <!-- Countdown Selector (hidden by default) -->
-    <section class="card" id="countdownSelector" style="display:none">
+    <section class="card hidden" id="countdownSelector">
       <div class="card-title" style="margin-bottom: 12px">Countdown Duration</div>
       <div class="countdown-selector">
         <button class="countdown-option" data-seconds="3">3s</button>
@@ -696,7 +700,7 @@ export const REMOTE_INTERFACE_HTML = `<!DOCTYPE html>
         state.scrollPercentage = newState.scrollPercentage;
         var percentage = Math.round(state.scrollPercentage);
         progressValue.textContent = percentage + '%';
-        progressFill.style.width = percentage + '%';
+        progressFill.setAttribute('style', 'width: ' + percentage + '%');
       }
 
       // Update headers/sections
@@ -721,13 +725,13 @@ export const REMOTE_INTERFACE_HTML = `<!DOCTYPE html>
     // Update play button appearance
     function updatePlayButton() {
       if (state.isPlaying) {
-        playIcon.style.display = 'none';
-        pauseIcon.style.display = 'block';
+        playIcon.classList.add('hidden');
+        pauseIcon.classList.remove('hidden');
         playStatus.textContent = 'Playing';
         playStatus.classList.add('playing');
       } else {
-        playIcon.style.display = 'block';
-        pauseIcon.style.display = 'none';
+        playIcon.classList.remove('hidden');
+        pauseIcon.classList.add('hidden');
         playStatus.textContent = 'Paused';
         playStatus.classList.remove('playing');
       }
@@ -792,7 +796,7 @@ export const REMOTE_INTERFACE_HTML = `<!DOCTYPE html>
 
     countdownButton.addEventListener('click', function() {
       // Toggle countdown selector visibility
-      countdownSelector.style.display = countdownSelector.style.display === 'none' ? 'block' : 'none';
+      countdownSelector.classList.toggle('hidden');
     });
 
     sectionsToggle.addEventListener('click', function() {
@@ -814,7 +818,7 @@ export const REMOTE_INTERFACE_HTML = `<!DOCTYPE html>
         state.countdownSeconds = seconds;
         updateCountdownButtons();
         sendCommand('set-countdown', { seconds: seconds });
-        countdownSelector.style.display = 'none';
+        countdownSelector.classList.add('hidden');
 
         // Start countdown (or just play if "Off" selected)
         if (seconds > 0) {
