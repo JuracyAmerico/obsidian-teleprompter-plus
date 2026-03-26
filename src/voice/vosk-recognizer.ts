@@ -411,7 +411,7 @@ export class VoskRecognizer {
 
         request.onsuccess = () => {
           if (request.result) {
-            const blob = new Blob([request.result.data], { type: 'application/zip' })
+            const blob = new Blob([(request.result as { data: ArrayBuffer }).data], { type: 'application/zip' })
             resolve(URL.createObjectURL(blob))
           } else {
             resolve(null)

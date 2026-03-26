@@ -1315,8 +1315,8 @@ Use this address to connect from external devices.`
 	 * Load settings from disk with validation
 	 */
 	async loadSettings(): Promise<void> {
-		const loadedData = await this.loadData()
-		this.settings = Object.assign({}, DEFAULT_SETTINGS, loadedData)
+		const loadedData = (await this.loadData()) as Partial<TeleprompterSettings> | null
+		this.settings = Object.assign({}, DEFAULT_SETTINGS, loadedData ?? {})
 
 		// Validate and sanitize loaded settings
 		this.validateSettings()
