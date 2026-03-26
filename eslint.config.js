@@ -1,96 +1,93 @@
+/**
+ * ESLint config matching ObsidianReviewBot's exact configuration.
+ * Source: https://github.com/obsidianmd/eslint-plugin/blob/main/lib/index.ts
+ *
+ * The bot uses:
+ * - tseslint.configs.recommendedTypeChecked (type-aware TS rules)
+ * - @microsoft/eslint-plugin-sdl (innerHTML, document.write)
+ * - eslint-plugin-import (no-nodejs-modules, no-extraneous-dependencies)
+ * - eslint-plugin-depend (ban-dependencies)
+ * - All 25 obsidianmd rules
+ * - no-restricted-globals for app, fetch, localStorage
+ */
 import eslint from '@eslint/js';
-import tseslint from '@typescript-eslint/eslint-plugin';
-import tsparser from '@typescript-eslint/parser';
+import tseslint from 'typescript-eslint';
 import obsidianmd from 'eslint-plugin-obsidianmd';
+import sdl from '@microsoft/eslint-plugin-sdl';
+import importPlugin from 'eslint-plugin-import';
+import globals from 'globals';
 
-export default [
+export default tseslint.config(
   eslint.configs.recommended,
   {
     files: ['src/**/*.ts'],
+    extends: tseslint.configs.recommendedTypeChecked,
     languageOptions: {
-      parser: tsparser,
       parserOptions: {
         project: './tsconfig.app.json',
         ecmaVersion: 2022,
         sourceType: 'module'
       },
       globals: {
-        console: 'readonly',
-        document: 'readonly',
-        window: 'readonly',
-        setTimeout: 'readonly',
-        setInterval: 'readonly',
-        clearTimeout: 'readonly',
-        clearInterval: 'readonly',
-        fetch: 'readonly',
-        WebSocket: 'readonly',
-        HTMLElement: 'readonly',
-        MouseEvent: 'readonly',
-        KeyboardEvent: 'readonly',
-        Event: 'readonly',
-        CustomEvent: 'readonly',
-        MutationObserver: 'readonly',
-        ResizeObserver: 'readonly',
-        requestAnimationFrame: 'readonly',
-        cancelAnimationFrame: 'readonly',
-        Audio: 'readonly',
-        Blob: 'readonly',
-        File: 'readonly',
-        FileReader: 'readonly',
-        URL: 'readonly',
-        URLSearchParams: 'readonly',
-        FormData: 'readonly',
-        Headers: 'readonly',
-        Request: 'readonly',
-        Response: 'readonly',
-        AbortController: 'readonly',
-        TextEncoder: 'readonly',
-        TextDecoder: 'readonly',
-        crypto: 'readonly',
-        performance: 'readonly',
-        navigator: 'readonly',
-        location: 'readonly',
-        history: 'readonly',
-        localStorage: 'readonly',
-        sessionStorage: 'readonly',
-        indexedDB: 'readonly',
-        Worker: 'readonly',
-        SharedWorker: 'readonly',
-        MessageChannel: 'readonly',
-        MessagePort: 'readonly',
-        BroadcastChannel: 'readonly',
-        Notification: 'readonly',
-        MediaRecorder: 'readonly',
-        AudioContext: 'readonly',
-        SpeechRecognition: 'readonly',
-        webkitSpeechRecognition: 'readonly',
-        process: 'readonly',
-        Buffer: 'readonly',
-        __dirname: 'readonly',
-        __filename: 'readonly',
-        module: 'readonly',
-        require: 'readonly',
-        exports: 'readonly',
-        global: 'readonly'
+        ...globals.browser,
+        ...globals.node,
+        NodeJS: 'readonly',
+        // Obsidian globals
+        DomElementInfo: 'readonly',
+        SvgElementInfo: 'readonly',
+        activeDocument: 'readonly',
+        activeWindow: 'readonly',
+        createDiv: 'readonly',
+        createEl: 'readonly',
+        createFragment: 'readonly',
+        createSpan: 'readonly',
+        createSvg: 'readonly',
+        sleep: 'readonly',
       }
     },
     plugins: {
-      '@typescript-eslint': tseslint,
-      'obsidianmd': obsidianmd
+      'obsidianmd': obsidianmd,
+      '@microsoft/sdl': sdl,
+      'import': importPlugin,
     },
     rules: {
-      // ObsidianReviewBot requirements
-      '@typescript-eslint/no-explicit-any': 'error',
-      'no-console': ['error', { allow: ['debug', 'warn', 'error'] }],
+      // === Bot's general rules ===
+      'no-unused-vars': 'off',
+      'no-self-compare': 'warn',
+      'no-eval': 'error',
+      'no-implied-eval': 'error',
+      'prefer-const': 'off',
+      'no-implicit-globals': 'error',
+      'no-alert': 'error',
+      'no-undef': 'error',
+      'no-console': 'off', // overridden by obsidianmd/rule-custom-message below
+      'no-restricted-globals': [
+        'error',
+        { name: 'app', message: 'Avoid using the global app object. Use the reference from your plugin instance.' },
+        // fetch is 'warn' level in the bot config
+      ],
 
-      // TypeScript best practices
-      '@typescript-eslint/no-unused-vars': ['warn', { argsIgnorePattern: '^_' }],
-      '@typescript-eslint/explicit-function-return-type': 'off',
-      '@typescript-eslint/no-non-null-assertion': 'warn',
-      '@typescript-eslint/no-floating-promises': 'error',
-      '@typescript-eslint/require-await': 'error',
+      // === Bot's TypeScript rules ===
+      '@typescript-eslint/ban-ts-comment': 'off',
+      '@typescript-eslint/no-deprecated': 'error',
+      '@typescript-eslint/no-unused-vars': ['warn', { args: 'none' }],
+      '@typescript-eslint/require-await': 'off',
+      '@typescript-eslint/no-explicit-any': ['error', { fixToUnknown: true }],
+      // These come from recommendedTypeChecked:
+      // @typescript-eslint/no-unnecessary-type-assertion — error
+      // @typescript-eslint/no-redundant-type-constituents — error
+      // @typescript-eslint/no-floating-promises — error
+      // @typescript-eslint/no-unsafe-* — error
 
-      // ALL obsidianmd recommended rules (matches ObsidianReviewBot)
+      // === Microsoft SDL ===
+      '@microsoft/sdl/no-document-write': 'error',
+      '@microsoft/sdl/no-inner-html': 'error',
+
+      // === Import plugin ===
+      'import/no-nodejs-modules': 'off', // isDesktopOnly: true
+      'import/no-extraneous-dependencies': 'error',
+
+      // === ALL 25 obsidianmd rules ===
       'obsidianmd/commands/no-command-in-command-id': 'error',
       'obsidianmd/commands/no-command-in-command-name': 'error',
       'obsidianmd/commands/no-default-hotkeys': 'error',
@@ -116,15 +113,9 @@ export default [
       'obsidianmd/validate-manifest': 'error',
       'obsidianmd/validate-license': 'error',
       'obsidianmd/ui/sentence-case': ['error', { enforceCamelCaseLower: true }],
-
-      // General
-      'no-undef': 'off',
-      'no-unused-vars': 'off',  // Disable base rule, use TypeScript version
-      'prefer-const': 'warn',
-      'no-var': 'error'
     }
   },
   {
     ignores: ['dist/**', 'node_modules/**', '*.js', '*.mjs']
   }
-];
+);

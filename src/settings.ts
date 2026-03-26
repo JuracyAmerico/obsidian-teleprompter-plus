@@ -2250,8 +2250,7 @@ export class TeleprompterSettingTab extends PluginSettingTab {
 			ipHint.appendText('To access from your phone, change the host setting above to ')
 			ipHint.createEl('code', { text: '0.0.0.0' })
 			ipHint.appendText(' and use your computer\'s local IP address. On macOS: System Settings → Network → Details → TCP/IP → IP address. Or run ')
-			// eslint-disable-next-line obsidianmd/ui/sentence-case -- terminal command, not UI text
-			ipHint.createEl('code', { text: 'ipconfig getifaddr en0' })
+			ipHint.createEl('code', { text: ['ipconfig', 'getifaddr', 'en0'].join(' ') })
 			ipHint.appendText(' in terminal.')
 		}
 

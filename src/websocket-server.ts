@@ -295,16 +295,17 @@ export class TeleprompterWebSocketServer {
 				const http = require('http') as HttpModule
 
 				// Create HTTP server first to handle both HTTP and WebSocket
-				this.httpServer = http.createServer((req: IncomingMessage, res: ServerResponse) => {
+				const server = http.createServer((req: IncomingMessage, res: ServerResponse) => {
 					this.handleHttpRequest(req, res)
 				})
+				this.httpServer = server
 
 				// Create WebSocket server using HTTP server
 				if (!WebSocketServerClass) {
 					throw new Error('WebSocket module not loaded')
 				}
 				this.wss = new WebSocketServerClass({
-					server: this.httpServer,
+					server,
 				})
 
 				this.wss.on('connection', (ws: unknown) => this.handleConnection(ws as WebSocketInstance))
@@ -314,13 +315,13 @@ export class TeleprompterWebSocketServer {
 				})
 
 				// Start listening on HTTP server
-				this.httpServer!.listen(this.config.port, this.config.host, () => {
+				server.listen(this.config.port, this.config.host, () => {
 					console.debug(`[TeleprompterWS] Server running on http://${this.config.host}:${this.config.port}`)
 					this.startHeartbeat()
 					resolve()
 				})
 
-				this.httpServer!.on('error', (error) => {
+				server.on('error', (error) => {
 					console.error('[TeleprompterWS] HTTP server error:', error)
 					reject(error instanceof Error ? error : new Error(String(error)))
 				})

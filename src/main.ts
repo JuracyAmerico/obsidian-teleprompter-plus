@@ -644,7 +644,7 @@ export default class TeleprompterPlusPlugin extends Plugin {
 		})
 
 		this.wsServer.registerCommand('scroll-up', (cmd) => {
-			const params = cmd as Record<string, unknown> | undefined
+			const params = cmd
 			window.dispatchEvent(
 				new CustomEvent('teleprompter:scroll', {
 					detail: { amount: -((params?.amount as number) || 100) },
@@ -653,7 +653,7 @@ export default class TeleprompterPlusPlugin extends Plugin {
 		})
 
 		this.wsServer.registerCommand('scroll-down', (cmd) => {
-			const params = cmd as Record<string, unknown> | undefined
+			const params = cmd
 			window.dispatchEvent(
 				new CustomEvent('teleprompter:scroll', {
 					detail: { amount: (params?.amount as number) || 100 },
@@ -662,7 +662,7 @@ export default class TeleprompterPlusPlugin extends Plugin {
 		})
 
 		this.wsServer.registerCommand('jump-to-header', (cmd) => {
-			const params = cmd as Record<string, unknown> | undefined
+			const params = cmd
 			window.dispatchEvent(
 				new CustomEvent('teleprompter:jump-to-header', {
 					detail: { index: params?.index as number },
@@ -671,7 +671,7 @@ export default class TeleprompterPlusPlugin extends Plugin {
 		})
 
 		this.wsServer.registerCommand('jump-to-header-by-id', (cmd) => {
-			const params = cmd as Record<string, unknown> | undefined
+			const params = cmd
 			window.dispatchEvent(
 				new CustomEvent('teleprompter:jump-to-header-by-id', {
 					detail: { headerId: params?.headerId as string },
@@ -725,7 +725,7 @@ export default class TeleprompterPlusPlugin extends Plugin {
 		})
 
 		this.wsServer.registerCommand('set-font-size', (cmd) => {
-			const params = cmd as Record<string, unknown> | undefined
+			const params = cmd
 			const fontSize = params?.fontSize as number | undefined
 			if (fontSize && fontSize >= this.settings.minFontSize && fontSize <= this.settings.maxFontSize) {
 				this.settings.fontSize = fontSize
@@ -770,7 +770,7 @@ export default class TeleprompterPlusPlugin extends Plugin {
 		})
 
 		this.wsServer.registerCommand('set-countdown', (cmd) => {
-			const params = cmd as Record<string, unknown> | undefined
+			const params = cmd
 			window.dispatchEvent(
 				new CustomEvent('teleprompter:set-countdown', {
 					detail: { seconds: params?.seconds as number },
@@ -991,7 +991,7 @@ export default class TeleprompterPlusPlugin extends Plugin {
 
 		// v0.8.0 Stream Deck commands - Open file
 		this.wsServer.registerCommand('open-file', (cmd) => {
-			const params = cmd as Record<string, unknown> | undefined
+			const params = cmd
 			const filePath = params?.path as string | undefined
 			if (filePath) {
 				window.dispatchEvent(new CustomEvent('teleprompter:open-file', { detail: { path: filePath } }))
@@ -1025,7 +1025,7 @@ export default class TeleprompterPlusPlugin extends Plugin {
 
 		// Network Broadcast commands (multi-device sync)
 		this.wsServer.registerCommand('set-scroll-position', (cmd) => {
-			const params = cmd as Record<string, unknown> | undefined
+			const params = cmd
 			const position = params?.position as number | undefined
 			const percentage = params?.percentage as number | undefined
 			if (position !== undefined) {
@@ -1092,7 +1092,7 @@ export default class TeleprompterPlusPlugin extends Plugin {
 		})
 
 		this.wsServer.registerCommand('obs-set-scene', async (cmd) => {
-			const params = cmd as Record<string, unknown> | undefined
+			const params = cmd
 			const scene = params?.scene as string | undefined
 			if (scene) {
 				await this.setOBSScene(scene)
