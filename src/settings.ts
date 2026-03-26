@@ -577,16 +577,18 @@ export class TeleprompterSettingTab extends PluginSettingTab {
 		// Preview frame
 		const previewFrame = livePreview.createDiv('tp-preview-frame')
 		const previewContent = previewFrame.createDiv('tp-preview-content')
-		previewContent.style.backgroundColor = this.plugin.settings.backgroundColor
-		previewContent.style.color = this.plugin.settings.textColor
-		previewContent.style.fontFamily = this.plugin.settings.fontFamily
-		previewContent.style.lineHeight = String(this.plugin.settings.lineHeight)
+		previewContent.setCssStyles({
+			backgroundColor: this.plugin.settings.backgroundColor,
+			color: this.plugin.settings.textColor,
+			fontFamily: this.plugin.settings.fontFamily,
+			lineHeight: String(this.plugin.settings.lineHeight),
+		})
 		previewContent.setText('Sample teleprompter text that shows your current settings in real-time as you make changes...')
 
 		// Eyeline indicator in preview
 		if (this.plugin.settings.showEyeline) {
 			const eyeline = previewFrame.createDiv('tp-preview-eyeline')
-			eyeline.style.top = `${this.plugin.settings.eyelinePosition}%`
+			eyeline.setCssStyles({ top: `${this.plugin.settings.eyelinePosition}%` })
 		}
 
 		// Preview info

@@ -21,6 +21,14 @@
       --border-radius: 12px;
     }
 
+    .hidden {
+      display: none !important;
+    }
+
+    .section-tap-feedback {
+      background: rgba(233, 69, 96, 0.5);
+    }
+
     * {
       box-sizing: border-box;
       margin: 0;
@@ -443,7 +451,7 @@
         <svg id="playIcon" viewBox="0 0 24 24">
           <path d="M8 5v14l11-7z"/>
         </svg>
-        <svg id="pauseIcon" viewBox="0 0 24 24" style="display:none">
+        <svg id="pauseIcon" class="hidden" viewBox="0 0 24 24">
           <rect x="6" y="4" width="4" height="16"/>
           <rect x="14" y="4" width="4" height="16"/>
         </svg>
@@ -507,7 +515,7 @@
     </section>
 
     <!-- Countdown Selector (always visible for mobile) -->
-    <section class="card" id="countdownSelector">
+    <section class="card hidden" id="countdownSelector">
       <div class="card-title" style="margin-bottom: 12px">Countdown Duration</div>
       <div class="countdown-selector">
         <button class="countdown-option" data-seconds="0">Off</button>
@@ -686,7 +694,7 @@
         state.scrollPercentage = newState.scrollPercentage;
         const percentage = Math.round(state.scrollPercentage);
         progressValue.textContent = percentage + '%';
-        progressFill.style.width = percentage + '%';
+        progressFill.setAttribute('style', 'width: ' + percentage + '%');
       }
 
       // Update headers/sections
@@ -711,13 +719,13 @@
     // Update play button appearance
     function updatePlayButton() {
       if (state.isPlaying) {
-        playIcon.style.display = 'none';
-        pauseIcon.style.display = 'block';
+        playIcon.classList.add('hidden');
+        pauseIcon.classList.remove('hidden');
         playStatus.textContent = 'Playing';
         playStatus.classList.add('playing');
       } else {
-        playIcon.style.display = 'block';
-        pauseIcon.style.display = 'none';
+        playIcon.classList.remove('hidden');
+        pauseIcon.classList.add('hidden');
         playStatus.textContent = 'Paused';
         playStatus.classList.remove('playing');
       }
@@ -800,9 +808,9 @@
         console.debug('[Remote] Jumping to section:', index);
         sendCommand('jump-to-header', { index });
         // Visual feedback
-        target.style.background = 'rgba(233, 69, 96, 0.5)';
+        target.classList.add('section-tap-feedback');
         setTimeout(() => {
-          target.style.background = '';
+          target.classList.remove('section-tap-feedback');
         }, 200);
       }
     }

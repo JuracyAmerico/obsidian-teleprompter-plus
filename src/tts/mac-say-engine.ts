@@ -154,8 +154,15 @@ export class MacSayEngine implements TTSEngine {
 				process.kill(this.currentProcess.pid, 'SIGCONT')
 				this.isPaused = false
 			} catch {
-				// Process may have already exited
+				// Process already exited while paused — trigger end callback
+				this.currentProcess = null
+				this.isPaused = false
+				this.endCallback?.()
 			}
+		} else if (this.isPaused && !this.currentProcess) {
+			// Process exited while paused (close event cleared currentProcess)
+			this.isPaused = false
+			this.endCallback?.()
 		}
 	}
 

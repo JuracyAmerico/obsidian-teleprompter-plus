@@ -310,8 +310,16 @@ print("DONE:" + "${outputPrefix}_000.wav")
 				process.kill(this.playbackProcess.pid, 'SIGCONT')
 				this.playbackPaused = false
 			} catch {
-				// Process may have already exited
+				// Process already exited while paused — trigger end callback
+				// so the service advances to the next sentence
+				this.playbackProcess = null
+				this.playbackPaused = false
+				this.endCallback?.()
 			}
+		} else if (this.playbackPaused && !this.playbackProcess) {
+			// Process exited while paused (close event cleared playbackProcess)
+			this.playbackPaused = false
+			this.endCallback?.()
 		}
 	}
 
