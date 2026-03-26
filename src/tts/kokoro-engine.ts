@@ -8,6 +8,7 @@
  */
 
 import type { TTSEngine, TTSVoice, SpeakOptions } from './tts-types'
+import type { ChildProcess } from 'child_process'
 import { Platform } from 'obsidian'
 // Node.js modules — externalized by Vite, available in Obsidian's CJS environment
 import * as childProcess from 'child_process'
@@ -47,15 +48,15 @@ const KOKORO_VOICES: TTSVoice[] = [
 export class KokoroEngine implements TTSEngine {
 	readonly name = 'Kokoro'
 	private endCallback: (() => void) | null = null
-	private playbackProcess: childProcess.ChildProcess | null = null
+	private playbackProcess: ChildProcess | null = null
 	private playbackPaused = false
-	private currentProcess: childProcess.ChildProcess | null = null
+	private currentProcess: ChildProcess | null = null
 	private cacheDir = ''
 	private pythonPath = ''
 	private available: boolean | null = null
 
 	// Pregeneration pipeline — generate next sentence while current plays
-	private pregenProcess: childProcess.ChildProcess | null = null
+	private pregenProcess: ChildProcess | null = null
 	private pregenText: string | null = null
 	private pregenWavPath: string | null = null
 	private pendingHint: { text: string; options: SpeakOptions } | null = null
@@ -327,7 +328,7 @@ print("DONE:" + "${outputPrefix}_000.wav")
 	private stopPlayback(): void {
 		if (this.playbackProcess) {
 			if (this.playbackPaused) {
-				try { process.kill(this.playbackProcess.pid!, 'SIGCONT') } catch { /* ignore */ }
+				try { if (this.playbackProcess.pid) process.kill(this.playbackProcess.pid, 'SIGCONT') } catch { /* ignore */ }
 			}
 			try { this.playbackProcess.kill() } catch { /* ignore */ }
 			this.playbackProcess.removeAllListeners()
