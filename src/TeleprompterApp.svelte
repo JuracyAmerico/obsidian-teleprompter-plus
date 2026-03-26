@@ -2551,7 +2551,7 @@
     // Manually reload the pinned note
     const file = app.vault.getAbstractFileByPath(pinnedNotePath)
     if (file && 'extension' in file) {
-      app.vault.read(file as TFile).then((fileContent) => {
+      void app.vault.read(file as TFile).then((fileContent) => {
         const result = removeYAMLFrontmatter(fileContent)
         content = removeReferencesSection(result.content)
         yamlLineOffset = result.linesRemoved
