@@ -1,94 +1,151 @@
-# Contributing to Teleprompter Plus
+# Contributing
 
-Thank you for your interest in contributing to Teleprompter Plus! This document provides guidelines and instructions for contributing.
+Thanks for your interest in Teleprompter Plus. This guide covers the dev setup, code conventions, and how to land a change cleanly.
 
-## Getting Started
+If you only need user docs, the [README](README.md), [WebSocket API](docs/websocket-api.md), and [Stream Deck actions](docs/stream-deck-actions.md) cover those.
 
-### Prerequisites
-- Node.js 18+
-- Bun (recommended) or npm
-- Obsidian installed for testing
+---
 
-### Development Setup
+## Tech stack
 
-1. Fork and clone the repository:
+| Layer | Tool |
+|-------|------|
+| UI framework | Svelte 5 (runes: `$state`, `$effect`) |
+| Language | TypeScript (strict) |
+| Build | Vite |
+| Styling | Tailwind CSS + scoped CSS |
+| Runtime | Obsidian Plugin API |
+| WebSocket | `ws` (Node-side) |
+| Markdown | `marked` + `highlight.js` |
+| Package manager | Bun |
+
+---
+
+## Setup
+
 ```bash
-git clone https://github.com/YOUR-USERNAME/obsidian-teleprompter-plus.git
+git clone https://github.com/JuracyAmerico/obsidian-teleprompter-plus.git
 cd obsidian-teleprompter-plus
-```
 
-2. Install dependencies:
-```bash
 bun install
+
+bun run dev      # hot-reload dev build
+bun run build    # production build → dist/
+bun run check    # svelte-check + tsc
+bun run lint     # eslint src/
 ```
 
-3. Build the plugin:
-```bash
-bun run build
+To test in a real vault, symlink (or copy) `dist/main.js`, `dist/styles.css`, and `manifest.json` into `<vault>/.obsidian/plugins/teleprompter-plus/` and reload Obsidian.
+
+---
+
+## Project structure
+
+```
+obsidian-teleprompter-plus/
+├── src/
+│   ├── main.ts                      # plugin lifecycle, command registration, view registration
+│   ├── view.ts                      # ItemView for the teleprompter
+│   ├── TeleprompterApp.svelte       # main UI component
+│   ├── settings.ts                  # settings tab + interface
+│   ├── websocket-server.ts          # local WebSocket server
+│   ├── websocket-loader.ts          # dynamic ws-module loading for Electron
+│   ├── obs-service.ts               # OBS WebSocket integration
+│   ├── prompt-modal.ts              # in-app modals
+│   ├── whats-new-modal.ts           # release notes modal
+│   ├── parser/
+│   │   ├── citation-resolver.ts     # @key → "(Author, Year)" using .bib files
+│   │   ├── text-cleaner.ts          # frontmatter, code blocks, raw LaTeX commands
+│   │   └── index.ts
+│   ├── tts/
+│   │   ├── kokoro-engine.ts         # MLX neural TTS via Python subprocess
+│   │   ├── mac-say-engine.ts        # macOS `say` command
+│   │   ├── web-speech-engine.ts     # Web Speech API fallback
+│   │   ├── tts-service.ts           # engine selection + state machine
+│   │   └── tts-types.ts
+│   └── voice/
+│       ├── model-manager.ts         # Vosk model download + cache
+│       ├── voice-tracking-service.ts # voice-following scroll (beta)
+│       └── vosk-recognizer.ts
+├── dist/                            # build output (committed for release)
+│   ├── main.js
+│   └── styles.css
+├── docs/                            # design system, screenshots, extended docs
+├── .github/workflows/release.yml    # CI: build, attest, GitHub release on tag push
+├── manifest.json                    # Obsidian plugin manifest
+├── versions.json                    # plugin version → min Obsidian version
+├── package.json
+├── tsconfig.app.json
+├── vite.config.ts
+└── eslint.config.js
 ```
 
-4. Copy to your Obsidian vault for testing:
-```bash
-cp dist/main.js dist/styles.css /path/to/your/vault/.obsidian/plugins/teleprompter-plus/
-```
+---
 
-5. Reload Obsidian (Cmd+R / Ctrl+R)
+## Code conventions
 
-## Making Changes
+- **TypeScript** — strict mode. Prefer explicit types over `any`; the lint config rejects `any` (use `unknown` if you really mean it).
+- **Naming** — `camelCase` for variables and functions, `PascalCase` for classes and Svelte components, `UPPER_SNAKE_CASE` for module-level constants.
+- **Comments** — JSDoc on public functions where the *why* isn't obvious. Don't restate the code in prose.
+- **Svelte 5 runes** — use `$state`, `$derived`, `$effect`. Don't reach back to Svelte 4 stores in new code.
+- **Obsidian APIs** — prefer `activeWindow.setTimeout` over `setTimeout` for popout-window compatibility. Prefer `parent.createSpan({...})` over `document.createElement('span', {...})`. The Obsidian ESLint plugin will flag these.
+- **No inline styles** — use a class in `styles.css` (the portal scanner rejects inline styles).
+- **No `console.log` in shipping code** — wrap in `if (this.settings.debugMode)` or remove.
 
-### Branch Naming
-- `feature/` - New features (e.g., `feature/voice-commands`)
-- `fix/` - Bug fixes (e.g., `fix/scroll-speed-issue`)
-- `docs/` - Documentation updates
+---
 
-### Code Style
-- Use TypeScript for all source files
-- Follow existing code patterns and naming conventions
-- Add comments for complex logic
-- Keep functions focused and small
+## Workflow
 
-### Testing
-Before submitting a PR:
-- Test on your local Obsidian installation
-- Test with different content (short notes, long notes, notes with headers)
-- If applicable, test with Stream Deck
-- Check the developer console for errors
+1. Branch from `main`: `git checkout -b feature/short-description` or `fix/short-description`.
+2. Make changes. Run `bun run check` and `bun run lint` as you go.
+3. Test in Obsidian against a real vault — both light and dark themes, both small (~50 lines) and large (>1000 lines) documents.
+4. Test WebSocket changes against the Stream Deck plugin OR a one-off script (see [WebSocket API](docs/websocket-api.md)).
+5. Update `CHANGELOG.md` with a one-line entry under "Unreleased".
+6. Commit with a clear message. Conventional Commits style preferred (`fix:`, `feat:`, `chore:`, `docs:`, `ci:`, `refactor:`).
+7. Push and open a PR. Describe what you changed, why, and how you tested it.
 
-## Submitting Changes
+---
 
-### Pull Request Process
+## Releasing
 
-1. Create a feature branch from `main`
-2. Make your changes
-3. Update documentation if needed
-4. Test thoroughly
-5. Submit a PR with a clear description
+Maintainer-only:
 
-### PR Guidelines
-- Reference any related issues
-- Describe what changes were made and why
-- Include screenshots for UI changes
-- Keep PRs focused on a single feature/fix
+1. Bump `manifest.json` `version` and add the corresponding entry to `versions.json` mapping the version to the minimum Obsidian version it requires.
+2. Run `bun run build` and commit `dist/main.js` (and `dist/styles.css` if changed).
+3. Tag: `git tag -a 0.X.Y -m "0.X.Y — ..."`.
+4. Push: `git push origin main && git push origin 0.X.Y`.
+5. The `Release` GitHub Actions workflow builds, attests, and publishes the GitHub Release automatically.
+6. The Obsidian Community Portal's automated scanner picks up the new release within minutes.
 
-## Reporting Issues
+---
 
-### Before Reporting
-- Check existing issues to avoid duplicates
-- Try the latest version
-- Check the developer console for errors
+## Performance considerations
 
-### Bug Reports Should Include
-- Obsidian version
-- Plugin version
-- Operating system
-- Steps to reproduce
-- Expected vs actual behavior
-- Console errors (if any)
+The plugin runs in Obsidian's Electron process and shares CPU with everything else the user has open. Some patterns to follow:
 
-## Questions?
+- **Debounce scroll handlers** (~50ms is the sweet spot). Use passive listeners.
+- **Memoize markdown rendering.** Track last-rendered content; skip if unchanged.
+- **`requestAnimationFrame` for animation.** Time-delta calculations keep speed consistent across frame rates.
+- **Batch DOM operations.** Header registration runs inside a single RAF callback.
+- **Guard logs.** Debug-mode logs should never run in the hot scroll path when debug mode is off.
 
-- Open an issue for bugs or feature requests
-- Check the [Obsidian Forum](https://forum.obsidian.md/) for general questions
+---
+
+## Tips
+
+- Use Debug Mode (Settings → Developer) to see detailed plugin logs in the console.
+- Test long documents (>1,000 lines) before committing scroll-path changes.
+- Test both themes — light and dark — for any UI change.
+- For TTS changes, test on Apple Silicon (Kokoro) and on a non-Mac (Web Speech fallback).
+- Check the Developer Console regularly for warnings; the Obsidian API team adds deprecations between minor versions.
+
+---
+
+## Questions
+
+Open a [Discussion](https://github.com/JuracyAmerico/obsidian-teleprompter-plus/discussions) for design questions, or an [Issue](https://github.com/JuracyAmerico/obsidian-teleprompter-plus/issues) for confirmed bugs.
+
+---
 
 ## License
 
