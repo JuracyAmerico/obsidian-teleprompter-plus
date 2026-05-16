@@ -1,86 +1,197 @@
 <p align="center">
-  <img src="docs/logo.png" alt="Teleprompter Plus Logo" width="200">
+  <img src="docs/logo.png" alt="Teleprompter Plus Logo" width="180">
 </p>
 
 # Teleprompter Plus
 
-<p align="center">
-  <strong>Professional teleprompter for Obsidian with Stream Deck integration</strong>
-</p>
+<p align="center"><strong>Professional teleprompter for Obsidian — Stream Deck hardware control, mobile remote, neural text-to-speech, and full Markdown support.</strong></p>
 
 <p align="center">
-  <a href="https://github.com/JuracyAmerico/obsidian-teleprompter-plus/releases">
-    <img src="https://img.shields.io/badge/Version-0.9.1-blue?style=for-the-badge" alt="Version">
+  <a href="https://github.com/JuracyAmerico/obsidian-teleprompter-plus/releases/latest">
+    <img src="https://img.shields.io/github/v/release/JuracyAmerico/obsidian-teleprompter-plus?style=for-the-badge" alt="Latest release">
   </a>
-  <a href="LICENSE">
-    <img src="https://img.shields.io/badge/License-MIT-green?style=for-the-badge" alt="License">
-  </a>
-  <a href="https://obsidian.md">
-    <img src="https://img.shields.io/badge/Obsidian-1.0.0+-7c3aed?style=for-the-badge&logo=obsidian&logoColor=white" alt="Obsidian">
-  </a>
+  <img src="https://img.shields.io/badge/Obsidian-1.8.7+-7c3aed?style=for-the-badge&logo=obsidian&logoColor=white" alt="Obsidian">
+  <img src="https://img.shields.io/badge/License-MIT-green?style=for-the-badge" alt="License">
   <a href="https://ko-fi.com/americocanada">
-    <img src="https://img.shields.io/badge/Ko--fi-Support_Development-ff5e5b?style=for-the-badge&logo=ko-fi&logoColor=white" alt="Ko-fi">
+    <img src="https://img.shields.io/badge/Ko--fi-Support-ff5e5b?style=for-the-badge&logo=ko-fi&logoColor=white" alt="Ko-fi">
   </a>
 </p>
 
-<p align="center">
-  Perfect for presentations, video recording, podcasts, speeches, and content creation.
-</p>
+<p align="center">Built for video recording, presentations, podcasts, speeches, and content creation.</p>
 
 ---
 
-## 🧭 Quick Navigation
+## What it does
 
-<p align="center">
-  <a href="#-screenshots">Screenshots</a> •
-  <a href="#-features">Features</a> •
-  <a href="#-installation">Installation</a> •
-  <a href="#-quick-start">Quick Start</a> •
-  <a href="#%EF%B8%8F-keyboard-shortcuts">Keyboard Shortcuts</a> •
-  <a href="#-stream-deck-integration">Stream Deck</a> •
-  <a href="#%EF%B8%8F-settings">Settings</a> •
-  <a href="#-development">Development</a>
-</p>
+Teleprompter Plus turns any Obsidian note into a professional teleprompter. Auto-scroll at adjustable speed, highlight your reading position, control playback from the keyboard, an Elgato Stream Deck, or a phone, and optionally read your script aloud with high-quality neural voices. Designed for creators who already live in Obsidian and want a teleprompter that speaks the same Markdown they write in.
 
----
+## Key features
 
-## 📸 Screenshots
-
-### Main Teleprompter Interface
-
-<p align="center">
-  <img src="docs/screenshots/main-interface.png" alt="Teleprompter Plus Main Interface" width="800">
-</p>
-
-*Clean, distraction-free teleprompter with eyeline guide and hierarchical navigation panel. Features include adjustable speed, font size controls, and real-time position tracking.*
-
-### Mobile Remote Control (New in v0.9.0!)
-
-<p align="center">
-  <img src="docs/screenshots/mobile-remote.png" alt="Mobile Remote Interface" width="400">
-</p>
-
-*Control your teleprompter from any device on your network - phone, tablet, or second computer. Touch-friendly interface with full playback control and section navigation.*
-
-### Stream Deck Integration
-
-<p align="center">
-  <img src="docs/screenshots/stream-deck.png" alt="Stream Deck Integration" width="600">
-</p>
-
-*Professional hardware control with 55+ actions. Real-time state synchronization, visual feedback, and complete teleprompter control at your fingertips.*
-
-### Settings Panel
-
-<p align="center">
-  <img src="docs/screenshots/settings.png" alt="Settings Panel" width="600">
-</p>
-
-*Comprehensive customization options including appearance, playback, navigation, WebSocket server, and advanced settings.*
+- **Smooth auto-scroll** — variable speed (0.5×–10×), countdown timer, manual scroll, horizontal/vertical flip for camera-rig mirrors
+- **Hierarchical navigation** — collapsible header tree, abstract-scrollbar minimap, click-to-jump, active-section highlighting
+- **Stream Deck integration** — 55+ actions across 8 categories with real-time bidirectional state sync ([catalog](docs/stream-deck-actions.md))
+- **Mobile remote control** — touch-friendly web interface, control from any device on your network
+- **Neural text-to-speech** — Kokoro MLX (22 voices, Apple Silicon), macOS `say`, Web Speech fallback, sentence-by-sentence highlighting
+- **Citation resolution** — `[@ries2011]` spoken as *"(Ries, 2011)"* using your `.bib` files
+- **Full Markdown support** — Obsidian syntax, math, callouts, code with syntax highlighting, tables, images, internal links
+- **8 built-in themes** — Professional, Broadcast, Stream, Practice, Accessibility, Cinema, plus custom colors and fonts
+- **OBS integration** — start/stop recording synced with teleprompter playback
+- **Local WebSocket API** — build custom integrations in any language ([API reference](docs/websocket-api.md))
 
 ---
 
-## 🏗️ Architecture Overview
+## Screenshots
+
+### Main interface
+
+<p align="center">
+  <img src="docs/screenshots/main-interface.png" alt="Main teleprompter interface" width="800">
+</p>
+
+*Clean reading display with hierarchical navigation panel, eyeline guide, and real-time position tracking.*
+
+### Mobile remote
+
+<p align="center">
+  <img src="docs/screenshots/mobile-remote.png" alt="Mobile remote interface" width="400">
+</p>
+
+*Touch-friendly remote — phone, tablet, or second computer on the same network.*
+
+### Stream Deck
+
+<p align="center">
+  <img src="docs/screenshots/stream-deck.png" alt="Stream Deck integration" width="600">
+</p>
+
+*55+ hardware actions with live state synchronization across all controls.*
+
+### Settings
+
+<p align="center">
+  <img src="docs/screenshots/settings-dashboard.png" alt="Settings dashboard" width="600">
+</p>
+
+*Six-tab settings: Dashboard, Toolbar, Features, Profiles, Connection, About.*
+
+---
+
+## Installation
+
+### Community Plugin browser (recommended once published)
+
+Obsidian → Settings → Community plugins → Browse → search **Teleprompter Plus** → Install → Enable.
+
+### Manual install
+
+1. Download `main.js`, `styles.css`, and `manifest.json` from the [latest release](https://github.com/JuracyAmerico/obsidian-teleprompter-plus/releases/latest).
+2. Place them in `<your-vault>/.obsidian/plugins/teleprompter-plus/` (create the folder if needed).
+3. Obsidian → Settings → Community plugins → Reload → enable **Teleprompter Plus**.
+
+### Build from source
+
+```bash
+git clone https://github.com/JuracyAmerico/obsidian-teleprompter-plus.git
+cd obsidian-teleprompter-plus
+bun install
+bun run build
+# copy dist/main.js, dist/styles.css, and manifest.json into your vault's plugins folder
+```
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for the full development setup.
+
+---
+
+## Quick start
+
+1. **Open** — click the teleprompter ribbon icon, or run *Open Teleprompter Plus* from the command palette (`Cmd/Ctrl + P`).
+2. **Pick a note** — the active note loads automatically and updates live as you edit.
+3. **Play** — click Play (or press your hotkey). Adjust speed with `+` / `−`, font size with `Aa+` / `Aa−`.
+4. **Navigate** — click any header in the side panel to jump there. Click the minimap on the right to scrub.
+5. **Reset** — Reset returns to the top.
+
+For 25+ keyboard commands, see Obsidian → Settings → Hotkeys → Teleprompter Plus.
+
+---
+
+## Settings overview
+
+| Tab | What's there |
+|-----|--------------|
+| **Dashboard** | Live preview, quick profile picker, health status |
+| **Toolbar** | Choose which controls appear in the teleprompter toolbar |
+| **Features** | Collapsible cards by category — appearance, playback, navigation, voice, OBS, WebSocket |
+| **Profiles** | 8 built-in profiles + your own saved configurations |
+| **Connection** | Optional local WebSocket server for Stream Deck + mobile remote |
+| **About** | Plugin info, shortcuts, credits |
+
+---
+
+## Stream Deck
+
+55+ actions across 8 categories — Playback, Speed, Font, Navigation, Display, Utility, Countdown, Flip. Real-time bidirectional state sync: the Stream Deck button updates live when you change the teleprompter from any source.
+
+```json
+{ "command": "toggle-play" }
+{ "command": "set-speed", "value": 3 }
+{ "command": "jump-to-header", "value": 1 }
+```
+
+Full action catalog, configuration steps, and Stream Deck plugin setup: **[docs/stream-deck-actions.md](docs/stream-deck-actions.md)**.
+
+---
+
+## WebSocket API
+
+A local-only WebSocket server (default `ws://127.0.0.1:8765`) lets you build custom controls in any language.
+
+```typescript
+const ws = new WebSocket('ws://127.0.0.1:8765')
+
+ws.onopen = () => ws.send(JSON.stringify({ command: 'play' }))
+
+ws.onmessage = (e) => {
+  const msg = JSON.parse(e.data as string)
+  if (msg.type === 'state') console.log('speed:', msg.data.speed)
+}
+```
+
+Full command list, state shape, and integration examples: **[docs/websocket-api.md](docs/websocket-api.md)**.
+
+> **Privacy** — the server binds to `127.0.0.1` only. No LAN or internet exposure by default. The mobile remote piggy-backs on your existing Obsidian session over the same loopback bridge.
+
+---
+
+## Text-to-Speech
+
+Three engines, selected automatically based on availability:
+
+1. **Kokoro MLX** *(best quality, Apple Silicon)* — 22 voice presets (male/female, American/British English), audio-synced scrolling, sentence-by-sentence highlighting. See [docs/tts-setup.md](docs/tts-setup.md) for the one-time Python venv install.
+2. **macOS `say`** — built-in system voices (Samantha, Daniel, etc.). No setup.
+3. **Web Speech API** — universal fallback. Quality varies by OS and browser engine.
+
+Pause/resume from the toolbar or keyboard. Citations are resolved from your bibliography (Quarto/Pandoc `.bib` files).
+
+---
+
+## Troubleshooting
+
+Most common issues:
+
+| Issue | Fix |
+|-------|-----|
+| **WebSocket port already in use** | Settings → Connection → change port (default `8765`). Click *Restart server*. |
+| **Stream Deck not connecting** | Settings → Connection → *Restart server*. Confirm the Stream Deck plugin is installed and points at the same port. |
+| **Plugin doesn't appear after install** | Verify `<vault>/.obsidian/plugins/teleprompter-plus/` contains `main.js`, `styles.css`, `manifest.json`. Reload Obsidian (`Cmd/Ctrl + R`). |
+| **Content not updating when switching notes** | Close and reopen the teleprompter view. |
+| **Fullscreen looks wrong** | Plugin fullscreen is in-window. For true OS fullscreen, use Obsidian's *View → Toggle Fullscreen* first. |
+| **Pin window does nothing** | macOS and Windows only. Some Linux window managers override this. |
+
+Full troubleshooting guide: **[docs/troubleshooting.md](docs/troubleshooting.md)**.
+
+---
+
+## Architecture
 
 ```mermaid
 flowchart TB
@@ -93,9 +204,9 @@ flowchart TB
     end
 
     subgraph Core["Core Components"]
-        Svelte["Svelte 5 UI\n(TeleprompterApp.svelte)"]
-        Markdown["Markdown Renderer\n(marked.js + highlight.js)"]
-        State["State Management\n($state, $effect)"]
+        Svelte["Svelte 5 UI"]
+        Markdown["Markdown Renderer"]
+        State["State Management"]
         View --> Svelte
         Svelte --> Markdown
         Svelte --> State
@@ -110,993 +221,51 @@ flowchart TB
     end
 
     subgraph Clients["External Clients"]
-        StreamDeck["Stream Deck\n(55+ actions)"]
-        Mobile["Mobile Remote\n(Web Interface)"]
-        Custom["Custom Scripts\n(Bun, Node.js, etc.)"]
-    end
-
-    subgraph Features["Key Features"]
-        AutoScroll["Auto-Scroll Engine\n(requestAnimationFrame)"]
-        Navigation["Header Navigation\n(Hierarchical Tree)"]
-        Minimap["Minimap\n(Abstract Scrollbar)"]
-        Flip["Flip Modes\n(H/V Mirror)"]
-        TTS["Text-to-Speech\n(Kokoro MLX / macOS Say)"]
+        StreamDeck["Stream Deck (55+)"]
+        Mobile["Mobile Remote"]
+        Custom["Custom Scripts"]
     end
 
     Plugin --> WS
-    Svelte --> AutoScroll
-    Svelte --> Navigation
-    Svelte --> Minimap
-    Svelte --> Flip
-    Svelte --> TTS
-
     StreamDeck <--> WS
     Mobile <--> WS
     Custom <--> WS
-
     Broadcast --> StreamDeck
     Broadcast --> Mobile
-    Broadcast --> Custom
 ```
 
----
-
-## ✨ Features
-
-### 📜 Core Teleprompter Features
-- **Auto-scrolling** - Smooth, variable-speed scrolling with precise control
-- **Play/Pause controls** - One-click playback with optional countdown timer
-- **Variable speed** - Adjust scrolling speed on the fly (configurable 0.5-10 range)
-- **Dynamic font sizing** - Real-time text size adjustment (12-72px)
-- **Reset to top** - Instantly jump back to the beginning
-- **Countdown timer** - Optional countdown before auto-scroll starts
-- **Manual scrolling** - Scroll up/down with customizable amounts
-- **Flip mode** - Mirror text horizontally or vertically for teleprompter rigs
-
-### 🎨 Display & Appearance
-- **Full-screen mode** - Distraction-free, immersive view
-- **Keep awake** - Prevent screen from sleeping during playback
-- **Pin window** - Keep teleprompter always on top (macOS/Windows)
-- **Clean interface** - Focus on your content with minimal UI
-- **Theme integration** - Automatically adapts to your Obsidian theme
-- **Resizable panels** - Customize navigation panel width
-- **Line height control** - Adjust spacing for optimal readability
-
-### 🗺️ Advanced Navigation
-- **Hierarchical header navigation** - Collapsible tree view of document structure
-- **Active section highlighting** - Visual indicator of current position
-- **One-click section jumping** - Jump to any header instantly
-- **Real-time position tracking** - Always know where you are in the document
-- **Abstract scrollbar minimap** - Visual overview of document with position markers
-- **Previous/Next section** - Navigate sequentially through headers
-- **Scroll sync** - Editor and teleprompter stay in sync
-
-### 🎮 Stream Deck Integration (55+ Actions)
-- **External hardware control** - Full control via Stream Deck
-- **Real-time state sync** - Bidirectional communication with visual feedback
-- **8 action categories** - Playback, Speed, Font, Navigation, Display, Utility, Countdown, Flip
-- **WebSocket API** - Local server on port 8765
-- **Auto-reconnection** - Resilient connection handling
-- **State indicators** - Visual feedback on Stream Deck buttons
-
-### ⌨️ Complete Keyboard Control (25+ Commands)
-- **Playback commands** - Play, pause, toggle
-- **Speed control** - Increase, decrease, set specific speed
-- **Font control** - Increase, decrease, reset size
-- **Navigation** - Next/previous section, jump to top
-- **Display** - Fullscreen, keep awake, pin window, minimap
-- **Utility** - Scroll sync, countdown, flip modes
-- **Customizable hotkeys** - Set your own keyboard shortcuts
-
-### 📝 Full Markdown Support
-- **Complete Obsidian syntax** - All Markdown features supported
-- **Images** - Display embedded images inline
-- **Code blocks** - Syntax highlighted code with highlight.js
-- **Tables** - Formatted tables
-- **Task lists** - Checkboxes and tasks
-- **YAML frontmatter** - Automatically hidden from display
-- **Math** - LaTeX equations
-- **Callouts** - Obsidian callout boxes
-- **Links** - Both internal and external links
-- **Diagram placeholders** - Mermaid, PlantUML, and other diagrams shown as clean placeholders
-
-### 🔊 Text-to-Speech (TTS)
-- **Kokoro neural TTS** - High-quality neural voices via MLX on Apple Silicon ([setup guide](docs/tts-setup.md))
-- **22 voice presets** - Male, female, American, and British English voices
-- **Audio-synced scrolling** - Teleprompter scrolls in sync with spoken audio
-- **Sentence highlighting** - Current sentence highlighted as it's read
-- **Citation resolution** - `[@ries2011]` spoken as "(Ries, 2011)" using .bib files
-- **Multiple engines** - Kokoro (best), macOS Say, Web Speech API (fallback)
-- **Pause/Resume** - Full playback control with toolbar and keyboard
-
-### 🆕 v0.9.0 Features
-- **Speed presets** - Cycle through 6 preset speeds (0.5x, 1x, 1.5x, 2x, 3x, 5x)
-- **Custom hotkeys** - Define your own keyboard shortcuts for 12+ actions
-- **Double-click to edit** - Click text in teleprompter to jump to that line in editor
-- **Text alignment** - Cycle through left, center, right, and RTL alignment
-- **Progress indicator styles** - Choose between progress bar, scrollbar, or none
-- **Eyeline indicator** - Draggable reading position guide
-- **Diagram placeholders** - Clean "📊 Flowchart" style placeholders for Mermaid diagrams
-
-### ⚡ Performance Optimizations
-- **Debounced scroll handling** - Smooth performance with large documents
-- **Memoized markdown rendering** - Skip re-rendering unchanged content
-- **requestAnimationFrame scrolling** - Consistent 60fps smooth scrolling
-- **Passive event listeners** - Improved scroll performance
-- **Batch DOM operations** - Efficient header registration
-
-### 🛠️ Advanced Settings
-- **Scroll speed configuration** - Set default, min, max speeds
-- **Speed increment** - Customize adjustment amounts
-- **Navigation preferences** - Default width, remember state
-- **Auto-start options** - Automatically begin playing
-- **Debug mode** - Verbose logging for troubleshooting
-- **WebSocket configuration** - Port, host, auto-start settings
+Design system, component reference, and icon catalog: **[docs/](docs/)**.
 
 ---
 
-## 📦 Installation
+## Contributing
 
-### Method 1: Manual Installation (Recommended)
-
-1. **Download the latest release**
-   - Go to the [Releases page](https://github.com/JuracyAmerico/obsidian-teleprompter-plus/releases)
-   - Download `teleprompter-plus.zip`
-
-2. **Extract to plugins folder**
-   - Navigate to your vault's `.obsidian/plugins/` directory
-   - Create a new folder called `teleprompter-plus`
-   - Unzip the contents into this folder
-   - You should have these 3 files inside:
-     ```
-     <vault>/.obsidian/plugins/teleprompter-plus/
-     ├── main.js
-     ├── manifest.json
-     └── styles.css
-     ```
-
-3. **Enable the plugin**
-   - Open Obsidian
-   - Go to Settings → Community Plugins
-   - Click "Reload plugins" if necessary
-   - Find "Teleprompter Plus" and enable it
-
-### Method 2: Build from Source
-
-```bash
-# 1. Clone the repository
-git clone https://github.com/JuracyAmerico/obsidian-teleprompter-plus.git
-cd obsidian-teleprompter-plus
-
-# 2. Install dependencies
-bun install
-
-# 3. Build the plugin
-bun run build
-
-# 4. Copy to your vault's plugins folder
-mkdir -p "<vault>/.obsidian/plugins/teleprompter-plus"
-cp dist/main.js dist/styles.css manifest.json "<vault>/.obsidian/plugins/teleprompter-plus/"
-
-# 5. Reload Obsidian and enable the plugin
-```
+Pull requests welcome. See **[CONTRIBUTING.md](CONTRIBUTING.md)** for the tech stack, project structure, build workflow, code style, and contribution guidelines.
 
 ---
 
-## 🚀 Quick Start
+## Changelog & roadmap
 
-### Basic Usage
+Full version history in **[CHANGELOG.md](CHANGELOG.md)**. Latest release: see the [Releases page](https://github.com/JuracyAmerico/obsidian-teleprompter-plus/releases).
 
-1. **Open Teleprompter**
-   - Click the teleprompter icon in the left ribbon, or
-   - Use Command Palette: `Cmd/Ctrl + P` → "Open Teleprompter Plus"
-
-2. **Load a Note**
-   - Open any note in Obsidian
-   - The teleprompter automatically displays the active note
-   - Content updates in real-time as you edit
-
-3. **Control Playback**
-   - Click <img src="docs/icons/icon-play.svg" width="16" height="16" alt="Play"> **Play** to start auto-scrolling
-   - Use **+/-** buttons to adjust speed
-   - Click <img src="docs/icons/icon-reset.svg" width="16" height="16" alt="Reset"> **Reset** to return to top
-   - Press <img src="docs/icons/icon-pause.svg" width="16" height="16" alt="Pause"> **Pause** to stop scrolling
-
-4. **Adjust Appearance**
-   - Use <img src="docs/icons/icon-font.svg" width="16" height="16" alt="Font"> **Aa+/-** buttons to change font size
-   - Click fullscreen icon for distraction-free mode
-   - Toggle navigation panel to see document structure
-
-### Navigation Panel
-
-The navigation panel shows a hierarchical tree of all headers in your document:
-
-- **Toggle**: Click the menu icon
-- **Navigate**: Click any header to jump to that section
-- **Collapse/Expand**: Click arrows to show/hide nested sections
-- **Active highlighting**: Current section is highlighted in blue
-- **Resize**: Drag the right edge to adjust panel width
-
-### Minimap (Abstract Scrollbar)
-
-When navigation panel is hidden, a minimap appears on the right:
-
-- **Position indicator**: Blue viewport shows current scroll position
-- **Header markers**: Colored bars indicate section positions
-- **Click to jump**: Click anywhere on minimap to jump to that position
-- **Hover to expand**: Minimap widens on hover for easier interaction
+Have an idea? [Open a discussion](https://github.com/JuracyAmerico/obsidian-teleprompter-plus/discussions) or [submit an issue](https://github.com/JuracyAmerico/obsidian-teleprompter-plus/issues).
 
 ---
 
-## ⌨️ Keyboard Shortcuts
+## Credits & license
 
-All commands are available in the Command Palette (`Cmd/Ctrl + P`). Set custom hotkeys in **Settings → Hotkeys → Teleprompter Plus**.
+Created by **Juracy Américo** ([@JuracyAmerico](https://github.com/JuracyAmerico)).
 
-### Playback Control
-| Command | Description |
-|---------|-------------|
-| **Toggle Play/Pause** | Start or stop auto-scrolling |
-| **Play** | Start auto-scrolling |
-| **Pause** | Stop auto-scrolling |
-| **Reset to Top** | Jump to beginning of document |
+Built with [Obsidian](https://obsidian.md), [Svelte 5](https://svelte.dev), [TypeScript](https://www.typescriptlang.org), [Vite](https://vitejs.dev), [Tailwind CSS](https://tailwindcss.com), [marked.js](https://marked.js.org), [highlight.js](https://highlightjs.org), and [ws](https://github.com/websockets/ws).
 
-### Speed Control
-| Command | Description |
-|---------|-------------|
-| **Increase Scroll Speed** | Speed up scrolling (uses speed increment setting) |
-| **Decrease Scroll Speed** | Slow down scrolling |
-| **Set Scroll Speed** | Set specific speed value |
+MIT License. Copyright © 2024–2026 Juracy Américo. See [LICENSE](LICENSE).
 
-### Font Size Control
-| Command | Description |
-|---------|-------------|
-| **Increase Font Size** | Make text larger (+2px) |
-| **Decrease Font Size** | Make text smaller (-2px) |
-| **Reset Font Size** | Reset to default (24px) |
+### Support
 
-### Navigation
-| Command | Description |
-|---------|-------------|
-| **Next Section** | Jump to next header |
-| **Previous Section** | Jump to previous header |
-| **Toggle Navigation Panel** | Show/hide navigation sidebar |
+If this plugin saves you time, you can support continued development:
 
-### Display Controls
-| Command | Description |
-|---------|-------------|
-| **Toggle Full-Screen Mode** | Enter/exit fullscreen |
-| **Toggle Keep Awake** | Prevent screen from sleeping |
-| **Toggle Pin Window** | Keep window always on top (macOS/Windows) |
-| **Toggle Minimap** | Show/hide abstract scrollbar |
-
-### Advanced Controls
-| Command | Description |
-|---------|-------------|
-| **Toggle Scroll Sync** | Sync teleprompter with editor |
-| **Start Countdown** | Begin countdown timer |
-| **Cancel Countdown** | Stop countdown timer |
-| **Toggle Flip Horizontal** | Mirror text horizontally |
-| **Toggle Flip Vertical** | Flip text vertically |
-| **Toggle Flip Both** | Flip horizontally and vertically |
-
-### Utility Commands
-| Command | Description |
-|---------|-------------|
-| **Open Teleprompter Plus** | Open teleprompter view |
-| **Show WebSocket Server Info** | Display connection info and status |
-
-> **Tip**: To avoid conflicts with Obsidian's zoom shortcuts, font size commands don't have default hotkeys. Set custom shortcuts in Settings → Hotkeys.
-
----
-
-## 🎮 Stream Deck Integration
-
-### Overview
-
-The plugin includes a built-in WebSocket server that enables full control via Elgato Stream Deck. Control playback, speed, font size, navigation, and all features using hardware buttons.
-
-**WebSocket Server**: `ws://127.0.0.1:8765`
-
-### 55+ Available Actions
-
-#### 1. Playback Control (8 actions)
-- **Play/Pause** - Toggle playback with state indicator
-- **Play** - Start scrolling
-- **Pause** - Stop scrolling
-- **Reset to Top** - Jump to beginning
-- **Scroll Up** - Manual scroll up
-- **Scroll Down** - Manual scroll down
-- **Set Scroll Amount** - Configure manual scroll distance
-- **Get State** - Request current state update
-
-#### 2. Speed Control (5 actions)
-- **Speed Up** - Increase scroll speed
-- **Speed Down** - Decrease scroll speed
-- **Set Speed** - Set specific speed value
-- **Speed to Min** - Set to minimum speed
-- **Speed to Max** - Set to maximum speed
-
-#### 3. Font Size Control (5 actions)
-- **Font Size Up** - Increase text size
-- **Font Size Down** - Decrease text size
-- **Set Font Size** - Set specific size
-- **Font Size to Min** - Set to 12px
-- **Font Size to Max** - Set to 72px
-
-#### 4. Navigation (7 actions)
-- **Next Section** - Jump to next header
-- **Previous Section** - Jump to previous header
-- **Jump to Section** - Jump to specific header by index
-- **First Section** - Jump to first header
-- **Last Section** - Jump to last header
-- **Toggle Navigation** - Show/hide navigation panel
-- **Toggle Minimap** - Show/hide minimap
-
-#### 5. Display (10 actions)
-- **Toggle Fullscreen** - Enter/exit fullscreen
-- **Enter Fullscreen** - Go fullscreen
-- **Exit Fullscreen** - Leave fullscreen
-- **Toggle Keep Awake** - Prevent sleep
-- **Enable Keep Awake** - Turn on keep awake
-- **Disable Keep Awake** - Turn off keep awake
-- **Toggle Pin Window** - Keep on top
-- **Pin Window** - Enable always on top
-- **Unpin Window** - Disable always on top
-- **Toggle Scroll Sync** - Sync with editor
-
-#### 6. Countdown Timer (5 actions)
-- **Start Countdown** - Begin countdown
-- **Cancel Countdown** - Stop countdown
-- **Set Countdown** - Set countdown duration (seconds)
-- **Countdown 3s** - Quick 3-second countdown
-- **Countdown 5s** - Quick 5-second countdown
-
-#### 7. Flip Controls (8 actions)
-- **Toggle Flip Horizontal** - Mirror horizontally
-- **Toggle Flip Vertical** - Flip vertically
-- **Toggle Flip Both** - Flip both axes
-- **Enable Flip Horizontal** - Turn on horizontal flip
-- **Disable Flip Horizontal** - Turn off horizontal flip
-- **Enable Flip Vertical** - Turn on vertical flip
-- **Disable Flip Vertical** - Turn off vertical flip
-- **Reset Flips** - Disable all flips
-
-#### 8. Section Management (7+ actions)
-- **Expand All Sections** - Open all navigation items
-- **Collapse All Sections** - Close all navigation items
-- **Expand Section** - Open specific section
-- **Collapse Section** - Close specific section
-- **Toggle Section** - Expand/collapse section
-- **Eyeline** - Custom position marker
-- **Bookmarks** - Save and recall positions
-
-### WebSocket API
-
-#### Command Format
-```json
-{
-  "command": "command-name",
-  "value": 123  // Optional, for commands that take parameters
-}
-```
-
-#### State Updates (Broadcasted)
-```json
-{
-  "type": "state",
-  "data": {
-    "isPlaying": true,
-    "speed": 2.5,
-    "fontSize": 24,
-    "scrollPosition": 1200,
-    "maxScroll": 3000,
-    "scrollPercentage": 40,
-    "currentNote": "my-presentation.md",
-    "currentNoteTitle": "My Presentation",
-    "headers": [
-      { "id": "header-0", "text": "Introduction", "level": 1 },
-      { "id": "header-1", "text": "Background", "level": 2 }
-    ],
-    "currentHeaderIndex": 0,
-    "navigationVisible": false,
-    "minimapVisible": true,
-    "isFullscreen": false,
-    "keepAwake": false,
-    "isPinned": false,
-    "scrollSyncEnabled": false,
-    "isCountingDown": false,
-    "countdownSeconds": 0,
-    "flipHorizontal": false,
-    "flipVertical": false,
-    "timestamp": 1697832000000
-  }
-}
-```
-
-#### Example Commands
-```javascript
-// Toggle play/pause
-ws.send(JSON.stringify({ command: "toggle-play" }))
-
-// Set speed to 3
-ws.send(JSON.stringify({ command: "set-speed", value: 3 }))
-
-// Jump to second header (index 1)
-ws.send(JSON.stringify({ command: "jump-to-header", value: 1 }))
-
-// Request state update
-ws.send(JSON.stringify({ command: "get-state" }))
-```
-
-### Setting Up Stream Deck
-
-1. **Install Stream Deck Software**
-   - Download from [Elgato's website](https://www.elgato.com/en/downloads)
-   - Install and launch Stream Deck app
-
-2. **Install Teleprompter Plus Plugin**
-   - Coming soon: Official Stream Deck plugin in Elgato Marketplace
-   - Manual installation: [Stream Deck Plugin Repository](https://github.com/americo/streamdeck-obsidian-teleprompter)
-
-3. **Configure Actions**
-   - Drag actions from Teleprompter Plus category to your Stream Deck
-   - Configure each action's settings (e.g., speed values, section indices)
-   - Test connection: "Get State" action should show current teleprompter state
-
-4. **Verify Connection**
-   - Open Teleprompter Plus in Obsidian
-   - Check for WebSocket server notification
-   - Use Command Palette: "Show WebSocket Server Info"
-   - Stream Deck should show "Connected" status
-
-### Custom Control Scripts
-
-You can also control the teleprompter from custom scripts:
-
-```typescript
-// Bun/TypeScript example (save as control.ts, run with: bun control.ts)
-const ws = new WebSocket('ws://127.0.0.1:8765')
-
-ws.onopen = () => {
-  // Start playing
-  ws.send(JSON.stringify({ command: 'play' }))
-
-  // Speed up after 5 seconds
-  setTimeout(() => {
-    ws.send(JSON.stringify({ command: 'set-speed', value: 5 }))
-  }, 5000)
-}
-
-ws.onmessage = (event) => {
-  const message = JSON.parse(event.data as string)
-  if (message.type === 'state') {
-    console.log('Current speed:', message.data.speed)
-    console.log('Scroll position:', message.data.scrollPercentage + '%')
-  }
-}
-```
-
----
-
-## ⚙️ Settings
-
-Access settings via **Settings → Teleprompter Plus**.
-
-### Appearance
-
-| Setting | Description | Default |
-|---------|-------------|---------|
-| **Font Size** | Base text size for teleprompter | 24px (12-72px) |
-| **Line Height** | Spacing between lines | 1.6 (1.0-3.0) |
-
-### Playback
-
-| Setting | Description | Default |
-|---------|-------------|---------|
-| **Default Scroll Speed** | Initial speed when opening teleprompter | 2 (0.5-10) |
-| **Minimum Scroll Speed** | Lowest allowed speed | 0.5 |
-| **Maximum Scroll Speed** | Highest allowed speed | 10 |
-| **Speed Increment** | Amount speed changes per +/- press | 0.5 (0.1-2) |
-| **Countdown Duration** | Seconds to count down before playing | 0 (disabled) |
-
-### Navigation
-
-| Setting | Description | Default |
-|---------|-------------|---------|
-| **Default Navigation Width** | Initial width of navigation panel | 250px |
-| **Remember Navigation State** | Persist panel open/closed state | Yes |
-| **Show Active Section Highlight** | Highlight current section in navigation | Yes |
-| **Show Minimap** | Display abstract scrollbar when nav hidden | Yes |
-
-### Behavior
-
-| Setting | Description | Default |
-|---------|-------------|---------|
-| **Auto-Start Playing** | Begin playing immediately on open | No |
-| **Scroll Sync with Editor** | Keep editor and teleprompter in sync | No |
-
-### WebSocket Server
-
-| Setting | Description | Default |
-|---------|-------------|---------|
-| **Auto-Start Server** | Start server when Obsidian launches | Yes |
-| **WebSocket Port** | Port for external connections | 8765 |
-| **WebSocket Host** | Host address (localhost for security) | 127.0.0.1 |
-| **Show Connection Notifications** | Display server start/stop messages | Yes |
-| **Server Status** | Real-time connection info | (read-only) |
-
-### Developer
-
-| Setting | Description | Default |
-|---------|-------------|---------|
-| **Debug Mode** | Enable verbose console logging | No |
-
-> **Note**: Debug mode requires reloading Obsidian to take effect. Use for troubleshooting only, as it generates significant console output.
-
----
-
-## 💡 Use Cases
-
-### 📹 Video Recording
-Perfect for creating YouTube videos, tutorials, or presentations:
-- Load your script into teleprompter
-- Set comfortable reading speed
-- Use Stream Deck for hands-free control
-- Keep eye contact with camera while reading
-
-### 🎤 Public Speaking
-Deliver confident speeches and presentations:
-- Structure your talk with headers for easy navigation
-- Jump between sections for Q&A
-- Practice with variable speeds
-- Use countdown timer before starting
-
-### 🎙️ Podcasting
-Stay on track during podcast recordings:
-- Load show notes and talking points
-- Navigate sections for segment transitions
-- Use minimap for quick position checks
-- Sync with editor for real-time note taking
-
-### 📝 Content Creation
-Write and review long-form content:
-- Review articles at reading speed
-- Check flow and pacing
-- Use navigation for quick section access
-- Flip mode for in-person teleprompter rigs
-
-### 🎓 Educational Content
-Create lessons and lectures:
-- Organize content with hierarchical headers
-- Jump between concepts easily
-- Use scroll sync for live editing
-- Full markdown support for code examples
-
----
-
-## 🔧 Troubleshooting
-
-### WebSocket Server Issues
-
-**Problem**: Server won't start / "Port already in use" error
-
-**Solutions**:
-- Check if another Obsidian instance is running
-- Close other applications using port 8765
-- Change port in Settings → Teleprompter Plus → WebSocket Port
-- Restart Obsidian after changing settings
-
-**Problem**: Stream Deck not connecting
-
-**Solutions**:
-- Verify Obsidian is running with plugin enabled
-- Check WebSocket server status: Command Palette → "Show WebSocket Server Info"
-- Ensure Stream Deck plugin is installed and configured correctly
-- Try restarting WebSocket server from settings
-- Check firewall settings (allow localhost connections)
-
-### Content Issues
-
-**Problem**: Content not updating when switching notes
-
-**Solutions**:
-- Close and reopen teleprompter view
-- Ensure note is active (clicked in editor)
-- Check console for errors: `Cmd/Ctrl + Shift + I`
-- Enable Debug Mode in settings for detailed logging
-
-**Problem**: Images not displaying
-
-**Solutions**:
-- Use proper Markdown syntax: `![alt text](image.png)`
-- Ensure images are in vault or use absolute paths
-- Check image file exists and is accessible
-- Verify image format is supported (PNG, JPG, GIF, SVG)
-
-**Problem**: YAML frontmatter showing in teleprompter
-
-**Solutions**:
-- Plugin automatically strips frontmatter
-- If visible, ensure it's formatted correctly with `---` delimiters
-- Report bug if issue persists
-
-### Performance Issues
-
-**Problem**: Laggy scrolling with large documents
-
-**Solutions**:
-- Plugin is optimized for large documents, but very long files (>10k lines) may be slow
-- Try reducing navigation panel complexity by closing nested sections
-- Disable debug mode if enabled
-- Close other resource-intensive Obsidian plugins temporarily
-
-**Problem**: High CPU usage
-
-**Solutions**:
-- Check if debug mode is enabled (Settings → Developer)
-- Disable scroll sync if enabled
-- Close navigation panel if not needed
-- Restart Obsidian to clear any memory leaks
-
-### Display Issues
-
-**Problem**: Fullscreen not working
-
-**Solutions**:
-- Fullscreen expands within Obsidian window (not true OS fullscreen)
-- For true fullscreen: Use Obsidian's View → Toggle Fullscreen first
-- macOS: Ensure app has display permissions in System Preferences
-
-**Problem**: Pin window not working
-
-**Solutions**:
-- macOS/Windows only feature (not available on Linux)
-- Requires Electron API support
-- Some window managers may override this behavior
-- Try closing other "always on top" windows
-
-### Installation Issues
-
-**Problem**: Plugin not appearing after installation
-
-**Solutions**:
-- Verify files are in correct location: `<vault>/.obsidian/plugins/teleprompter-plus/`
-- Required files: `main.js`, `styles.css`, `manifest.json`
-- Check folder name matches plugin ID exactly
-- Reload Obsidian: `Cmd/Ctrl + R`
-
-**Problem**: "Module not found: ws" error
-
-**Solutions**:
-- WebSocket module not installed correctly
-- Run `bun install ws` in plugin folder
-- Or copy `node_modules/ws/` to plugin folder
-- For built-from-source: Ensure ws is bundled in build
-
-**Problem**: Plugin fails to load
-
-**Solutions**:
-- Check Obsidian version (requires 1.0.0+)
-- Look for errors in Developer Console: `Cmd/Ctrl + Shift + I`
-- Verify manifest.json is valid JSON
-- Try reinstalling from scratch
-- Enable Debug Mode for detailed error logs
-
-### Getting Help
-
-If issues persist:
-
-1. **Check Console Logs**
-   - Open Developer Console: `Cmd/Ctrl + Shift + I`
-   - Look for errors (red text)
-   - Enable Debug Mode for verbose logging
-
-2. **Report Issues**
-   - [GitHub Issues](https://github.com/americo/obsidian-teleprompter-plus/issues)
-   - Include: Obsidian version, plugin version, error messages, steps to reproduce
-   - Screenshots or video recordings are very helpful
-
-3. **Community Support**
-   - [GitHub Discussions](https://github.com/americo/obsidian-teleprompter-plus/discussions)
-   - [Obsidian Forum Thread](https://forum.obsidian.md/...)
-
----
-
-## 🛠️ Development
-
-### Tech Stack
-
-- **Framework**: Svelte 5 (latest with runes: `$state`, `$effect`)
-- **Language**: TypeScript
-- **Build Tool**: Vite
-- **Styling**: Tailwind CSS + custom CSS
-- **API**: Obsidian Plugin API
-- **WebSocket**: ws library
-- **Markdown**: marked.js + highlight.js
-
-### Project Structure
-
-```
-obsidian-teleprompter-plus/
-├── src/
-│   ├── main.ts                      # Plugin entry point
-│   ├── view.ts                      # View registration
-│   ├── TeleprompterApp.svelte       # Main UI component (1800+ lines)
-│   ├── settings.ts                  # Settings tab and interface
-│   ├── websocket-server.ts          # WebSocket server implementation
-│   └── websocket-loader.ts          # Dynamic ws module loading
-├── dist/                            # Build output
-│   ├── main.js                      # Compiled plugin
-│   └── styles.css                   # Compiled styles
-├── manifest.json                    # Plugin manifest
-├── package.json                     # Dependencies
-├── tsconfig.json                    # TypeScript config
-├── vite.config.ts                   # Vite config
-├── tailwind.config.js               # Tailwind config
-└── README.md                        # This file
-```
-
-### Setup Development Environment
-
-```bash
-# 1. Clone repository
-git clone https://github.com/JuracyAmerico/obsidian-teleprompter-plus.git
-cd obsidian-teleprompter-plus
-
-# 2. Install dependencies
-bun install
-
-# 3. Start development server with hot reload
-bun run dev
-
-# 4. Build for production
-bun run build
-
-# 5. Preview production build
-bun run preview
-```
-
-### Development Workflow
-
-1. **Make changes** to source files in `src/`
-2. **Hot reload** updates automatically with `bun run dev`
-3. **Test in Obsidian** by symlinking or copying to vault plugins folder
-4. **Build** with `bun run build` before committing
-5. **Update version** in `manifest.json` for releases
-
-### Key Files to Understand
-
-#### `src/main.ts`
-- Plugin lifecycle (load, unload)
-- Command registration (25+ commands)
-- Settings management
-- WebSocket server initialization
-- View registration with Obsidian
-
-#### `src/TeleprompterApp.svelte`
-- Main UI component (all features)
-- Reactive state management with Svelte 5 runes
-- Event handlers for all controls
-- WebSocket client integration
-- Markdown rendering pipeline
-- Performance optimizations (debouncing, memoization, RAF)
-
-#### `src/settings.ts`
-- Settings interface definition
-- Default values
-- Settings tab UI
-- Validation and persistence
-
-#### `src/websocket-server.ts`
-- WebSocket server setup
-- Client connection management
-- Command parsing and routing
-- State broadcasting
-- Error handling and reconnection
-
-### Performance Considerations
-
-The plugin implements several optimizations:
-
-1. **Debounced Scroll Handler** (50ms)
-   - Reduces CPU usage during scrolling
-   - Uses passive event listeners
-
-2. **Memoized Markdown Rendering**
-   - Skips re-rendering unchanged content
-   - Tracks last rendered content
-
-3. **requestAnimationFrame for Auto-Scroll**
-   - Smooth 60fps scrolling
-   - Time-based delta calculations for consistent speed
-
-4. **Batch DOM Operations**
-   - Header registration uses RAF
-   - Reduces layout thrashing
-
-5. **Conditional Logging**
-   - Debug mode prevents log spam in production
-   - 78+ logs hidden by default
-
-### Contributing
-
-Contributions are welcome! Here's how:
-
-1. **Fork** the repository
-2. **Create a branch** for your feature: `git checkout -b feature/amazing-feature`
-3. **Make your changes** following existing code style
-4. **Test thoroughly** in Obsidian
-5. **Commit** with clear messages: `git commit -m "Add amazing feature"`
-6. **Push** to your fork: `git push origin feature/amazing-feature`
-7. **Open a Pull Request** with description of changes
-
-#### Contribution Guidelines
-
-- **Code Style**: Follow existing TypeScript/Svelte patterns
-- **Naming**: Use camelCase for variables, PascalCase for components
-- **Comments**: Add JSDoc comments for public functions
-- **Testing**: Test with various document sizes and themes
-- **Performance**: Avoid blocking operations, use RAF for animations
-- **Accessibility**: Maintain keyboard navigation and ARIA labels
-
-#### Development Tips
-
-- Use Debug Mode to see detailed logs
-- Test with long documents (1000+ lines)
-- Test with multiple themes (light/dark)
-- Test WebSocket with Stream Deck emulator
-- Check console for errors regularly
-- Use TypeScript strict mode
-
----
-
-## 📋 Roadmap
-
-### ✅ Completed Features (v0.5.0)
-- ✅ Core teleprompter functionality
-- ✅ Stream Deck integration (55+ actions)
-- ✅ Complete keyboard control (25+ commands)
-- ✅ Advanced navigation with hierarchical headers
-- ✅ Abstract scrollbar minimap
-- ✅ Active section highlighting
-- ✅ Full-screen mode
-- ✅ Keep awake functionality
-- ✅ Pin window (macOS/Windows)
-- ✅ Countdown timer (single-use)
-- ✅ Flip modes (horizontal/vertical)
-- ✅ Scroll sync with editor
-- ✅ Advanced settings (speed, navigation, behavior)
-- ✅ Performance optimizations
-- ✅ Debug mode
-- ✅ Full Markdown support
-- ✅ Theme integration
-
-### ✅ Completed Features (v0.9.0)
-
-#### Core Features
-- [x] **Professional teleprompter view** - Full-featured reading display
-- [x] **Auto-scrolling** - Configurable speed with smooth animation
-- [x] **Multiple themes** - 8 built-in profiles (Professional, Broadcast, Stream, Practice, etc.)
-- [x] **Customizable colors** - Full color picker for text/background with presets
-- [x] **Font family selection** - 10 font options
-- [x] **Eyeline indicator** - Configurable reading position guide
-
-#### Remote Control (v0.9.0)
-- [x] **Remote web interface** - Control from any device on your network
-- [x] **Mobile-optimized UI** - Touch-friendly controls for phone/tablet
-- [x] **Real-time sync** - Instant state synchronization via WebSocket
-- [x] **Section navigation** - Jump to headers from remote
-
-#### Professional Features
-- [x] **OBS integration** - Start/stop recording synced with teleprompter
-- [x] **Stream Deck support** - 55+ actions for professional control
-- [x] **Countdown timer** - Visual countdown before auto-scroll starts
-- [x] **Focus mode** - Dim text outside eyeline for better focus
-- [x] **Voice tracking (Beta)** - Experimental speech-following scroll
-
-#### UX Enhancements
-- [x] **Speed presets** - Quick switch between 6 preset speeds
-- [x] **Custom hotkeys** - Define your own keyboard shortcuts
-- [x] **Double-click to edit** - Jump to source line in editor
-- [x] **Flip/mirror modes** - Horizontal and vertical flip
-- [x] **Minimap** - Document overview with position indicator
-
-### 💡 Feature Requests
-
-Have an idea? [Open a discussion](https://github.com/JuracyAmerico/obsidian-teleprompter-plus/discussions) or [submit an issue](https://github.com/JuracyAmerico/obsidian-teleprompter-plus/issues)!
-
----
-
-## 📄 License
-
-MIT License - See [LICENSE](LICENSE) file for details.
-
-Copyright (c) 2024-2025 Americo
-
-Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the "Software"), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:
-
-The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.
-
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
-
----
-
-## 🙏 Acknowledgments
-
-Created with ❤️ by **Americo**
-
-### Special Thanks To:
-
-- **Obsidian Team** - For the excellent plugin API and amazing note-taking app
-- **Elgato** - For Stream Deck SDK and documentation
-- **Svelte Team** - For the reactive framework and Svelte 5 innovations
-- **Open Source Community** - For inspiration and support
-
-### Built With:
-
-- [Obsidian](https://obsidian.md) - Knowledge base application
-- [Svelte](https://svelte.dev) - Reactive UI framework
-- [TypeScript](https://www.typescriptlang.org) - Type-safe JavaScript
-- [Vite](https://vitejs.dev) - Fast build tool
-- [Tailwind CSS](https://tailwindcss.com) - Utility-first CSS
-- [marked.js](https://marked.js.org) - Markdown parser
-- [highlight.js](https://highlightjs.org) - Syntax highlighting
-- [ws](https://github.com/websockets/ws) - WebSocket library
-
----
-
-## 📞 Support & Community
-
-### Get Help
-
-- 📖 **Documentation**: You're reading it!
-- 🐛 **Bug Reports**: [GitHub Issues](https://github.com/americo/obsidian-teleprompter-plus/issues)
-- 💬 **Discussions**: [GitHub Discussions](https://github.com/americo/obsidian-teleprompter-plus/discussions)
-- 💡 **Feature Requests**: [GitHub Issues](https://github.com/americo/obsidian-teleprompter-plus/issues/new)
-- 🗨️ **Community Forum**: [Obsidian Forum](https://forum.obsidian.md/)
-
-### Stay Updated
-
-- ⭐ **Star** the repo to show support
-- 👀 **Watch** for updates and releases
-- 🔔 **Subscribe** to release notifications
-
-### Support Development
-
-If you find this plugin useful and want to support its development:
-
-<a href="https://ko-fi.com/americocanada">
-  <img src="https://ko-fi.com/img/githubbutton_sm.svg" alt="Support on Ko-fi">
-</a>
-
-Your support helps with:
-- Continued development and new features
-- Bug fixes and maintenance
-- Documentation improvements
-- Community support
-
-### Share Your Experience
-
-If you enjoy using Teleprompter Plus:
-- Share it with the Obsidian community
-- Leave feedback on the forum
-- Contribute improvements
-- Report bugs to help make it better
-
----
-
-## 📊 Project Stats
-
-- **Version**: 0.9.1
-- **Lines of Code**: 3000+ (TypeScript/Svelte)
-- **Commands**: 25+
-- **Stream Deck Actions**: 55+
-- **Settings Options**: 15+
-- **Supported Platforms**: Windows, macOS, Linux (desktop only)
-- **Minimum Obsidian Version**: 1.0.0
-
----
-
-**Made with ❤️ for the Obsidian community**
-
-*Transform your notes into professional presentations with Obsidian Teleprompter Plus* 🎬
+<p align="center">
+  <a href="https://ko-fi.com/americocanada">
+    <img src="https://ko-fi.com/img/githubbutton_sm.svg" alt="Support on Ko-fi">
+  </a>
+</p>
