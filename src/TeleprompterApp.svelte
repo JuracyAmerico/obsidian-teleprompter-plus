@@ -33,7 +33,7 @@
   import { TTSService } from './tts'
   import type { TTSState, TTSPlaybackState, TTSVoice } from './tts'
   import { resolveCitations, loadBibliography } from './parser/citation-resolver'
-  import { extractBibPath, splitSentences } from './parser/text-cleaner'
+  import { extractBibPath, splitSentences, stripRawLatexCommands } from './parser/text-cleaner'
   import type { TTSDocument, TTSSection } from './tts/tts-types'
   import hljs from 'highlight.js/lib/core'
   // Import common languages for syntax highlighting
@@ -1094,6 +1094,9 @@
 
       // Strip Pandoc raw blocks ({=openxml}, {=latex}, {=html}, etc.)
       processedContent = processedContent.replace(/```\{=[a-z]+\}\r?\n[\s\S]*?\r?\n```/g, '')
+
+      // Strip raw LaTeX commands like \newpage that have no meaning in a teleprompter
+      processedContent = stripRawLatexCommands(processedContent)
 
       // Strip Pandoc/Quarto attributes ({width=70%}, {#id .class}, {.unnumbered}, etc.)
       processedContent = processedContent.replace(/\{[#.]?[^}]*(?:width|height|fig-|\.unnumbered|\.unlisted)[^}]*\}/g, '')
