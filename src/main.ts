@@ -142,11 +142,10 @@ export default class TeleprompterPlusPlugin extends Plugin {
 
 		// Start WebSocket server if enabled (settings now guaranteed to be loaded)
 		if (this.settings.autoStartWebSocket) {
-			void this.startWebSocketServer()
+			void this.startWebSocketServer().then(() => {
+				this.registerWebSocketCommands()
+			})
 		}
-
-		// Register WebSocket commands
-		this.registerWebSocketCommands()
 
 		// Initialize OBS service
 		this.obsService = new OBSService(this.settings)
@@ -580,6 +579,12 @@ export default class TeleprompterPlusPlugin extends Plugin {
 		} catch (error) {
 			console.error('[Teleprompter] Failed to start WebSocket server:', error)
 
+			// Clean up the dead server instance so future starts aren't blocked
+			if (this.wsServer) {
+				try { await this.wsServer.stop() } catch { /* best effort */ }
+				this.wsServer = null
+			}
+
 			// Check if it's a port conflict
 			if (error instanceof Error && error.message.includes('EADDRINUSE')) {
 				new Notice(
@@ -597,7 +602,14 @@ export default class TeleprompterPlusPlugin extends Plugin {
 	 */
 	private async stopWebSocketServer(): Promise<void> {
 		if (this.wsServer) {
-			await this.wsServer.stop()
+			try {
+				await Promise.race([
+					this.wsServer.stop(),
+					new Promise<void>(resolve => setTimeout(resolve, 3000)),
+				])
+			} catch (error) {
+				console.error('[Teleprompter] Error stopping WebSocket server:', error)
+			}
 			this.wsServer = null
 		}
 	}
@@ -1188,7 +1200,17 @@ Use this address to connect from external devices.`
 	 */
 	async restartWebSocketServer(): Promise<void> {
 		await this.stopWebSocketServer()
+		// Brief delay to ensure OS releases the port
+		await new Promise(resolve => setTimeout(resolve, 300))
 		await this.startWebSocketServer()
+		this.registerWebSocketCommands()
+	}
+
+	/**
+	 * Stop WebSocket server (public, for settings toggle)
+	 */
+	async stopWebSocketServerPublic(): Promise<void> {
+		await this.stopWebSocketServer()
 	}
 
 	// ========================================

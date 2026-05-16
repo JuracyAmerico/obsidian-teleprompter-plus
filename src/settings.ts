@@ -2102,9 +2102,14 @@ export class TeleprompterSettingTab extends PluginSettingTab {
 			.setDesc('Start websocket server when Obsidian loads')
 			.addToggle(t => t
 				.setValue(this.plugin.settings.autoStartWebSocket)
-				.onChange((value) => {
+				.onChange(async (value) => {
 					this.plugin.settings.autoStartWebSocket = value
-					void this.plugin.saveSettings()
+					await this.plugin.saveSettings()
+					if (value) {
+						await this.plugin.restartWebSocketServer()
+					} else {
+						await this.plugin.stopWebSocketServerPublic()
+					}
 				})
 			)
 

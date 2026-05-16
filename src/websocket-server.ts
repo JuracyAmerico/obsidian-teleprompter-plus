@@ -394,8 +394,6 @@ export class TeleprompterWebSocketServer {
 	 * Stop the WebSocket server and cleanup resources
 	 */
 	async stop(): Promise<void> {
-		if (!this.wss && !this.httpServer) return
-
 		this.isShuttingDown = true
 
 		// Stop heartbeat
@@ -404,46 +402,37 @@ export class TeleprompterWebSocketServer {
 			this.heartbeatInterval = null
 		}
 
-		// Close all client connections gracefully
-		const closePromises: Promise<void>[] = []
+		// Force-terminate all client connections
 		this.clients.forEach((client) => {
-			if (client.readyState === WS_OPEN) {
-				closePromises.push(
-					new Promise((resolve) => {
-						client.once('close', () => resolve())
-						client.close(1000, 'Server shutting down')
-					})
-				)
-			}
+			try { client.terminate() } catch { /* ignore */ }
 		})
-
-		// Wait for all clients to close (with timeout)
-		await Promise.race([
-			Promise.all(closePromises),
-			new Promise((resolve) => setTimeout(resolve, 2000)), // 2 second timeout
-		])
-
 		this.clients.clear()
+		this.clientRateLimits.clear()
+		this.authenticatedClients.clear()
 
-		// Close the WebSocket server
+		// Close the WebSocket server (with timeout to prevent hanging)
 		if (this.wss) {
-			await new Promise<void>((resolve) => {
-				this.wss!.close(() => {
-					this.wss = null
-					resolve()
-				})
-			})
+			await Promise.race([
+				new Promise<void>((resolve) => {
+					this.wss!.close(() => resolve())
+				}),
+				new Promise<void>((resolve) => setTimeout(resolve, 2000)),
+			])
+			this.wss = null
 		}
 
-		// Close the HTTP server
+		// Close the HTTP server (with timeout to prevent hanging)
 		if (this.httpServer) {
-			await new Promise<void>((resolve) => {
-				this.httpServer!.close(() => {
-					this.httpServer = null
-					resolve()
-				})
-			})
+			await Promise.race([
+				new Promise<void>((resolve) => {
+					this.httpServer!.close(() => resolve())
+				}),
+				new Promise<void>((resolve) => setTimeout(resolve, 2000)),
+			])
+			this.httpServer = null
 		}
+
+		this.commandHandlers.clear()
 	}
 
 	// ============================================================================
