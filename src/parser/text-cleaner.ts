@@ -74,6 +74,21 @@ function stripRawBlocks(text: string): string {
 	return text.replace(/```\{=[a-z]+\}\r?\n[\s\S]*?\r?\n```/g, '')
 }
 
+/**
+ * Strip standalone raw LaTeX commands that Quarto/Pandoc honor in PDF
+ * output but make no sense in a teleprompter (e.g. \newpage, \pagebreak).
+ * Conservative whitelist — never strips arbitrary backslash content.
+ */
+export function stripRawLatexCommands(text: string): string {
+	// Standalone-line forms: \newpage, \pagebreak, \clearpage, \noindent, \linebreak
+	text = text.replace(/^[ \t]*\\(?:newpage|pagebreak|clearpage|noindent|linebreak)\b[ \t]*$/gm, '')
+	// Inline forms of the same set
+	text = text.replace(/\\(?:newpage|pagebreak|clearpage|noindent|linebreak)\b/g, '')
+	// Single-arg spacing commands: \vspace{1em}, \hspace*{2cm}
+	text = text.replace(/\\(?:vspace|hspace)\*?\{[^}]*\}/g, '')
+	return text
+}
+
 /** Replace fenced code blocks with a brief spoken placeholder */
 function stripCodeBlocks(text: string): string {
 	return text.replace(/```(\w*)\n[\s\S]*?```/g, (_match, lang) => {
@@ -321,6 +336,7 @@ export function cleanDocument(rawContent: string, options: Partial<CleanerOption
 	text = stripFrontmatter(text)
 	text = stripReferencesSection(text)
 	text = stripRawBlocks(text)
+	text = stripRawLatexCommands(text)
 	if (opts.skipCodeBlocks) text = stripCodeBlocks(text)
 	if (opts.skipTables) text = stripTables(text)
 	text = stripFootnotes(text)

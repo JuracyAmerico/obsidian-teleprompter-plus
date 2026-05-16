@@ -57,10 +57,11 @@ function extractAuthors(body: string): string[] {
 	const authorField = extractField(body, 'author')
 	if (!authorField) return ['Unknown']
 
-	// Split on " and " (BibTeX standard), but not inside braces
-	const authorParts = authorField.split(/\s+and\s+/)
+	// Brace-aware split on " and " — must NOT split when "and" appears inside
+	// a corporate-name brace group like {Agriculture and Agri-Food Canada}.
+	const authorParts = splitAuthorsOnAnd(authorField)
 	return authorParts.map(author => {
-		let trimmed = author.trim()
+		const trimmed = author.trim()
 		// Handle institutional authors wrapped in braces: {Restaurants Canada}
 		if (trimmed.startsWith('{') && trimmed.endsWith('}')) {
 			return trimmed.slice(1, -1).trim()
@@ -73,6 +74,31 @@ function extractAuthors(body: string): string[] {
 		const words = trimmed.split(/\s+/)
 		return words[words.length - 1]
 	})
+}
+
+/** Split a BibTeX author field on " and " separators, respecting brace depth. */
+function splitAuthorsOnAnd(authorField: string): string[] {
+	const parts: string[] = []
+	let current = ''
+	let depth = 0
+	for (let i = 0; i < authorField.length; i++) {
+		const c = authorField[i]
+		if (c === '{') {
+			depth++
+			current += c
+		} else if (c === '}') {
+			if (depth > 0) depth--
+			current += c
+		} else if (depth === 0 && authorField.substring(i, i + 5) === ' and ') {
+			parts.push(current)
+			current = ''
+			i += 4 // loop's i++ skips the trailing space
+		} else {
+			current += c
+		}
+	}
+	if (current.length > 0) parts.push(current)
+	return parts
 }
 
 /** Check if an author list represents an institutional author */
