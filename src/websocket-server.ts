@@ -276,14 +276,17 @@ export class TeleprompterWebSocketServer {
 			return
 		}
 
-		// Lazy-load WebSocket module with app instance (avoids window.app)
+		// Lazy-load WebSocket module with app instance (avoids window.app).
+		// Cast: loadWebSocketModule expects a structural subset of App used only
+		// for vault.adapter.basePath + vault.configDir; FileSystemAdapter satisfies it.
 		if (!wsModule) {
-			wsModule = loadWebSocketModule(this.plugin.app)
+			const appSubset = this.plugin.app as unknown as Parameters<typeof loadWebSocketModule>[0]
+			wsModule = loadWebSocketModule(appSubset)
 			WebSocketServerClass = wsModule.WebSocketServer
 			if (!wsModule.loaded) {
 				console.error('[TeleprompterWS] WebSocket module failed to load')
 				console.error('[TeleprompterWS] Error:', wsModule.error)
-				console.error('[TeleprompterWS] Diagnostics:', getDiagnostics(this.plugin.app))
+				console.error('[TeleprompterWS] Diagnostics:', getDiagnostics(appSubset))
 				console.error('[TeleprompterWS] Plugin will continue without WebSocket support')
 				return // Cannot start server without ws module
 			}

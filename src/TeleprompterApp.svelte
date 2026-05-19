@@ -25,7 +25,7 @@
 
 <script lang="ts">
   import type { App as ObsidianApp, TFile } from 'obsidian'
-  import { MarkdownView, setIcon, sanitizeHTMLToDom } from 'obsidian'
+  import { MarkdownView, Notice, setIcon, sanitizeHTMLToDom } from 'obsidian'
   import { onMount } from 'svelte'
   import { marked } from 'marked'
   import { VOICE_TRACKING_PRESETS, type VoiceTrackingPacePreset } from './settings'

@@ -31,7 +31,7 @@ export class MacSayEngine implements TTSEngine {
 		await this.loadVoices()
 	}
 
-	private loadVoices(): Promise<void> {
+	private async loadVoices(): Promise<void> {
 		try {
 			const output = childProcess.execSync('say -v "?"', { encoding: 'utf-8' })
 			const lines = output.split('\n').filter(Boolean)
