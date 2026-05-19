@@ -194,45 +194,79 @@ Full troubleshooting guide: **[docs/troubleshooting.md](docs/troubleshooting.md)
 ## Architecture
 
 ```mermaid
-flowchart TB
-    subgraph Obsidian["Obsidian App"]
-        Plugin["Teleprompter Plus Plugin"]
-        View["Teleprompter View"]
-        Settings["Settings Manager"]
-        Plugin --> View
-        Plugin --> Settings
+%%{init: {'theme':'base', 'themeVariables': {
+  'background':'#0a0a0a',
+  'primaryColor':'#001a26',
+  'primaryTextColor':'#e0fbff',
+  'primaryBorderColor':'#00d4ff',
+  'secondaryColor':'#1a0a02',
+  'tertiaryColor':'#001824',
+  'lineColor':'#00d4ff',
+  'fontFamily':'Inter, sans-serif'
+}}}%%
+flowchart LR
+    subgraph Clients["🎮 EXTERNAL CLIENTS"]
+        direction TB
+        StreamDeck["Stream Deck<br/>55+ actions"]
+        Mobile["Mobile Remote<br/>touch web UI"]
+        Custom["Custom Scripts<br/>TS · Node · Python"]
     end
 
-    subgraph Core["Core Components"]
-        Svelte["Svelte 5 UI"]
-        Markdown["Markdown Renderer"]
-        State["State Management"]
-        View --> Svelte
-        Svelte --> Markdown
-        Svelte --> State
-    end
-
-    subgraph Server["WebSocket Server"]
-        WS["ws://127.0.0.1:8765"]
+    subgraph Bridge["🔌 WEBSOCKET BRIDGE"]
+        direction TB
+        WS["ws://127.0.0.1:8765<br/><i>loopback only</i>"]
         Commands["Command Router"]
         Broadcast["State Broadcaster"]
         WS --> Commands
         WS --> Broadcast
     end
 
-    subgraph Clients["External Clients"]
-        StreamDeck["Stream Deck (55+)"]
-        Mobile["Mobile Remote"]
-        Custom["Custom Scripts"]
+    subgraph Obsidian["📔 OBSIDIAN PLUGIN"]
+        direction TB
+        Plugin["Plugin Entry<br/>main.ts"]
+        View["Teleprompter View<br/>ItemView"]
+        Settings["Settings Manager"]
+        Plugin --> View
+        Plugin --> Settings
+
+        subgraph Core["Core Components"]
+            direction LR
+            Svelte["Svelte 5 UI"]
+            Markdown["Markdown<br/>marked + hljs"]
+            State["State<br/>$state · $effect"]
+        end
+        View --> Core
     end
 
-    Plugin --> WS
-    StreamDeck <--> WS
+    subgraph Branches["⚡ SIDE BRANCHES"]
+        direction TB
+        TTS["TTS Engines<br/>Kokoro · say · Web Speech"]
+        Cite["Citation Resolver<br/>[@key] → (Author, Year)"]
+        OBS["OBS Service<br/>recording sync"]
+    end
+
+    StreamDeck <-->|"commands ⇄ state"| WS
     Mobile <--> WS
     Custom <--> WS
-    Broadcast --> StreamDeck
-    Broadcast --> Mobile
+    Bridge <-->|"local IPC"| Plugin
+    View --> TTS
+    View --> Cite
+    Plugin --> OBS
+
+    classDef client fill:#1a0a02,stroke:#FF6B00,stroke-width:2px,color:#FF6B00
+    classDef bridge fill:#001824,stroke:#00d4ff,stroke-width:3px,color:#00d4ff
+    classDef obs fill:#001a26,stroke:#00d4ff,stroke-width:2px,color:#00d4ff
+    classDef branch fill:#001824,stroke:#00d4ff,stroke-width:2px,stroke-dasharray: 5 5,color:#e0fbff
+
+    class StreamDeck,Mobile,Custom client
+    class WS,Commands,Broadcast bridge
+    class Plugin,View,Settings,Svelte,Markdown,State obs
+    class TTS,Cite,OBS branch
 ```
+
+> Orange = command sent from a client. Cyan = state update broadcast back. All traffic stays on `127.0.0.1` — never on LAN.
+
+A richer Excalidraw version of this diagram is in **[docs/architecture.excalidraw](docs/architecture.excalidraw)** — open it in Obsidian (with the Excalidraw plugin) to view, edit, or export to PNG/SVG for slides and presentations.
 
 Design system, component reference, and icon catalog: **[docs/](docs/)**.
 
