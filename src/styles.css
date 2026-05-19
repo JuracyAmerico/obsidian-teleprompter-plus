@@ -57,10 +57,10 @@
   margin-bottom: 0.5rem;
 }
 
-.quick-setup-icon svg,
-.quick-setup-icon .svg-icon {
-  width: 24px !important;
-  height: 24px !important;
+.quick-setup-icon.quick-setup-icon svg,
+.quick-setup-icon.quick-setup-icon .svg-icon {
+  width: 24px;
+  height: 24px;
   stroke-width: 2;
   display: block;
 }
@@ -1230,9 +1230,9 @@
 }
 
 /* Setting element with no border */
-.tp-setting-no-border {
-  border: none !important;
-  padding: 0 !important;
+.tp-setting-no-border.tp-setting-no-border {
+  border: none;
+  padding: 0;
 }
 
 /* Value display for sliders */
