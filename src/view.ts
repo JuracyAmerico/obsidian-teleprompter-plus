@@ -26,7 +26,7 @@ export class TeleprompterView extends ItemView {
 		return 'teleprompter-final'
 	}
 
-	onOpen(): void {
+	async onOpen(): Promise<void> {
 		const container = this.containerEl.children[1]
 		container.empty()
 
@@ -50,7 +50,7 @@ export class TeleprompterView extends ItemView {
 		})
 	}
 
-	onClose(): void {
+	async onClose(): Promise<void> {
 		// Unmount Svelte 5 component
 		if (this.component) {
 			void unmount(this.component)
