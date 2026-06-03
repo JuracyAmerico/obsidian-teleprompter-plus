@@ -106,6 +106,13 @@ export class VoiceTrackingService {
   // Re-sync only relocates within this many words of where the reader is looking —
   // a bounded search can never teleport to the end of the document.
   private readonly GLOBAL_SEARCH_RADIUS = 120
+  // If the local (forward-only) matcher makes zero progress for this many processed partials,
+  // the reader has drifted past the ~13-word local window (typically at a section header where
+  // Apple restarts its speech segment) and forward matching can NEVER recover on its own. Trigger
+  // one bounded, scroll-anchored re-sync to re-acquire them. Safe now (unlike the old teleporting
+  // auto-search) because the search is capped to GLOBAL_SEARCH_RADIUS around where they're looking
+  // AND far jumps still need 2-of-3 confirmation. ~5 partials ≈ 2s of being stuck.
+  private readonly STALL_RESYNC_THRESHOLD = 5
 
   // Confidence gating (Textream): big forward jumps need 2-of-3 recent matches to agree; small
   // steps always commit. Stops a single over-match from pushing the highlight ahead of your voice.
@@ -654,6 +661,14 @@ export class VoiceTrackingService {
     // Track failed matches (no forward progress from local search)
     if (jumpDistance <= 0 && !isGlobalMatch) {
       this.consecutiveFailedMatches++
+      // Prolonged stall: the reader has run past the local match window and forward matching can't
+      // recover. Arm ONE bounded re-sync (scroll-anchored, ±GLOBAL_SEARCH_RADIUS, confirmation-gated)
+      // so the next partial re-acquires them instead of staying stuck until they press R.
+      if (this.consecutiveFailedMatches >= this.STALL_RESYNC_THRESHOLD) {
+        this.needsGlobalSearch = true
+        this.consecutiveFailedMatches = 0
+        if (DEBUG_VOICE_MATCH) console.warn('[VT]   STALL → bounded re-sync armed (reader drifted past local window)')
+      }
     } else if (jumpDistance > 0 || isGlobalMatch) {
       this.consecutiveFailedMatches = 0
     }
