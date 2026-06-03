@@ -93,6 +93,10 @@ export interface VoiceTrackingConfig {
   readTrail?: number
   /** Scroll-follow smoothness 0..1 (lower = calmer glide, higher = snappier). */
   smoothness?: number
+  /** Words to lead (+) or lag (-) the HIGHLIGHT vs the matched word. Offsets recognition
+   *  latency / predictive partials so the highlight sits exactly on what you're reading.
+   *  + = highlight sits ahead of your voice, - = behind. Default 0. */
+  highlightLead?: number
 }
 
 /**
