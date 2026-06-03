@@ -15,6 +15,7 @@ import type {
 import { tokenize, cleanWord } from './word-tokenizer'
 import { findNextPosition, findGlobalPosition, type SpeechMatcherConfig } from './speech-matcher'
 import { VoskRecognizer } from './vosk-recognizer'
+import { AppleSpeechRecognizer } from './apple-speech-recognizer'
 
 /**
  * Default configuration for voice tracking.
@@ -45,7 +46,7 @@ const ENABLE_KARAOKE_HIGHLIGHTING = false
  * Voice Tracking Service - the main interface for voice-controlled scrolling.
  */
 export class VoiceTrackingService {
-  private recognizer: VoskRecognizer
+  private recognizer: VoskRecognizer | AppleSpeechRecognizer
   private config: VoiceTrackingConfig
   private tokens: TextElement[] = []
   private wordTokens: TextElement[] = []  // Word-only tokens (no delimiters)
@@ -113,7 +114,11 @@ export class VoiceTrackingService {
    */
   constructor(config: Partial<VoiceTrackingConfig> = {}) {
     this.config = { ...DEFAULT_CONFIG, ...config }
-    this.recognizer = new VoskRecognizer()
+    // Engine selection: Apple on-device Speech (macOS, far more accurate) when available,
+    // else Vosk (offline model, cross-platform). 'auto' prefers Apple when supported.
+    const wantApple = this.config.engine === 'apple' ||
+      (this.config.engine !== 'vosk' && AppleSpeechRecognizer.isSupported())
+    this.recognizer = wantApple ? new AppleSpeechRecognizer() : new VoskRecognizer()
 
     // Wire up recognizer events
     this.recognizer.onResult((text, isFinal) => {
