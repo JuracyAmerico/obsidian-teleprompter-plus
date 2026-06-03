@@ -74,7 +74,11 @@ export function computeSpeechRecognitionTokenIndex(
   const tailTokens = recognizedTokens.slice(-TAIL_WORDS)
   const comparisonString = tokensToString(tailTokens)
 
-  const lookAhead = Math.max(windowSize, tailTokens.length + 8)
+  // Wide enough to SEE a reader who surged a full clause ahead. A narrow window (tail+8) can't
+  // reach a word ~14 tokens out ("...international mover"), so the matcher stalls on the nearest
+  // copy and the highlight falls behind. With the index-alignment bug fixed there is no longer a
+  // drift to guard against, so we can afford to look further ahead for the true position.
+  const lookAhead = Math.max(windowSize, tailTokens.length + 18)
   const referenceTokens = reference
     .slice(lastRecognizedTokenIndex, lastRecognizedTokenIndex + lookAhead)
     .filter(element => element.type === 'TOKEN')
@@ -109,7 +113,11 @@ export function computeSpeechRecognitionTokenIndex(
   // that second occurrence (the "30 words ahead" jump). A small per-position penalty means a farther
   // candidate only wins when it is DISTINCTLY better, so the matcher stays locked to the copy the
   // reader is actually on. Index 0 (closest to current) carries no penalty.
-  const PROXIMITY_PENALTY = 0.6
+  // Gentle tie-break toward the nearer copy. This was 0.6 to fight the highlight "leaping" to a
+  // later repeat — but that leap was the index-misalignment bug, not a matching error. With that
+  // fixed, a high penalty just PINS the matcher behind a faster reader. Keep it small: break true
+  // ties toward the near copy, but let a clearly-better forward match (the reader moved on) win.
+  const PROXIMITY_PENALTY = 0.2
   let localIndex = 0
   let bestScore = distances[0]
   for (let k = 1; k < distances.length; k++) {
