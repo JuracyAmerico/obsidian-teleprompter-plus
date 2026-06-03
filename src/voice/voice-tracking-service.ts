@@ -85,6 +85,9 @@ export class VoiceTrackingService {
   // keeps pace without lurching. NO forward "catch-up" easing — pushing ahead of the matched
   // position created a positive-feedback snowball that accelerated the further you read.
   private readonly SMOOTH_STEP_CAP = 10
+  // Anchor the scroll a few words BEHIND the spoken word, so the line you're reading always sits
+  // slightly ahead of the scroll. Prevents the text from running ahead of your voice.
+  private readonly READ_AHEAD_LAG = 4
   // Re-sync only relocates within this many words of where the reader is looking —
   // a bounded search can never teleport to the end of the document.
   private readonly GLOBAL_SEARCH_RADIUS = 120
@@ -635,7 +638,9 @@ export class VoiceTrackingService {
    * @param jumpDistance - Number of words being jumped (for animation timing)
    */
   private scrollToWord(wordIndex: number, jumpDistance: number = 5): void {
-    const position = this.wordPositions.get(wordIndex)
+    // Anchor a few words behind the spoken word so the scroll trails your voice (never leads it).
+    const anchorIndex = Math.max(0, wordIndex - this.READ_AHEAD_LAG)
+    const position = this.wordPositions.get(anchorIndex) ?? this.wordPositions.get(wordIndex)
 
     if (!position || !this.contentArea) {
       return
