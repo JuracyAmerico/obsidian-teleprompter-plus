@@ -82,6 +82,9 @@ export class VoiceTrackingService {
   // (bypassing the smooth per-step cap + accumulator) so we never trail a fast reader.
   private readonly CATCH_UP_THRESHOLD = 6   // words ahead before we snap to catch up
   private readonly CATCH_UP_MAX = 25        // max words to advance in one catch-up
+  // Re-sync only relocates within this many words of where the reader is looking —
+  // a bounded search can never teleport to the end of the document.
+  private readonly GLOBAL_SEARCH_RADIUS = 120
   // Set by forceResync(): the next global match commits immediately, no confirmation gate.
   private resyncRequested = false
 
@@ -524,12 +527,16 @@ export class VoiceTrackingService {
     let newIndex: number
     let isGlobalMatch = false  // Flag for global search result
 
-    // Use global search when starting or after many failed matches
-    if (this.needsGlobalSearch || this.consecutiveFailedMatches >= this.FAILED_MATCH_THRESHOLD) {
+    // Global search ONLY on initial start / explicit R re-sync — NEVER on mid-reading
+    // failures. The old auto-global-search-on-failures (consecutiveFailedMatches) is exactly
+    // what teleported the reader to the end on a few mis-hears. Off-script now simply holds
+    // position until forward matching resumes or the user presses R. And the search is
+    // bounded near where they're looking, so it can't jump to an unrelated section.
+    if (this.needsGlobalSearch) {
       // Get hint position based on current scroll (where user is looking)
       const hintPosition = this.estimateWordIndexFromScroll()
 
-      const globalIndex = findGlobalPosition(text, this.wordTokens, matcherConfig, hintPosition)
+      const globalIndex = findGlobalPosition(text, this.wordTokens, matcherConfig, hintPosition, this.GLOBAL_SEARCH_RADIUS)
 
       if (globalIndex >= 0) {
         // Found a match anywhere in document
