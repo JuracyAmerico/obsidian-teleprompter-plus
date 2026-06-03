@@ -44,7 +44,7 @@ const DEFAULT_CONFIG: VoiceTrackingConfig = {
 const ENABLE_KARAOKE_HIGHLIGHTING = true
 
 // Verbose match/scroll logging to the console for diagnosing tracking. Flip on when needed.
-const DEBUG_VOICE_MATCH = true
+const DEBUG_VOICE_MATCH = false
 
 // Feature flag: silence gate. When on, a no-forward-progress partial only counts toward a stall
 // re-sync if the VAD says a human is actually speaking — so a pause (where Apple re-emits a stale
