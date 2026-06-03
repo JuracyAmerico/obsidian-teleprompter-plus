@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+- **Reading-view toolbar redesign — hierarchy, grouping, progressive disclosure.** The flat row of equal-weight icons is now organised into scannable zones (Playback · Display/Type · View · Capture · System) separated by dividers, with a dominant **hero** Play/Pause, one consistent active-toggle language (accent fill + ring), the timer pulled into its own right-aligned **readout** zone, and low-frequency controls collapsed into a `⋯ More` overflow menu. Fully theme-driven (Obsidian CSS variables — light/dark/third-party). The settings show/hide/reorder system is preserved; controls pinned to the primary layout always stay on the main bar. See [docs/toolbar.md](docs/toolbar.md).
+
 ### Added
 - **ElevenLabs cloud TTS engine (bring-your-own-key)** — optional high-quality neural voices via the ElevenLabs API, alongside the offline Kokoro / macOS Say / Web Speech engines.
   - Opt-in and **never auto-selected**: choose "ElevenLabs (cloud, paid — needs API key)" explicitly in Settings → Text-to-speech → Engine.

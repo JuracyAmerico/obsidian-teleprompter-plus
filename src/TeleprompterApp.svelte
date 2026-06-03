@@ -572,49 +572,71 @@
   // Toolbar control definitions - maps IDs to their type for rendering
   type ToolbarControlType = 'icon-button' | 'text-button' | 'popup-slider' | 'popup-multi' | 'popup-list' | 'color-picker' | 'info-display'
 
+  // Redesigned toolbar zones (see docs/toolbar.md). Visible controls are grouped
+  // into scannable zones separated by thin dividers; `readout` is the timer's own
+  // right-aligned status zone, never a button zone.
+  type ToolbarZone = 'playback' | 'display' | 'view' | 'capture' | 'system' | 'readout'
+
+  // Human-readable zone labels for the More menu's uppercase sub-labels.
+  const TOOLBAR_ZONE_LABELS: Record<ToolbarZone, string> = {
+    playback: 'Playback',
+    display: 'Display / type',
+    view: 'View',
+    capture: 'Capture',
+    system: 'System',
+    readout: 'Readout',
+  }
+
+  // Order in which zones render on the main bar and in the More menu.
+  const TOOLBAR_ZONE_ORDER: ToolbarZone[] = ['playback', 'display', 'view', 'capture', 'system', 'readout']
+
   interface ToolbarControlDef {
     id: string
     type: ToolbarControlType
     name: string
+    // Which grouped zone this control belongs to on the redesigned bar.
+    zone: ToolbarZone
+    // When true, this control collapses into the "More" overflow menu by default.
+    // Overridden when the user explicitly places the control in `toolbarLayout.primary`.
+    defaultMore?: boolean
   }
 
   const TOOLBAR_CONTROL_DEFS: ToolbarControlDef[] = [
-    // Core playback controls
-    { id: 'play-pause', type: 'icon-button', name: 'Play/pause' },
-    { id: 'speed', type: 'popup-slider', name: 'Speed' },
-    { id: 'countdown', type: 'popup-slider', name: 'Countdown' },
-    { id: 'reset', type: 'icon-button', name: 'Reset' },
-    // Display controls
-    { id: 'font-size', type: 'popup-slider', name: 'Font size' },
-    { id: 'line-height', type: 'popup-slider', name: 'Line height' },
-    { id: 'letter-spacing', type: 'popup-slider', name: 'Letter spacing' },
-    { id: 'font-family', type: 'popup-list', name: 'Font family' },
-    { id: 'opacity', type: 'popup-slider', name: 'Opacity' },
-    { id: 'padding', type: 'popup-multi', name: 'Padding' },
-    { id: 'text-color', type: 'color-picker', name: 'Text color' },
-    { id: 'bg-color', type: 'color-picker', name: 'Background color' },
-    // Feature toggles
-    { id: 'eyeline', type: 'icon-button', name: 'Eyeline' },
-    { id: 'focus-mode', type: 'icon-button', name: 'Focus mode' },
-    { id: 'navigation', type: 'icon-button', name: 'Navigation' },
-    { id: 'fullscreen', type: 'icon-button', name: 'Fullscreen' },
-    { id: 'flip-h', type: 'icon-button', name: 'Flip horizontal' },
-    { id: 'flip-v', type: 'icon-button', name: 'Flip vertical' },
-    { id: 'minimap', type: 'icon-button', name: 'Minimap' },
-    // Utility controls
-    { id: 'auto-pause', type: 'icon-button', name: 'Auto-Pause' },
-    { id: 'progress-indicator', type: 'icon-button', name: 'Progress indicator' },
-    { id: 'alignment', type: 'icon-button', name: 'Text alignment' },
-    { id: 'keep-awake', type: 'icon-button', name: 'Keep awake' },
-    { id: 'pin', type: 'icon-button', name: 'Pin note' },
-    { id: 'detach', type: 'icon-button', name: 'Open in Window' },
-    { id: 'quick-presets', type: 'popup-list', name: 'Quick presets' },
-    // Info displays
-    { id: 'time-display', type: 'info-display', name: 'Time display' },
-    // Voice tracking
-    { id: 'voice-tracking', type: 'icon-button', name: 'Voice tracking' },
-    // Text-to-speech
-    { id: 'tts', type: 'icon-button', name: 'Text-to-speech' },
+    // Playback zone - the hero (play-pause) lives here, first.
+    { id: 'play-pause', type: 'icon-button', name: 'Play/pause', zone: 'playback' },
+    { id: 'speed', type: 'popup-slider', name: 'Speed', zone: 'playback' },
+    { id: 'countdown', type: 'popup-slider', name: 'Countdown', zone: 'playback' },
+    { id: 'reset', type: 'icon-button', name: 'Reset', zone: 'playback' },
+    // Display / type zone
+    { id: 'font-size', type: 'popup-slider', name: 'Font size', zone: 'display' },
+    { id: 'line-height', type: 'popup-slider', name: 'Line height', zone: 'display' },
+    { id: 'letter-spacing', type: 'popup-slider', name: 'Letter spacing', zone: 'display', defaultMore: true },
+    { id: 'font-family', type: 'popup-list', name: 'Font family', zone: 'display' },
+    { id: 'opacity', type: 'popup-slider', name: 'Opacity', zone: 'display', defaultMore: true },
+    { id: 'padding', type: 'popup-multi', name: 'Padding', zone: 'display', defaultMore: true },
+    { id: 'text-color', type: 'color-picker', name: 'Text color', zone: 'display', defaultMore: true },
+    { id: 'bg-color', type: 'color-picker', name: 'Background color', zone: 'display', defaultMore: true },
+    { id: 'alignment', type: 'icon-button', name: 'Text alignment', zone: 'display', defaultMore: true },
+    // View zone
+    { id: 'fullscreen', type: 'icon-button', name: 'Fullscreen', zone: 'view' },
+    { id: 'flip-h', type: 'icon-button', name: 'Flip horizontal', zone: 'view' },
+    { id: 'flip-v', type: 'icon-button', name: 'Flip vertical', zone: 'view' },
+    { id: 'eyeline', type: 'icon-button', name: 'Eyeline', zone: 'view' },
+    { id: 'focus-mode', type: 'icon-button', name: 'Focus mode', zone: 'view' },
+    { id: 'minimap', type: 'icon-button', name: 'Minimap', zone: 'view', defaultMore: true },
+    { id: 'navigation', type: 'icon-button', name: 'Navigation', zone: 'view', defaultMore: true },
+    { id: 'progress-indicator', type: 'icon-button', name: 'Progress indicator', zone: 'view', defaultMore: true },
+    // Capture zone
+    { id: 'voice-tracking', type: 'icon-button', name: 'Voice tracking', zone: 'capture' },
+    { id: 'tts', type: 'icon-button', name: 'Text-to-speech', zone: 'capture' },
+    // System zone (low-frequency utilities, collapse into More by default)
+    { id: 'auto-pause', type: 'icon-button', name: 'Auto-Pause', zone: 'system', defaultMore: true },
+    { id: 'keep-awake', type: 'icon-button', name: 'Keep awake', zone: 'system', defaultMore: true },
+    { id: 'pin', type: 'icon-button', name: 'Pin note', zone: 'system', defaultMore: true },
+    { id: 'detach', type: 'icon-button', name: 'Open in Window', zone: 'system', defaultMore: true },
+    { id: 'quick-presets', type: 'popup-list', name: 'Quick presets', zone: 'system', defaultMore: true },
+    // Readout zone - the timer is a status readout, not a button.
+    { id: 'time-display', type: 'info-display', name: 'Time display', zone: 'readout' },
   ]
 
   // Build ordered list of visible toolbar controls from settings
@@ -662,6 +684,65 @@
 
   // Get the ordered controls (reactive - re-computes when toolbarLayoutVersion changes)
   const orderedControls = $derived(getOrderedToolbarControls(toolbarLayoutVersion))
+
+  // ── Zone reconciliation (redesigned toolbar) ──────────────────────────────
+  // The visible/ordered list above already honors the user's show/hide and
+  // reorder choices from settings (toolbarLayout). Here we only decide WHERE
+  // each already-visible control renders: on the main bar (grouped by zone) or
+  // in the ⋯ More overflow menu. We never re-order within a zone — `orderedControls`
+  // order is preserved — and we never override an explicit user placement.
+
+  // A control collapses into More only when it is flagged defaultMore AND the
+  // user did not explicitly pin it to the primary (main-bar) layout. The readout
+  // (time-display) is never eligible for More — it owns its own bar zone.
+  function isMoreControl(def: ToolbarControlDef): boolean {
+    if (def.zone === 'readout') return false
+    if (!def.defaultMore) return false
+    const primary = plugin?.settings?.toolbarLayout?.primary || []
+    return !primary.includes(def.id)
+  }
+
+  // Controls that stay on the main bar, in their original (user) order.
+  const mainBarControls = $derived(
+    orderedControls.filter((def) => !isMoreControl(def))
+  )
+
+  // Controls collapsed into the ⋯ More menu, in their original (user) order.
+  const moreControls = $derived(
+    orderedControls.filter((def) => isMoreControl(def))
+  )
+
+  // The readout control (timer), pulled out so it can render right-aligned in its
+  // own zone after the flex spacer. Undefined when the user hid time-display.
+  const readoutControl = $derived(
+    mainBarControls.find((def) => def.zone === 'readout')
+  )
+
+  // Button controls grouped by zone for the main bar, in canonical zone order,
+  // skipping the readout zone (rendered separately) and any empty zone (so a
+  // divider only ever sits between two non-empty zones).
+  const mainBarZones = $derived(
+    TOOLBAR_ZONE_ORDER
+      .filter((zone) => zone !== 'readout')
+      .map((zone) => ({
+        zone,
+        label: TOOLBAR_ZONE_LABELS[zone],
+        controls: mainBarControls.filter((def) => def.zone === zone),
+      }))
+      .filter((group) => group.controls.length > 0)
+  )
+
+  // More-menu controls grouped by zone, in canonical zone order, empty zones
+  // omitted — each group gets a small uppercase sub-label in the popover.
+  const moreMenuGroups = $derived(
+    TOOLBAR_ZONE_ORDER
+      .map((zone) => ({
+        zone,
+        label: TOOLBAR_ZONE_LABELS[zone],
+        controls: moreControls.filter((def) => def.zone === zone),
+      }))
+      .filter((group) => group.controls.length > 0)
+  )
 
   // Helper function for conditional logging
   function debugLog(...args: unknown[]) {
@@ -865,6 +946,7 @@
   let showTextColorPicker = $state(false)
   let showBgColorPicker = $state(false)
   let showQuickPresetsMenu = $state(false)
+  let showMoreMenu = $state(false)  // ⋯ More overflow popover
 
   // Additional style states
   let letterSpacing = $state(0) // Letter spacing in pixels
@@ -1984,6 +2066,13 @@
     if (except !== 'textColor') showTextColorPicker = false
     if (except !== 'bgColor') showBgColorPicker = false
     if (except !== 'quickPresets') showQuickPresetsMenu = false
+    if (except !== 'more') showMoreMenu = false
+  }
+
+  // Toggle the ⋯ More overflow menu, closing any other open popup first.
+  function toggleMoreMenu() {
+    showMoreMenu = !showMoreMenu
+    if (showMoreMenu) closeOtherPopups('more')
   }
 
   // Reset padding to defaults
@@ -4676,11 +4765,32 @@
     </div>
   {/if}
 
-  <!-- Show controls always (including in full-screen mode) -->
-  <!-- Controls visibility and order is configurable via Settings > Toolbar -->
-  <div class="controls" class:fullscreen-controls={isFullScreen}>
-    <!-- Dynamic toolbar controls - rendered in order from settings -->
-    {#each orderedControls as control (control.id)}
+  <!--
+    ════════════════════════════════════════════════════════════════════════
+    READING-VIEW TOOLBAR (redesigned — see docs/toolbar.md)
+    ────────────────────────────────────────────────────────────────────────
+    Structure:
+      • HERO        play-pause is visually dominant (.is-hero), Playback zone, first.
+      • ZONES       controls are grouped into scannable zones (Playback · Display/
+                    type · View · Capture · System) separated by 1px dividers; a
+                    divider only ever sits between two non-empty zones.
+      • READOUT     time-display renders right-aligned in its own zone after a flex
+                    spacer — a status readout (tabular-nums), never a toggle button.
+      • MORE        low-frequency controls collapse behind a ⋯ more-horizontal
+                    popover, grouped with uppercase sub-labels (progressive
+                    disclosure). A control only collapses if flagged defaultMore AND
+                    the user did not pin it to `toolbarLayout.primary` — user intent
+                    always wins.
+      • TOGGLES     one active-state language everywhere: filled accent + ring
+                    (.icon-btn.active / .btn-*.active) — see styles below.
+    Every control body is rendered through the single `renderControl` snippet so
+    that the main bar and the More menu share identical handlers, popups, keyboard
+    shortcuts, and fullscreen show/hide behavior — zero duplication, no regressions.
+    Visibility and order remain fully configurable via Settings > Toolbar.
+    ════════════════════════════════════════════════════════════════════════
+  -->
+
+  {#snippet renderControl(control: ToolbarControlDef)}
       {#if control.id === 'fullscreen'}
         <button
           use:setIconAction={'tp-fullscreen'}
@@ -4908,8 +5018,9 @@
         <button
           bind:this={btnPlay}
           onclick={togglePlay}
-          class="btn-play icon-btn"
+          class="btn-play icon-btn is-hero"
           class:active={isPlaying || isCountingDown}
+          aria-label={isPlaying ? 'Pause' : isCountingDown ? 'Cancel countdown' : 'Play'}
           title={isPlaying ? 'Pause (Space)' : isCountingDown ? 'Cancel countdown (Space)' : 'Play (Space)'}
         >
         </button>
@@ -5292,6 +5403,21 @@
           {/if}
         {/if}
       {/if}
+  {/snippet}
+
+  <!-- Show controls always (including in full-screen mode) -->
+  <!-- Controls visibility and order is configurable via Settings > Toolbar -->
+  <div class="controls" class:fullscreen-controls={isFullScreen}>
+    <!-- Main-bar zones, separated by 1px dividers (only between non-empty zones) -->
+    {#each mainBarZones as group, groupIndex (group.zone)}
+      {#if groupIndex > 0}
+        <div class="tp-divider" aria-hidden="true"></div>
+      {/if}
+      <div class="tp-zone" data-zone={group.zone} data-zone-label={group.label}>
+        {#each group.controls as control (control.id)}
+          {@render renderControl(control)}
+        {/each}
+      </div>
     {/each}
 
     <!-- Refresh button (only when note is pinned) -->
@@ -5303,6 +5429,44 @@
         title="Refresh pinned note"
       >
       </button>
+    {/if}
+
+    <!-- Flex spacer separates the button stream from the right-aligned readout -->
+    <div class="tp-spacer"></div>
+
+    <!-- Readout zone: the timer renders here as a status pill, not a button -->
+    {#if readoutControl}
+      <div class="tp-zone tp-readout-zone" data-zone="readout">
+        {@render renderControl(readoutControl)}
+      </div>
+    {/if}
+
+    <!-- ⋯ More overflow menu: progressive disclosure for low-frequency controls -->
+    {#if moreMenuGroups.length > 0}
+      <div class="control-with-popup tp-more">
+        <button
+          use:setIconAction={'more-horizontal'}
+          onclick={toggleMoreMenu}
+          class="btn-more icon-btn"
+          class:active={showMoreMenu}
+          aria-label="More controls"
+          aria-haspopup="true"
+          aria-expanded={showMoreMenu}
+          title="More controls"
+        ></button>
+        {#if showMoreMenu}
+          <div class="popup-panel tp-more-menu">
+            {#each moreMenuGroups as group (group.zone)}
+              <div class="tp-more-group-label">{group.label}</div>
+              <div class="tp-more-group">
+                {#each group.controls as control (control.id)}
+                  {@render renderControl(control)}
+                {/each}
+              </div>
+            {/each}
+          </div>
+        {/if}
+      </div>
     {/if}
 
   </div>
@@ -5579,11 +5743,134 @@
     padding: 0.75rem;
     border-bottom: 1px solid var(--background-modifier-border);
     align-items: center;
-    flex-wrap: wrap;
+    /* Redesigned bar never wraps to a second row — overflow goes to ⋯ More. */
+    flex-wrap: nowrap;
     background: var(--background-primary);
     position: relative;
     z-index: 10;
     flex-shrink: 0;
+    min-width: 0;
+  }
+
+  /* ── Redesigned toolbar: zones, dividers, spacer, readout ─────────────── */
+  .tp-zone {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    min-width: 0;
+  }
+
+  /* 1px divider between two non-empty zones */
+  .tp-divider {
+    flex: 0 0 1px;
+    align-self: stretch;
+    margin: 0.15rem 0.1rem;
+    background: var(--background-modifier-border);
+  }
+
+  /* Flex spacer pushes the readout + More to the right edge */
+  .tp-spacer {
+    flex: 1 1 auto;
+    min-width: 0.25rem;
+  }
+
+  .tp-readout-zone {
+    flex: 0 0 auto;
+  }
+
+  .tp-more {
+    flex: 0 0 auto;
+  }
+
+  /* HERO: play-pause is visually dominant — larger, filled accent, own emphasis. */
+  .btn-play.is-hero {
+    min-width: 2.5rem;
+    min-height: 2.5rem;
+    padding: 0.45rem;
+    border-radius: 6px;
+    background: var(--interactive-accent);
+    border-color: var(--interactive-accent);
+    color: var(--text-on-accent);
+    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.18);
+  }
+
+  .btn-play.is-hero:hover {
+    background: var(--interactive-accent-hover);
+    border-color: var(--interactive-accent-hover);
+    color: var(--text-on-accent);
+    filter: brightness(1.03);
+  }
+
+  .btn-play.is-hero :global(svg) {
+    width: 1.25rem;
+    height: 1.25rem;
+  }
+
+  /* ── ONE toggle-state language (active = filled accent + soft ring) ────── */
+  /* Applied to every toggle button on the bar and in the More menu. */
+  .controls .icon-btn.active,
+  .controls .btn-nav.active,
+  .controls .btn-eyeline.active,
+  .controls .btn-pin.active,
+  .controls .btn-keep-awake.active,
+  .controls .btn-auto-pause.active,
+  .controls .btn-fullscreen.active,
+  .controls .btn-progress-indicator.active,
+  .controls .btn-focus-mode.active,
+  .controls .btn-flip-h.active,
+  .controls .btn-flip-v.active,
+  .controls .btn-minimap.active,
+  .controls .btn-voice.active,
+  .controls .btn-tts.active,
+  .controls .btn-more.active {
+    background: var(--interactive-accent);
+    border-color: var(--interactive-accent);
+    color: var(--text-on-accent);
+    box-shadow: 0 0 0 2px var(--background-primary), 0 0 0 4px var(--interactive-accent);
+  }
+
+  .controls .icon-btn.active :global(svg),
+  .controls .icon-btn.active :global(svg *) {
+    color: var(--text-on-accent);
+  }
+
+  /* The hero keeps its dominant fill even when active (playing) — no extra ring. */
+  .btn-play.is-hero.active {
+    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.18);
+  }
+
+  /* ── ⋯ More overflow menu ──────────────────────────────────────────────── */
+  .tp-more-menu {
+    right: 0;
+    left: auto;
+    transform: none;
+    min-width: 200px;
+    max-height: 60vh;
+    overflow-y: auto;
+    padding: 0.4rem;
+  }
+
+  .tp-more-group-label {
+    font-size: 0.65rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    padding: 0.5rem 0.4rem 0.25rem;
+  }
+
+  .tp-more-group {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.4rem;
+    padding: 0 0.2rem 0.3rem;
+  }
+
+  /* Popups opened from inside the More menu should anchor to the menu, not the
+     viewport edge, so keep nested control-with-popup positioning relative. */
+  .tp-more-menu .control-with-popup {
+    position: relative;
   }
 
   /* Temporarily shown controls in full-screen mode */
@@ -5727,13 +6014,15 @@
     align-items: center;
     gap: 0.4rem;
     padding: 0.4rem 0.75rem;
-    background: rgba(var(--interactive-accent-rgb), 0.1);
-    border-radius: 6px;
+    background: var(--background-secondary);
+    border: 1px solid var(--background-modifier-border);
+    border-radius: 10px;
     font-size: 0.95rem;
-    font-weight: 500;
+    font-weight: 700;
+    /* Tabular numerals so the readout doesn't jitter as digits change. */
+    font-variant-numeric: tabular-nums;
     font-family: 'SF Mono', 'Monaco', 'Consolas', monospace;
-    margin-left: 0.5rem;
-    border: none;
+    color: var(--text-normal);
     cursor: pointer;
     transition: background 0.15s ease, transform 0.1s ease;
   }
