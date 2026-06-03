@@ -334,6 +334,10 @@ export class VoiceTrackingService {
     }
 
     let globalWordIndex = 0
+    // Rebuilt in lockstep with the spans below so wordSpans.get(i) and wordTokens[i] are
+    // ALWAYS the same physical word. This replaces the whole-document tokenize() at the top
+    // of the method, which counted code blocks and split compounds differently than the wrap.
+    const rebuiltTokens: TextElement[] = []
 
     // Process each text node
     for (const textNode of textNodes) {
@@ -343,52 +347,56 @@ export class VoiceTrackingService {
       const parent = textNode.parentElement
       if (!parent) continue
 
-      // Split text into words and whitespace, preserving structure
-      // This regex captures words and whitespace separately
-      const parts = text.split(/(\s+)/)
-
-      if (parts.length === 1 && !parts[0].trim()) continue
+      // Wrap words using the SAME tokenizer the matcher uses, so a span's index is
+      // IDENTICAL to its wordTokens index. The previous code split on whitespace only,
+      // which kept "cross-border" / "don't" as ONE span while tokenize() (hyphen and
+      // apostrophe are delimiters) counts them as TWO word tokens. Each such compound
+      // advanced the matcher's index by 2 but the span index by 1 — a per-occurrence
+      // drift that accumulates with depth, so deep in the document the highlight lands
+      // ~30 words AHEAD of the spoken word even though the matcher was locked on correctly.
+      // Driving both off tokenize() makes span-index ≡ token-index by construction.
+      const elements = tokenize(text)
+      if (elements.length === 0) continue
 
       // Create a document fragment with wrapped words
       const fragment = document.createDocumentFragment()
 
-      for (const part of parts) {
-        if (!part) continue
-
-        // Check if this is whitespace
-        if (/^\s+$/.test(part)) {
-          fragment.appendChild(document.createTextNode(part))
-        } else {
-          // This is a word - wrap it in a span
-          const cleanWord = part.replace(/[^\w]/g, '').toLowerCase()
-
-          if (cleanWord.length > 0 && globalWordIndex < this.wordTokens.length) {
-            const span = document.createElement('span')
-            span.className = 'voice-word'
-            span.dataset.wordIndex = String(globalWordIndex)
-            span.textContent = part
-
-            fragment.appendChild(span)
-
-            // Store references
-            this.wordSpans.set(globalWordIndex, span)
-            this.wordPositions.set(globalWordIndex, {
-              wordIndex: globalWordIndex,
-              element: span,
-              offsetTop: 0, // Will be updated after DOM insertion
-              text: part
-            })
-
-            globalWordIndex++
-          } else {
-            // Word without matching token (punctuation only, etc.)
-            fragment.appendChild(document.createTextNode(part))
-          }
+      for (const element of elements) {
+        if (element.type !== 'TOKEN') {
+          // Delimiter (whitespace, punctuation, hyphen, apostrophe) — keep as plain text.
+          fragment.appendChild(document.createTextNode(element.value))
+          continue
         }
+
+        // A word — wrap it, keyed by the matcher's token index.
+        const span = document.createElement('span')
+        span.className = 'voice-word'
+        span.dataset.wordIndex = String(globalWordIndex)
+        span.textContent = element.value
+
+        fragment.appendChild(span)
+
+        this.wordSpans.set(globalWordIndex, span)
+        this.wordPositions.set(globalWordIndex, {
+          wordIndex: globalWordIndex,
+          element: span,
+          offsetTop: 0, // Will be updated after DOM insertion
+          text: element.value
+        })
+        rebuiltTokens.push(element)
+
+        globalWordIndex++
       }
 
       // Replace the text node with our fragment
       parent.replaceChild(fragment, textNode)
+    }
+
+    // CRITICAL: the matcher must index the EXACT same word list as the highlight. Replace the
+    // whole-document tokens (which included skipped code blocks and counted compounds differently)
+    // with the tokens we actually wrapped, in order. Now wordSpans.get(i) ↔ wordTokens[i] forever.
+    if (rebuiltTokens.length > 0) {
+      this.wordTokens = rebuiltTokens
     }
 
     // Update offsetTop values after DOM is modified
