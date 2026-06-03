@@ -54,6 +54,43 @@ The redesign is additive — it does **not** replace `toolbarLayout`:
 - Derived state: `mainBarControls`, `moreControls`, and `readoutControl` are computed
   from the catalog + `orderedControls`; empty zones render no divider.
 
+## Density (Compact ↔ Comfortable)
+
+Setting key: `toolbarDensity: 'compact' | 'comfortable'` (default `'compact'`).
+
+In **comfortable** mode the bar adds a small text label under each icon button (the
+control's `name` from `TOOLBAR_CONTROL_DEFS`), which cuts mis-taps during live use; in
+**compact** mode the bar is icon-only. It is implemented as a class on the `.controls`
+container (`density-comfortable`) plus per-control slots (`.tp-control-slot` /
+`.tp-control-label`) that stack icon-over-label — no change to the control bodies
+themselves. The readout (timer) never gets a label. Set it in **Settings → Toolbar →
+Toolbar options → Density**; the bar updates live via `teleprompter:toolbar-changed`.
+
+## Zone labels
+
+Setting key: `toolbarShowZoneLabels: boolean` (default `false`).
+
+When on, each non-empty main-bar zone renders its small uppercase sub-label
+(Playback / Display·Type / View / Capture / System — from `TOOLBAR_ZONE_LABELS`) above
+the zone's controls (`.tp-zone-label`; the zone switches to a column layout). Off by
+default because it adds height to the bar. Toggle it in **Settings → Toolbar → Toolbar
+options → Zone labels**.
+
+## Recommended layout action
+
+**Settings → Toolbar → Recommended layout → "Apply recommended layout"** (confirms first
+via `ConfirmModal`). It rewrites `toolbarLayout` so every control flagged `defaultMore`
+moves into the `⋯ More` overflow (`secondary`) and the essentials stay on the bar
+(`primary`), in catalog/zone order. This is what makes the redesign "breathe" for users
+who currently have everything pinned to `primary`.
+
+It is **reversible** and non-destructive: `hidden` controls are left untouched, nothing is
+deleted, and any control can be re-pinned or re-shown afterward via the existing
+visibility toggles / drag-reorder. Applying it dispatches `teleprompter:toolbar-changed`
+so the live bar rebuilds immediately. The `defaultMore` truth is mirrored in both
+`TOOLBAR_CONTROL_DEFS` (`src/TeleprompterApp.svelte`) and `TOOLBAR_CONTROLS`
+(`src/settings.ts`).
+
 ## Theming
 
 No hardcoded colors. The toolbar uses Obsidian CSS variables throughout
