@@ -124,6 +124,11 @@ export class VoiceTrackingService {
   private readonly USER_SCROLL_GRACE_MS = 2000
   private userScrollHandler: (() => void) | null = null
   private guardedScrollArea: HTMLElement | null = null
+  // Set when the reader manually scrolls. The next partial SNAPS the matcher's index to the word
+  // at the parked scroll position and resumes LOCAL matching from there — NOT a global re-search.
+  // (An earlier version armed needsGlobalSearch here; combined with rapid manual scrolls + off-script
+  //  speech it produced wild far jumps — "it jumps so far ahead". Snap-to-scroll + local is calm.)
+  private resyncToScrollPending = false
 
   // Confidence gating (Textream): big forward jumps need 2-of-3 recent matches to agree; small
   // steps always commit. Stops a single over-match from pushing the highlight ahead of your voice.
@@ -628,6 +633,24 @@ export class VoiceTrackingService {
       confidenceThreshold: this.config.confidenceThreshold ?? 0.20
     }
 
+    // Manual-scroll snap: the reader scrolled to reposition, so trust where they parked the page.
+    // Move the matcher's index to the word at the scroll position and resume LOCAL matching from
+    // there — no global re-search (which produced the far jumps). The page itself stays put while
+    // the grace window is active (the YIELD below); this only re-anchors WHERE matching looks.
+    if (this.resyncToScrollPending) {
+      this.resyncToScrollPending = false
+      const snapTo = this.estimateWordIndexFromScroll()
+      if (snapTo >= 0 && Math.abs(snapTo - this.currentWordIndex) > this.SMALL_STEP_WORDS) {
+        this.currentWordIndex = snapTo
+        this.lastMatchedIndex = snapTo
+        this.recentMatchPositions = []
+        this.matchAccumulator = []
+        this.consecutiveFailedMatches = 0
+        this.needsGlobalSearch = false
+        if (DEBUG_VOICE_MATCH) console.warn(`[VT]   SNAP → matcher re-anchored to scroll position #${snapTo} (manual scroll)`)
+      }
+    }
+
     let newIndex: number
     let isGlobalMatch = false  // Flag for global search result
 
@@ -813,8 +836,8 @@ export class VoiceTrackingService {
     this.detachUserScrollGuard()
     const mark = (): void => {
       this.userScrolledAt = Date.now()
-      // Re-acquire wherever they land, not where the highlight was stranded.
-      this.needsGlobalSearch = true
+      // Re-acquire wherever they parked the page — via a calm local snap, not a global search.
+      this.resyncToScrollPending = true
     }
     this.userScrollHandler = mark
     this.guardedScrollArea = area
