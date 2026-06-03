@@ -12,7 +12,7 @@ import type {
   VoiceTrackingConfig,
   WordPosition
 } from './types'
-import { tokenize } from './word-tokenizer'
+import { tokenize, cleanWord } from './word-tokenizer'
 import { findNextPosition, findGlobalPosition, type SpeechMatcherConfig } from './speech-matcher'
 import { VoskRecognizer } from './vosk-recognizer'
 
@@ -68,6 +68,15 @@ export class VoiceTrackingService {
   private needsGlobalSearch: boolean = true
   private consecutiveFailedMatches: number = 0
   private readonly FAILED_MATCH_THRESHOLD = 8  // After this many failures, try global search
+
+  // Grammar-constrained recognition: vocabulary derived from the current script
+  private vocabulary: string | undefined = undefined
+
+  // Global-jump hardening: a FAR global match must be confirmed by a second,
+  // agreeing global match before we commit — stops one mis-hear from flinging
+  // the reader to an unrelated part of the document.
+  private pendingGlobalIndex: number = -1
+  private readonly GLOBAL_JUMP_CONFIRM_DISTANCE = 25  // words; farther jumps need confirmation
 
   // Turn-based scrolling state
   private lastSpeechResultTime: number = 0      // Last time we received ANY speech result
@@ -130,6 +139,12 @@ export class VoiceTrackingService {
     // Tokenize the content
     this.tokens = tokenize(content)
     this.wordTokens = this.tokens.filter(t => t.type === 'TOKEN')
+
+    // Build a grammar from the script vocabulary and keep the recognizer in sync
+    // (handles switching documents without reloading the Vosk model).
+    this.vocabulary = this.buildGrammar()
+    this.recognizer.updateGrammar(this.vocabulary)
+
     this.contentArea = contentArea
     this.currentWordIndex = 0
     this.lastRecognizedText = ''
@@ -343,7 +358,7 @@ export class VoiceTrackingService {
       // Initialize recognizer if not already done
       if (!this.recognizer.getIsInitialized()) {
         this.onStatusChange?.('initializing')
-        await this.recognizer.initialize(this.config.language)
+        await this.recognizer.initialize(this.config.language, this.vocabulary)
       }
 
       // Start listening
@@ -395,6 +410,35 @@ export class VoiceTrackingService {
     } else {
       await this.start()
     }
+  }
+
+  /**
+   * User-triggered re-sync. Forgets the current position and re-locates the
+   * reader from the next few spoken words via a fresh global search. Bind this
+   * to a hotkey so a presenter who drifts can snap back without stopping.
+   */
+  forceResync(): void {
+    this.needsGlobalSearch = true
+    this.consecutiveFailedMatches = 0
+    this.pendingGlobalIndex = -1
+    this.matchAccumulator = []
+  }
+
+  /**
+   * Build a Vosk grammar (JSON string-array of allowed words) from the current
+   * script. Constraining recognition to words actually in the document is the
+   * single biggest accuracy win — far fewer mis-hears, far fewer false jumps.
+   * Returns undefined for very large or empty vocabularies so we fall back to
+   * open recognition (Vosk's grammar FST is impractical past ~1k unique words).
+   */
+  private buildGrammar(): string | undefined {
+    const unique = new Set<string>()
+    for (const t of this.wordTokens) {
+      const w = cleanWord(t.value)
+      if (w) unique.add(w)
+    }
+    if (unique.size === 0 || unique.size > 1000) return undefined
+    return JSON.stringify([...unique, '[unk]'])
   }
 
   /**
@@ -504,12 +548,25 @@ export class VoiceTrackingService {
       this.consecutiveFailedMatches = 0
     }
 
-    // For global matches, scroll immediately to the found position (bypass accumulator)
+    // Global matches: small corrections commit immediately, but a FAR jump must be
+    // confirmed by a second agreeing global match before we move — one mis-hear can
+    // no longer fling the reader to an unrelated section.
     if (isGlobalMatch) {
-      this.currentWordIndex = newIndex
-      this.lastMatchedIndex = newIndex
-      this.matchAccumulator = []  // Clear accumulator on global jump
-      this.scrollToWord(newIndex, 5)  // Use moderate animation duration
+      const globalJump = Math.abs(newIndex - this.currentWordIndex)
+      const confirmed = this.pendingGlobalIndex >= 0 &&
+        Math.abs(newIndex - this.pendingGlobalIndex) <= 5
+
+      if (globalJump <= this.GLOBAL_JUMP_CONFIRM_DISTANCE || confirmed) {
+        this.pendingGlobalIndex = -1
+        this.currentWordIndex = newIndex
+        this.lastMatchedIndex = newIndex
+        this.matchAccumulator = []  // Clear accumulator on global jump
+        this.scrollToWord(newIndex, 5)  // Use moderate animation duration
+      } else {
+        // First far global match — hold it and re-search next time to confirm
+        this.pendingGlobalIndex = newIndex
+        this.needsGlobalSearch = true
+      }
       return
     }
 
@@ -533,6 +590,7 @@ export class VoiceTrackingService {
 
       if (scrollTarget >= 0) {
         // We have enough consistent matches - now scroll!
+        this.pendingGlobalIndex = -1  // normal tracking resumed; drop any held far-jump
         this.currentWordIndex = scrollTarget
         this.lastMatchedIndex = scrollTarget
         this.scrollToWord(scrollTarget, Math.abs(scrollTarget - this.currentWordIndex))

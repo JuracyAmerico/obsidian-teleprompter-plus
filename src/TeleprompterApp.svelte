@@ -3222,6 +3222,16 @@
       return
     }
 
+    // Voice tracking re-sync: press R while tracking to re-locate your place if it drifts
+    if (voiceTrackingActive && (e.key === 'r' || e.key === 'R')) {
+      e.preventDefault()
+      voiceTrackingService?.forceResync()
+      lastRecognizedText = ''
+      new Notice('Voice tracking: re-syncing — keep reading', 2000)
+      debugLog('[Voice] Manual re-sync requested')
+      return
+    }
+
     // Number keys 1-9 to jump to header sections (always enabled)
     if (e.key >= '1' && e.key <= '9') {
       const index = parseInt(e.key) - 1
@@ -3692,6 +3702,9 @@
         break
       case 'teleprompter:voice-toggle':
         toggleVoiceTracking()
+        break
+      case 'teleprompter:voice-resync':
+        if (voiceTrackingActive) voiceTrackingService?.forceResync()
         break
       // TTS commands
       case 'teleprompter:tts-toggle':
