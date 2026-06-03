@@ -42,6 +42,9 @@ const DEFAULT_CONFIG: VoiceTrackingConfig = {
 // Feature flag: Karaoke word highlighting
 const ENABLE_KARAOKE_HIGHLIGHTING = true
 
+// Verbose match/scroll logging to the console for diagnosing tracking. Flip off when done.
+const DEBUG_VOICE_MATCH = true
+
 /**
  * Voice Tracking Service - the main interface for voice-controlled scrolling.
  */
@@ -589,6 +592,16 @@ export class VoiceTrackingService {
     // Calculate jump distance
     const jumpDistance = newIndex - this.currentWordIndex
 
+    if (DEBUG_VOICE_MATCH) {
+      const heardTail = text.split(/\s+/).filter(Boolean).slice(-6).join(' ')
+      const matchedWord = this.wordTokens[newIndex]?.value ?? '?'
+      const curWord = this.wordTokens[this.currentWordIndex]?.value ?? '?'
+      console.log(
+        `[VT] ${isFinal ? 'FINAL' : 'part '} heard:"…${heardTail}" | match #${newIndex} "${matchedWord}"` +
+        ` | cur #${this.currentWordIndex} "${curWord}" | jump ${jumpDistance} | ${isGlobalMatch ? 'GLOBAL' : 'local'}`
+      )
+    }
+
     // Track failed matches (no forward progress from local search)
     if (jumpDistance <= 0 && !isGlobalMatch) {
       this.consecutiveFailedMatches++
@@ -670,6 +683,9 @@ export class VoiceTrackingService {
       this.targetScrollPos = Math.max(0, position.offsetTop - h * restFrac)
       this.onWordMatch?.(wordIndex, this.targetScrollPos)
       this.startScrollFollow()
+      if (DEBUG_VOICE_MATCH) console.log(`[VT]   scroll ADVANCE → highlight #${wordIndex}, wordY=${Math.round(wordViewportY)} > trigger=${Math.round(h * triggerFrac)}`)
+    } else if (DEBUG_VOICE_MATCH) {
+      console.log(`[VT]   scroll hold (highlight #${wordIndex}, wordY=${Math.round(wordViewportY)} within band ${Math.round(h * restFrac)}–${Math.round(h * triggerFrac)})`)
     }
   }
 
