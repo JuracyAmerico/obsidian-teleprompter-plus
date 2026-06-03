@@ -80,8 +80,10 @@ export class VoiceTrackingService {
 
   // Forward catch-up: when the reader is clearly ahead, snap forward immediately
   // (bypassing the smooth per-step cap + accumulator) so we never trail a fast reader.
-  private readonly CATCH_UP_THRESHOLD = 6   // words ahead before we start easing forward faster
-  private readonly CATCH_UP_MAX = 12        // max words to advance in one catch-up step (eased, not a leap)
+  // Per-update advance cap for smooth tracking. Fixed (not tied to the jittery preset) so it
+  // keeps pace without lurching. NO forward "catch-up" easing — pushing ahead of the matched
+  // position created a positive-feedback snowball that accelerated the further you read.
+  private readonly SMOOTH_STEP_CAP = 10
   // Re-sync only relocates within this many words of where the reader is looking —
   // a bounded search can never teleport to the end of the document.
   private readonly GLOBAL_SEARCH_RADIUS = 120
@@ -94,7 +96,7 @@ export class VoiceTrackingService {
   private silenceCheckTimer: number | null = null  // Timer for detecting silence
   private pendingScrollTarget: number = -1      // Accumulated scroll target
   private matchAccumulator: number[] = []       // Recent match positions for averaging
-  private readonly MATCH_ACCUMULATOR_SIZE = 3   // Require this many consistent matches
+  private readonly MATCH_ACCUMULATOR_SIZE = 2   // consistent matches before scrolling (rejects single overshoots, stays responsive)
 
   // Callbacks
   onPauseChange?: (_isPaused: boolean) => void
@@ -596,25 +598,10 @@ export class VoiceTrackingService {
     // For partial results, require minimum forward progress
     const minJump = isFinal ? 1 : this.MIN_JUMP_DISTANCE
 
-    // CATCH-UP (proportional): the reader is ahead of the scroll — EASE forward instead of
-    // leaping. Advance ~half the gap (capped), with the scroll animation scaled to the
-    // distance so it glides. This converges to your position over a couple of updates without
-    // trailing (the old fixed cap) OR lurching a whole paragraph (a full-gap snap).
-    if (jumpDistance >= this.CATCH_UP_THRESHOLD) {
-      const advance = Math.min(this.CATCH_UP_MAX, Math.max(this.MAX_JUMP_DISTANCE, Math.ceil(jumpDistance * 0.5)))
-      const target = this.currentWordIndex + advance
-      this.pendingGlobalIndex = -1
-      this.matchAccumulator = []
-      this.currentWordIndex = target
-      this.lastMatchedIndex = target
-      this.scrollToWord(target, advance)  // animation duration scales with distance → smooth glide
-      return
-    }
-
     // Only accumulate forward matches (smooth small steps)
     if (jumpDistance >= minJump || (newIndex === 0 && this.currentWordIndex === 0)) {
-      // Cap the jump to prevent jarring large jumps
-      const cappedJump = Math.min(jumpDistance, this.MAX_JUMP_DISTANCE)
+      // Cap the per-update advance (fixed moderate value) — keeps pace, never lurches
+      const cappedJump = Math.min(jumpDistance, this.SMOOTH_STEP_CAP)
       const targetIndex = this.currentWordIndex + cappedJump
 
       // Accumulate this match - only scroll when we have consistent matches
