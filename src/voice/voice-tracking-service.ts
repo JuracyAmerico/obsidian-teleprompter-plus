@@ -715,8 +715,18 @@ export class VoiceTrackingService {
       const globalJump = Math.abs(newIndex - this.currentWordIndex)
       const confirmed = this.pendingGlobalIndex >= 0 &&
         Math.abs(newIndex - this.pendingGlobalIndex) <= 5
+      // BACKWARD re-acquisition is almost always a repeated-phrase false match. Stalls happen
+      // because the reader ran AHEAD of the local window, so legitimate recovery is forward; a
+      // re-sync that lands behind the current word is the matcher latching onto an earlier copy
+      // of a phrase (or onto off-script speech). So require confirmation for ANY backward jump,
+      // not just far ones — that kills the small −12/−18/−26 backward flings while still letting a
+      // genuinely-repeated backward re-acquire through once two global matches agree. Deliberate
+      // back-navigation goes through R (resyncRequested) or manual scroll (the SNAP path), both of
+      // which bypass this.
+      const isBackward = newIndex < this.currentWordIndex - this.SMALL_STEP_WORDS
+      const needsConfirm = isBackward || globalJump > this.GLOBAL_JUMP_CONFIRM_DISTANCE
 
-      if (this.resyncRequested || globalJump <= this.GLOBAL_JUMP_CONFIRM_DISTANCE || confirmed) {
+      if (this.resyncRequested || !needsConfirm || confirmed) {
         // User-requested re-sync commits immediately (no confirmation) — that's the whole point of R.
         this.resyncRequested = false
         this.pendingGlobalIndex = -1
