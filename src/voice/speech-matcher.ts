@@ -69,10 +69,13 @@ export function computeSpeechRecognitionTokenIndex(
     lastRecognizedTokenIndex = 0
   }
 
-  // Get reference tokens from current position using configured window size
-  // NOTE: reference should already be word-only, but filter just in case
+  // Get reference tokens from current position using an ADAPTIVE look-ahead window.
+  // Canonical jlecomte sizing: recognizedWords*2 + 10 — the window grows with how much
+  // you've spoken, so it can always see far enough ahead to keep pace with a fast reader.
+  // (A small fixed window made the tracker permanently trail once you got a few words ahead.)
+  const lookAhead = Math.max(windowSize, recognizedTokens.length * 2 + 10)
   const referenceTokens = reference
-    .slice(lastRecognizedTokenIndex, lastRecognizedTokenIndex + windowSize)
+    .slice(lastRecognizedTokenIndex, lastRecognizedTokenIndex + lookAhead)
     .filter(element => element.type === 'TOKEN')
 
   // If no reference tokens in window, no match possible
@@ -306,13 +309,9 @@ export function findNextPosition(
     return currentIndex
   }
 
-  // Use max jump from config (set by user's preset)
-  const maxJump = config.maxJumpDistance
-  const actualJump = result.matchedWordIndex - currentIndex
-
-  if (actualJump > maxJump) {
-    return currentIndex + maxJump
-  }
-
+  // Return the TRUE matched position. Jump magnitude is owned by the service layer:
+  // small steps are capped for smoothness, large forward gaps are handled by catch-up.
+  // Capping here is what made the tracker permanently trail a fast reader (and it also
+  // starved the catch-up logic, since the reported jump never exceeded maxJump).
   return result.matchedWordIndex
 }
