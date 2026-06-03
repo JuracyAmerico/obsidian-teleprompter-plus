@@ -959,24 +959,24 @@ export class VoiceTrackingService {
     }
 
     const h = this.contentArea.clientHeight
-    // Rest = where the highlighted word sits right after the page advances (Scroll position setting).
-    const restFrac = Math.min(0.8, Math.max(0.15, this.SCROLL_POSITION / 100))
-    // Trigger = how far down the word may drift before the page advances. The gap between rest and
-    // trigger is the "hold band": while you read down through it (several lines), the page stays put.
-    const triggerFrac = Math.min(0.9, restFrac + 0.4)
+    // FIXED READING LINE (continuous follow). Keep the current word anchored at one height and ease
+    // toward it on EVERY commit. The old model held the page still for a whole "band" (~5 lines) and
+    // then jumped the word back up in one big leap — that hold-then-jump is the jumpiness. Anchoring
+    // every line turns it into frequent small eased nudges = a smooth glide. It also means the line
+    // you're reading never sinks to the bottom of the screen, so there's always runway below to read
+    // ahead (the "couldn't read below" problem). The anchor is your "Current word position" setting.
+    const anchorFrac = Math.min(0.6, Math.max(0.12, this.SCROLL_POSITION / 100))
+    const desired = Math.max(0, wordTop - h * anchorFrac)
 
-    const wordViewportY = wordTop - this.contentArea.scrollTop
-
-    // HOLD, then ADVANCE: only move the page when the highlighted word reaches the lower trigger
-    // (you've read down the screen) or has drifted above the top (a backward jump / re-sync).
-    // Within the band: do nothing — the page holds still while you finish the line.
-    if (wordViewportY > h * triggerFrac || wordViewportY < h * 0.05) {
-      this.targetScrollPos = Math.max(0, wordTop - h * restFrac)
+    // Retarget only when the word moved to a new line (target changed by more than a rounding wobble),
+    // so the follow isn't re-armed for every partial while you speak the words on the current line.
+    if (Math.abs(desired - this.targetScrollPos) > 1) {
+      this.targetScrollPos = desired
       this.onWordMatch?.(wordIndex, this.targetScrollPos)
       this.startScrollFollow()
-      if (DEBUG_VOICE_MATCH) console.warn(`[VT]   scroll ADVANCE → highlight #${wordIndex}, wordY=${Math.round(wordViewportY)} > trigger=${Math.round(h * triggerFrac)}`)
+      if (DEBUG_VOICE_MATCH) console.warn(`[VT]   scroll follow → #${wordIndex}, target=${Math.round(desired)} (anchor ${Math.round(h * anchorFrac)} of ${h})`)
     } else if (DEBUG_VOICE_MATCH) {
-      console.warn(`[VT]   scroll hold (highlight #${wordIndex}, wordY=${Math.round(wordViewportY)} within band ${Math.round(h * restFrac)}–${Math.round(h * triggerFrac)})`)
+      console.warn(`[VT]   scroll steady (#${wordIndex} already at anchor ${Math.round(h * anchorFrac)})`)
     }
   }
 
