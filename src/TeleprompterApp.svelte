@@ -2270,6 +2270,9 @@
       resolveCitations: settings.ttsResolveCitations,
       skipCodeBlocks: settings.ttsSkipCodeBlocks,
       skipTables: settings.ttsSkipTables,
+      elevenLabsApiKey: settings.elevenLabsApiKey,
+      elevenLabsVoiceId: settings.elevenLabsVoiceId,
+      elevenLabsModelId: settings.elevenLabsModelId,
     })
 
     // Subscribe to TTS events
