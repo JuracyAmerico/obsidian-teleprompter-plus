@@ -78,6 +78,13 @@ export class VoiceTrackingService {
   private pendingGlobalIndex: number = -1
   private readonly GLOBAL_JUMP_CONFIRM_DISTANCE = 25  // words; farther jumps need confirmation
 
+  // Forward catch-up: when the reader is clearly ahead, snap forward immediately
+  // (bypassing the smooth per-step cap + accumulator) so we never trail a fast reader.
+  private readonly CATCH_UP_THRESHOLD = 6   // words ahead before we snap to catch up
+  private readonly CATCH_UP_MAX = 25        // max words to advance in one catch-up
+  // Set by forceResync(): the next global match commits immediately, no confirmation gate.
+  private resyncRequested = false
+
   // Turn-based scrolling state
   private lastSpeechResultTime: number = 0      // Last time we received ANY speech result
   private isInSpeechTurn: boolean = false       // Are we currently in an active speech turn?
@@ -419,6 +426,7 @@ export class VoiceTrackingService {
    */
   forceResync(): void {
     this.needsGlobalSearch = true
+    this.resyncRequested = true   // next global match commits immediately, even a far one
     this.consecutiveFailedMatches = 0
     this.pendingGlobalIndex = -1
     this.matchAccumulator = []
@@ -556,7 +564,9 @@ export class VoiceTrackingService {
       const confirmed = this.pendingGlobalIndex >= 0 &&
         Math.abs(newIndex - this.pendingGlobalIndex) <= 5
 
-      if (globalJump <= this.GLOBAL_JUMP_CONFIRM_DISTANCE || confirmed) {
+      if (this.resyncRequested || globalJump <= this.GLOBAL_JUMP_CONFIRM_DISTANCE || confirmed) {
+        // User-requested re-sync commits immediately (no confirmation) — that's the whole point of R.
+        this.resyncRequested = false
         this.pendingGlobalIndex = -1
         this.currentWordIndex = newIndex
         this.lastMatchedIndex = newIndex
@@ -579,7 +589,20 @@ export class VoiceTrackingService {
     // For partial results, require minimum forward progress
     const minJump = isFinal ? 1 : this.MIN_JUMP_DISTANCE
 
-    // Only accumulate forward matches
+    // CATCH-UP: the reader is clearly ahead of the scroll — snap forward now so we stop
+    // trailing. Forward in-script progress is safe (not a random jump), so bypass the small
+    // per-step cap and the 3-match accumulator that otherwise make it lag a normal/fast reader.
+    if (jumpDistance >= this.CATCH_UP_THRESHOLD) {
+      const target = this.currentWordIndex + Math.min(jumpDistance, this.CATCH_UP_MAX)
+      this.pendingGlobalIndex = -1
+      this.matchAccumulator = []
+      this.currentWordIndex = target
+      this.lastMatchedIndex = target
+      this.scrollToWord(target, 5)
+      return
+    }
+
+    // Only accumulate forward matches (smooth small steps)
     if (jumpDistance >= minJump || (newIndex === 0 && this.currentWordIndex === 0)) {
       // Cap the jump to prevent jarring large jumps
       const cappedJump = Math.min(jumpDistance, this.MAX_JUMP_DISTANCE)
