@@ -753,6 +753,14 @@ export class VoiceTrackingService {
       return
     }
 
+    // Read the word's offset from the LIVE span, not the init-time snapshot. The cached offsetTop
+    // is measured once at build time; on notes with a properties table / images / late font load the
+    // layout shifts afterward, leaving the cache stale (often 0). A stale 0 makes wordViewportY hugely
+    // negative, which trips the "above viewport" branch and yanks the page to the very top — from
+    // which the scroll-anchored re-sync then re-acquires the intro instead of where you actually are.
+    const liveSpan = this.wordSpans.get(ledIndex) ?? this.wordSpans.get(wordIndex)
+    const wordTop = liveSpan ? liveSpan.offsetTop : position.offsetTop
+
     const h = this.contentArea.clientHeight
     // Rest = where the highlighted word sits right after the page advances (Scroll position setting).
     const restFrac = Math.min(0.8, Math.max(0.15, this.SCROLL_POSITION / 100))
@@ -760,13 +768,13 @@ export class VoiceTrackingService {
     // trigger is the "hold band": while you read down through it (several lines), the page stays put.
     const triggerFrac = Math.min(0.9, restFrac + 0.4)
 
-    const wordViewportY = position.offsetTop - this.contentArea.scrollTop
+    const wordViewportY = wordTop - this.contentArea.scrollTop
 
     // HOLD, then ADVANCE: only move the page when the highlighted word reaches the lower trigger
     // (you've read down the screen) or has drifted above the top (a backward jump / re-sync).
     // Within the band: do nothing — the page holds still while you finish the line.
     if (wordViewportY > h * triggerFrac || wordViewportY < h * 0.05) {
-      this.targetScrollPos = Math.max(0, position.offsetTop - h * restFrac)
+      this.targetScrollPos = Math.max(0, wordTop - h * restFrac)
       this.onWordMatch?.(wordIndex, this.targetScrollPos)
       this.startScrollFollow()
       if (DEBUG_VOICE_MATCH) console.warn(`[VT]   scroll ADVANCE → highlight #${wordIndex}, wordY=${Math.round(wordViewportY)} > trigger=${Math.round(h * triggerFrac)}`)
