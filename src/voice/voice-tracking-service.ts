@@ -111,8 +111,10 @@ export class VoiceTrackingService {
   // Apple restarts its speech segment) and forward matching can NEVER recover on its own. Trigger
   // one bounded, scroll-anchored re-sync to re-acquire them. Safe now (unlike the old teleporting
   // auto-search) because the search is capped to GLOBAL_SEARCH_RADIUS around where they're looking
-  // AND far jumps still need 2-of-3 confirmation. ~5 partials ≈ 2s of being stuck.
-  private readonly STALL_RESYNC_THRESHOLD = 5
+  // AND far jumps still need 2-of-3 confirmation. ~3 partials ≈ 1.2s of being stuck — tuned down
+  // from 5 so the highlight unfreezes faster at section boundaries (the forward "freeze-then-leap"
+  // lag), accepting slightly more eager re-sync as the trade.
+  private readonly STALL_RESYNC_THRESHOLD = 3
 
   // Manual-scroll override: when the reader grabs the page (wheel / trackpad / touch) to reposition
   // — usually because tracking drifted — auto-follow must YIELD, or it fights them and snaps the page
