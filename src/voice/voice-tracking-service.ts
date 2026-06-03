@@ -42,8 +42,8 @@ const DEFAULT_CONFIG: VoiceTrackingConfig = {
 // Feature flag: Karaoke word highlighting
 const ENABLE_KARAOKE_HIGHLIGHTING = true
 
-// Verbose match/scroll logging to the console for diagnosing tracking. Flip off when done.
-const DEBUG_VOICE_MATCH = true
+// Verbose match/scroll logging to the console for diagnosing tracking. Flip on when needed.
+const DEBUG_VOICE_MATCH = false
 
 /**
  * Voice Tracking Service - the main interface for voice-controlled scrolling.

@@ -44,6 +44,7 @@ export class AppleSpeechRecognizer {
   private isInitialized = false
   private isListening = false
   private stdoutBuffer = ''
+  private contextFilePath: string | null = null
   private authTimer: ReturnType<typeof setTimeout> | null = null
   // Generous: first run shows TWO macOS permission dialogs (Speech + Mic) that take time to
   // read and approve. After granting once, startup is instant. This only guards a dead sidecar.
@@ -60,7 +61,7 @@ export class AppleSpeechRecognizer {
   }
 
   /** grammar is accepted for interface parity with VoskRecognizer but unused (open-vocab). */
-  initialize(language = 'en-US', _grammar?: string): Promise<void> {
+  initialize(language = 'en-US', grammar?: string): Promise<void> {
     if (!Platform.isMacOS) {
       this.emitError('browser-not-supported', 'Apple Speech recognition is only available on macOS')
       return Promise.reject(new Error('Apple Speech is macOS-only'))
@@ -70,13 +71,33 @@ export class AppleSpeechRecognizer {
       return Promise.reject(new Error('Apple Speech sidecar not installed'))
     }
     this.language = language || 'en-US'
+    this.buildContextFile(grammar)
     this.isInitialized = true
     return Promise.resolve()
   }
 
-  /** No-op: Apple Speech is open-vocabulary; the matcher handles script constraint. */
-  updateGrammar(_grammar?: string): void {
-    /* intentionally empty */
+  /** Refresh the contextualStrings file when the tracked document changes. */
+  updateGrammar(grammar?: string): void {
+    this.buildContextFile(grammar)
+  }
+
+  /** Write the script's salient words (the Vosk grammar doubles as our word list) to a temp file
+   *  so the sidecar can feed them to Apple as contextualStrings — cuts mis-hears of uncommon words. */
+  private buildContextFile(grammar?: string): void {
+    this.contextFilePath = null
+    if (!grammar) return
+    try {
+      const words = JSON.parse(grammar) as string[]
+      const salient = Array.from(new Set(
+        words.map(w => w.trim()).filter(w => w.length >= 5 && w !== '[unk]')
+      )).slice(0, 100)
+      if (salient.length === 0) return
+      const p = path.join(os.tmpdir(), 'teleprompter-stt-context.txt')
+      fs.writeFileSync(p, salient.join('\n'), 'utf8')
+      this.contextFilePath = p
+    } catch {
+      this.contextFilePath = null
+    }
   }
 
   async start(): Promise<void> {
@@ -88,7 +109,9 @@ export class AppleSpeechRecognizer {
     this.emitStatus('initializing')
 
     // Spawn THROUGH the disclaim launcher so the sidecar runs under its own TCC identity.
-    const proc = childProcess.spawn(appleLauncherPath(), [appleSidecarPath(), this.language], {
+    const sidecarArgs = [appleSidecarPath(), this.language]
+    if (this.contextFilePath) sidecarArgs.push(this.contextFilePath)
+    const proc = childProcess.spawn(appleLauncherPath(), sidecarArgs, {
       stdio: ['ignore', 'pipe', 'pipe'],
     } as Record<string, unknown>)
     this.proc = proc

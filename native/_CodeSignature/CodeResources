@@ -8,18 +8,40 @@
 		<data>
 		AM6w+pVYVIR5bVZiQYDiXuUz6Eo=
 		</data>
+		<key>disclaim-launcher</key>
+		<data>
+		ci2MTNYMGBrg5hARCX63f8Dg870=
+		</data>
+		<key>disclaim-launcher.c</key>
+		<data>
+		YGfMhwWvoEzMTGCCtgVx3l1zujs=
+		</data>
 		<key>teleprompter-stt.swift</key>
 		<data>
-		1SYViKRwogpueEHwaiAI2M/2Jdg=
+		2GEyhDc/Fxm4cMRxM94cmXSCAHk=
 		</data>
 	</dict>
 	<key>files2</key>
 	<dict>
+		<key>disclaim-launcher</key>
+		<dict>
+			<key>hash2</key>
+			<data>
+			VM4LvY/au/t369eJHLA7AxF/hyb7LCDKrWavRKoU61Y=
+			</data>
+		</dict>
+		<key>disclaim-launcher.c</key>
+		<dict>
+			<key>hash2</key>
+			<data>
+			49YcpJO6lgKSt8XEjuxr9RAFd5iLf44O627Mh3R0dag=
+			</data>
+		</dict>
 		<key>teleprompter-stt.swift</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			19BVJYGBOSnrDvF519mYpd9kI6cnTvOZbMSc1FDV1YM=
+			+E6CapXE5nrVZkh24MVYX1YgdLOL+KOspxUMF7Hm4mc=
 			</data>
 		</dict>
 	</dict>
