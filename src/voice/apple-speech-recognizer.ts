@@ -45,7 +45,9 @@ export class AppleSpeechRecognizer {
   private isListening = false
   private stdoutBuffer = ''
   private authTimer: ReturnType<typeof setTimeout> | null = null
-  private readonly AUTH_TIMEOUT_MS = 12000  // if we never reach 'listening', surface a clear error
+  // Generous: first run shows TWO macOS permission dialogs (Speech + Mic) that take time to
+  // read and approve. After granting once, startup is instant. This only guards a dead sidecar.
+  private readonly AUTH_TIMEOUT_MS = 90000
 
   private resultSubscribers: ResultSubscriber[] = []
   private statusSubscribers: StatusSubscriber[] = []
