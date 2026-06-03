@@ -419,6 +419,9 @@ export class VoiceTrackingService {
    * @param wordIndex - Index of the word to highlight
    */
   highlightWord(wordIndex: number): void {
+    // Word highlight disabled: keep the page following your voice (scrollToWord still runs), but
+    // paint no per-word marker — no jumping highlight box to lose your place against.
+    if (this.config.showWordHighlight === false) return
     if (this.highlightedWordIndex === wordIndex) return
 
     // The previously-current word becomes "past" (read).

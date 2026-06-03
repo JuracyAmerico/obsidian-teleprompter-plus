@@ -840,7 +840,8 @@
         scrollPosition: settings.voiceTrackingScrollPosition ?? 20,
         readTrail: settings.voiceTrackingReadTrail ?? 8,
         smoothness: (settings.voiceTrackingSmoothness ?? 16) / 100,
-        highlightLead: settings.voiceTrackingHighlightLead ?? 0
+        highlightLead: settings.voiceTrackingHighlightLead ?? 0,
+        showWordHighlight: settings.voiceTrackingShowWordHighlight ?? false
       })
     }
   })
@@ -2200,7 +2201,8 @@
           scrollPosition: settings.voiceTrackingScrollPosition ?? 20,
         readTrail: settings.voiceTrackingReadTrail ?? 8,
         smoothness: (settings.voiceTrackingSmoothness ?? 16) / 100,
-        highlightLead: settings.voiceTrackingHighlightLead ?? 0
+        highlightLead: settings.voiceTrackingHighlightLead ?? 0,
+        showWordHighlight: settings.voiceTrackingShowWordHighlight ?? false
         })
 
         // Set up callbacks

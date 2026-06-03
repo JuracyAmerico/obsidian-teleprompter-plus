@@ -97,6 +97,10 @@ export interface VoiceTrackingConfig {
    *  latency / predictive partials so the highlight sits exactly on what you're reading.
    *  + = highlight sits ahead of your voice, - = behind. Default 0. */
   highlightLead?: number
+  /** Show the per-word karaoke highlight. When false, voice tracking still scrolls the page
+   *  smoothly to follow your voice, but no word is visually highlighted (no jumping box).
+   *  Default false — smooth follow without the distracting per-word marker. */
+  showWordHighlight?: boolean
 }
 
 /**

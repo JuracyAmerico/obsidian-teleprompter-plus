@@ -153,6 +153,7 @@ export interface TeleprompterSettings {
 	voiceTrackingReadTrail: number           // Words to keep the scroll behind your voice (anti "runs ahead")
 	voiceTrackingSmoothness: number          // Scroll-follow smoothness ×100 (e.g. 16 = 0.16)
 	voiceTrackingHighlightLead: number       // Highlight offset in words vs voice (+ ahead, - behind)
+	voiceTrackingShowWordHighlight: boolean   // Show per-word karaoke highlight (off = smooth follow only)
 	// TTS (Text-to-Speech) settings
 	ttsEngine: 'auto' | 'mac-say' | 'web-speech' | 'kokoro' | 'elevenlabs'
 	ttsVoice: string                   // Voice ID (engine-specific)
@@ -302,6 +303,7 @@ export const DEFAULT_SETTINGS: TeleprompterSettings = {
 	voiceTrackingReadTrail: 8,              // anchor 8 words behind your voice by default
 	voiceTrackingSmoothness: 16,            // 0.16 follow factor
 	voiceTrackingHighlightLead: 0,          // highlight sits exactly on the recognized word
+	voiceTrackingShowWordHighlight: false,  // off by default: smooth voice-follow scroll, no per-word marker
 	// TTS (Text-to-Speech) defaults
 	ttsEngine: 'auto' as const,
 	ttsVoice: '',
@@ -1591,8 +1593,18 @@ export class TeleprompterSettingTab extends PluginSettingTab {
 						}
 					},
 					{
+						name: 'Highlight the current word',
+						desc: 'Paint a karaoke-style marker on the word you are speaking. Off (default) = the page still scrolls smoothly to follow your voice, but no per-word box jumps around — easier to keep your place. Re-toggle voice tracking (V) to apply.',
+						type: 'toggle',
+						value: this.plugin.settings.voiceTrackingShowWordHighlight,
+						onChange: (value) => {
+							this.plugin.settings.voiceTrackingShowWordHighlight = value as boolean
+							void this.plugin.saveSettings()
+						}
+					},
+					{
 						name: 'Highlight offset (words ahead/behind your voice)',
-						desc: 'Fine-tunes where the highlight sits relative to the word you are speaking. 0 = on the recognized word. If the highlight feels AHEAD of you, go negative (-1, -2). If it feels BEHIND, go positive (+1, +2). Re-toggle voice tracking (V) to apply.',
+						desc: 'Only applies when "Highlight the current word" is on. Fine-tunes where the highlight sits relative to the word you are speaking. 0 = on the recognized word. If the highlight feels AHEAD of you, go negative (-1, -2). If it feels BEHIND, go positive (+1, +2). Re-toggle voice tracking (V) to apply.',
 						type: 'slider',
 						min: -3, max: 3, step: 1,
 						value: this.plugin.settings.voiceTrackingHighlightLead,
