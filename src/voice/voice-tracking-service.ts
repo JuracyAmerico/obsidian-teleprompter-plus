@@ -114,7 +114,7 @@ export class VoiceTrackingService {
   private readonly FORWARD_CAP = 5        // max words the highlight may advance in one commit (anti-lurch)
   // Lead the highlight ahead of the matched word to offset recognition latency (Apple's match
   // trails your actual reading). Raise if it feels behind, lower (or 0) if it feels ahead.
-  private readonly HIGHLIGHT_LEAD = 2
+  private readonly HIGHLIGHT_LEAD = 1
   // Set by forceResync(): the next global match commits immediately, no confirmation gate.
   private resyncRequested = false
 
