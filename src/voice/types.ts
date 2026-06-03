@@ -89,6 +89,10 @@ export interface VoiceTrackingConfig {
   // Scroll position settings
   /** Where current word appears on screen (0-100%, from top) */
   scrollPosition?: number
+  /** Words to keep the scroll BEHIND your spoken word (fix for "scroll runs ahead"). */
+  readTrail?: number
+  /** Scroll-follow smoothness 0..1 (lower = calmer glide, higher = snappier). */
+  smoothness?: number
 }
 
 /**

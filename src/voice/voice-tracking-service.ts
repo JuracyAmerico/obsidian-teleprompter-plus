@@ -90,7 +90,12 @@ export class VoiceTrackingService {
   // velocity) so it can't overshoot/race; and it eases rather than hard-snapping, so no jumps.
   // FOLLOW_FACTOR: lower = smoother/calmer, higher = snappier. ~0.12-0.22 is the usable range.
   private targetScrollPos = 0
-  private readonly FOLLOW_FACTOR = 0.16
+  // Both live-tunable from settings:
+  // FOLLOW_FACTOR (smoothness) — lower = calmer glide, higher = snappier.
+  private get FOLLOW_FACTOR(): number { return this.config.smoothness ?? 0.16 }
+  // READ_TRAIL — how many words BEHIND your spoken word the scroll anchors. The fix for
+  // "the scroll runs ahead of me": raise it until the line you're reading sits comfortably.
+  private get READ_TRAIL(): number { return this.config.readTrail ?? 8 }
   // Anchor the scroll a few words BEHIND the spoken word, so the line you're reading always sits
   // slightly ahead of the scroll. Prevents the text from running ahead of your voice.
   private readonly READ_AHEAD_LAG = 4
@@ -629,7 +634,9 @@ export class VoiceTrackingService {
    * @param jumpDistance - Number of words being jumped (for animation timing)
    */
   private scrollToWord(wordIndex: number): void {
-    const position = this.wordPositions.get(wordIndex)
+    // Anchor the scroll READ_TRAIL words behind your spoken word so it stays behind your reading.
+    const anchorIndex = Math.max(0, wordIndex - this.READ_TRAIL)
+    const position = this.wordPositions.get(anchorIndex) ?? this.wordPositions.get(wordIndex)
 
     if (!position || !this.contentArea) {
       return

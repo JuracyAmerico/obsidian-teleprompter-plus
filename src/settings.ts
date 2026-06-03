@@ -150,6 +150,8 @@ export interface TeleprompterSettings {
 	voiceTrackingPauseDetection: boolean     // Enable pause detection (default: true)
 	voiceTrackingPauseThresholdMs: number    // Time without speech to pause scrolling (default: 1500ms)
 	voiceTrackingScrollPosition: number      // Where current word appears on screen (0-100%, default: 30)
+	voiceTrackingReadTrail: number           // Words to keep the scroll behind your voice (anti "runs ahead")
+	voiceTrackingSmoothness: number          // Scroll-follow smoothness ×100 (e.g. 16 = 0.16)
 	// TTS (Text-to-Speech) settings
 	ttsEngine: 'auto' | 'mac-say' | 'web-speech' | 'kokoro' | 'elevenlabs'
 	ttsVoice: string                   // Voice ID (engine-specific)
@@ -296,6 +298,8 @@ export const DEFAULT_SETTINGS: TeleprompterSettings = {
 	voiceTrackingPauseDetection: true,      // Pause when user stops speaking
 	voiceTrackingPauseThresholdMs: 1200,    // Faster pause detection (1.2 seconds)
 	voiceTrackingScrollPosition: 20,        // Current word at 20% from top (more runway below)
+	voiceTrackingReadTrail: 8,              // anchor 8 words behind your voice by default
+	voiceTrackingSmoothness: 16,            // 0.16 follow factor
 	// TTS (Text-to-Speech) defaults
 	ttsEngine: 'auto' as const,
 	ttsVoice: '',
@@ -1559,6 +1563,28 @@ export class TeleprompterSettingTab extends PluginSettingTab {
 						value: this.plugin.settings.voiceTrackingScrollPosition,
 						onChange: (value) => {
 							this.plugin.settings.voiceTrackingScrollPosition = value as number
+							void this.plugin.saveSettings()
+						}
+					},
+					{
+						name: 'Scroll trail (words behind your voice)',
+						desc: 'If the prompter runs AHEAD of you, raise this. Anchors the scroll this many words behind the word you just spoke. Re-toggle voice tracking (V) to apply.',
+						type: 'slider',
+						min: 0, max: 25, step: 1,
+						value: this.plugin.settings.voiceTrackingReadTrail,
+						onChange: (value) => {
+							this.plugin.settings.voiceTrackingReadTrail = value as number
+							void this.plugin.saveSettings()
+						}
+					},
+					{
+						name: 'Scroll smoothness',
+						desc: 'Lower = calmer/slower glide, higher = snappier (value ×100, so 16 = 0.16). Re-toggle voice tracking (V) to apply.',
+						type: 'slider',
+						min: 5, max: 40, step: 1,
+						value: this.plugin.settings.voiceTrackingSmoothness,
+						onChange: (value) => {
+							this.plugin.settings.voiceTrackingSmoothness = value as number
 							void this.plugin.saveSettings()
 						}
 					}

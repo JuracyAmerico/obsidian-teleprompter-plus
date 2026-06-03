@@ -837,7 +837,9 @@
         animationPerWordMs: settings.voiceTrackingAnimationPerWordMs ?? 60,
         pauseDetection: settings.voiceTrackingPauseDetection ?? true,
         pauseThresholdMs: settings.voiceTrackingPauseThresholdMs ?? 1200,
-        scrollPosition: settings.voiceTrackingScrollPosition ?? 20
+        scrollPosition: settings.voiceTrackingScrollPosition ?? 20,
+        readTrail: settings.voiceTrackingReadTrail ?? 8,
+        smoothness: (settings.voiceTrackingSmoothness ?? 16) / 100
       })
     }
   })
@@ -2194,7 +2196,9 @@
           pauseDetection: settings.voiceTrackingPauseDetection ?? true,
           pauseThresholdMs: settings.voiceTrackingPauseThresholdMs ?? 1200,
           // Scroll position setting (where current word appears on screen)
-          scrollPosition: settings.voiceTrackingScrollPosition ?? 20
+          scrollPosition: settings.voiceTrackingScrollPosition ?? 20,
+        readTrail: settings.voiceTrackingReadTrail ?? 8,
+        smoothness: (settings.voiceTrackingSmoothness ?? 16) / 100
         })
 
         // Set up callbacks
