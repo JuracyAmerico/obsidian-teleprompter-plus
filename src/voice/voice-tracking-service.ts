@@ -114,6 +114,17 @@ export class VoiceTrackingService {
   // AND far jumps still need 2-of-3 confirmation. ~5 partials ≈ 2s of being stuck.
   private readonly STALL_RESYNC_THRESHOLD = 5
 
+  // Manual-scroll override: when the reader grabs the page (wheel / trackpad / touch) to reposition
+  // — usually because tracking drifted — auto-follow must YIELD, or it fights them and snaps the page
+  // back, making manual scrolling feel impossible. We record the last manual scroll and then:
+  //   1. suspend auto-scroll for USER_SCROLL_GRACE_MS so the page stays where they put it, and
+  //   2. arm a bounded re-sync so once they stop and speak, tracking re-acquires at the spot they
+  //      scrolled to (the global search anchors to the new viewport via estimateWordIndexFromScroll).
+  private userScrolledAt = 0
+  private readonly USER_SCROLL_GRACE_MS = 2000
+  private userScrollHandler: (() => void) | null = null
+  private guardedScrollArea: HTMLElement | null = null
+
   // Confidence gating (Textream): big forward jumps need 2-of-3 recent matches to agree; small
   // steps always commit. Stops a single over-match from pushing the highlight ahead of your voice.
   private recentMatchPositions: number[] = []
@@ -205,6 +216,7 @@ export class VoiceTrackingService {
     )
 
     this.contentArea = contentArea
+    this.attachUserScrollGuard(contentArea)
     this.currentWordIndex = 0
     this.lastRecognizedText = ''
 
@@ -761,6 +773,18 @@ export class VoiceTrackingService {
     const liveSpan = this.wordSpans.get(ledIndex) ?? this.wordSpans.get(wordIndex)
     const wordTop = liveSpan ? liveSpan.offsetTop : position.offsetTop
 
+    // Manual-scroll override: the reader just grabbed the page — keep the highlight (set above)
+    // but don't fight their scroll. Cancel any in-flight follow and hold; auto-follow resumes
+    // USER_SCROLL_GRACE_MS after they stop scrolling.
+    if (Date.now() - this.userScrolledAt < this.USER_SCROLL_GRACE_MS) {
+      if (this.scrollAnimationId !== null) {
+        cancelAnimationFrame(this.scrollAnimationId)
+        this.scrollAnimationId = null
+      }
+      if (DEBUG_VOICE_MATCH) console.warn('[VT]   scroll YIELD → manual scroll active, auto-follow paused')
+      return
+    }
+
     const h = this.contentArea.clientHeight
     // Rest = where the highlighted word sits right after the page advances (Scroll position setting).
     const restFrac = Math.min(0.8, Math.max(0.15, this.SCROLL_POSITION / 100))
@@ -781,6 +805,30 @@ export class VoiceTrackingService {
     } else if (DEBUG_VOICE_MATCH) {
       console.warn(`[VT]   scroll hold (highlight #${wordIndex}, wordY=${Math.round(wordViewportY)} within band ${Math.round(h * restFrac)}–${Math.round(h * triggerFrac)})`)
     }
+  }
+
+  /** Let the reader's own scrolling take over. `wheel` + `touchmove` are user-gesture only — our
+   *  programmatic scrollTop writes never fire them — so this can't false-trigger on auto-follow. */
+  private attachUserScrollGuard(area: HTMLElement): void {
+    this.detachUserScrollGuard()
+    const mark = (): void => {
+      this.userScrolledAt = Date.now()
+      // Re-acquire wherever they land, not where the highlight was stranded.
+      this.needsGlobalSearch = true
+    }
+    this.userScrollHandler = mark
+    this.guardedScrollArea = area
+    area.addEventListener('wheel', mark, { passive: true })
+    area.addEventListener('touchmove', mark, { passive: true })
+  }
+
+  private detachUserScrollGuard(): void {
+    if (this.guardedScrollArea && this.userScrollHandler) {
+      this.guardedScrollArea.removeEventListener('wheel', this.userScrollHandler)
+      this.guardedScrollArea.removeEventListener('touchmove', this.userScrollHandler)
+    }
+    this.userScrollHandler = null
+    this.guardedScrollArea = null
   }
 
   /** Per-frame critically-damped follow toward the latest target. Reuses scrollAnimationId so
@@ -1031,6 +1079,7 @@ export class VoiceTrackingService {
    */
   dispose(): void {
     this.stop()
+    this.detachUserScrollGuard()
     this.unwrapWords()  // Restore original DOM
     this.recognizer.dispose()
     this.tokens = []
