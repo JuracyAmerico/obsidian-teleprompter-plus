@@ -16,6 +16,7 @@ import { tokenize, cleanWord } from './word-tokenizer'
 import { findNextPosition, findGlobalPosition, type SpeechMatcherConfig } from './speech-matcher'
 import { VoskRecognizer } from './vosk-recognizer'
 import { AppleSpeechRecognizer } from './apple-speech-recognizer'
+import { SpeechActivityDetector } from './speech-activity-detector'
 
 /**
  * Default configuration for voice tracking.
@@ -44,6 +45,12 @@ const ENABLE_KARAOKE_HIGHLIGHTING = true
 
 // Verbose match/scroll logging to the console for diagnosing tracking. Flip on when needed.
 const DEBUG_VOICE_MATCH = true
+
+// Feature flag: silence gate. When on, a no-forward-progress partial only counts toward a stall
+// re-sync if the VAD says a human is actually speaking — so a pause (where Apple re-emits a stale
+// partial) freezes the highlight instead of leaping it. Fail-open: if the mic VAD can't start,
+// isSpeechActive() returns true and behavior is identical to this flag being off.
+const ENABLE_SILENCE_GATE = true
 
 /**
  * Voice Tracking Service - the main interface for voice-controlled scrolling.
@@ -131,6 +138,10 @@ export class VoiceTrackingService {
   // (An earlier version armed needsGlobalSearch here; combined with rapid manual scrolls + off-script
   //  speech it produced wild far jumps — "it jumps so far ahead". Snap-to-scroll + local is calm.)
   private resyncToScrollPending = false
+
+  // Voice-activity detector (own mic, 85–3400 Hz band). Gates the stall re-sync so a genuine pause
+  // can't be mistaken for the reader running ahead. Fail-open — see ENABLE_SILENCE_GATE.
+  private speechDetector = new SpeechActivityDetector()
 
   // Confidence gating (Textream): big forward jumps need 2-of-3 recent matches to agree; small
   // steps always commit. Stops a single over-match from pushing the highlight ahead of your voice.
@@ -457,6 +468,15 @@ export class VoiceTrackingService {
       // Start listening
       await this.recognizer.start()
 
+      // Start the silence-gate VAD in parallel (fail-open: never throws, never blocks tracking).
+      if (ENABLE_SILENCE_GATE) {
+        void this.speechDetector.start().then(() => {
+          if (DEBUG_VOICE_MATCH) {
+            console.warn(`[VT]   silence gate ${this.speechDetector.getIsAvailable() ? 'ACTIVE' : 'unavailable → fail-open'}`)
+          }
+        })
+      }
+
     } catch (error) {
       console.error('Failed to start voice tracking:', error)
       throw error
@@ -468,6 +488,7 @@ export class VoiceTrackingService {
    */
   stop(): void {
     this.recognizer.stop()
+    this.speechDetector.stop()
     this.lastRecognizedText = ''
 
     // Reset global search state - next start will find position from scratch
@@ -697,14 +718,23 @@ export class VoiceTrackingService {
 
     // Track failed matches (no forward progress from local search)
     if (jumpDistance <= 0 && !isGlobalMatch) {
-      this.consecutiveFailedMatches++
-      // Prolonged stall: the reader has run past the local match window and forward matching can't
-      // recover. Arm ONE bounded re-sync (scroll-anchored, ±GLOBAL_SEARCH_RADIUS, confirmation-gated)
-      // so the next partial re-acquires them instead of staying stuck until they press R.
-      if (this.consecutiveFailedMatches >= this.STALL_RESYNC_THRESHOLD) {
-        this.needsGlobalSearch = true
-        this.consecutiveFailedMatches = 0
-        if (DEBUG_VOICE_MATCH) console.warn('[VT]   STALL → bounded re-sync armed (reader drifted past local window)')
+      // Silence gate: a no-progress partial only counts toward a stall if a human is actually
+      // speaking. During a real pause Apple re-emits a stale partial — without this gate those
+      // pile up and trigger a spurious catch-up leap. Fail-open: isSpeechActive() is true when the
+      // VAD is unavailable, so this collapses to the original behavior.
+      const speaking = !ENABLE_SILENCE_GATE || this.speechDetector.isSpeechActive()
+      if (speaking) {
+        this.consecutiveFailedMatches++
+        // Prolonged stall: the reader has run past the local match window and forward matching can't
+        // recover. Arm ONE bounded re-sync (scroll-anchored, ±GLOBAL_SEARCH_RADIUS, confirmation-gated)
+        // so the next partial re-acquires them instead of staying stuck until they press R.
+        if (this.consecutiveFailedMatches >= this.STALL_RESYNC_THRESHOLD) {
+          this.needsGlobalSearch = true
+          this.consecutiveFailedMatches = 0
+          if (DEBUG_VOICE_MATCH) console.warn('[VT]   STALL → bounded re-sync armed (reader drifted past local window)')
+        }
+      } else if (DEBUG_VOICE_MATCH) {
+        console.warn('[VT]   silence gate → stale partial held (no speech energy), not counting toward re-sync')
       }
     } else if (jumpDistance > 0 || isGlobalMatch) {
       this.consecutiveFailedMatches = 0
@@ -1122,6 +1152,7 @@ export class VoiceTrackingService {
     this.detachUserScrollGuard()
     this.unwrapWords()  // Restore original DOM
     this.recognizer.dispose()
+    this.speechDetector.dispose()
     this.tokens = []
     this.wordTokens = []
     this.wordPositions.clear()
