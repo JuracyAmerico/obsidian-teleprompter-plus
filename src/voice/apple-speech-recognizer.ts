@@ -35,6 +35,8 @@ export class AppleSpeechRecognizer {
   private isInitialized = false
   private isListening = false
   private stdoutBuffer = ''
+  private authTimer: ReturnType<typeof setTimeout> | null = null
+  private readonly AUTH_TIMEOUT_MS = 12000  // if we never reach 'listening', surface a clear error
 
   private resultSubscribers: ResultSubscriber[] = []
   private statusSubscribers: StatusSubscriber[] = []
@@ -101,10 +103,29 @@ export class AppleSpeechRecognizer {
         this.proc = null
       }
     })
+
+    // Never hang on "initializing": if we don't reach 'listening' in time, the most likely
+    // cause is a denied/blocked permission for the spawned helper — surface it instead of freezing.
+    this.clearAuthTimer()
+    this.authTimer = setTimeout(() => {
+      if (!this.isListening) {
+        this.emitError('microphone-denied', 'Speech sidecar did not start listening — grant Obsidian Microphone + Speech Recognition in System Settings → Privacy & Security, then fully quit and reopen Obsidian.')
+        this.emitStatus('error')
+        this.stop()
+      }
+    }, this.AUTH_TIMEOUT_MS)
+  }
+
+  private clearAuthTimer(): void {
+    if (this.authTimer) {
+      clearTimeout(this.authTimer)
+      this.authTimer = null
+    }
   }
 
   stop(): void {
     this.isListening = false
+    this.clearAuthTimer()
     if (this.proc) {
       try { this.proc.kill('SIGTERM') } catch { /* ignore */ }
       this.proc.removeAllListeners()
@@ -158,6 +179,7 @@ export class AppleSpeechRecognizer {
       case 'status':
         if (msg.value === 'listening') {
           this.isListening = true
+          this.clearAuthTimer()
           this.emitStatus('listening')
         } else if (msg.value === 'authorizing' || msg.value === 'ready') {
           this.emitStatus('initializing')
