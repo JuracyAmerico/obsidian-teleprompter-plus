@@ -159,7 +159,8 @@ export function findGlobalPosition(
   recognized: string,
   reference: TextElement[],
   config: SpeechMatcherConfig = DEFAULT_MATCHER_CONFIG,
-  hintPosition: number = 0
+  hintPosition: number = 0,
+  searchRadius: number = Infinity
 ): number {
   // Tokenize the recognized input and filter to words only
   const recognizedTokens = tokenize(recognized).filter(
@@ -176,11 +177,20 @@ export function findGlobalPosition(
   // Collect all matches above threshold
   const matches: { index: number; confidence: number }[] = []
 
-  // Slide through the entire document with step size for efficiency
-  // Use larger steps for longer documents
-  const stepSize = Math.max(1, Math.floor(reference.length / 200))
+  // Bound the search to a window AROUND the reader's current position (hint).
+  // The original jlecomte algorithm only ever matches a small local window ahead and
+  // never searches the whole document — that is what prevents teleporting to the end.
+  // We keep a (larger) bounded window so re-sync can relocate near where the user is
+  // looking, but a few mis-heard words can never fling them to an unrelated section.
+  const lastWindowStart = reference.length - windowSize + 1
+  const scanStart = Math.max(0, Math.floor(hintPosition - searchRadius))
+  const scanEnd = Math.min(lastWindowStart, Math.ceil(hintPosition + searchRadius) + 1)
 
-  for (let i = 0; i < reference.length - windowSize + 1; i += stepSize) {
+  // Step size scaled to the SEARCHED range (not the whole doc) for efficiency
+  const scanSpan = Math.max(1, scanEnd - scanStart)
+  const stepSize = Math.max(1, Math.floor(scanSpan / 200))
+
+  for (let i = scanStart; i < scanEnd; i += stepSize) {
     // Get reference window
     const windowTokens = reference.slice(i, i + windowSize)
     const windowString = tokensToString(windowTokens)
