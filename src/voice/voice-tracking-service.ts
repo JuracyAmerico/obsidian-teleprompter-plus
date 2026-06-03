@@ -85,6 +85,12 @@ export class VoiceTrackingService {
   // keeps pace without lurching. NO forward "catch-up" easing — pushing ahead of the matched
   // position created a positive-feedback snowball that accelerated the further you read.
   private readonly SMOOTH_STEP_CAP = 10
+  // Damped-follower scroll: each animation frame eases scrollTop a fraction toward the LATEST
+  // target. Smooth like an animation, but it always reads the current target (no captured
+  // velocity) so it can't overshoot/race; and it eases rather than hard-snapping, so no jumps.
+  // FOLLOW_FACTOR: lower = smoother/calmer, higher = snappier. ~0.12-0.22 is the usable range.
+  private targetScrollPos = 0
+  private readonly FOLLOW_FACTOR = 0.16
   // Anchor the scroll a few words BEHIND the spoken word, so the line you're reading always sits
   // slightly ahead of the scroll. Prevents the text from running ahead of your voice.
   private readonly READ_AHEAD_LAG = 4
@@ -641,9 +647,29 @@ export class VoiceTrackingService {
     // Emit event before scrolling
     this.onWordMatch?.(wordIndex, targetScroll)
 
-    // Canonical (jlecomte): snap instantly to keep the matched word at the anchor. No momentum
-    // animation — the old easing compounded across Apple's rapid partials and raced ahead.
-    this.contentArea.scrollTop = targetScroll
+    // Damped follow: update the target and let the per-frame loop ease toward it. Smooth (no hard
+    // snap), and it tracks the LATEST word with no captured momentum (so it never races ahead).
+    this.targetScrollPos = targetScroll
+    this.startScrollFollow()
+  }
+
+  /** Per-frame critically-damped follow toward the latest target. Reuses scrollAnimationId so
+   *  stop() cancels it. Settles exactly on target and idles until the next word moves it. */
+  private startScrollFollow(): void {
+    if (this.scrollAnimationId !== null) return  // loop already running — it reads the new target
+    const step = (): void => {
+      if (!this.contentArea) { this.scrollAnimationId = null; return }
+      const cur = this.contentArea.scrollTop
+      const diff = this.targetScrollPos - cur
+      if (Math.abs(diff) < 0.5) {
+        this.contentArea.scrollTop = this.targetScrollPos
+        this.scrollAnimationId = null
+        return
+      }
+      this.contentArea.scrollTop = cur + diff * this.FOLLOW_FACTOR
+      this.scrollAnimationId = requestAnimationFrame(step)
+    }
+    this.scrollAnimationId = requestAnimationFrame(step)
   }
 
   /**
