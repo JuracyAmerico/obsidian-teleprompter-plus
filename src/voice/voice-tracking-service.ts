@@ -166,14 +166,17 @@ export class VoiceTrackingService {
   private recentMatchPositions: number[] = []
   private readonly SMALL_STEP_WORDS = 2   // a jump this small commits immediately (responsive)
   private readonly AGREE_WORDS = 3        // recent matches within this many words count as agreeing
-  private readonly FORWARD_CAP = 5        // max words the highlight may advance in one commit (anti-lurch)
+  private readonly FORWARD_CAP = 10       // max words the highlight may advance in one commit (anti-lurch); raised from 5 so it catches up to a faster reader once alignment is exact
   // Lead (+) or lag (-) the highlight vs the matched word, to offset recognition latency and
   // Apple's predictive partials. User-tunable LIVE via the "Highlight offset" slider (no rebuild).
   // Default -4 = sit four words BEHIND the recognized word, so the highlight stays under your voice.
   // Why so negative: Apple emits words slightly BEFORE you finish saying them and the confirm-gate
   // commits up to FORWARD_CAP(5) words forward, so the matched index runs a few words ahead of your
   // literal voice; -2 wasn't enough to cover it. If -4 feels laggy, raise the slider toward 0.
-  private get HIGHLIGHT_LEAD(): number { return this.config.highlightLead ?? -4 }
+  // Default +2: with span-index ≡ token-index, the only residual lag is recognition latency (Apple
+  // emits the partial a beat after you speak), so the highlight should sit a hair AHEAD of the
+  // committed word. This used to be -4 ONLY to mask the forward index-drift, which is now fixed.
+  private get HIGHLIGHT_LEAD(): number { return this.config.highlightLead ?? 2 }
   // Set by forceResync(): the next global match commits immediately, no confirmation gate.
   private resyncRequested = false
 
