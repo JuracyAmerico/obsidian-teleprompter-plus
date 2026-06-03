@@ -685,6 +685,18 @@
   // Get the ordered controls (reactive - re-computes when toolbarLayoutVersion changes)
   const orderedControls = $derived(getOrderedToolbarControls(toolbarLayoutVersion))
 
+  // Toolbar density + zone-label visibility, read fresh from plugin settings.
+  // Depend on toolbarLayoutVersion so they update live when the Settings UI
+  // dispatches teleprompter:toolbar-changed (which bumps the version).
+  const toolbarDensity = $derived.by(() => {
+    void toolbarLayoutVersion
+    return plugin?.settings?.toolbarDensity === 'comfortable' ? 'comfortable' : 'compact'
+  })
+  const showZoneLabels = $derived.by(() => {
+    void toolbarLayoutVersion
+    return plugin?.settings?.toolbarShowZoneLabels === true
+  })
+
   // ── Zone reconciliation (redesigned toolbar) ──────────────────────────────
   // The visible/ordered list above already honors the user's show/hide and
   // reorder choices from settings (toolbarLayout). Here we only decide WHERE
@@ -5407,16 +5419,32 @@
 
   <!-- Show controls always (including in full-screen mode) -->
   <!-- Controls visibility and order is configurable via Settings > Toolbar -->
-  <div class="controls" class:fullscreen-controls={isFullScreen}>
+  <div
+    class="controls"
+    class:fullscreen-controls={isFullScreen}
+    class:density-comfortable={toolbarDensity === 'comfortable'}
+    class:show-zone-labels={showZoneLabels}
+  >
     <!-- Main-bar zones, separated by 1px dividers (only between non-empty zones) -->
     {#each mainBarZones as group, groupIndex (group.zone)}
       {#if groupIndex > 0}
         <div class="tp-divider" aria-hidden="true"></div>
       {/if}
       <div class="tp-zone" data-zone={group.zone} data-zone-label={group.label}>
-        {#each group.controls as control (control.id)}
-          {@render renderControl(control)}
-        {/each}
+        {#if showZoneLabels}
+          <span class="tp-zone-label">{group.label}</span>
+        {/if}
+        <div class="tp-zone-controls">
+          {#each group.controls as control (control.id)}
+            <!-- Slot wraps each control so comfortable density can show a label under it -->
+            <span class="tp-control-slot" data-control-label={control.name}>
+              {@render renderControl(control)}
+              {#if toolbarDensity === 'comfortable' && control.zone !== 'readout'}
+                <span class="tp-control-label">{control.name}</span>
+              {/if}
+            </span>
+          {/each}
+        </div>
       </div>
     {/each}
 
@@ -5780,6 +5808,69 @@
 
   .tp-more {
     flex: 0 0 auto;
+  }
+
+  /* Per-control slot — base layout is just the control; comfortable density
+     turns it into an icon-over-label column. */
+  .tp-zone-controls {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    min-width: 0;
+  }
+
+  .tp-control-slot {
+    display: inline-flex;
+    align-items: center;
+  }
+
+  .tp-control-label {
+    display: none;
+  }
+
+  /* ── Zone sub-labels (toolbarShowZoneLabels) ───────────────────────────── */
+  .tp-zone {
+    flex-direction: row;
+  }
+
+  .controls.show-zone-labels .tp-zone {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.15rem;
+  }
+
+  .tp-zone-label {
+    font-size: 0.6rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    line-height: 1;
+    padding-left: 0.1rem;
+  }
+
+  /* When zone labels show, the divider should span the taller two-row zone. */
+  .controls.show-zone-labels .tp-divider {
+    margin: 0.1rem;
+  }
+
+  /* ── Comfortable density (toolbarDensity) ──────────────────────────────── */
+  .controls.density-comfortable .tp-control-slot {
+    flex-direction: column;
+    gap: 0.15rem;
+  }
+
+  .controls.density-comfortable .tp-control-label {
+    display: block;
+    font-size: 0.6rem;
+    font-weight: 600;
+    line-height: 1;
+    color: var(--text-muted);
+    white-space: nowrap;
+    max-width: 4.5rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    text-align: center;
   }
 
   /* HERO: play-pause is visually dominant — larger, filled accent, own emphasis. */

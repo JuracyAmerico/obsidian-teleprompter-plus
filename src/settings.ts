@@ -176,6 +176,10 @@ export interface TeleprompterSettings {
 		secondary: string[]  // Overflow menu items
 		hidden: string[]     // Disabled buttons
 	}
+	// NEW: Toolbar density — 'comfortable' shows a text label under each icon
+	toolbarDensity: 'compact' | 'comfortable'
+	// NEW: Show small uppercase zone sub-labels above each main-bar zone
+	toolbarShowZoneLabels: boolean
 	// NEW: Profiles
 	profiles: {
 		active: string       // Active profile ID
@@ -326,6 +330,10 @@ export const DEFAULT_SETTINGS: TeleprompterSettings = {
 		secondary: ['eyeline', 'focus-mode', 'navigation', 'fullscreen', 'flip-h', 'flip-v', 'minimap', 'auto-pause', 'progress-indicator', 'alignment', 'keep-awake', 'pin', 'detach', 'quick-presets', 'time-display', 'tts'],
 		hidden: []
 	},
+	// NEW: Toolbar density (default compact — labels off)
+	toolbarDensity: 'compact' as const,
+	// NEW: Zone sub-labels off by default (they add height to the bar)
+	toolbarShowZoneLabels: false,
 	// NEW: Profiles
 	profiles: {
 		active: 'professional',
@@ -454,7 +462,17 @@ const BUILT_IN_PROFILES: Profile[] = [
 ]
 
 // Toolbar control definitions
-const TOOLBAR_CONTROLS = [
+// Toolbar control catalog (settings side). `defaultMore` mirrors
+// TOOLBAR_CONTROL_DEFS in TeleprompterApp.svelte: controls flagged here are the
+// low-frequency ones the "Recommended layout" action collapses into ⋯ More.
+interface ToolbarControlMeta {
+	id: string
+	name: string
+	icon: string
+	defaultMore?: boolean
+}
+
+const TOOLBAR_CONTROLS: ToolbarControlMeta[] = [
 	// Core playback controls
 	{ id: 'play-pause', name: 'Play/pause', icon: 'tp-play' },
 	{ id: 'speed', name: 'Speed controls', icon: 'tp-speed-up' },
@@ -463,28 +481,28 @@ const TOOLBAR_CONTROLS = [
 	// Display controls
 	{ id: 'font-size', name: 'Font size', icon: 'tp-font-up' },
 	{ id: 'line-height', name: 'Line height', icon: 'tp-line-height' },
-	{ id: 'letter-spacing', name: 'Letter spacing', icon: 'tp-letter-spacing' },
+	{ id: 'letter-spacing', name: 'Letter spacing', icon: 'tp-letter-spacing', defaultMore: true },
 	{ id: 'font-family', name: 'Font family', icon: 'tp-font-system' },
-	{ id: 'opacity', name: 'Opacity', icon: 'tp-opacity' },
-	{ id: 'padding', name: 'Padding', icon: 'tp-padding' },
-	{ id: 'text-color', name: 'Text color', icon: 'tp-text-color' },
-	{ id: 'bg-color', name: 'Background color', icon: 'tp-bg-color' },
+	{ id: 'opacity', name: 'Opacity', icon: 'tp-opacity', defaultMore: true },
+	{ id: 'padding', name: 'Padding', icon: 'tp-padding', defaultMore: true },
+	{ id: 'text-color', name: 'Text color', icon: 'tp-text-color', defaultMore: true },
+	{ id: 'bg-color', name: 'Background color', icon: 'tp-bg-color', defaultMore: true },
 	// Feature toggles
 	{ id: 'eyeline', name: 'Eyeline', icon: 'tp-eyeline' },
 	{ id: 'focus-mode', name: 'Focus mode', icon: 'focus' },
-	{ id: 'navigation', name: 'Navigation panel', icon: 'tp-navigation' },
+	{ id: 'navigation', name: 'Navigation panel', icon: 'tp-navigation', defaultMore: true },
 	{ id: 'fullscreen', name: 'Fullscreen', icon: 'tp-fullscreen' },
 	{ id: 'flip-h', name: 'Flip horizontal', icon: 'tp-flip-h' },
 	{ id: 'flip-v', name: 'Flip vertical', icon: 'tp-flip-v' },
-	{ id: 'minimap', name: 'Minimap', icon: 'tp-minimap' },
+	{ id: 'minimap', name: 'Minimap', icon: 'tp-minimap', defaultMore: true },
 	// Utility controls
-	{ id: 'auto-pause', name: 'Auto-pause on edit', icon: 'tp-auto-pause' },
-	{ id: 'progress-indicator', name: 'Progress indicator', icon: 'tp-progress-bar' },
-	{ id: 'alignment', name: 'Text alignment', icon: 'tp-align-center' },
-	{ id: 'keep-awake', name: 'Keep awake', icon: 'tp-keep-awake' },
-	{ id: 'pin', name: 'Pin note', icon: 'tp-pin' },
-	{ id: 'detach', name: 'Open in window', icon: 'tp-detach' },
-	{ id: 'quick-presets', name: 'Quick presets', icon: 'tp-quick-presets' },
+	{ id: 'auto-pause', name: 'Auto-pause on edit', icon: 'tp-auto-pause', defaultMore: true },
+	{ id: 'progress-indicator', name: 'Progress indicator', icon: 'tp-progress-bar', defaultMore: true },
+	{ id: 'alignment', name: 'Text alignment', icon: 'tp-align-center', defaultMore: true },
+	{ id: 'keep-awake', name: 'Keep awake', icon: 'tp-keep-awake', defaultMore: true },
+	{ id: 'pin', name: 'Pin note', icon: 'tp-pin', defaultMore: true },
+	{ id: 'detach', name: 'Open in window', icon: 'tp-detach', defaultMore: true },
+	{ id: 'quick-presets', name: 'Quick presets', icon: 'tp-quick-presets', defaultMore: true },
 	// Info displays
 	{ id: 'time-display', name: 'Time display', icon: 'clock' },
 	// Voice tracking
@@ -754,6 +772,34 @@ export class TeleprompterSettingTab extends PluginSettingTab {
 		})
 	}
 
+	// Reset toolbarLayout so every `defaultMore` control collapses into the
+	// ⋯ More menu and the essentials stay on the main bar in catalog (zone) order.
+	// Hidden controls are left untouched; nothing is destroyed (re-pin to reverse).
+	private applyRecommendedToolbarLayout(): void {
+		const hidden = this.plugin.settings.toolbarLayout.hidden
+		const onBar: string[] = []
+		const inMore: string[] = []
+
+		TOOLBAR_CONTROLS.forEach(control => {
+			if (hidden.includes(control.id)) return
+			if (control.defaultMore) {
+				inMore.push(control.id)
+			} else {
+				onBar.push(control.id)
+			}
+		})
+
+		this.plugin.settings.toolbarLayout.primary = onBar
+		this.plugin.settings.toolbarLayout.secondary = inMore
+
+		void this.plugin.saveSettings().then(() => {
+			// Notify the live teleprompter view to rebuild its toolbar
+			activeDocument.dispatchEvent(new CustomEvent('teleprompter:toolbar-changed'))
+			new Notice('Recommended toolbar layout applied')
+			this.display()
+		})
+	}
+
 	// ========================================
 	// Toolbar Tab - Configure visible controls
 	// ========================================
@@ -762,6 +808,64 @@ export class TeleprompterSettingTab extends PluginSettingTab {
 			text: 'Configure which controls appear in the teleprompter toolbar',
 			cls: 'setting-item-description',
 		})
+
+		// ── Toolbar options: density, zone labels, recommended layout ──────────
+		this.createFeatureGroup(containerEl, 'toolbar-options', 'Toolbar options', 'sliders-horizontal', [
+			{
+				id: 'toolbar-density',
+				name: 'Density',
+				icon: 'rows-3',
+				hasToggle: false,
+				settings: [
+					{
+						name: 'Button density',
+						desc: 'Comfortable shows a text label under each icon (easier to hit live); compact is icon-only.',
+						type: 'dropdown',
+						value: this.plugin.settings.toolbarDensity,
+						options: [
+							{ value: 'compact', label: 'Compact (icons only)' },
+							{ value: 'comfortable', label: 'Comfortable (icons + labels)' },
+						],
+						onChange: (value) => {
+							this.plugin.settings.toolbarDensity =
+								value === 'comfortable' ? 'comfortable' : 'compact'
+							void this.plugin.saveSettings()
+							activeDocument.dispatchEvent(new CustomEvent('teleprompter:toolbar-changed'))
+						},
+					},
+				],
+			},
+			{
+				id: 'toolbar-zone-labels',
+				name: 'Zone labels',
+				icon: 'tag',
+				hasToggle: true,
+				toggleValue: this.plugin.settings.toolbarShowZoneLabels,
+				onToggle: (value) => {
+					this.plugin.settings.toolbarShowZoneLabels = value
+					void this.plugin.saveSettings()
+					activeDocument.dispatchEvent(new CustomEvent('teleprompter:toolbar-changed'))
+				},
+				settings: [],
+			},
+		])
+
+		// Recommended layout action — collapse low-frequency controls into ⋯ More
+		const recommendedSetting = new Setting(containerEl)
+			.setName('Recommended layout')
+			.setDesc('Move low-frequency controls into the ⋯ More menu and keep the essentials on the bar. Reversible — re-pin anything below.')
+		recommendedSetting.addButton(btn => btn
+			.setButtonText('Apply recommended layout')
+			.setIcon('wand-2')
+			.onClick(() => {
+				new ConfirmModal(
+					this.app,
+					'Apply the recommended toolbar layout? Low-frequency controls move into the ⋯ More menu. You can re-pin or show any control afterward.',
+					() => {
+						this.applyRecommendedToolbarLayout()
+					}
+				).open()
+			}))
 
 		// Toolbar preview
 		const previewSection = containerEl.createDiv('tp-section-header')
