@@ -33,7 +33,7 @@
   import { TTSService } from './tts'
   import type { TTSState, TTSPlaybackState, TTSVoice } from './tts'
   import { resolveCitations, loadBibliography } from './parser/citation-resolver'
-  import { extractBibPath, splitSentences, stripRawLatexCommands, stripFencedDivs } from './parser/text-cleaner'
+  import { extractBibPath, splitSentences, stripRawLatexCommands, stripFencedDivs, stripBareUrls } from './parser/text-cleaner'
   import type { TTSDocument, TTSSection } from './tts/tts-types'
   import hljs from 'highlight.js/lib/core'
   // Import common languages for syntax highlighting
@@ -1100,6 +1100,10 @@
 
       // Strip Pandoc/Quarto fenced-div markers (::: {.column}, :::) — marked renders them literally otherwise
       processedContent = stripFencedDivs(processedContent)
+
+      // Strip bare/auto-linked URLs so they aren't shown huge on screen OR read aloud by TTS
+      // (TTS extracts from the rendered DOM, so removing them here fixes both display and speech)
+      processedContent = stripBareUrls(processedContent)
 
       // Strip Pandoc/Quarto attributes ({width=70%}, {#id .class}, {.unnumbered}, etc.)
       processedContent = processedContent.replace(/\{[#.]?[^}]*(?:width|height|fig-|\.unnumbered|\.unlisted)[^}]*\}/g, '')
