@@ -104,7 +104,7 @@ export function stripFencedDivs(text: string): string {
  * `https://…` aloud. Markdown links `[text](url)` are reduced to their text by
  * stripLinks() first; this removes what's left: angle autolinks and raw URLs.
  */
-function stripBareUrls(text: string): string {
+export function stripBareUrls(text: string): string {
 	return text
 		.replace(/<https?:\/\/[^>\s]+>/gi, '')   // <https://example.com>
 		.replace(/\bhttps?:\/\/\S+/gi, '')        // bare https://example.com/...
