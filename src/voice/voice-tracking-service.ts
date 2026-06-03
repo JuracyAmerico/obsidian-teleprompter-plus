@@ -835,24 +835,42 @@ export class VoiceTrackingService {
         const agree = this.recentMatchPositions.filter(p => Math.abs(p - newIndex) <= this.AGREE_WORDS).length
         confirmed = agree >= 2
       }
-      if (smallStep || confirmed) {
+      // CATCH-UP ESCAPE HATCH. The agreement gate above asks recent matches to CLUSTER near one
+      // target — but when you surge through a mis-heard clause ("...U-Haul work, was an international
+      // mover — which is to say..."), each partial matches a DIFFERENT forward word, so they never
+      // cluster and the jump is gated forever: the highlight freezes on "Marina" while you read on.
+      // The fix uses the one fact that makes "behind" different from "fling ahead": you cannot
+      // accidentally SPEAK words far ahead, so two independent matches BOTH landing well past the
+      // highlight mean the reader genuinely moved on. That is safe to chase immediately. (A single
+      // noisy over-match still can't trigger it — it takes two votes. Backward flings are rejected
+      // elsewhere.) FORWARD_CAP still bounds each step, so catch-up closes the gap over 1–2 commits
+      // rather than one jarring leap.
+      const CATCHUP_AHEAD = this.AGREE_WORDS + 1
+      const aheadVotes = this.recentMatchPositions.filter(
+        p => p >= this.currentWordIndex + CATCHUP_AHEAD
+      ).length
+      const catchingUp = aheadVotes >= 2
+      if (smallStep || confirmed || catchingUp) {
         // Cap the advance so a single over-reaching match can't lurch the highlight far ahead.
         let capped = Math.min(newIndex, this.currentWordIndex + this.FORWARD_CAP)
         // Reading-pace governor: also cap to human reading speed, defeating the repeated-vocabulary
         // ratchet that a constant lead can't. Bypassed at start (no pace history yet) and fail-safe.
-        if (ENABLE_PACE_GOVERNOR) {
+        // ALSO bypassed while catching up: a genuine fall-behind is a discontinuity, and clamping it
+        // to "plausible pace" is exactly what keeps it permanently behind.
+        if (ENABLE_PACE_GOVERNOR && !catchingUp) {
           const paced = this.governByPace(capped)
           if (DEBUG_VOICE_MATCH && paced < capped) {
             console.warn(`[VT]   pace clamp → #${paced} (matcher wanted #${capped}; held to reading speed)`)
           }
           capped = paced
         }
+        if (catchingUp) this.resetPaceGovernor()  // discontinuity: don't let stale samples clamp the next step
         this.lastCommitTime = Date.now()
         this.pendingGlobalIndex = -1
         this.currentWordIndex = capped
         this.lastMatchedIndex = capped
         this.scrollToWord(capped)
-        if (DEBUG_VOICE_MATCH) console.warn(`[VT]   COMMIT #${capped} (target #${newIndex}, ${smallStep ? 'small step' : '2-of-3 confirmed'})`)
+        if (DEBUG_VOICE_MATCH) console.warn(`[VT]   COMMIT #${capped} (target #${newIndex}, ${smallStep ? 'small step' : confirmed ? '2-of-3 confirmed' : 'catch-up'})`)
       } else if (DEBUG_VOICE_MATCH) {
         console.warn(`[VT]   GATED big jump → #${newIndex} (recent ${this.recentMatchPositions.join(',')}; need 2 within ${this.AGREE_WORDS} words)`)
       }
