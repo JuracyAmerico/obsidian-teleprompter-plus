@@ -1259,3 +1259,19 @@
   padding: 1rem;
   color: var(--text-muted);
 }
+
+/* ===== Voice tracking word highlight (Textream-style) ===== */
+.voice-word {
+  border-radius: 4px;
+  transition: background-color 0.12s ease, color 0.12s ease, opacity 0.2s ease;
+}
+/* The word you're saying right now */
+.voice-word.voice-active {
+  background-color: rgba(74, 144, 226, 0.45); /* Teleprompter Blue */
+  color: #ffffff;
+  box-shadow: 0 0 0 3px rgba(74, 144, 226, 0.45);
+}
+/* Words already read — gently dimmed so focus stays forward */
+.voice-word.voice-past {
+  opacity: 0.55;
+}
