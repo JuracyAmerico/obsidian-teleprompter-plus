@@ -38,6 +38,19 @@ func emit(_ obj: [String: Any]) {
 
 let localeId = CommandLine.arguments.count > 1 ? CommandLine.arguments[1] : "en-US"
 
+// Optional contextual strings (the script's salient words) to bias recognition toward the words
+// you're actually reading — Apple's `contextualStrings`, the same trick Textream uses to cut
+// mis-hears of uncommon words. Passed as a newline-separated file path in argv[2].
+var contextWords: [String] = []
+if CommandLine.arguments.count > 2 {
+    if let text = try? String(contentsOfFile: CommandLine.arguments[2], encoding: .utf8) {
+        contextWords = text.split(whereSeparator: { $0 == "\n" || $0 == "\r" })
+            .map { String($0).trimmingCharacters(in: .whitespaces) }
+            .filter { !$0.isEmpty }
+        if contextWords.count > 100 { contextWords = Array(contextWords.prefix(100)) }
+    }
+}
+
 guard let recognizer = SFSpeechRecognizer(locale: Locale(identifier: localeId)) else {
     emit(["type": "error", "code": "no-recognizer", "message": "No speech recognizer for locale \(localeId)"])
     exit(1)
@@ -56,6 +69,9 @@ func startRecognition() {
     req.shouldReportPartialResults = true
     if recognizer.supportsOnDeviceRecognition {
         req.requiresOnDeviceRecognition = true   // offline + private; no audio leaves the machine
+    }
+    if !contextWords.isEmpty {
+        req.contextualStrings = contextWords   // bias toward the script's words
     }
     request = req
 
