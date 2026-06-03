@@ -105,6 +105,12 @@ export class VoiceTrackingService {
   // Re-sync only relocates within this many words of where the reader is looking —
   // a bounded search can never teleport to the end of the document.
   private readonly GLOBAL_SEARCH_RADIUS = 120
+
+  // Confidence gating (Textream): big forward jumps need 2-of-3 recent matches to agree; small
+  // steps always commit. Stops a single over-match from pushing the highlight ahead of your voice.
+  private recentMatchPositions: number[] = []
+  private readonly SMALL_STEP_WORDS = 2   // a jump this small commits immediately (responsive)
+  private readonly AGREE_WORDS = 3        // recent matches within this many words count as agreeing
   // Set by forceResync(): the next global match commits immediately, no confirmation gate.
   private resyncRequested = false
 
@@ -596,7 +602,7 @@ export class VoiceTrackingService {
       const heardTail = text.split(/\s+/).filter(Boolean).slice(-6).join(' ')
       const matchedWord = this.wordTokens[newIndex]?.value ?? '?'
       const curWord = this.wordTokens[this.currentWordIndex]?.value ?? '?'
-      console.log(
+      console.warn(
         `[VT] ${isFinal ? 'FINAL' : 'part '} heard:"…${heardTail}" | match #${newIndex} "${matchedWord}"` +
         ` | cur #${this.currentWordIndex} "${curWord}" | jump ${jumpDistance} | ${isGlobalMatch ? 'GLOBAL' : 'local'}`
       )
@@ -643,10 +649,26 @@ export class VoiceTrackingService {
     // anchor immediately. No accumulator, no per-update cap, no momentum animation — those caused
     // the scroll to lag, then overshoot and race ahead of the reader across Apple's fast partials.
     if (jumpDistance > 0) {
-      this.pendingGlobalIndex = -1
-      this.currentWordIndex = newIndex
-      this.lastMatchedIndex = newIndex
-      this.scrollToWord(newIndex)
+      // Confidence gating (Textream's matchCharacters): a SMALL forward step commits immediately so
+      // normal reading stays responsive; a LARGER jump must be confirmed by 2-of-3 recent matches
+      // agreeing — so a single noisy over-match can't fling the highlight ahead of your voice.
+      this.recentMatchPositions.push(newIndex)
+      if (this.recentMatchPositions.length > 3) this.recentMatchPositions.shift()
+      const smallStep = jumpDistance <= this.SMALL_STEP_WORDS
+      let confirmed = false
+      if (this.recentMatchPositions.length >= 2) {
+        const agree = this.recentMatchPositions.filter(p => Math.abs(p - newIndex) <= this.AGREE_WORDS).length
+        confirmed = agree >= 2
+      }
+      if (smallStep || confirmed) {
+        this.pendingGlobalIndex = -1
+        this.currentWordIndex = newIndex
+        this.lastMatchedIndex = newIndex
+        this.scrollToWord(newIndex)
+        if (DEBUG_VOICE_MATCH) console.warn(`[VT]   COMMIT #${newIndex} (${smallStep ? 'small step' : '2-of-3 confirmed'})`)
+      } else if (DEBUG_VOICE_MATCH) {
+        console.warn(`[VT]   GATED big jump → #${newIndex} (recent ${this.recentMatchPositions.join(',')}; need 2 within ${this.AGREE_WORDS} words)`)
+      }
     } else {
       this.noProgressCount++  // no forward progress — likely a pause or repetition
     }
@@ -683,9 +705,9 @@ export class VoiceTrackingService {
       this.targetScrollPos = Math.max(0, position.offsetTop - h * restFrac)
       this.onWordMatch?.(wordIndex, this.targetScrollPos)
       this.startScrollFollow()
-      if (DEBUG_VOICE_MATCH) console.log(`[VT]   scroll ADVANCE → highlight #${wordIndex}, wordY=${Math.round(wordViewportY)} > trigger=${Math.round(h * triggerFrac)}`)
+      if (DEBUG_VOICE_MATCH) console.warn(`[VT]   scroll ADVANCE → highlight #${wordIndex}, wordY=${Math.round(wordViewportY)} > trigger=${Math.round(h * triggerFrac)}`)
     } else if (DEBUG_VOICE_MATCH) {
-      console.log(`[VT]   scroll hold (highlight #${wordIndex}, wordY=${Math.round(wordViewportY)} within band ${Math.round(h * restFrac)}–${Math.round(h * triggerFrac)})`)
+      console.warn(`[VT]   scroll hold (highlight #${wordIndex}, wordY=${Math.round(wordViewportY)} within band ${Math.round(h * restFrac)}–${Math.round(h * triggerFrac)})`)
     }
   }
 
