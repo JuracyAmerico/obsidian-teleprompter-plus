@@ -151,7 +151,7 @@ export interface TeleprompterSettings {
 	voiceTrackingPauseThresholdMs: number    // Time without speech to pause scrolling (default: 1500ms)
 	voiceTrackingScrollPosition: number      // Where current word appears on screen (0-100%, default: 30)
 	// TTS (Text-to-Speech) settings
-	ttsEngine: 'auto' | 'mac-say' | 'web-speech' | 'kokoro'
+	ttsEngine: 'auto' | 'mac-say' | 'web-speech' | 'kokoro' | 'elevenlabs'
 	ttsVoice: string                   // Voice ID (engine-specific)
 	ttsLanguage: string                // Language code (e.g., 'en', 'pt', 'fr')
 	ttsRate: number                    // Speech rate (0.5 - 2.0)
@@ -160,6 +160,10 @@ export interface TeleprompterSettings {
 	ttsSkipCodeBlocks: boolean         // Don't read code aloud
 	ttsSkipTables: boolean             // Don't read tables aloud
 	ttsPythonPath: string              // Python path for Kokoro engine
+	// ElevenLabs cloud TTS (bring-your-own-key — paid, sends script text to ElevenLabs)
+	elevenLabsApiKey: string           // User's own ElevenLabs API key
+	elevenLabsVoiceId: string          // ElevenLabs voice ID
+	elevenLabsModelId: string          // ElevenLabs model (flash/turbo/multilingual)
 	// Progress indicator style
 	progressIndicatorStyle: 'progress-bar' | 'scrollbar' | 'none'
 	// NEW: Toolbar configuration
@@ -302,6 +306,10 @@ export const DEFAULT_SETTINGS: TeleprompterSettings = {
 	ttsSkipCodeBlocks: true,
 	ttsSkipTables: true,
 	ttsPythonPath: 'python3',
+	// ElevenLabs cloud TTS defaults (empty key = engine unavailable, never auto-selected)
+	elevenLabsApiKey: '',
+	elevenLabsVoiceId: '21m00Tcm4TlvDq8ikWAM', // Rachel (ElevenLabs default public voice)
+	elevenLabsModelId: 'eleven_flash_v2_5',
 	// Progress indicator style
 	progressIndicatorStyle: 'progress-bar' as const,
 	// NEW: Toolbar configuration
@@ -1575,10 +1583,14 @@ export class TeleprompterSettingTab extends PluginSettingTab {
 							{ value: 'kokoro', label: 'Kokoro (neural, best quality)' },
 							{ value: 'mac-say', label: 'macOS Say (native, good quality)' },
 							{ value: 'web-speech', label: 'Web Speech API (basic fallback)' },
+							{ value: 'elevenlabs', label: 'ElevenLabs (cloud, paid — needs API key)' },
 						],
 						value: this.plugin.settings.ttsEngine,
 						onChange: (value) => {
-							this.plugin.settings.ttsEngine = value as 'auto' | 'mac-say' | 'web-speech' | 'kokoro'
+							this.plugin.settings.ttsEngine = value as 'auto' | 'mac-say' | 'web-speech' | 'kokoro' | 'elevenlabs'
+							if (value === 'elevenlabs') {
+								new Notice('ElevenLabs is a cloud, paid service. Your script text is sent to ElevenLabs servers, playback uses your ElevenLabs account credits, and you must supply your own API key (get one at elevenlabs.io). Prefer offline and free? Kokoro, macOS, and Web Speech remain available.', 12000)
+							}
 							void this.plugin.saveSettings()
 						}
 					},
@@ -1635,6 +1647,49 @@ export class TeleprompterSettingTab extends PluginSettingTab {
 						value: this.plugin.settings.ttsRate,
 						onChange: (value) => {
 							this.plugin.settings.ttsRate = value as number
+							void this.plugin.saveSettings()
+						}
+					}
+				]
+			},
+			{
+				id: 'tts-elevenlabs',
+				name: 'ElevenLabs (cloud, paid)',
+				icon: 'cloud',
+				hasToggle: false,
+				settings: [
+					{
+						name: 'API key',
+						desc: 'Cloud, PAID service. Your script text is sent to ElevenLabs and playback uses your account credits. Bring your own key from elevenlabs.io. Used only when the engine above is set to ElevenLabs; offline engines stay available.',
+						type: 'password',
+						value: this.plugin.settings.elevenLabsApiKey,
+						onChange: (value) => {
+							this.plugin.settings.elevenLabsApiKey = value as string
+							void this.plugin.saveSettings()
+						}
+					},
+					{
+						name: 'Model',
+						desc: 'Flash = fastest/cheapest, Turbo = low latency, Multilingual = best quality',
+						type: 'dropdown',
+						options: [
+							{ value: 'eleven_flash_v2_5', label: 'Flash v2.5 (fastest ~75ms)' },
+							{ value: 'eleven_turbo_v2_5', label: 'Turbo v2.5 (low latency)' },
+							{ value: 'eleven_multilingual_v2', label: 'Multilingual v2 (best quality)' },
+						],
+						value: this.plugin.settings.elevenLabsModelId,
+						onChange: (value) => {
+							this.plugin.settings.elevenLabsModelId = value as string
+							void this.plugin.saveSettings()
+						}
+					},
+					{
+						name: 'Voice ID',
+						desc: 'ElevenLabs voice ID. Default is Rachel (21m00Tcm4TlvDq8ikWAM). Find more in your ElevenLabs Voice Library; paste a cloned-voice ID here too.',
+						type: 'text',
+						value: this.plugin.settings.elevenLabsVoiceId,
+						onChange: (value) => {
+							this.plugin.settings.elevenLabsVoiceId = value as string
 							void this.plugin.saveSettings()
 						}
 					}
@@ -1710,7 +1765,7 @@ export class TeleprompterSettingTab extends PluginSettingTab {
 			settings: Array<{
 				name: string
 				desc: string
-				type: 'slider' | 'toggle' | 'text' | 'color' | 'dropdown'
+				type: 'slider' | 'toggle' | 'text' | 'password' | 'color' | 'dropdown'
 				min?: number
 				max?: number
 				step?: number
@@ -1843,6 +1898,18 @@ export class TeleprompterSettingTab extends PluginSettingTab {
 								})
 								.settingEl.addClass('tp-setting-no-border')
 							break
+						case 'text':
+						case 'password': {
+							const textInput = settingControl.createEl('input', {
+								type: setting.type === 'password' ? 'password' : 'text',
+								value: setting.value as string,
+								cls: 'tp-text-input'
+							})
+							textInput.addEventListener('change', (e) => {
+								setting.onChange((e.target as HTMLInputElement).value)
+							})
+							break
+						}
 					}
 				})
 			}

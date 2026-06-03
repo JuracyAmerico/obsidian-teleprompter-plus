@@ -164,13 +164,18 @@ Full command list, state shape, and integration examples: **[docs/websocket-api.
 
 ## Text-to-Speech
 
-Three engines, selected automatically based on availability:
+Three offline engines, selected automatically based on availability, plus one optional cloud engine:
 
 1. **Kokoro MLX** *(best quality, Apple Silicon)* — 22 voice presets (male/female, American/British English), audio-synced scrolling, sentence-by-sentence highlighting. See [docs/tts-setup.md](docs/tts-setup.md) for the one-time Python venv install.
 2. **macOS `say`** — built-in system voices (Samantha, Daniel, etc.). No setup.
 3. **Web Speech API** — universal fallback. Quality varies by OS and browser engine.
+4. **ElevenLabs** *(optional, cloud, paid — bring your own key)* — high-quality neural voices via the ElevenLabs API. Off by default and never auto-selected; choose it explicitly in settings and paste your own API key. See the privacy note below.
 
 Pause/resume from the toolbar or keyboard. Citations are resolved from your bibliography (Quarto/Pandoc `.bib` files).
+
+### Network use & privacy
+
+All default engines run **fully offline** — no audio or text leaves your machine. The **ElevenLabs** engine is the one exception and is strictly opt-in: when you explicitly select it and provide your own API key, the text of the script you are reading is sent to ElevenLabs' servers to synthesize audio, and playback consumes credits on **your** ElevenLabs account. No key is bundled with the plugin, and nothing is sent to ElevenLabs unless you turn the engine on. Prefer to keep everything local and free? Use Kokoro, macOS `say`, or Web Speech.
 
 ---
 

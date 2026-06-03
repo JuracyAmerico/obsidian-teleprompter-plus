@@ -24,6 +24,10 @@ export interface TTSServiceConfig {
 	resolveCitations: boolean
 	skipCodeBlocks: boolean
 	skipTables: boolean
+	// Cloud engine (ElevenLabs) — bring-your-own-key, only used when engineType === 'elevenlabs'
+	elevenLabsApiKey: string
+	elevenLabsVoiceId: string
+	elevenLabsModelId: string
 }
 
 const DEFAULT_CONFIG: TTSServiceConfig = {
@@ -34,6 +38,9 @@ const DEFAULT_CONFIG: TTSServiceConfig = {
 	resolveCitations: true,
 	skipCodeBlocks: true,
 	skipTables: true,
+	elevenLabsApiKey: '',
+	elevenLabsVoiceId: '',
+	elevenLabsModelId: 'eleven_flash_v2_5',
 }
 
 export class TTSService {
@@ -61,7 +68,11 @@ export class TTSService {
 			this.engine.destroy()
 		}
 
-		this.engine = createTTSEngine(this.config.engineType)
+		this.engine = createTTSEngine(this.config.engineType, {
+			elevenLabsApiKey: this.config.elevenLabsApiKey,
+			elevenLabsVoiceId: this.config.elevenLabsVoiceId,
+			elevenLabsModelId: this.config.elevenLabsModelId,
+		})
 		if (!this.engine) {
 			this.emitError('No TTS engine available')
 			return
