@@ -52,6 +52,15 @@ const DEBUG_VOICE_MATCH = true
 // isSpeechActive() returns true and behavior is identical to this flag being off.
 const ENABLE_SILENCE_GATE = true
 
+// Feature flag: reading-pace governor. Humans read aloud at a roughly steady rate. This essay
+// reuses vocabulary heavily, so the matcher can latch a repeated word onto a LATER copy and nudge
+// the highlight forward; because backward correction is rejected, those nudges ratchet ahead and a
+// constant HIGHLIGHT_LEAD can't undo a cumulative drift. The governor caps how fast the highlight
+// may advance to the reader's measured words/sec (with headroom), so a word 8 positions ahead can't
+// be reached in 200ms of speech — the ratchet is clamped while normal reading flows. Only gates the
+// LOCAL forward-commit path; intentional catch-ups (stall re-sync, R, manual-scroll SNAP) bypass it.
+const ENABLE_PACE_GOVERNOR = true
+
 /**
  * Voice Tracking Service - the main interface for voice-controlled scrolling.
  */
@@ -142,6 +151,15 @@ export class VoiceTrackingService {
   // Voice-activity detector (own mic, 85–3400 Hz band). Gates the stall re-sync so a genuine pause
   // can't be mistaken for the reader running ahead. Fail-open — see ENABLE_SILENCE_GATE.
   private speechDetector = new SpeechActivityDetector()
+
+  // Reading-pace governor (see ENABLE_PACE_GOVERNOR). Rolling window of recent local-commit samples
+  // {time, committed index} used to estimate words/sec and cap forward advance to human reading speed.
+  private paceSamples: { t: number; idx: number }[] = []
+  private lastCommitTime = 0
+  private readonly PACE_WINDOW_MS = 4000      // estimate pace over the last ~4s of reading
+  private readonly PACE_TOLERANCE = 1.7       // allow bursts up to 1.7× measured pace before clamping
+  private readonly MIN_PACE_WPS = 1.5         // floor (words/sec) so the governor never strangles
+  private readonly MAX_PACE_WPS = 6           // ceiling so a fast reader is never clamped to a crawl
 
   // Confidence gating (Textream): big forward jumps need 2-of-3 recent matches to agree; small
   // steps always commit. Stops a single over-match from pushing the highlight ahead of your voice.
@@ -469,6 +487,7 @@ export class VoiceTrackingService {
       }
 
       // Start listening
+      this.resetPaceGovernor()
       await this.recognizer.start()
 
       // Start the silence-gate VAD in parallel (fail-open: never throws, never blocks tracking).
@@ -673,6 +692,7 @@ export class VoiceTrackingService {
         this.matchAccumulator = []
         this.consecutiveFailedMatches = 0
         this.needsGlobalSearch = false
+        this.resetPaceGovernor()  // discontinuity: don't clamp the next commit against pre-snap pace
         if (DEBUG_VOICE_MATCH) console.warn(`[VT]   SNAP → matcher re-anchored to scroll position #${snapTo} (manual scroll)`)
       }
     }
@@ -773,6 +793,7 @@ export class VoiceTrackingService {
         this.currentWordIndex = newIndex
         this.lastMatchedIndex = newIndex
         this.matchAccumulator = []  // Clear accumulator on global jump
+        this.resetPaceGovernor()    // discontinuity: a catch-up jump must not be clamped by pace
         this.scrollToWord(newIndex)
       } else {
         // First far global match — hold it and re-search next time to confirm
@@ -805,7 +826,17 @@ export class VoiceTrackingService {
       }
       if (smallStep || confirmed) {
         // Cap the advance so a single over-reaching match can't lurch the highlight far ahead.
-        const capped = Math.min(newIndex, this.currentWordIndex + this.FORWARD_CAP)
+        let capped = Math.min(newIndex, this.currentWordIndex + this.FORWARD_CAP)
+        // Reading-pace governor: also cap to human reading speed, defeating the repeated-vocabulary
+        // ratchet that a constant lead can't. Bypassed at start (no pace history yet) and fail-safe.
+        if (ENABLE_PACE_GOVERNOR) {
+          const paced = this.governByPace(capped)
+          if (DEBUG_VOICE_MATCH && paced < capped) {
+            console.warn(`[VT]   pace clamp → #${paced} (matcher wanted #${capped}; held to reading speed)`)
+          }
+          capped = paced
+        }
+        this.lastCommitTime = Date.now()
         this.pendingGlobalIndex = -1
         this.currentWordIndex = capped
         this.lastMatchedIndex = capped
@@ -817,6 +848,43 @@ export class VoiceTrackingService {
     } else {
       this.noProgressCount++  // no forward progress — likely a pause or repetition
     }
+  }
+
+  /**
+   * Reading-pace governor. Estimates the reader's words/sec from a rolling window of recent commits
+   * and caps the proposed advance so the highlight can't move faster than a human reads aloud. This
+   * is what defeats the repeated-vocabulary ratchet: a matched word many positions ahead simply can't
+   * be reached in the elapsed speech time, so it's held back to where the voice plausibly is.
+   * Returns the pace-capped index (>= currentWordIndex). No history yet → returns the input unchanged.
+   */
+  /** Clear pace history so the next commit isn't clamped against a stale window (start / jumps). */
+  private resetPaceGovernor(): void {
+    this.paceSamples = []
+    this.lastCommitTime = 0
+  }
+
+  private governByPace(proposed: number): number {
+    const now = Date.now()
+    // Sample the proposed (already FORWARD_CAP-limited) index, then trim the window.
+    this.paceSamples.push({ t: now, idx: proposed })
+    while (this.paceSamples.length > 0 && now - this.paceSamples[0].t > this.PACE_WINDOW_MS) {
+      this.paceSamples.shift()
+    }
+    // Need a little history and a known last commit before clamping.
+    if (this.paceSamples.length < 3 || this.lastCommitTime === 0) return proposed
+
+    const head = this.paceSamples[0]
+    const tail = this.paceSamples[this.paceSamples.length - 1]
+    const winMs = tail.t - head.t
+    if (winMs <= 0) return proposed
+
+    // words/sec over the window, bounded so we neither strangle nor free-wheel.
+    const wps = Math.min(this.MAX_PACE_WPS, Math.max(this.MIN_PACE_WPS, ((tail.idx - head.idx) / winMs) * 1000))
+    const dtSec = (now - this.lastCommitTime) / 1000
+    // Max words this commit may advance: pace × elapsed × headroom, but never fewer than a small step
+    // so steady reading is never throttled.
+    const maxAdvance = Math.max(this.SMALL_STEP_WORDS, Math.ceil(wps * dtSec * this.PACE_TOLERANCE))
+    return Math.min(proposed, this.currentWordIndex + maxAdvance)
   }
 
   /**
