@@ -88,12 +88,23 @@ export class AppleSpeechRecognizer {
     if (!grammar) return
     try {
       const words = JSON.parse(grammar) as string[]
-      const salient = Array.from(new Set(
-        words.map(w => w.trim()).filter(w => w.length >= 5 && w !== '[unk]')
-      )).slice(0, 100)
-      if (salient.length === 0) return
+      // The caller (VoiceTrackingService.buildContextVocabulary) already curates + prioritizes this
+      // list in natural casing, so here we only trim, drop the [unk] sentinel, dedup, and cap. We do
+      // NOT re-filter by length — that would discard short proper nouns like "UX"/"Dr" we want to bias.
+      const seen = new Set<string>()
+      const salient: string[] = []
+      for (const raw of words) {
+        const w = raw.trim()
+        if (!w || w === '[unk]') continue
+        const key = w.toLowerCase()
+        if (seen.has(key)) continue
+        seen.add(key)
+        salient.push(w)
+      }
+      const capped = salient.slice(0, 100)
+      if (capped.length === 0) return
       const p = path.join(os.tmpdir(), 'teleprompter-stt-context.txt')
-      fs.writeFileSync(p, salient.join('\n'), 'utf8')
+      fs.writeFileSync(p, capped.join('\n'), 'utf8')
       this.contextFilePath = p
     } catch {
       this.contextFilePath = null
