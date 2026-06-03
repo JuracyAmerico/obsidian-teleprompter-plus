@@ -103,9 +103,22 @@ export function computeSpeechRecognitionTokenIndex(
     distances.push(levenshteinDistance(comparisonString, referenceSubstring))
   }
 
-  // Find the index with minimum distance
-  const minDistance = Math.min(...distances)
-  const localIndex = distances.indexOf(minDistance)
+  // Prefer the NEAREST good alignment, not the raw global minimum. In repeat-heavy text the same
+  // spoken tail ("...the cross-border friction") aligns to a LATER copy of a repeated word/phrase
+  // with an equal or near-equal edit distance; taking the bare minimum makes the highlight leap to
+  // that second occurrence (the "30 words ahead" jump). A small per-position penalty means a farther
+  // candidate only wins when it is DISTINCTLY better, so the matcher stays locked to the copy the
+  // reader is actually on. Index 0 (closest to current) carries no penalty.
+  const PROXIMITY_PENALTY = 0.6
+  let localIndex = 0
+  let bestScore = distances[0]
+  for (let k = 1; k < distances.length; k++) {
+    const score = distances[k] + PROXIMITY_PENALTY * k
+    if (score < bestScore) {
+      bestScore = score
+      localIndex = k
+    }
+  }
 
   // Get the corresponding token
   const token = referenceTokens[localIndex]
