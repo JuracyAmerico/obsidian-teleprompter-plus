@@ -78,7 +78,7 @@ export class VoskRecognizer {
    *
    * @param language - Language code (e.g., 'en-US')
    */
-  async initialize(language: string = 'en-US'): Promise<void> {
+  async initialize(language: string = 'en-US', grammar?: string): Promise<void> {
     if (!VoskRecognizer.isSupported()) {
       this.emitError('browser-not-supported', 'Voice recognition is not supported in this browser')
       throw new Error('Voice recognition not supported')
@@ -164,29 +164,9 @@ export class VoskRecognizer {
         })
       })
 
-      // Create recognizer with sample rate (browser audio is typically 48000Hz)
-      // KaldiRecognizer is accessed as a property on the model instance
-      const sampleRate = 48000
-      this.recognizer = new this.model.KaldiRecognizer(sampleRate)
-
-      // Set up result handlers
-      this.recognizer.on('result', (message) => {
-        if (message.event === 'result' && message.result) {
-          const text = message.result.text
-          if (text && text.trim()) {
-            this.emitResult(text, true)
-          }
-        }
-      })
-
-      this.recognizer.on('partialresult', (message) => {
-        if (message.event === 'partialresult' && message.result) {
-          const partial = message.result.partial
-          if (partial && partial.trim()) {
-            this.emitResult(partial, false)
-          }
-        }
-      })
+      // Create recognizer, optionally grammar-constrained to the script vocabulary
+      // (huge accuracy win — Vosk only emits words that are actually in the document).
+      this.createRecognizer(grammar)
 
       this.isInitialized = true
 
@@ -196,6 +176,47 @@ export class VoskRecognizer {
       this.emitStatus('error')
       throw error
     }
+  }
+
+  /**
+   * Create (or recreate) the KaldiRecognizer, optionally grammar-constrained,
+   * and (re)attach the result handlers. Grammar is a JSON string array of
+   * allowed phrases — when provided, recognition is limited to those words.
+   */
+  private createRecognizer(grammar?: string): void {
+    if (!this.model) return
+    const sampleRate = 48000
+    this.recognizer = grammar
+      ? new this.model.KaldiRecognizer(sampleRate, grammar)
+      : new this.model.KaldiRecognizer(sampleRate)
+
+    this.recognizer.on('result', (message) => {
+      if (message.event === 'result' && message.result) {
+        const text = message.result.text
+        if (text && text.trim()) {
+          this.emitResult(text, true)
+        }
+      }
+    })
+
+    this.recognizer.on('partialresult', (message) => {
+      if (message.event === 'partialresult' && message.result) {
+        const partial = message.result.partial
+        if (partial && partial.trim()) {
+          this.emitResult(partial, false)
+        }
+      }
+    })
+  }
+
+  /**
+   * Swap the recognizer's grammar without reloading the model (cheap).
+   * Used when the tracked document changes so the vocabulary stays in sync.
+   * No-op while actively listening (avoids dropping the audio graph mid-session).
+   */
+  updateGrammar(grammar?: string): void {
+    if (!this.isInitialized || this.isListening) return
+    this.createRecognizer(grammar)
   }
 
   /**
