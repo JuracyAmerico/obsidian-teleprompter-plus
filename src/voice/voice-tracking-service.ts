@@ -80,8 +80,8 @@ export class VoiceTrackingService {
 
   // Forward catch-up: when the reader is clearly ahead, snap forward immediately
   // (bypassing the smooth per-step cap + accumulator) so we never trail a fast reader.
-  private readonly CATCH_UP_THRESHOLD = 6   // words ahead before we snap to catch up
-  private readonly CATCH_UP_MAX = 25        // max words to advance in one catch-up
+  private readonly CATCH_UP_THRESHOLD = 6   // words ahead before we start easing forward faster
+  private readonly CATCH_UP_MAX = 12        // max words to advance in one catch-up step (eased, not a leap)
   // Re-sync only relocates within this many words of where the reader is looking —
   // a bounded search can never teleport to the end of the document.
   private readonly GLOBAL_SEARCH_RADIUS = 120
@@ -596,16 +596,18 @@ export class VoiceTrackingService {
     // For partial results, require minimum forward progress
     const minJump = isFinal ? 1 : this.MIN_JUMP_DISTANCE
 
-    // CATCH-UP: the reader is clearly ahead of the scroll — snap forward now so we stop
-    // trailing. Forward in-script progress is safe (not a random jump), so bypass the small
-    // per-step cap and the 3-match accumulator that otherwise make it lag a normal/fast reader.
+    // CATCH-UP (proportional): the reader is ahead of the scroll — EASE forward instead of
+    // leaping. Advance ~half the gap (capped), with the scroll animation scaled to the
+    // distance so it glides. This converges to your position over a couple of updates without
+    // trailing (the old fixed cap) OR lurching a whole paragraph (a full-gap snap).
     if (jumpDistance >= this.CATCH_UP_THRESHOLD) {
-      const target = this.currentWordIndex + Math.min(jumpDistance, this.CATCH_UP_MAX)
+      const advance = Math.min(this.CATCH_UP_MAX, Math.max(this.MAX_JUMP_DISTANCE, Math.ceil(jumpDistance * 0.5)))
+      const target = this.currentWordIndex + advance
       this.pendingGlobalIndex = -1
       this.matchAccumulator = []
       this.currentWordIndex = target
       this.lastMatchedIndex = target
-      this.scrollToWord(target, 5)
+      this.scrollToWord(target, advance)  // animation duration scales with distance → smooth glide
       return
     }
 
