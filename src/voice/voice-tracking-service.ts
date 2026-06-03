@@ -150,12 +150,12 @@ export class VoiceTrackingService {
   private readonly AGREE_WORDS = 3        // recent matches within this many words count as agreeing
   private readonly FORWARD_CAP = 5        // max words the highlight may advance in one commit (anti-lurch)
   // Lead (+) or lag (-) the highlight vs the matched word, to offset recognition latency and
-  // Apple's predictive partials. User-tunable via the "Highlight offset" slider. Default -2 =
-  // sit two words BEHIND the recognized word, so you always read just ahead of the highlight.
-  // Why -2 and not 0: the matched word is the LEADING edge of Apple's recognition (the word
-  // you're currently saying), and matching is forward-only (small overshoots ratchet and never
-  // pull back), so a 0 offset reads as "creeping ahead". -2 keeps the highlight under your voice.
-  private get HIGHLIGHT_LEAD(): number { return this.config.highlightLead ?? -2 }
+  // Apple's predictive partials. User-tunable LIVE via the "Highlight offset" slider (no rebuild).
+  // Default -4 = sit four words BEHIND the recognized word, so the highlight stays under your voice.
+  // Why so negative: Apple emits words slightly BEFORE you finish saying them and the confirm-gate
+  // commits up to FORWARD_CAP(5) words forward, so the matched index runs a few words ahead of your
+  // literal voice; -2 wasn't enough to cover it. If -4 feels laggy, raise the slider toward 0.
+  private get HIGHLIGHT_LEAD(): number { return this.config.highlightLead ?? -4 }
   // Set by forceResync(): the next global match commits immediately, no confirmation gate.
   private resyncRequested = false
 
@@ -828,7 +828,7 @@ export class VoiceTrackingService {
   private scrollToWord(wordIndex: number): void {
     // Lead the highlight slightly to offset recognition latency (the matched word trails your
     // actual reading by a word or two). HIGHLIGHT_LEAD is the knob for "behind" vs "ahead".
-    const ledIndex = Math.min(Math.max(0, this.wordTokens.length - 1), wordIndex + this.HIGHLIGHT_LEAD)
+    const ledIndex = Math.max(0, Math.min(this.wordTokens.length - 1, wordIndex + this.HIGHLIGHT_LEAD))
 
     // The highlight is the primary position tracker (Textream-style word highlighting).
     if (ENABLE_KARAOKE_HIGHLIGHTING) this.highlightWord(ledIndex)
