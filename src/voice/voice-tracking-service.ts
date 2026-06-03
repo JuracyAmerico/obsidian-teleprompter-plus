@@ -40,7 +40,7 @@ const DEFAULT_CONFIG: VoiceTrackingConfig = {
 }
 
 // Feature flag: Karaoke word highlighting
-const ENABLE_KARAOKE_HIGHLIGHTING = false
+const ENABLE_KARAOKE_HIGHLIGHTING = true
 
 /**
  * Voice Tracking Service - the main interface for voice-controlled scrolling.
@@ -329,18 +329,30 @@ export class VoiceTrackingService {
    * @param wordIndex - Index of the word to highlight
    */
   highlightWord(wordIndex: number): void {
-    // Remove highlight from previous word
+    if (this.highlightedWordIndex === wordIndex) return
+
+    // The previously-current word becomes "past" (read).
     if (this.highlightedWordIndex >= 0 && this.highlightedWordIndex !== wordIndex) {
       const prevSpan = this.wordSpans.get(this.highlightedWordIndex)
       if (prevSpan) {
         prevSpan.classList.remove('voice-active')
+        prevSpan.classList.add('voice-past')
       }
     }
 
-    // Add highlight to current word
+    // Mark everything up to the current word as past, then highlight the current word.
+    // (Handles forward jumps so the read/unread boundary stays correct.)
+    for (const [idx, span] of this.wordSpans) {
+      if (idx < wordIndex) {
+        if (!span.classList.contains('voice-past')) span.classList.add('voice-past')
+        span.classList.remove('voice-active')
+      }
+    }
+
     const span = this.wordSpans.get(wordIndex)
     if (span) {
       span.classList.add('voice-active')
+      span.classList.remove('voice-past')
       this.highlightedWordIndex = wordIndex
     }
   }
@@ -634,30 +646,31 @@ export class VoiceTrackingService {
    * @param jumpDistance - Number of words being jumped (for animation timing)
    */
   private scrollToWord(wordIndex: number): void {
-    // Anchor the scroll READ_TRAIL words behind your spoken word so it stays behind your reading.
-    const anchorIndex = Math.max(0, wordIndex - this.READ_TRAIL)
-    const position = this.wordPositions.get(anchorIndex) ?? this.wordPositions.get(wordIndex)
+    // The highlight is the primary position tracker (Textream-style word highlighting).
+    if (ENABLE_KARAOKE_HIGHLIGHTING) this.highlightWord(wordIndex)
 
+    const position = this.wordPositions.get(wordIndex)
     if (!position || !this.contentArea) {
       return
     }
 
-    // Highlight the current word (karaoke style) if enabled
-    if (ENABLE_KARAOKE_HIGHLIGHTING) {
-      this.highlightWord(wordIndex)
+    const h = this.contentArea.clientHeight
+    // Rest = where the highlighted word sits right after the page advances (Scroll position setting).
+    const restFrac = Math.min(0.8, Math.max(0.15, this.SCROLL_POSITION / 100))
+    // Trigger = how far down the word may drift before the page advances. The gap between rest and
+    // trigger is the "hold band": while you read down through it (several lines), the page stays put.
+    const triggerFrac = Math.min(0.9, restFrac + 0.4)
+
+    const wordViewportY = position.offsetTop - this.contentArea.scrollTop
+
+    // HOLD, then ADVANCE: only move the page when the highlighted word reaches the lower trigger
+    // (you've read down the screen) or has drifted above the top (a backward jump / re-sync).
+    // Within the band: do nothing — the page holds still while you finish the line.
+    if (wordViewportY > h * triggerFrac || wordViewportY < h * 0.05) {
+      this.targetScrollPos = Math.max(0, position.offsetTop - h * restFrac)
+      this.onWordMatch?.(wordIndex, this.targetScrollPos)
+      this.startScrollFollow()
     }
-
-    // Calculate scroll position (keep matched word at configured % from top)
-    const scrollPercent = this.SCROLL_POSITION / 100
-    const targetScroll = Math.max(0, position.offsetTop - (this.contentArea.clientHeight * scrollPercent))
-
-    // Emit event before scrolling
-    this.onWordMatch?.(wordIndex, targetScroll)
-
-    // Damped follow: update the target and let the per-frame loop ease toward it. Smooth (no hard
-    // snap), and it tracks the LATEST word with no captured momentum (so it never races ahead).
-    this.targetScrollPos = targetScroll
-    this.startScrollFollow()
   }
 
   /** Per-frame critically-damped follow toward the latest target. Reuses scrollAnimationId so
