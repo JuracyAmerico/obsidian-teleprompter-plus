@@ -112,9 +112,10 @@ export class VoiceTrackingService {
   private readonly SMALL_STEP_WORDS = 2   // a jump this small commits immediately (responsive)
   private readonly AGREE_WORDS = 3        // recent matches within this many words count as agreeing
   private readonly FORWARD_CAP = 5        // max words the highlight may advance in one commit (anti-lurch)
-  // Lead the highlight ahead of the matched word to offset recognition latency (Apple's match
-  // trails your actual reading). Raise if it feels behind, lower (or 0) if it feels ahead.
-  private readonly HIGHLIGHT_LEAD = 1
+  // Lead (+) or lag (-) the highlight vs the matched word, to offset recognition latency and
+  // Apple's predictive partials. User-tunable via the "Highlight offset" slider. Default 0 =
+  // sit exactly on the recognized word. + feels ahead, - feels behind.
+  private get HIGHLIGHT_LEAD(): number { return this.config.highlightLead ?? 0 }
   // Set by forceResync(): the next global match commits immediately, no confirmation gate.
   private resyncRequested = false
 

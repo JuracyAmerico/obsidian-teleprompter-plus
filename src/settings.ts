@@ -152,6 +152,7 @@ export interface TeleprompterSettings {
 	voiceTrackingScrollPosition: number      // Where current word appears on screen (0-100%, default: 30)
 	voiceTrackingReadTrail: number           // Words to keep the scroll behind your voice (anti "runs ahead")
 	voiceTrackingSmoothness: number          // Scroll-follow smoothness ×100 (e.g. 16 = 0.16)
+	voiceTrackingHighlightLead: number       // Highlight offset in words vs voice (+ ahead, - behind)
 	// TTS (Text-to-Speech) settings
 	ttsEngine: 'auto' | 'mac-say' | 'web-speech' | 'kokoro' | 'elevenlabs'
 	ttsVoice: string                   // Voice ID (engine-specific)
@@ -300,6 +301,7 @@ export const DEFAULT_SETTINGS: TeleprompterSettings = {
 	voiceTrackingScrollPosition: 20,        // Current word at 20% from top (more runway below)
 	voiceTrackingReadTrail: 8,              // anchor 8 words behind your voice by default
 	voiceTrackingSmoothness: 16,            // 0.16 follow factor
+	voiceTrackingHighlightLead: 0,          // highlight sits exactly on the recognized word
 	// TTS (Text-to-Speech) defaults
 	ttsEngine: 'auto' as const,
 	ttsVoice: '',
@@ -1585,6 +1587,17 @@ export class TeleprompterSettingTab extends PluginSettingTab {
 						value: this.plugin.settings.voiceTrackingSmoothness,
 						onChange: (value) => {
 							this.plugin.settings.voiceTrackingSmoothness = value as number
+							void this.plugin.saveSettings()
+						}
+					},
+					{
+						name: 'Highlight offset (words ahead/behind your voice)',
+						desc: 'Fine-tunes where the highlight sits relative to the word you are speaking. 0 = on the recognized word. If the highlight feels AHEAD of you, go negative (-1, -2). If it feels BEHIND, go positive (+1, +2). Re-toggle voice tracking (V) to apply.',
+						type: 'slider',
+						min: -3, max: 3, step: 1,
+						value: this.plugin.settings.voiceTrackingHighlightLead,
+						onChange: (value) => {
+							this.plugin.settings.voiceTrackingHighlightLead = value as number
 							void this.plugin.saveSettings()
 						}
 					}
