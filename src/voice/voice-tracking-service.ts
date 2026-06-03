@@ -712,21 +712,26 @@ export class VoiceTrackingService {
     // confirmed by a second agreeing global match before we move — one mis-hear can
     // no longer fling the reader to an unrelated section.
     if (isGlobalMatch) {
+      // HARD-reject BACKWARD re-acquisition. In a forward-read teleprompter the reader never needs
+      // the highlight to jump back on its own — a stall means they ran AHEAD, so recovery is forward.
+      // A backward global match is the matcher latching onto an EARLIER copy of a repeated phrase
+      // (this essay reuses "the word pause", "my label didn't reflect", etc.), which flings the
+      // highlight hundreds of words back ("the highlight is way behind"). Confirmation isn't enough —
+      // two repeated-phrase matches can agree and confirm a wrong −266 jump — so this is unconditional.
+      // Deliberate back-navigation still works: R (resyncRequested) and manual scroll (the SNAP path)
+      // both bypass this. If the highlight ever genuinely runs ahead, it simply holds until you read
+      // forward into it or press R, instead of teleporting backward.
+      if (!this.resyncRequested && newIndex < this.currentWordIndex - this.SMALL_STEP_WORDS) {
+        this.needsGlobalSearch = false
+        this.pendingGlobalIndex = -1
+        if (DEBUG_VOICE_MATCH) console.warn(`[VT]   GLOBAL backward → #${newIndex} REJECTED (behind cur #${this.currentWordIndex}); holding`)
+        return
+      }
       const globalJump = Math.abs(newIndex - this.currentWordIndex)
       const confirmed = this.pendingGlobalIndex >= 0 &&
         Math.abs(newIndex - this.pendingGlobalIndex) <= 5
-      // BACKWARD re-acquisition is almost always a repeated-phrase false match. Stalls happen
-      // because the reader ran AHEAD of the local window, so legitimate recovery is forward; a
-      // re-sync that lands behind the current word is the matcher latching onto an earlier copy
-      // of a phrase (or onto off-script speech). So require confirmation for ANY backward jump,
-      // not just far ones — that kills the small −12/−18/−26 backward flings while still letting a
-      // genuinely-repeated backward re-acquire through once two global matches agree. Deliberate
-      // back-navigation goes through R (resyncRequested) or manual scroll (the SNAP path), both of
-      // which bypass this.
-      const isBackward = newIndex < this.currentWordIndex - this.SMALL_STEP_WORDS
-      const needsConfirm = isBackward || globalJump > this.GLOBAL_JUMP_CONFIRM_DISTANCE
 
-      if (this.resyncRequested || !needsConfirm || confirmed) {
+      if (this.resyncRequested || globalJump <= this.GLOBAL_JUMP_CONFIRM_DISTANCE || confirmed) {
         // User-requested re-sync commits immediately (no confirmation) — that's the whole point of R.
         this.resyncRequested = false
         this.pendingGlobalIndex = -1
