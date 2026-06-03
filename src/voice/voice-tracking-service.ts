@@ -43,7 +43,7 @@ const DEFAULT_CONFIG: VoiceTrackingConfig = {
 const ENABLE_KARAOKE_HIGHLIGHTING = true
 
 // Verbose match/scroll logging to the console for diagnosing tracking. Flip on when needed.
-const DEBUG_VOICE_MATCH = false
+const DEBUG_VOICE_MATCH = true
 
 /**
  * Voice Tracking Service - the main interface for voice-controlled scrolling.
@@ -112,6 +112,9 @@ export class VoiceTrackingService {
   private readonly SMALL_STEP_WORDS = 2   // a jump this small commits immediately (responsive)
   private readonly AGREE_WORDS = 3        // recent matches within this many words count as agreeing
   private readonly FORWARD_CAP = 5        // max words the highlight may advance in one commit (anti-lurch)
+  // Lead the highlight ahead of the matched word to offset recognition latency (Apple's match
+  // trails your actual reading). Raise if it feels behind, lower (or 0) if it feels ahead.
+  private readonly HIGHLIGHT_LEAD = 2
   // Set by forceResync(): the next global match commits immediately, no confirmation gate.
   private resyncRequested = false
 
@@ -684,10 +687,14 @@ export class VoiceTrackingService {
    * @param jumpDistance - Number of words being jumped (for animation timing)
    */
   private scrollToWord(wordIndex: number): void {
-    // The highlight is the primary position tracker (Textream-style word highlighting).
-    if (ENABLE_KARAOKE_HIGHLIGHTING) this.highlightWord(wordIndex)
+    // Lead the highlight slightly to offset recognition latency (the matched word trails your
+    // actual reading by a word or two). HIGHLIGHT_LEAD is the knob for "behind" vs "ahead".
+    const ledIndex = Math.min(Math.max(0, this.wordTokens.length - 1), wordIndex + this.HIGHLIGHT_LEAD)
 
-    const position = this.wordPositions.get(wordIndex)
+    // The highlight is the primary position tracker (Textream-style word highlighting).
+    if (ENABLE_KARAOKE_HIGHLIGHTING) this.highlightWord(ledIndex)
+
+    const position = this.wordPositions.get(ledIndex) ?? this.wordPositions.get(wordIndex)
     if (!position || !this.contentArea) {
       return
     }
