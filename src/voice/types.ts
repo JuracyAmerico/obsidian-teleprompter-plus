@@ -52,6 +52,9 @@ export type VoiceTrackingError =
  * Configuration for voice tracking.
  */
 export interface VoiceTrackingConfig {
+  /** Recognition engine: 'apple' (on-device, macOS, most accurate), 'vosk' (offline model,
+   *  cross-platform), or 'auto' (prefer Apple when available, else Vosk). */
+  engine?: 'apple' | 'vosk' | 'auto'
   /** Language code for recognition (e.g., 'en-US') */
   language: string
   /** Scroll behavior when moving to matched word */

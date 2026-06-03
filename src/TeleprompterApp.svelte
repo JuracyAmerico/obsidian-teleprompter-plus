@@ -2178,6 +2178,7 @@
 
         // Get or create service with tuning parameters from settings
         voiceTrackingService = getVoiceTrackingService({
+          engine: 'auto',  // prefer Apple on-device Speech (macOS) when available, else Vosk
           language: settings.voiceTrackingLanguage || 'en-US',
           scrollBehavior: settings.voiceTrackingScrollBehavior || 'smooth',
           showIndicator: settings.voiceTrackingShowIndicator ?? true,
