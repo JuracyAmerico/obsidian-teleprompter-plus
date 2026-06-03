@@ -588,7 +588,7 @@ export class VoiceTrackingService {
         this.currentWordIndex = newIndex
         this.lastMatchedIndex = newIndex
         this.matchAccumulator = []  // Clear accumulator on global jump
-        this.scrollToWord(newIndex, 5)  // Use moderate animation duration
+        this.scrollToWord(newIndex)
       } else {
         // First far global match — hold it and re-search next time to confirm
         this.pendingGlobalIndex = newIndex
@@ -603,31 +603,16 @@ export class VoiceTrackingService {
       return
     }
 
-    // For partial results, require minimum forward progress
-    const minJump = isFinal ? 1 : this.MIN_JUMP_DISTANCE
-
-    // Only accumulate forward matches (smooth small steps)
-    if (jumpDistance >= minJump || (newIndex === 0 && this.currentWordIndex === 0)) {
-      // Cap the per-update advance (fixed moderate value) — keeps pace, never lurches
-      const cappedJump = Math.min(jumpDistance, this.SMOOTH_STEP_CAP)
-      const targetIndex = this.currentWordIndex + cappedJump
-
-      // Accumulate this match - only scroll when we have consistent matches
-      const scrollTarget = this.accumulateMatch(targetIndex)
-
-      if (scrollTarget >= 0) {
-        // We have enough consistent matches - now scroll!
-        this.pendingGlobalIndex = -1  // normal tracking resumed; drop any held far-jump
-        this.currentWordIndex = scrollTarget
-        this.lastMatchedIndex = scrollTarget
-        this.scrollToWord(scrollTarget, Math.abs(scrollTarget - this.currentWordIndex))
-      }
-    } else if (jumpDistance <= 0) {
-      // No forward progress - might be pause or repetition
-      // Reset pause state tracking
-      this.noProgressCount++
-
-      // Multiple no-progress results - speech may have paused
+    // Canonical model (jlecomte Content.tsx): on ANY forward match, snap the matched word to the
+    // anchor immediately. No accumulator, no per-update cap, no momentum animation — those caused
+    // the scroll to lag, then overshoot and race ahead of the reader across Apple's fast partials.
+    if (jumpDistance > 0) {
+      this.pendingGlobalIndex = -1
+      this.currentWordIndex = newIndex
+      this.lastMatchedIndex = newIndex
+      this.scrollToWord(newIndex)
+    } else {
+      this.noProgressCount++  // no forward progress — likely a pause or repetition
     }
   }
 
@@ -637,10 +622,8 @@ export class VoiceTrackingService {
    * @param wordIndex - Target word index
    * @param jumpDistance - Number of words being jumped (for animation timing)
    */
-  private scrollToWord(wordIndex: number, jumpDistance: number = 5): void {
-    // Anchor a few words behind the spoken word so the scroll trails your voice (never leads it).
-    const anchorIndex = Math.max(0, wordIndex - this.READ_AHEAD_LAG)
-    const position = this.wordPositions.get(anchorIndex) ?? this.wordPositions.get(wordIndex)
+  private scrollToWord(wordIndex: number): void {
+    const position = this.wordPositions.get(wordIndex)
 
     if (!position || !this.contentArea) {
       return
@@ -651,15 +634,16 @@ export class VoiceTrackingService {
       this.highlightWord(wordIndex)
     }
 
-    // Calculate scroll position (keep word at configured % from top)
+    // Calculate scroll position (keep matched word at configured % from top)
     const scrollPercent = this.SCROLL_POSITION / 100
     const targetScroll = Math.max(0, position.offsetTop - (this.contentArea.clientHeight * scrollPercent))
 
     // Emit event before scrolling
     this.onWordMatch?.(wordIndex, targetScroll)
 
-    // Use custom smooth animation for voice tracking
-    this.animateScrollTo(targetScroll, jumpDistance)
+    // Canonical (jlecomte): snap instantly to keep the matched word at the anchor. No momentum
+    // animation — the old easing compounded across Apple's rapid partials and raced ahead.
+    this.contentArea.scrollTop = targetScroll
   }
 
   /**
