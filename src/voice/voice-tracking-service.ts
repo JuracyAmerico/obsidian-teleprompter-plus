@@ -75,6 +75,7 @@ export class VoiceTrackingService {
 
   // Grammar-constrained recognition: vocabulary derived from the current script
   private vocabulary: string | undefined = undefined
+  private contextVocabulary: string | undefined = undefined
 
   // Global-jump hardening: a FAR global match must be confirmed by a second,
   // agreeing global match before we commit — stops one mis-hear from flinging
@@ -188,7 +189,13 @@ export class VoiceTrackingService {
     // Build a grammar from the script vocabulary and keep the recognizer in sync
     // (handles switching documents without reloading the Vosk model).
     this.vocabulary = this.buildGrammar()
-    this.recognizer.updateGrammar(this.vocabulary)
+    // Vosk needs the lowercased grammar; Apple's contextualStrings bias works far better with the
+    // ORIGINAL casing/hyphens (proper nouns + headers are exactly what it mis-hears). Feed each
+    // recognizer the form it wants.
+    this.contextVocabulary = this.buildContextVocabulary()
+    this.recognizer.updateGrammar(
+      this.recognizer instanceof AppleSpeechRecognizer ? this.contextVocabulary : this.vocabulary
+    )
 
     this.contentArea = contentArea
     this.currentWordIndex = 0
@@ -415,7 +422,10 @@ export class VoiceTrackingService {
       // Initialize recognizer if not already done
       if (!this.recognizer.getIsInitialized()) {
         this.onStatusChange?.('initializing')
-        await this.recognizer.initialize(this.config.language, this.vocabulary)
+        await this.recognizer.initialize(
+          this.config.language,
+          this.recognizer instanceof AppleSpeechRecognizer ? this.contextVocabulary : this.vocabulary
+        )
       }
 
       // Start listening
@@ -497,6 +507,34 @@ export class VoiceTrackingService {
     }
     if (unique.size === 0 || unique.size > 1000) return undefined
     return JSON.stringify([...unique, '[unk]'])
+  }
+
+  /**
+   * Build the contextualStrings hint list for Apple's on-device recognizer from the ORIGINAL
+   * token text (preserving case + internal hyphens), NOT the lowercased Vosk grammar. Proper
+   * nouns and section headers ("Module", "Hamid", "U-Haul", "UX") are exactly what SFSpeechRecognizer
+   * mis-hears, and the bias is much stronger when they are supplied in natural form. We surface those
+   * "strong" tokens first (capitalized / numeric / hyphenated), then fill with other 4+ char words,
+   * dedup case-insensitively, and cap the list (Apple ignores an oversized hint set).
+   */
+  private buildContextVocabulary(): string | undefined {
+    const isStrong = (w: string) => /^[A-ZÀ-Þ0-9]/.test(w) || w.includes('-')
+    const strip = (v: string) => v.trim().replace(/^[^\p{L}\p{N}]+|[^\p{L}\p{N}-]+$/gu, '')
+    const strong: string[] = []
+    const rest: string[] = []
+    const seen = new Set<string>()
+    for (const t of this.wordTokens) {
+      const w = strip(t.value)
+      if (!w || w === '[unk]') continue
+      const key = w.toLowerCase()
+      if (seen.has(key)) continue
+      if (isStrong(w)) { seen.add(key); strong.push(w) }
+      else if (w.length >= 4) { seen.add(key); rest.push(w) }
+    }
+    // Cap matches the Swift sidecar's contextualStrings limit (100); strong tokens are first so
+    // proper nouns survive the cut even when the script is long.
+    const salient = [...strong, ...rest].slice(0, 100)
+    return salient.length ? JSON.stringify(salient) : undefined
   }
 
   /**
