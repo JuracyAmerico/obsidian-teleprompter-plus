@@ -61,19 +61,20 @@ export function computeSpeechRecognitionTokenIndex(
     return null
   }
 
-  // Convert tokens to a comparison string
-  const comparisonString = tokensToString(recognizedTokens)
-
-  // Ensure we have a valid starting index
   if (lastRecognizedTokenIndex < 0) {
     lastRecognizedTokenIndex = 0
   }
 
-  // Get reference tokens from current position using an ADAPTIVE look-ahead window.
-  // Canonical jlecomte sizing: recognizedWords*2 + 10 — the window grows with how much
-  // you've spoken, so it can always see far enough ahead to keep pace with a fast reader.
-  // (A small fixed window made the tracker permanently trail once you got a few words ahead.)
-  const lookAhead = Math.max(windowSize, recognizedTokens.length * 2 + 10)
+  // Match only the RECENT TAIL of the recognized speech, not the whole cumulative partial.
+  // Apple keeps growing one long partial from the start of the utterance, but we match forward
+  // from the current position — so the partial's beginning (words already read) misaligns the
+  // match and pushes it noisily ahead. The last few spoken words anchor the match where the
+  // voice actually is. The window is kept just big enough to locate that short tail.
+  const TAIL_WORDS = 5
+  const tailTokens = recognizedTokens.slice(-TAIL_WORDS)
+  const comparisonString = tokensToString(tailTokens)
+
+  const lookAhead = Math.max(windowSize, tailTokens.length + 8)
   const referenceTokens = reference
     .slice(lastRecognizedTokenIndex, lastRecognizedTokenIndex + lookAhead)
     .filter(element => element.type === 'TOKEN')

@@ -111,6 +111,7 @@ export class VoiceTrackingService {
   private recentMatchPositions: number[] = []
   private readonly SMALL_STEP_WORDS = 2   // a jump this small commits immediately (responsive)
   private readonly AGREE_WORDS = 3        // recent matches within this many words count as agreeing
+  private readonly FORWARD_CAP = 5        // max words the highlight may advance in one commit (anti-lurch)
   // Set by forceResync(): the next global match commits immediately, no confirmation gate.
   private resyncRequested = false
 
@@ -661,11 +662,13 @@ export class VoiceTrackingService {
         confirmed = agree >= 2
       }
       if (smallStep || confirmed) {
+        // Cap the advance so a single over-reaching match can't lurch the highlight far ahead.
+        const capped = Math.min(newIndex, this.currentWordIndex + this.FORWARD_CAP)
         this.pendingGlobalIndex = -1
-        this.currentWordIndex = newIndex
-        this.lastMatchedIndex = newIndex
-        this.scrollToWord(newIndex)
-        if (DEBUG_VOICE_MATCH) console.warn(`[VT]   COMMIT #${newIndex} (${smallStep ? 'small step' : '2-of-3 confirmed'})`)
+        this.currentWordIndex = capped
+        this.lastMatchedIndex = capped
+        this.scrollToWord(capped)
+        if (DEBUG_VOICE_MATCH) console.warn(`[VT]   COMMIT #${capped} (target #${newIndex}, ${smallStep ? 'small step' : '2-of-3 confirmed'})`)
       } else if (DEBUG_VOICE_MATCH) {
         console.warn(`[VT]   GATED big jump → #${newIndex} (recent ${this.recentMatchPositions.join(',')}; need 2 within ${this.AGREE_WORDS} words)`)
       }
