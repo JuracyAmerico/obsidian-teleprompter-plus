@@ -24,9 +24,18 @@ type StatusSubscriber = (_status: VoiceTrackingStatus) => void
 type ErrorSubscriber = (_error: VoiceTrackingError, _message: string) => void
 type ProgressSubscriber = (_loaded: number, _total: number) => void
 
-/** Stable install path for the compiled sidecar (mirrors Kokoro's ~/.local/share venv). */
+/** Stable install dir for the sidecar + disclaim launcher (mirrors Kokoro's ~/.local/share). */
+function appleInstallDir(): string {
+  return path.join(os.homedir(), '.local', 'share', 'teleprompter-plus')
+}
+/** The on-device STT binary. */
 export function appleSidecarPath(): string {
-  return path.join(os.homedir(), '.local', 'share', 'teleprompter-plus', 'teleprompter-stt')
+  return path.join(appleInstallDir(), 'teleprompter-stt')
+}
+/** The disclaim launcher — runs the sidecar as its OWN TCC-responsible process so macOS reads
+ *  the sidecar's Info.plist (Speech/Mic usage), not Obsidian's. Without it the helper is killed. */
+export function appleLauncherPath(): string {
+  return path.join(appleInstallDir(), 'disclaim-launcher')
 }
 
 export class AppleSpeechRecognizer {
@@ -45,7 +54,7 @@ export class AppleSpeechRecognizer {
 
   /** Apple on-device speech is macOS-only and needs the compiled sidecar present. */
   static isSupported(): boolean {
-    return Platform.isMacOS && fs.existsSync(appleSidecarPath())
+    return Platform.isMacOS && fs.existsSync(appleSidecarPath()) && fs.existsSync(appleLauncherPath())
   }
 
   /** grammar is accepted for interface parity with VoskRecognizer but unused (open-vocab). */
@@ -76,7 +85,8 @@ export class AppleSpeechRecognizer {
 
     this.emitStatus('initializing')
 
-    const proc = childProcess.spawn(appleSidecarPath(), [this.language], {
+    // Spawn THROUGH the disclaim launcher so the sidecar runs under its own TCC identity.
+    const proc = childProcess.spawn(appleLauncherPath(), [appleSidecarPath(), this.language], {
       stdio: ['ignore', 'pipe', 'pipe'],
     } as Record<string, unknown>)
     this.proc = proc
