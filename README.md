@@ -34,7 +34,7 @@ Teleprompter Plus turns any Obsidian note into a professional teleprompter. Auto
 - **Neural text-to-speech** — Kokoro MLX (22 voices, Apple Silicon), macOS `say`, Web Speech fallback, sentence-by-sentence highlighting
 - **Citation resolution** — `[@ries2011]` spoken as *"(Ries, 2011)"* using your `.bib` files
 - **Full Markdown support** — Obsidian syntax, math, callouts, code with syntax highlighting, tables, images, internal links
-- **8 built-in themes** — Professional, Broadcast, Stream, Practice, Accessibility, Cinema, plus custom colors and fonts
+- **6 built-in profiles** — Professional, Broadcast, Stream, Practice, Accessibility, Cinema, plus custom colors and fonts
 - **OBS integration** — start/stop recording synced with teleprompter playback
 - **Local WebSocket API** — build custom integrations in any language ([API reference](docs/websocket-api.md))
 
@@ -121,7 +121,7 @@ For 25+ keyboard commands, see Obsidian → Settings → Hotkeys → Teleprompte
 | **Dashboard** | Live preview, quick profile picker, health status |
 | **Toolbar** | Choose which controls appear in the teleprompter toolbar |
 | **Features** | Collapsible cards by category — appearance, playback, navigation, voice, OBS, WebSocket |
-| **Profiles** | 8 built-in profiles + your own saved configurations |
+| **Profiles** | 6 built-in profiles + your own saved configurations |
 | **Connection** | Optional local WebSocket server for Stream Deck + mobile remote |
 | **About** | Plugin info, shortcuts, credits |
 
@@ -296,6 +296,15 @@ Have an idea? [Open a discussion](https://github.com/JuracyAmerico/obsidian-tele
 Created by **Juracy Américo** ([@JuracyAmerico](https://github.com/JuracyAmerico)).
 
 Built with [Obsidian](https://obsidian.md), [Svelte 5](https://svelte.dev), [TypeScript](https://www.typescriptlang.org), [Vite](https://vitejs.dev), [Tailwind CSS](https://tailwindcss.com), [marked.js](https://marked.js.org), [highlight.js](https://highlightjs.org), and [ws](https://github.com/websockets/ws).
+
+### Acknowledgements
+
+The voice-tracking matcher (speech-to-script alignment) is **ported from
+[jlecomte/voice-activated-teleprompter](https://github.com/jlecomte/voice-activated-teleprompter)**
+(MIT) — its Levenshtein look-ahead algorithm and tokenizer are the basis for
+`src/voice/speech-matcher.ts`, `word-tokenizer.ts`, and `levenshtein.ts`, with the
+edit-distance core from [js-levenshtein](https://github.com/gustf/js-levenshtein) (MIT).
+Thank you to those projects.
 
 MIT License. Copyright © 2024–2026 Juracy Américo. See [LICENSE](LICENSE).
 

@@ -1,6 +1,6 @@
 # Teleprompter Plus Design Documentation
 
-**Version:** 1.0.0
+**Plugin version:** 0.10.2
 **Created:** 2025-12-15
 **Author:** Américo
 
