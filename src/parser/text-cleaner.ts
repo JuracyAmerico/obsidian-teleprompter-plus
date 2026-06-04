@@ -89,6 +89,28 @@ export function stripRawLatexCommands(text: string): string {
 	return text
 }
 
+/**
+ * Strip Pandoc/Quarto fenced-div markers (`::: {.column}`, `::: callout-note`, `::::`, `:::`).
+ * Removes only the marker lines (3+ leading colons) and keeps the inner content, so the
+ * `:::` syntax never shows up on the teleprompter or gets read aloud. Used by BOTH the TTS
+ * cleaner and the on-screen markdown renderer (marked has no concept of fenced divs).
+ */
+export function stripFencedDivs(text: string): string {
+	return text.replace(/^[ \t]*:{3,}[^\n]*$/gm, '')
+}
+
+/**
+ * Strip bare/auto-linked URLs (TTS only) so the engine never reads a long
+ * `https://…` aloud. Markdown links `[text](url)` are reduced to their text by
+ * stripLinks() first; this removes what's left: angle autolinks and raw URLs.
+ */
+export function stripBareUrls(text: string): string {
+	return text
+		.replace(/<https?:\/\/[^>\s]+>/gi, '')   // <https://example.com>
+		.replace(/\bhttps?:\/\/\S+/gi, '')        // bare https://example.com/...
+		.replace(/\bwww\.\S+/gi, '')              // bare www.example.com/...
+}
+
 /** Replace fenced code blocks with a brief spoken placeholder */
 function stripCodeBlocks(text: string): string {
 	return text.replace(/```(\w*)\n[\s\S]*?```/g, (_match, lang) => {
@@ -337,6 +359,7 @@ export function cleanDocument(rawContent: string, options: Partial<CleanerOption
 	text = stripReferencesSection(text)
 	text = stripRawBlocks(text)
 	text = stripRawLatexCommands(text)
+	text = stripFencedDivs(text)
 	if (opts.skipCodeBlocks) text = stripCodeBlocks(text)
 	if (opts.skipTables) text = stripTables(text)
 	text = stripFootnotes(text)
@@ -408,6 +431,7 @@ function cleanInlineContent(text: string, opts: CleanerOptions): string {
 	text = stripEmbeds(text)
 	text = stripImages(text, opts.readImageAltText)
 	text = stripLinks(text)
+	text = stripBareUrls(text)
 	text = stripInlineCode(text)
 	text = stripHtml(text)
 	text = stripMath(text)

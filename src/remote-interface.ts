@@ -14,14 +14,14 @@ export const REMOTE_INTERFACE_HTML = `<!DOCTYPE html>
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-  <title>Teleprompter Remote</title>
+  <title>Teleprompter Plus — Remote</title>
   <style>
     :root {
       --bg-primary: #1a1a2e;
       --bg-secondary: #16213e;
       --bg-card: #0f3460;
-      --accent: #e94560;
-      --accent-hover: #ff6b6b;
+      --accent: #7c6cf6;
+      --accent-hover: #a78bfa;
       --text-primary: #ffffff;
       --text-secondary: #a0a0a0;
       --success: #4ade80;
@@ -120,20 +120,20 @@ export const REMOTE_INTERFACE_HTML = `<!DOCTYPE html>
       width: 140px;
       height: 140px;
       border-radius: 50%;
-      background: linear-gradient(135deg, var(--accent), #ff6b6b);
+      background: linear-gradient(135deg, var(--accent), #a78bfa);
       border: none;
       cursor: pointer;
       display: flex;
       align-items: center;
       justify-content: center;
-      box-shadow: 0 8px 32px rgba(233, 69, 96, 0.4);
+      box-shadow: 0 8px 32px rgba(124, 108, 246, 0.4);
       transition: transform 0.2s, box-shadow 0.2s;
       touch-action: manipulation;
     }
 
     .play-button:active {
       transform: scale(0.95);
-      box-shadow: 0 4px 16px rgba(233, 69, 96, 0.4);
+      box-shadow: 0 4px 16px rgba(124, 108, 246, 0.4);
     }
 
     .play-button:disabled {
@@ -234,7 +234,7 @@ export const REMOTE_INTERFACE_HTML = `<!DOCTYPE html>
 
     .progress-fill {
       height: 100%;
-      background: linear-gradient(90deg, var(--accent), #ff6b6b);
+      background: linear-gradient(90deg, var(--accent), #a78bfa);
       transition: width 0.3s;
     }
 
@@ -305,7 +305,7 @@ export const REMOTE_INTERFACE_HTML = `<!DOCTYPE html>
 
     .section-item:hover,
     .section-item:active {
-      background: rgba(233, 69, 96, 0.2);
+      background: rgba(124, 108, 246, 0.2);
     }
 
     .section-item.current {
@@ -437,7 +437,7 @@ export const REMOTE_INTERFACE_HTML = `<!DOCTYPE html>
 <body>
   <!-- Header -->
   <header class="header">
-    <h1>Teleprompter Remote</h1>
+    <h1><svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-5px;margin-right:10px;color:var(--accent)"><rect x="5" y="4" width="16" height="15" rx="2"/><line x1="9" y1="8" x2="16" y2="8" opacity="0.45"/><line x1="9" y1="11.5" x2="18" y2="11.5"/><line x1="9" y1="15" x2="14" y2="15" opacity="0.45"/><path d="M1.5 11.5 L4.5 9.8 L4.5 13.2 Z" fill="currentColor" stroke="none"/></svg>Teleprompter Plus<span style="font-size:0.5em;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:var(--accent);background:rgba(124,108,246,0.18);padding:4px 9px;border-radius:6px;vertical-align:5px;margin-left:10px">Remote</span></h1>
     <div class="connection-status">
       <div class="status-dot" id="statusDot"></div>
       <span id="statusText">Connecting...</span>
@@ -502,15 +502,11 @@ export const REMOTE_INTERFACE_HTML = `<!DOCTYPE html>
     <!-- Actions -->
     <section class="actions">
       <button class="action-button" id="resetButton" disabled>
-        <svg viewBox="0 0 24 24">
-          <path d="M12 5V1L7 6l5 5V7c3.31 0 6 2.69 6 6s-2.69 6-6 6-6-2.69-6-6H4c0 4.42 3.58 8 8 8s8-3.58 8-8-3.58-8-8-8z"/>
-        </svg>
+        <svg viewBox="0 0 24 24" style="fill:none;stroke:currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 3h14"/><path d="m18 13-6-6-6 6"/><path d="M12 7v14"/></svg>
         Reset
       </button>
       <button class="action-button" id="countdownButton" disabled>
-        <svg viewBox="0 0 24 24">
-          <path d="M15 1H9v2h6V1zm-4 13h2V8h-2v6zm8.03-6.61l1.42-1.42c-.43-.51-.9-.99-1.41-1.41l-1.42 1.42C16.07 4.74 14.12 4 12 4c-4.97 0-9 4.03-9 9s4.03 9 9 9 9-4.03 9-9c0-2.12-.74-4.07-1.97-5.61zM12 20c-3.87 0-7-3.13-7-7s3.13-7 7-7 7 3.13 7 7-3.13 7-7 7z"/>
-        </svg>
+        <svg viewBox="0 0 24 24" style="fill:none;stroke:currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="10" x2="14" y1="2" y2="2"/><line x1="12" x2="15" y1="14" y2="11"/><circle cx="12" cy="14" r="8"/></svg>
         <span id="countdownText">Countdown</span>
       </button>
     </section>

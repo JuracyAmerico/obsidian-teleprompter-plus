@@ -5,6 +5,31 @@ All notable changes to Obsidian Teleprompter Plus will be documented in this fil
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Changed
+- **Reading-view toolbar redesign — hierarchy, grouping, progressive disclosure.** The flat row of equal-weight icons is now organised into scannable zones (Playback · Display/Type · View · Capture · System) separated by dividers, with a dominant **hero** Play/Pause, one consistent active-toggle language (accent fill + ring), the timer pulled into its own right-aligned **readout** zone, and low-frequency controls collapsed into a `⋯ More` overflow menu. Fully theme-driven (Obsidian CSS variables — light/dark/third-party). The settings show/hide/reorder system is preserved; controls pinned to the primary layout always stay on the main bar. See [docs/toolbar.md](docs/toolbar.md).
+
+### Added
+- **ElevenLabs cloud TTS engine (bring-your-own-key)** — optional high-quality neural voices via the ElevenLabs API, alongside the offline Kokoro / macOS Say / Web Speech engines.
+  - Opt-in and **never auto-selected**: choose "ElevenLabs (cloud, paid — needs API key)" explicitly in Settings → Text-to-speech → Engine.
+  - User supplies their own API key (masked field); model picker (Flash v2.5 / Turbo v2.5 / Multilingual v2); voice ID (defaults to Rachel).
+  - Per-sentence audio cache + `hintNext` pre-generation so re-reads and look-ahead don't re-bill.
+  - One-time cloud/paid/privacy notice on selection; README "Network use & privacy" disclosure.
+  - See [docs/elevenlabs-tts.md](docs/elevenlabs-tts.md) for setup.
+
+### Fixed
+- **`:::` fenced divs showing on the teleprompter** — Pandoc/Quarto fenced-div markers (`::: {.column}`, `:::`) were rendered literally. They are now stripped from both the on-screen render and the TTS text.
+- **TTS reading full URLs aloud** — bare/auto-linked URLs (e.g. long Figma links) were spoken in full. Bare URLs are now stripped during render preprocessing, which also feeds the DOM-based TTS extraction, so they are neither shown huge nor read aloud. Markdown links `[text](url)` keep their visible text.
+
+### Technical
+- New `src/tts/elevenlabs-engine.ts` implementing the `TTSEngine` interface (audio via Obsidian `requestUrl`, HTMLAudioElement playback).
+- `TTSEngineType` gains `'elevenlabs'`; `createTTSEngine` accepts optional cloud-engine config and falls back to the offline chain when no key is present.
+- Settings render helper (`createFeatureGroup`) gains `text` / `password` input rendering (previously absent — also fixes pre-existing free-text settings that rendered no control).
+- `stripFencedDivs` and `stripBareUrls` exported from `src/parser/text-cleaner.ts` and reused by the on-screen renderer.
+
+---
+
 ## [0.9.0] - 2025-12-30
 
 ### Added

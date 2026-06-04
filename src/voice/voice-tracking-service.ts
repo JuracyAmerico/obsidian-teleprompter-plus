@@ -12,9 +12,11 @@ import type {
   VoiceTrackingConfig,
   WordPosition
 } from './types'
-import { tokenize } from './word-tokenizer'
+import { tokenize, cleanWord } from './word-tokenizer'
 import { findNextPosition, findGlobalPosition, type SpeechMatcherConfig } from './speech-matcher'
 import { VoskRecognizer } from './vosk-recognizer'
+import { AppleSpeechRecognizer } from './apple-speech-recognizer'
+import { SpeechActivityDetector } from './speech-activity-detector'
 
 /**
  * Default configuration for voice tracking.
@@ -39,13 +41,31 @@ const DEFAULT_CONFIG: VoiceTrackingConfig = {
 }
 
 // Feature flag: Karaoke word highlighting
-const ENABLE_KARAOKE_HIGHLIGHTING = false
+const ENABLE_KARAOKE_HIGHLIGHTING = true
+
+// Verbose match/scroll logging to the console for diagnosing tracking. Flip on when needed.
+const DEBUG_VOICE_MATCH = false
+
+// Feature flag: silence gate. When on, a no-forward-progress partial only counts toward a stall
+// re-sync if the VAD says a human is actually speaking — so a pause (where Apple re-emits a stale
+// partial) freezes the highlight instead of leaping it. Fail-open: if the mic VAD can't start,
+// isSpeechActive() returns true and behavior is identical to this flag being off.
+const ENABLE_SILENCE_GATE = true
+
+// Feature flag: reading-pace governor. Humans read aloud at a roughly steady rate. This essay
+// reuses vocabulary heavily, so the matcher can latch a repeated word onto a LATER copy and nudge
+// the highlight forward; because backward correction is rejected, those nudges ratchet ahead and a
+// constant HIGHLIGHT_LEAD can't undo a cumulative drift. The governor caps how fast the highlight
+// may advance to the reader's measured words/sec (with headroom), so a word 8 positions ahead can't
+// be reached in 200ms of speech — the ratchet is clamped while normal reading flows. Only gates the
+// LOCAL forward-commit path; intentional catch-ups (stall re-sync, R, manual-scroll SNAP) bypass it.
+const ENABLE_PACE_GOVERNOR = true
 
 /**
  * Voice Tracking Service - the main interface for voice-controlled scrolling.
  */
 export class VoiceTrackingService {
-  private recognizer: VoskRecognizer
+  private recognizer: VoskRecognizer | AppleSpeechRecognizer
   private config: VoiceTrackingConfig
   private tokens: TextElement[] = []
   private wordTokens: TextElement[] = []  // Word-only tokens (no delimiters)
@@ -69,13 +89,104 @@ export class VoiceTrackingService {
   private consecutiveFailedMatches: number = 0
   private readonly FAILED_MATCH_THRESHOLD = 8  // After this many failures, try global search
 
+  // Grammar-constrained recognition: vocabulary derived from the current script
+  private vocabulary: string | undefined = undefined
+  private contextVocabulary: string | undefined = undefined
+
+  // Global-jump hardening: a FAR global match must be confirmed by a second,
+  // agreeing global match before we commit — stops one mis-hear from flinging
+  // the reader to an unrelated part of the document.
+  private pendingGlobalIndex: number = -1
+  private readonly GLOBAL_JUMP_CONFIRM_DISTANCE = 25  // words; farther jumps need confirmation
+
+  // Forward catch-up: when the reader is clearly ahead, snap forward immediately
+  // (bypassing the smooth per-step cap + accumulator) so we never trail a fast reader.
+  // Per-update advance cap for smooth tracking. Fixed (not tied to the jittery preset) so it
+  // keeps pace without lurching. NO forward "catch-up" easing — pushing ahead of the matched
+  // position created a positive-feedback snowball that accelerated the further you read.
+  private readonly SMOOTH_STEP_CAP = 10
+  // Damped-follower scroll: each animation frame eases scrollTop a fraction toward the LATEST
+  // target. Smooth like an animation, but it always reads the current target (no captured
+  // velocity) so it can't overshoot/race; and it eases rather than hard-snapping, so no jumps.
+  // FOLLOW_FACTOR: lower = smoother/calmer, higher = snappier. ~0.12-0.22 is the usable range.
+  private targetScrollPos = 0
+  // Both live-tunable from settings:
+  // FOLLOW_FACTOR (smoothness) — lower = calmer glide, higher = snappier.
+  private get FOLLOW_FACTOR(): number { return this.config.smoothness ?? 0.16 }
+  // READ_TRAIL — how many words BEHIND your spoken word the scroll anchors. The fix for
+  // "the scroll runs ahead of me": raise it until the line you're reading sits comfortably.
+  private get READ_TRAIL(): number { return this.config.readTrail ?? 8 }
+  // Anchor the scroll a few words BEHIND the spoken word, so the line you're reading always sits
+  // slightly ahead of the scroll. Prevents the text from running ahead of your voice.
+  private readonly READ_AHEAD_LAG = 4
+  // Re-sync only relocates within this many words of where the reader is looking —
+  // a bounded search can never teleport to the end of the document.
+  private readonly GLOBAL_SEARCH_RADIUS = 120
+  // If the local (forward-only) matcher makes zero progress for this many processed partials,
+  // the reader has drifted past the ~13-word local window (typically at a section header where
+  // Apple restarts its speech segment) and forward matching can NEVER recover on its own. Trigger
+  // one bounded, scroll-anchored re-sync to re-acquire them. Safe now (unlike the old teleporting
+  // auto-search) because the search is capped to GLOBAL_SEARCH_RADIUS around where they're looking
+  // AND far jumps still need 2-of-3 confirmation. ~3 partials ≈ 1.2s of being stuck — tuned down
+  // from 5 so the highlight unfreezes faster at section boundaries (the forward "freeze-then-leap"
+  // lag), accepting slightly more eager re-sync as the trade.
+  private readonly STALL_RESYNC_THRESHOLD = 3
+
+  // Manual-scroll override: when the reader grabs the page (wheel / trackpad / touch) to reposition
+  // — usually because tracking drifted — auto-follow must YIELD, or it fights them and snaps the page
+  // back, making manual scrolling feel impossible. We record the last manual scroll and then:
+  //   1. suspend auto-scroll for USER_SCROLL_GRACE_MS so the page stays where they put it, and
+  //   2. arm a bounded re-sync so once they stop and speak, tracking re-acquires at the spot they
+  //      scrolled to (the global search anchors to the new viewport via estimateWordIndexFromScroll).
+  private userScrolledAt = 0
+  private readonly USER_SCROLL_GRACE_MS = 2000
+  private userScrollHandler: (() => void) | null = null
+  private guardedScrollArea: HTMLElement | null = null
+  // Set when the reader manually scrolls. The next partial SNAPS the matcher's index to the word
+  // at the parked scroll position and resumes LOCAL matching from there — NOT a global re-search.
+  // (An earlier version armed needsGlobalSearch here; combined with rapid manual scrolls + off-script
+  //  speech it produced wild far jumps — "it jumps so far ahead". Snap-to-scroll + local is calm.)
+  private resyncToScrollPending = false
+
+  // Voice-activity detector (own mic, 85–3400 Hz band). Gates the stall re-sync so a genuine pause
+  // can't be mistaken for the reader running ahead. Fail-open — see ENABLE_SILENCE_GATE.
+  private speechDetector = new SpeechActivityDetector()
+
+  // Reading-pace governor (see ENABLE_PACE_GOVERNOR). Rolling window of recent local-commit samples
+  // {time, committed index} used to estimate words/sec and cap forward advance to human reading speed.
+  private paceSamples: { t: number; idx: number }[] = []
+  private lastCommitTime = 0
+  private readonly PACE_WINDOW_MS = 4000      // estimate pace over the last ~4s of reading
+  private readonly PACE_TOLERANCE = 1.7       // allow bursts up to 1.7× measured pace before clamping
+  private readonly MIN_PACE_WPS = 1.5         // floor (words/sec) so the governor never strangles
+  private readonly MAX_PACE_WPS = 6           // ceiling so a fast reader is never clamped to a crawl
+
+  // Confidence gating (Textream): big forward jumps need 2-of-3 recent matches to agree; small
+  // steps always commit. Stops a single over-match from pushing the highlight ahead of your voice.
+  private recentMatchPositions: number[] = []
+  private readonly SMALL_STEP_WORDS = 2   // a jump this small commits immediately (responsive)
+  private readonly AGREE_WORDS = 3        // recent matches within this many words count as agreeing
+  private readonly FORWARD_CAP = 10       // max words the highlight may advance in one commit (anti-lurch); raised from 5 so it catches up to a faster reader once alignment is exact
+  // Lead (+) or lag (-) the highlight vs the matched word, to offset recognition latency and
+  // Apple's predictive partials. User-tunable LIVE via the "Highlight offset" slider (no rebuild).
+  // Default -4 = sit four words BEHIND the recognized word, so the highlight stays under your voice.
+  // Why so negative: Apple emits words slightly BEFORE you finish saying them and the confirm-gate
+  // commits up to FORWARD_CAP(5) words forward, so the matched index runs a few words ahead of your
+  // literal voice; -2 wasn't enough to cover it. If -4 feels laggy, raise the slider toward 0.
+  // Default +2: with span-index ≡ token-index, the only residual lag is recognition latency (Apple
+  // emits the partial a beat after you speak), so the highlight should sit a hair AHEAD of the
+  // committed word. This used to be -4 ONLY to mask the forward index-drift, which is now fixed.
+  private get HIGHLIGHT_LEAD(): number { return this.config.highlightLead ?? 2 }
+  // Set by forceResync(): the next global match commits immediately, no confirmation gate.
+  private resyncRequested = false
+
   // Turn-based scrolling state
   private lastSpeechResultTime: number = 0      // Last time we received ANY speech result
   private isInSpeechTurn: boolean = false       // Are we currently in an active speech turn?
   private silenceCheckTimer: number | null = null  // Timer for detecting silence
   private pendingScrollTarget: number = -1      // Accumulated scroll target
   private matchAccumulator: number[] = []       // Recent match positions for averaging
-  private readonly MATCH_ACCUMULATOR_SIZE = 3   // Require this many consistent matches
+  private readonly MATCH_ACCUMULATOR_SIZE = 2   // consistent matches before scrolling (rejects single overshoots, stays responsive)
 
   // Callbacks
   onPauseChange?: (_isPaused: boolean) => void
@@ -92,7 +203,11 @@ export class VoiceTrackingService {
    */
   constructor(config: Partial<VoiceTrackingConfig> = {}) {
     this.config = { ...DEFAULT_CONFIG, ...config }
-    this.recognizer = new VoskRecognizer()
+    // Engine selection: Apple on-device Speech (macOS, far more accurate) when available,
+    // else Vosk (offline model, cross-platform). 'auto' prefers Apple when supported.
+    const wantApple = this.config.engine === 'apple' ||
+      (this.config.engine !== 'vosk' && AppleSpeechRecognizer.isSupported())
+    this.recognizer = wantApple ? new AppleSpeechRecognizer() : new VoskRecognizer()
 
     // Wire up recognizer events
     this.recognizer.onResult((text, isFinal) => {
@@ -130,7 +245,20 @@ export class VoiceTrackingService {
     // Tokenize the content
     this.tokens = tokenize(content)
     this.wordTokens = this.tokens.filter(t => t.type === 'TOKEN')
+
+    // Build a grammar from the script vocabulary and keep the recognizer in sync
+    // (handles switching documents without reloading the Vosk model).
+    this.vocabulary = this.buildGrammar()
+    // Vosk needs the lowercased grammar; Apple's contextualStrings bias works far better with the
+    // ORIGINAL casing/hyphens (proper nouns + headers are exactly what it mis-hears). Feed each
+    // recognizer the form it wants.
+    this.contextVocabulary = this.buildContextVocabulary()
+    this.recognizer.updateGrammar(
+      this.recognizer instanceof AppleSpeechRecognizer ? this.contextVocabulary : this.vocabulary
+    )
+
     this.contentArea = contentArea
+    this.attachUserScrollGuard(contentArea)
     this.currentWordIndex = 0
     this.lastRecognizedText = ''
 
@@ -209,6 +337,10 @@ export class VoiceTrackingService {
     }
 
     let globalWordIndex = 0
+    // Rebuilt in lockstep with the spans below so wordSpans.get(i) and wordTokens[i] are
+    // ALWAYS the same physical word. This replaces the whole-document tokenize() at the top
+    // of the method, which counted code blocks and split compounds differently than the wrap.
+    const rebuiltTokens: TextElement[] = []
 
     // Process each text node
     for (const textNode of textNodes) {
@@ -218,53 +350,59 @@ export class VoiceTrackingService {
       const parent = textNode.parentElement
       if (!parent) continue
 
-      // Split text into words and whitespace, preserving structure
-      // This regex captures words and whitespace separately
-      const parts = text.split(/(\s+)/)
-
-      if (parts.length === 1 && !parts[0].trim()) continue
+      // Wrap words using the SAME tokenizer the matcher uses, so a span's index is
+      // IDENTICAL to its wordTokens index. The previous code split on whitespace only,
+      // which kept "cross-border" / "don't" as ONE span while tokenize() (hyphen and
+      // apostrophe are delimiters) counts them as TWO word tokens. Each such compound
+      // advanced the matcher's index by 2 but the span index by 1 — a per-occurrence
+      // drift that accumulates with depth, so deep in the document the highlight lands
+      // ~30 words AHEAD of the spoken word even though the matcher was locked on correctly.
+      // Driving both off tokenize() makes span-index ≡ token-index by construction.
+      const elements = tokenize(text)
+      if (elements.length === 0) continue
 
       // Create a document fragment with wrapped words
       const fragment = document.createDocumentFragment()
 
-      for (const part of parts) {
-        if (!part) continue
-
-        // Check if this is whitespace
-        if (/^\s+$/.test(part)) {
-          fragment.appendChild(document.createTextNode(part))
-        } else {
-          // This is a word - wrap it in a span
-          const cleanWord = part.replace(/[^\w]/g, '').toLowerCase()
-
-          if (cleanWord.length > 0 && globalWordIndex < this.wordTokens.length) {
-            const span = document.createElement('span')
-            span.className = 'voice-word'
-            span.dataset.wordIndex = String(globalWordIndex)
-            span.textContent = part
-
-            fragment.appendChild(span)
-
-            // Store references
-            this.wordSpans.set(globalWordIndex, span)
-            this.wordPositions.set(globalWordIndex, {
-              wordIndex: globalWordIndex,
-              element: span,
-              offsetTop: 0, // Will be updated after DOM insertion
-              text: part
-            })
-
-            globalWordIndex++
-          } else {
-            // Word without matching token (punctuation only, etc.)
-            fragment.appendChild(document.createTextNode(part))
-          }
+      for (const element of elements) {
+        if (element.type !== 'TOKEN') {
+          // Delimiter (whitespace, punctuation, hyphen, apostrophe) — keep as plain text.
+          fragment.appendChild(document.createTextNode(element.value))
+          continue
         }
+
+        // A word — wrap it, keyed by the matcher's token index.
+        const span = document.createElement('span')
+        span.className = 'voice-word'
+        span.dataset.wordIndex = String(globalWordIndex)
+        span.textContent = element.value
+
+        fragment.appendChild(span)
+
+        this.wordSpans.set(globalWordIndex, span)
+        this.wordPositions.set(globalWordIndex, {
+          wordIndex: globalWordIndex,
+          element: span,
+          offsetTop: 0, // Will be updated after DOM insertion
+          text: element.value
+        })
+        rebuiltTokens.push(element)
+
+        globalWordIndex++
       }
 
       // Replace the text node with our fragment
       parent.replaceChild(fragment, textNode)
     }
+
+    // CRITICAL: the matcher must index the EXACT same word list as the highlight. Replace the
+    // whole-document tokens (which included skipped code blocks and counted compounds differently)
+    // with the tokens we actually wrapped, in order. Now wordSpans.get(i) ↔ wordTokens[i] forever.
+    // Assign UNCONDITIONALLY — even an empty result is correct: a body that is entirely inside
+    // skipped selectors (one big code block / embedded note) legitimately has zero matchable words,
+    // and keeping the stale code-inclusive list here would silently re-introduce the span↔token
+    // drift this rebuild exists to kill (matcher would index words that have no spans).
+    this.wordTokens = rebuiltTokens
 
     // Update offsetTop values after DOM is modified
     this.wordSpans.forEach((span, index) => {
@@ -283,18 +421,36 @@ export class VoiceTrackingService {
    * @param wordIndex - Index of the word to highlight
    */
   highlightWord(wordIndex: number): void {
-    // Remove highlight from previous word
+    // Word highlight disabled: keep the page following your voice (scrollToWord still runs), but
+    // paint no per-word marker — no jumping highlight box to lose your place against.
+    // NOTE: `highlightedWordIndex` is a RENDER-ONLY field (the painted marker's position). It stays
+    // at its initial -1 while the marker is off; the matcher's true position is `currentWordIndex`.
+    // Do not read `highlightedWordIndex` as "where the reader is" — read `currentWordIndex`.
+    if (this.config.showWordHighlight === false) return
+    if (this.highlightedWordIndex === wordIndex) return
+
+    // The previously-current word becomes "past" (read).
     if (this.highlightedWordIndex >= 0 && this.highlightedWordIndex !== wordIndex) {
       const prevSpan = this.wordSpans.get(this.highlightedWordIndex)
       if (prevSpan) {
         prevSpan.classList.remove('voice-active')
+        prevSpan.classList.add('voice-past')
       }
     }
 
-    // Add highlight to current word
+    // Mark everything up to the current word as past, then highlight the current word.
+    // (Handles forward jumps so the read/unread boundary stays correct.)
+    for (const [idx, span] of this.wordSpans) {
+      if (idx < wordIndex) {
+        if (!span.classList.contains('voice-past')) span.classList.add('voice-past')
+        span.classList.remove('voice-active')
+      }
+    }
+
     const span = this.wordSpans.get(wordIndex)
     if (span) {
       span.classList.add('voice-active')
+      span.classList.remove('voice-past')
       this.highlightedWordIndex = wordIndex
     }
   }
@@ -343,11 +499,24 @@ export class VoiceTrackingService {
       // Initialize recognizer if not already done
       if (!this.recognizer.getIsInitialized()) {
         this.onStatusChange?.('initializing')
-        await this.recognizer.initialize(this.config.language)
+        await this.recognizer.initialize(
+          this.config.language,
+          this.recognizer instanceof AppleSpeechRecognizer ? this.contextVocabulary : this.vocabulary
+        )
       }
 
       // Start listening
+      this.resetPaceGovernor()
       await this.recognizer.start()
+
+      // Start the silence-gate VAD in parallel (fail-open: never throws, never blocks tracking).
+      if (ENABLE_SILENCE_GATE) {
+        void this.speechDetector.start().then(() => {
+          if (DEBUG_VOICE_MATCH) {
+            console.warn(`[VT]   silence gate ${this.speechDetector.getIsAvailable() ? 'ACTIVE' : 'unavailable → fail-open'}`)
+          }
+        })
+      }
 
     } catch (error) {
       console.error('Failed to start voice tracking:', error)
@@ -360,6 +529,7 @@ export class VoiceTrackingService {
    */
   stop(): void {
     this.recognizer.stop()
+    this.speechDetector.stop()
     this.lastRecognizedText = ''
 
     // Reset global search state - next start will find position from scratch
@@ -395,6 +565,64 @@ export class VoiceTrackingService {
     } else {
       await this.start()
     }
+  }
+
+  /**
+   * User-triggered re-sync. Forgets the current position and re-locates the
+   * reader from the next few spoken words via a fresh global search. Bind this
+   * to a hotkey so a presenter who drifts can snap back without stopping.
+   */
+  forceResync(): void {
+    this.needsGlobalSearch = true
+    this.resyncRequested = true   // next global match commits immediately, even a far one
+    this.consecutiveFailedMatches = 0
+    this.pendingGlobalIndex = -1
+    this.matchAccumulator = []
+  }
+
+  /**
+   * Build a Vosk grammar (JSON string-array of allowed words) from the current
+   * script. Constraining recognition to words actually in the document is the
+   * single biggest accuracy win — far fewer mis-hears, far fewer false jumps.
+   * Returns undefined for very large or empty vocabularies so we fall back to
+   * open recognition (Vosk's grammar FST is impractical past ~1k unique words).
+   */
+  private buildGrammar(): string | undefined {
+    const unique = new Set<string>()
+    for (const t of this.wordTokens) {
+      const w = cleanWord(t.value)
+      if (w) unique.add(w)
+    }
+    if (unique.size === 0 || unique.size > 1000) return undefined
+    return JSON.stringify([...unique, '[unk]'])
+  }
+
+  /**
+   * Build the contextualStrings hint list for Apple's on-device recognizer from the ORIGINAL
+   * token text (preserving case + internal hyphens), NOT the lowercased Vosk grammar. Proper
+   * nouns and section headers ("Module", "Hamid", "U-Haul", "UX") are exactly what SFSpeechRecognizer
+   * mis-hears, and the bias is much stronger when they are supplied in natural form. We surface those
+   * "strong" tokens first (capitalized / numeric / hyphenated), then fill with other 4+ char words,
+   * dedup case-insensitively, and cap the list (Apple ignores an oversized hint set).
+   */
+  private buildContextVocabulary(): string | undefined {
+    const isStrong = (w: string) => /^[A-ZÀ-Þ0-9]/.test(w) || w.includes('-')
+    const strip = (v: string) => v.trim().replace(/^[^\p{L}\p{N}]+|[^\p{L}\p{N}-]+$/gu, '')
+    const strong: string[] = []
+    const rest: string[] = []
+    const seen = new Set<string>()
+    for (const t of this.wordTokens) {
+      const w = strip(t.value)
+      if (!w || w === '[unk]') continue
+      const key = w.toLowerCase()
+      if (seen.has(key)) continue
+      if (isStrong(w)) { seen.add(key); strong.push(w) }
+      else if (w.length >= 4) { seen.add(key); rest.push(w) }
+    }
+    // Cap matches the Swift sidecar's contextualStrings limit (100); strong tokens are first so
+    // proper nouns survive the cut even when the script is long.
+    const salient = [...strong, ...rest].slice(0, 100)
+    return salient.length ? JSON.stringify(salient) : undefined
   }
 
   /**
@@ -469,15 +697,38 @@ export class VoiceTrackingService {
       confidenceThreshold: this.config.confidenceThreshold ?? 0.20
     }
 
+    // Manual-scroll snap: the reader scrolled to reposition, so trust where they parked the page.
+    // Move the matcher's index to the word at the scroll position and resume LOCAL matching from
+    // there — no global re-search (which produced the far jumps). The page itself stays put while
+    // the grace window is active (the YIELD below); this only re-anchors WHERE matching looks.
+    if (this.resyncToScrollPending) {
+      this.resyncToScrollPending = false
+      const snapTo = this.estimateWordIndexFromScroll()
+      if (snapTo >= 0 && Math.abs(snapTo - this.currentWordIndex) > this.SMALL_STEP_WORDS) {
+        this.currentWordIndex = snapTo
+        this.lastMatchedIndex = snapTo
+        this.recentMatchPositions = []
+        this.matchAccumulator = []
+        this.consecutiveFailedMatches = 0
+        this.needsGlobalSearch = false
+        this.resetPaceGovernor()  // discontinuity: don't clamp the next commit against pre-snap pace
+        if (DEBUG_VOICE_MATCH) console.warn(`[VT]   SNAP → matcher re-anchored to scroll position #${snapTo} (manual scroll)`)
+      }
+    }
+
     let newIndex: number
     let isGlobalMatch = false  // Flag for global search result
 
-    // Use global search when starting or after many failed matches
-    if (this.needsGlobalSearch || this.consecutiveFailedMatches >= this.FAILED_MATCH_THRESHOLD) {
+    // Global search ONLY on initial start / explicit R re-sync — NEVER on mid-reading
+    // failures. The old auto-global-search-on-failures (consecutiveFailedMatches) is exactly
+    // what teleported the reader to the end on a few mis-hears. Off-script now simply holds
+    // position until forward matching resumes or the user presses R. And the search is
+    // bounded near where they're looking, so it can't jump to an unrelated section.
+    if (this.needsGlobalSearch) {
       // Get hint position based on current scroll (where user is looking)
       const hintPosition = this.estimateWordIndexFromScroll()
 
-      const globalIndex = findGlobalPosition(text, this.wordTokens, matcherConfig, hintPosition)
+      const globalIndex = findGlobalPosition(text, this.wordTokens, matcherConfig, hintPosition, this.GLOBAL_SEARCH_RADIUS)
 
       if (globalIndex >= 0) {
         // Found a match anywhere in document
@@ -497,19 +748,77 @@ export class VoiceTrackingService {
     // Calculate jump distance
     const jumpDistance = newIndex - this.currentWordIndex
 
+    if (DEBUG_VOICE_MATCH) {
+      const heardTail = text.split(/\s+/).filter(Boolean).slice(-6).join(' ')
+      const matchedWord = this.wordTokens[newIndex]?.value ?? '?'
+      const curWord = this.wordTokens[this.currentWordIndex]?.value ?? '?'
+      console.warn(
+        `[VT] ${isFinal ? 'FINAL' : 'part '} heard:"…${heardTail}" | match #${newIndex} "${matchedWord}"` +
+        ` | cur #${this.currentWordIndex} "${curWord}" | jump ${jumpDistance} | ${isGlobalMatch ? 'GLOBAL' : 'local'}`
+      )
+    }
+
     // Track failed matches (no forward progress from local search)
     if (jumpDistance <= 0 && !isGlobalMatch) {
-      this.consecutiveFailedMatches++
+      // Silence gate: a no-progress partial only counts toward a stall if a human is actually
+      // speaking. During a real pause Apple re-emits a stale partial — without this gate those
+      // pile up and trigger a spurious catch-up leap. Fail-open: isSpeechActive() is true when the
+      // VAD is unavailable, so this collapses to the original behavior.
+      const speaking = !ENABLE_SILENCE_GATE || this.speechDetector.isSpeechActive()
+      if (speaking) {
+        this.consecutiveFailedMatches++
+        // Prolonged stall: the reader has run past the local match window and forward matching can't
+        // recover. Arm ONE bounded re-sync (scroll-anchored, ±GLOBAL_SEARCH_RADIUS, confirmation-gated)
+        // so the next partial re-acquires them instead of staying stuck until they press R.
+        if (this.consecutiveFailedMatches >= this.STALL_RESYNC_THRESHOLD) {
+          this.needsGlobalSearch = true
+          this.consecutiveFailedMatches = 0
+          if (DEBUG_VOICE_MATCH) console.warn('[VT]   STALL → bounded re-sync armed (reader drifted past local window)')
+        }
+      } else if (DEBUG_VOICE_MATCH) {
+        console.warn('[VT]   silence gate → stale partial held (no speech energy), not counting toward re-sync')
+      }
     } else if (jumpDistance > 0 || isGlobalMatch) {
       this.consecutiveFailedMatches = 0
     }
 
-    // For global matches, scroll immediately to the found position (bypass accumulator)
+    // Global matches: small corrections commit immediately, but a FAR jump must be
+    // confirmed by a second agreeing global match before we move — one mis-hear can
+    // no longer fling the reader to an unrelated section.
     if (isGlobalMatch) {
-      this.currentWordIndex = newIndex
-      this.lastMatchedIndex = newIndex
-      this.matchAccumulator = []  // Clear accumulator on global jump
-      this.scrollToWord(newIndex, 5)  // Use moderate animation duration
+      // HARD-reject BACKWARD re-acquisition. In a forward-read teleprompter the reader never needs
+      // the highlight to jump back on its own — a stall means they ran AHEAD, so recovery is forward.
+      // A backward global match is the matcher latching onto an EARLIER copy of a repeated phrase
+      // (this essay reuses "the word pause", "my label didn't reflect", etc.), which flings the
+      // highlight hundreds of words back ("the highlight is way behind"). Confirmation isn't enough —
+      // two repeated-phrase matches can agree and confirm a wrong −266 jump — so this is unconditional.
+      // Deliberate back-navigation still works: R (resyncRequested) and manual scroll (the SNAP path)
+      // both bypass this. If the highlight ever genuinely runs ahead, it simply holds until you read
+      // forward into it or press R, instead of teleporting backward.
+      if (!this.resyncRequested && newIndex < this.currentWordIndex - this.SMALL_STEP_WORDS) {
+        this.needsGlobalSearch = false
+        this.pendingGlobalIndex = -1
+        if (DEBUG_VOICE_MATCH) console.warn(`[VT]   GLOBAL backward → #${newIndex} REJECTED (behind cur #${this.currentWordIndex}); holding`)
+        return
+      }
+      const globalJump = Math.abs(newIndex - this.currentWordIndex)
+      const confirmed = this.pendingGlobalIndex >= 0 &&
+        Math.abs(newIndex - this.pendingGlobalIndex) <= 5
+
+      if (this.resyncRequested || globalJump <= this.GLOBAL_JUMP_CONFIRM_DISTANCE || confirmed) {
+        // User-requested re-sync commits immediately (no confirmation) — that's the whole point of R.
+        this.resyncRequested = false
+        this.pendingGlobalIndex = -1
+        this.currentWordIndex = newIndex
+        this.lastMatchedIndex = newIndex
+        this.matchAccumulator = []  // Clear accumulator on global jump
+        this.resetPaceGovernor()    // discontinuity: a catch-up jump must not be clamped by pace
+        this.scrollToWord(newIndex)
+      } else {
+        // First far global match — hold it and re-search next time to confirm
+        this.pendingGlobalIndex = newIndex
+        this.needsGlobalSearch = true
+      }
       return
     }
 
@@ -519,31 +828,107 @@ export class VoiceTrackingService {
       return
     }
 
-    // For partial results, require minimum forward progress
-    const minJump = isFinal ? 1 : this.MIN_JUMP_DISTANCE
-
-    // Only accumulate forward matches
-    if (jumpDistance >= minJump || (newIndex === 0 && this.currentWordIndex === 0)) {
-      // Cap the jump to prevent jarring large jumps
-      const cappedJump = Math.min(jumpDistance, this.MAX_JUMP_DISTANCE)
-      const targetIndex = this.currentWordIndex + cappedJump
-
-      // Accumulate this match - only scroll when we have consistent matches
-      const scrollTarget = this.accumulateMatch(targetIndex)
-
-      if (scrollTarget >= 0) {
-        // We have enough consistent matches - now scroll!
-        this.currentWordIndex = scrollTarget
-        this.lastMatchedIndex = scrollTarget
-        this.scrollToWord(scrollTarget, Math.abs(scrollTarget - this.currentWordIndex))
+    // Canonical model (jlecomte Content.tsx): on ANY forward match, snap the matched word to the
+    // anchor immediately. No accumulator, no per-update cap, no momentum animation — those caused
+    // the scroll to lag, then overshoot and race ahead of the reader across Apple's fast partials.
+    if (jumpDistance > 0) {
+      // Confidence gating (Textream's matchCharacters): a SMALL forward step commits immediately so
+      // normal reading stays responsive; a LARGER jump must be confirmed by 2-of-3 recent matches
+      // agreeing — so a single noisy over-match can't fling the highlight ahead of your voice.
+      this.recentMatchPositions.push(newIndex)
+      if (this.recentMatchPositions.length > 3) this.recentMatchPositions.shift()
+      const smallStep = jumpDistance <= this.SMALL_STEP_WORDS
+      let confirmed = false
+      if (this.recentMatchPositions.length >= 2) {
+        const agree = this.recentMatchPositions.filter(p => Math.abs(p - newIndex) <= this.AGREE_WORDS).length
+        confirmed = agree >= 2
       }
-    } else if (jumpDistance <= 0) {
-      // No forward progress - might be pause or repetition
-      // Reset pause state tracking
-      this.noProgressCount++
-
-      // Multiple no-progress results - speech may have paused
+      // CATCH-UP ESCAPE HATCH. The agreement gate above asks recent matches to CLUSTER near one
+      // target — but when you surge through a mis-heard clause ("...U-Haul work, was an international
+      // mover — which is to say..."), each partial matches a DIFFERENT forward word, so they never
+      // cluster and the jump is gated forever: the highlight freezes on "Marina" while you read on.
+      // The fix uses the one fact that makes "behind" different from "fling ahead": you cannot
+      // accidentally SPEAK words far ahead, so two independent matches BOTH landing well past the
+      // highlight mean the reader genuinely moved on. That is safe to chase immediately. (A single
+      // noisy over-match still can't trigger it — it takes two votes. Backward flings are rejected
+      // elsewhere.) FORWARD_CAP still bounds each step, so catch-up closes the gap over 1–2 commits
+      // rather than one jarring leap.
+      // Two recent matches BOTH well ahead of the highlight — AND clustered with each other — mean a
+      // genuine fall-behind. The cluster check matters: in repeat-heavy text two partials can each
+      // latch a DIFFERENT far copy of a common word, both clearing the ahead threshold while pointing
+      // at unrelated places. Without requiring them to agree (same as the `confirmed` gate), that
+      // would spuriously trigger catch-up and switch OFF the pace governor exactly when the match is
+      // least trustworthy. Requiring max−min ≤ AGREE_WORDS keeps catch-up to a real, consistent surge.
+      const CATCHUP_AHEAD = this.AGREE_WORDS + 1
+      const aheadPositions = this.recentMatchPositions.filter(
+        p => p >= this.currentWordIndex + CATCHUP_AHEAD
+      )
+      const catchingUp = aheadPositions.length >= 2 &&
+        (Math.max(...aheadPositions) - Math.min(...aheadPositions)) <= this.AGREE_WORDS
+      if (smallStep || confirmed || catchingUp) {
+        // Cap the advance so a single over-reaching match can't lurch the highlight far ahead.
+        let capped = Math.min(newIndex, this.currentWordIndex + this.FORWARD_CAP)
+        // Reading-pace governor: also cap to human reading speed, defeating the repeated-vocabulary
+        // ratchet that a constant lead can't. Bypassed at start (no pace history yet) and fail-safe.
+        // ALSO bypassed while catching up: a genuine fall-behind is a discontinuity, and clamping it
+        // to "plausible pace" is exactly what keeps it permanently behind.
+        if (ENABLE_PACE_GOVERNOR && !catchingUp) {
+          const paced = this.governByPace(capped)
+          if (DEBUG_VOICE_MATCH && paced < capped) {
+            console.warn(`[VT]   pace clamp → #${paced} (matcher wanted #${capped}; held to reading speed)`)
+          }
+          capped = paced
+        }
+        if (catchingUp) this.resetPaceGovernor()  // discontinuity: don't let stale samples clamp the next step
+        this.lastCommitTime = Date.now()
+        this.pendingGlobalIndex = -1
+        this.currentWordIndex = capped
+        this.lastMatchedIndex = capped
+        this.scrollToWord(capped)
+        if (DEBUG_VOICE_MATCH) console.warn(`[VT]   COMMIT #${capped} (target #${newIndex}, ${smallStep ? 'small step' : confirmed ? '2-of-3 confirmed' : 'catch-up'})`)
+      } else if (DEBUG_VOICE_MATCH) {
+        console.warn(`[VT]   GATED big jump → #${newIndex} (recent ${this.recentMatchPositions.join(',')}; need 2 within ${this.AGREE_WORDS} words)`)
+      }
+    } else {
+      this.noProgressCount++  // no forward progress — likely a pause or repetition
     }
+  }
+
+  /**
+   * Reading-pace governor. Estimates the reader's words/sec from a rolling window of recent commits
+   * and caps the proposed advance so the highlight can't move faster than a human reads aloud. This
+   * is what defeats the repeated-vocabulary ratchet: a matched word many positions ahead simply can't
+   * be reached in the elapsed speech time, so it's held back to where the voice plausibly is.
+   * Returns the pace-capped index (>= currentWordIndex). No history yet → returns the input unchanged.
+   */
+  /** Clear pace history so the next commit isn't clamped against a stale window (start / jumps). */
+  private resetPaceGovernor(): void {
+    this.paceSamples = []
+    this.lastCommitTime = 0
+  }
+
+  private governByPace(proposed: number): number {
+    const now = Date.now()
+    // Sample the proposed (already FORWARD_CAP-limited) index, then trim the window.
+    this.paceSamples.push({ t: now, idx: proposed })
+    while (this.paceSamples.length > 0 && now - this.paceSamples[0].t > this.PACE_WINDOW_MS) {
+      this.paceSamples.shift()
+    }
+    // Need a little history and a known last commit before clamping.
+    if (this.paceSamples.length < 3 || this.lastCommitTime === 0) return proposed
+
+    const head = this.paceSamples[0]
+    const tail = this.paceSamples[this.paceSamples.length - 1]
+    const winMs = tail.t - head.t
+    if (winMs <= 0) return proposed
+
+    // words/sec over the window, bounded so we neither strangle nor free-wheel.
+    const wps = Math.min(this.MAX_PACE_WPS, Math.max(this.MIN_PACE_WPS, ((tail.idx - head.idx) / winMs) * 1000))
+    const dtSec = (now - this.lastCommitTime) / 1000
+    // Max words this commit may advance: pace × elapsed × headroom, but never fewer than a small step
+    // so steady reading is never throttled.
+    const maxAdvance = Math.max(this.SMALL_STEP_WORDS, Math.ceil(wps * dtSec * this.PACE_TOLERANCE))
+    return Math.min(proposed, this.currentWordIndex + maxAdvance)
   }
 
   /**
@@ -552,27 +937,102 @@ export class VoiceTrackingService {
    * @param wordIndex - Target word index
    * @param jumpDistance - Number of words being jumped (for animation timing)
    */
-  private scrollToWord(wordIndex: number, jumpDistance: number = 5): void {
-    const position = this.wordPositions.get(wordIndex)
+  private scrollToWord(wordIndex: number): void {
+    // Lead the highlight slightly to offset recognition latency (the matched word trails your
+    // actual reading by a word or two). HIGHLIGHT_LEAD is the knob for "behind" vs "ahead".
+    const ledIndex = Math.max(0, Math.min(this.wordTokens.length - 1, wordIndex + this.HIGHLIGHT_LEAD))
 
+    // The highlight is the primary position tracker (Textream-style word highlighting).
+    if (ENABLE_KARAOKE_HIGHLIGHTING) this.highlightWord(ledIndex)
+
+    const position = this.wordPositions.get(ledIndex) ?? this.wordPositions.get(wordIndex)
     if (!position || !this.contentArea) {
       return
     }
 
-    // Highlight the current word (karaoke style) if enabled
-    if (ENABLE_KARAOKE_HIGHLIGHTING) {
-      this.highlightWord(wordIndex)
+    // Read the word's offset from the LIVE span, not the init-time snapshot. The cached offsetTop
+    // is measured once at build time; on notes with a properties table / images / late font load the
+    // layout shifts afterward, leaving the cache stale (often 0). A stale 0 makes wordViewportY hugely
+    // negative, which trips the "above viewport" branch and yanks the page to the very top — from
+    // which the scroll-anchored re-sync then re-acquires the intro instead of where you actually are.
+    const liveSpan = this.wordSpans.get(ledIndex) ?? this.wordSpans.get(wordIndex)
+    const wordTop = liveSpan ? liveSpan.offsetTop : position.offsetTop
+
+    // Manual-scroll override: the reader just grabbed the page — keep the highlight (set above)
+    // but don't fight their scroll. Cancel any in-flight follow and hold; auto-follow resumes
+    // USER_SCROLL_GRACE_MS after they stop scrolling.
+    if (Date.now() - this.userScrolledAt < this.USER_SCROLL_GRACE_MS) {
+      if (this.scrollAnimationId !== null) {
+        cancelAnimationFrame(this.scrollAnimationId)
+        this.scrollAnimationId = null
+      }
+      if (DEBUG_VOICE_MATCH) console.warn('[VT]   scroll YIELD → manual scroll active, auto-follow paused')
+      return
     }
 
-    // Calculate scroll position (keep word at configured % from top)
-    const scrollPercent = this.SCROLL_POSITION / 100
-    const targetScroll = Math.max(0, position.offsetTop - (this.contentArea.clientHeight * scrollPercent))
+    const h = this.contentArea.clientHeight
+    // FIXED READING LINE (continuous follow). Keep the current word anchored at one height and ease
+    // toward it on EVERY commit. The old model held the page still for a whole "band" (~5 lines) and
+    // then jumped the word back up in one big leap — that hold-then-jump is the jumpiness. Anchoring
+    // every line turns it into frequent small eased nudges = a smooth glide. It also means the line
+    // you're reading never sinks to the bottom of the screen, so there's always runway below to read
+    // ahead (the "couldn't read below" problem). The anchor is your "Current word position" setting.
+    const anchorFrac = Math.min(0.6, Math.max(0.12, this.SCROLL_POSITION / 100))
+    const desired = Math.max(0, wordTop - h * anchorFrac)
 
-    // Emit event before scrolling
-    this.onWordMatch?.(wordIndex, targetScroll)
+    // Retarget only when the word moved to a new line (target changed by more than a rounding wobble),
+    // so the follow isn't re-armed for every partial while you speak the words on the current line.
+    if (Math.abs(desired - this.targetScrollPos) > 1) {
+      this.targetScrollPos = desired
+      this.onWordMatch?.(wordIndex, this.targetScrollPos)
+      this.startScrollFollow()
+      if (DEBUG_VOICE_MATCH) console.warn(`[VT]   scroll follow → #${wordIndex}, target=${Math.round(desired)} (anchor ${Math.round(h * anchorFrac)} of ${h})`)
+    } else if (DEBUG_VOICE_MATCH) {
+      console.warn(`[VT]   scroll steady (#${wordIndex} already at anchor ${Math.round(h * anchorFrac)})`)
+    }
+  }
 
-    // Use custom smooth animation for voice tracking
-    this.animateScrollTo(targetScroll, jumpDistance)
+  /** Let the reader's own scrolling take over. `wheel` + `touchmove` are user-gesture only — our
+   *  programmatic scrollTop writes never fire them — so this can't false-trigger on auto-follow. */
+  private attachUserScrollGuard(area: HTMLElement): void {
+    this.detachUserScrollGuard()
+    const mark = (): void => {
+      this.userScrolledAt = Date.now()
+      // Re-acquire wherever they parked the page — via a calm local snap, not a global search.
+      this.resyncToScrollPending = true
+    }
+    this.userScrollHandler = mark
+    this.guardedScrollArea = area
+    area.addEventListener('wheel', mark, { passive: true })
+    area.addEventListener('touchmove', mark, { passive: true })
+  }
+
+  private detachUserScrollGuard(): void {
+    if (this.guardedScrollArea && this.userScrollHandler) {
+      this.guardedScrollArea.removeEventListener('wheel', this.userScrollHandler)
+      this.guardedScrollArea.removeEventListener('touchmove', this.userScrollHandler)
+    }
+    this.userScrollHandler = null
+    this.guardedScrollArea = null
+  }
+
+  /** Per-frame critically-damped follow toward the latest target. Reuses scrollAnimationId so
+   *  stop() cancels it. Settles exactly on target and idles until the next word moves it. */
+  private startScrollFollow(): void {
+    if (this.scrollAnimationId !== null) return  // loop already running — it reads the new target
+    const step = (): void => {
+      if (!this.contentArea) { this.scrollAnimationId = null; return }
+      const cur = this.contentArea.scrollTop
+      const diff = this.targetScrollPos - cur
+      if (Math.abs(diff) < 0.5) {
+        this.contentArea.scrollTop = this.targetScrollPos
+        this.scrollAnimationId = null
+        return
+      }
+      this.contentArea.scrollTop = cur + diff * this.FOLLOW_FACTOR
+      this.scrollAnimationId = requestAnimationFrame(step)
+    }
+    this.scrollAnimationId = requestAnimationFrame(step)
   }
 
   /**
@@ -804,8 +1264,10 @@ export class VoiceTrackingService {
    */
   dispose(): void {
     this.stop()
+    this.detachUserScrollGuard()
     this.unwrapWords()  // Restore original DOM
     this.recognizer.dispose()
+    this.speechDetector.dispose()
     this.tokens = []
     this.wordTokens = []
     this.wordPositions.clear()

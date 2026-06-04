@@ -4,7 +4,7 @@
  */
 
 /** Available TTS engine types */
-export type TTSEngineType = 'mac-say' | 'web-speech' | 'kokoro' | 'auto'
+export type TTSEngineType = 'mac-say' | 'web-speech' | 'kokoro' | 'elevenlabs' | 'auto'
 
 /** TTS playback state */
 export type TTSPlaybackState = 'idle' | 'playing' | 'paused' | 'loading'

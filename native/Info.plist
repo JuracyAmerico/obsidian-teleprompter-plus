@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>CFBundleIdentifier</key><string>com.teleprompterplus.stt</string>
+  <key>CFBundleName</key><string>Teleprompter Plus STT</string>
+  <key>CFBundleExecutable</key><string>teleprompter-stt</string>
+  <key>NSMicrophoneUsageDescription</key><string>Teleprompter Plus follows your voice while you read.</string>
+  <key>NSSpeechRecognitionUsageDescription</key><string>Teleprompter Plus uses on-device speech recognition to scroll as you speak.</string>
+</dict>
+</plist>

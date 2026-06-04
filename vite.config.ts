@@ -20,7 +20,7 @@ export default defineConfig({
       fileName: () => 'main.js',
     },
     rollupOptions: {
-      external: ['obsidian', 'ws', 'electron', 'fs', 'path', 'os', 'child_process', 'crypto', 'vosk-browser'],
+      external: ['obsidian', 'ws', 'electron', 'fs', 'path', 'os', 'child_process', 'crypto'],
       output: {
         globals: {
           obsidian: 'obsidian',

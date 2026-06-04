@@ -3,6 +3,7 @@ import type { App } from 'obsidian'
 import type TeleprompterPlusPlugin from './main'
 import { ConfirmModal } from './confirm-modal'
 import { PromptModal } from './prompt-modal'
+import { resolveControlIcon, type IconStyle } from './icon-vocabulary'
 
 // Hotkey action names
 export type HotkeyAction =
@@ -150,8 +151,12 @@ export interface TeleprompterSettings {
 	voiceTrackingPauseDetection: boolean     // Enable pause detection (default: true)
 	voiceTrackingPauseThresholdMs: number    // Time without speech to pause scrolling (default: 1500ms)
 	voiceTrackingScrollPosition: number      // Where current word appears on screen (0-100%, default: 30)
+	voiceTrackingReadTrail: number           // Words to keep the scroll behind your voice (anti "runs ahead")
+	voiceTrackingSmoothness: number          // Scroll-follow smoothness ×100 (e.g. 16 = 0.16)
+	voiceTrackingHighlightLead: number       // Highlight offset in words vs voice (+ ahead, - behind)
+	voiceTrackingShowWordHighlight: boolean   // Show per-word karaoke highlight (off = smooth follow only)
 	// TTS (Text-to-Speech) settings
-	ttsEngine: 'auto' | 'mac-say' | 'web-speech' | 'kokoro'
+	ttsEngine: 'auto' | 'mac-say' | 'web-speech' | 'kokoro' | 'elevenlabs'
 	ttsVoice: string                   // Voice ID (engine-specific)
 	ttsLanguage: string                // Language code (e.g., 'en', 'pt', 'fr')
 	ttsRate: number                    // Speech rate (0.5 - 2.0)
@@ -160,6 +165,10 @@ export interface TeleprompterSettings {
 	ttsSkipCodeBlocks: boolean         // Don't read code aloud
 	ttsSkipTables: boolean             // Don't read tables aloud
 	ttsPythonPath: string              // Python path for Kokoro engine
+	// ElevenLabs cloud TTS (bring-your-own-key — paid, sends script text to ElevenLabs)
+	elevenLabsApiKey: string           // User's own ElevenLabs API key
+	elevenLabsVoiceId: string          // ElevenLabs voice ID
+	elevenLabsModelId: string          // ElevenLabs model (flash/turbo/multilingual)
 	// Progress indicator style
 	progressIndicatorStyle: 'progress-bar' | 'scrollbar' | 'none'
 	// NEW: Toolbar configuration
@@ -168,6 +177,13 @@ export interface TeleprompterSettings {
 		secondary: string[]  // Overflow menu items
 		hidden: string[]     // Disabled buttons
 	}
+	// NEW: Toolbar density — 'comfortable' shows a text label under each icon
+	toolbarDensity: 'compact' | 'comfortable'
+	// NEW: Show small uppercase zone sub-labels above each main-bar zone
+	toolbarShowZoneLabels: boolean
+	// Icon style for the toolbar: 'native' = Lucide (default, consistent w/ Obsidian + Stream Deck),
+	// 'custom' = the bespoke tp-* set.
+	iconStyle: IconStyle
 	// NEW: Profiles
 	profiles: {
 		active: string       // Active profile ID
@@ -292,6 +308,10 @@ export const DEFAULT_SETTINGS: TeleprompterSettings = {
 	voiceTrackingPauseDetection: true,      // Pause when user stops speaking
 	voiceTrackingPauseThresholdMs: 1200,    // Faster pause detection (1.2 seconds)
 	voiceTrackingScrollPosition: 20,        // Current word at 20% from top (more runway below)
+	voiceTrackingReadTrail: 8,              // anchor 8 words behind your voice by default
+	voiceTrackingSmoothness: 16,            // 0.16 follow factor
+	voiceTrackingHighlightLead: 0,          // highlight sits exactly on the recognized word
+	voiceTrackingShowWordHighlight: false,  // off by default: smooth voice-follow scroll, no per-word marker
 	// TTS (Text-to-Speech) defaults
 	ttsEngine: 'auto' as const,
 	ttsVoice: '',
@@ -302,6 +322,10 @@ export const DEFAULT_SETTINGS: TeleprompterSettings = {
 	ttsSkipCodeBlocks: true,
 	ttsSkipTables: true,
 	ttsPythonPath: 'python3',
+	// ElevenLabs cloud TTS defaults (empty key = engine unavailable, never auto-selected)
+	elevenLabsApiKey: '',
+	elevenLabsVoiceId: '21m00Tcm4TlvDq8ikWAM', // Rachel (ElevenLabs default public voice)
+	elevenLabsModelId: 'eleven_flash_v2_5',
 	// Progress indicator style
 	progressIndicatorStyle: 'progress-bar' as const,
 	// NEW: Toolbar configuration
@@ -310,6 +334,12 @@ export const DEFAULT_SETTINGS: TeleprompterSettings = {
 		secondary: ['eyeline', 'focus-mode', 'navigation', 'fullscreen', 'flip-h', 'flip-v', 'minimap', 'auto-pause', 'progress-indicator', 'alignment', 'keep-awake', 'pin', 'detach', 'quick-presets', 'time-display', 'tts'],
 		hidden: []
 	},
+	// NEW: Toolbar density (default compact — labels off)
+	toolbarDensity: 'compact' as const,
+	// NEW: Zone sub-labels off by default (they add height to the bar)
+	toolbarShowZoneLabels: false,
+	// Toolbar icons default to native Lucide (consistent with Obsidian + Stream Deck)
+	iconStyle: 'native' as const,
 	// NEW: Profiles
 	profiles: {
 		active: 'professional',
@@ -438,7 +468,17 @@ const BUILT_IN_PROFILES: Profile[] = [
 ]
 
 // Toolbar control definitions
-const TOOLBAR_CONTROLS = [
+// Toolbar control catalog (settings side). `defaultMore` mirrors
+// TOOLBAR_CONTROL_DEFS in TeleprompterApp.svelte: controls flagged here are the
+// low-frequency ones the "Recommended layout" action collapses into ⋯ More.
+interface ToolbarControlMeta {
+	id: string
+	name: string
+	icon: string
+	defaultMore?: boolean
+}
+
+const TOOLBAR_CONTROLS: ToolbarControlMeta[] = [
 	// Core playback controls
 	{ id: 'play-pause', name: 'Play/pause', icon: 'tp-play' },
 	{ id: 'speed', name: 'Speed controls', icon: 'tp-speed-up' },
@@ -456,18 +496,18 @@ const TOOLBAR_CONTROLS = [
 	// Feature toggles
 	{ id: 'eyeline', name: 'Eyeline', icon: 'tp-eyeline' },
 	{ id: 'focus-mode', name: 'Focus mode', icon: 'focus' },
-	{ id: 'navigation', name: 'Navigation panel', icon: 'tp-navigation' },
+	{ id: 'navigation', name: 'Navigation panel', icon: 'tp-navigation', defaultMore: true },
 	{ id: 'fullscreen', name: 'Fullscreen', icon: 'tp-fullscreen' },
 	{ id: 'flip-h', name: 'Flip horizontal', icon: 'tp-flip-h' },
 	{ id: 'flip-v', name: 'Flip vertical', icon: 'tp-flip-v' },
-	{ id: 'minimap', name: 'Minimap', icon: 'tp-minimap' },
+	{ id: 'minimap', name: 'Minimap', icon: 'tp-minimap', defaultMore: true },
 	// Utility controls
-	{ id: 'auto-pause', name: 'Auto-pause on edit', icon: 'tp-auto-pause' },
-	{ id: 'progress-indicator', name: 'Progress indicator', icon: 'tp-progress-bar' },
-	{ id: 'alignment', name: 'Text alignment', icon: 'tp-align-center' },
-	{ id: 'keep-awake', name: 'Keep awake', icon: 'tp-keep-awake' },
-	{ id: 'pin', name: 'Pin note', icon: 'tp-pin' },
-	{ id: 'detach', name: 'Open in window', icon: 'tp-detach' },
+	{ id: 'auto-pause', name: 'Auto-pause on edit', icon: 'tp-auto-pause', defaultMore: true },
+	{ id: 'progress-indicator', name: 'Progress indicator', icon: 'tp-progress-bar', defaultMore: true },
+	{ id: 'alignment', name: 'Text alignment', icon: 'tp-align-center', defaultMore: true },
+	{ id: 'keep-awake', name: 'Keep awake', icon: 'tp-keep-awake', defaultMore: true },
+	{ id: 'pin', name: 'Pin note', icon: 'tp-pin', defaultMore: true },
+	{ id: 'detach', name: 'Open in window', icon: 'tp-detach', defaultMore: true },
 	{ id: 'quick-presets', name: 'Quick presets', icon: 'tp-quick-presets' },
 	// Info displays
 	{ id: 'time-display', name: 'Time display', icon: 'clock' },
@@ -738,6 +778,34 @@ export class TeleprompterSettingTab extends PluginSettingTab {
 		})
 	}
 
+	// Reset toolbarLayout so every `defaultMore` control collapses into the
+	// ⋯ More menu and the essentials stay on the main bar in catalog (zone) order.
+	// Hidden controls are left untouched; nothing is destroyed (re-pin to reverse).
+	private applyRecommendedToolbarLayout(): void {
+		const hidden = this.plugin.settings.toolbarLayout.hidden
+		const onBar: string[] = []
+		const inMore: string[] = []
+
+		TOOLBAR_CONTROLS.forEach(control => {
+			if (hidden.includes(control.id)) return
+			if (control.defaultMore) {
+				inMore.push(control.id)
+			} else {
+				onBar.push(control.id)
+			}
+		})
+
+		this.plugin.settings.toolbarLayout.primary = onBar
+		this.plugin.settings.toolbarLayout.secondary = inMore
+
+		void this.plugin.saveSettings().then(() => {
+			// Notify the live teleprompter view to rebuild its toolbar
+			activeDocument.dispatchEvent(new CustomEvent('teleprompter:toolbar-changed'))
+			new Notice('Recommended toolbar layout applied')
+			this.display()
+		})
+	}
+
 	// ========================================
 	// Toolbar Tab - Configure visible controls
 	// ========================================
@@ -746,6 +814,87 @@ export class TeleprompterSettingTab extends PluginSettingTab {
 			text: 'Configure which controls appear in the teleprompter toolbar',
 			cls: 'setting-item-description',
 		})
+
+		// ── Toolbar options: density, zone labels, recommended layout ──────────
+		this.createFeatureGroup(containerEl, 'toolbar-options', 'Toolbar options', 'sliders-horizontal', [
+			{
+				id: 'toolbar-density',
+				name: 'Density',
+				icon: 'rows-3',
+				hasToggle: false,
+				settings: [
+					{
+						name: 'Button density',
+						desc: 'Comfortable shows a text label under each icon (easier to hit live); compact is icon-only.',
+						type: 'dropdown',
+						value: this.plugin.settings.toolbarDensity,
+						options: [
+							{ value: 'compact', label: 'Compact (icons only)' },
+							{ value: 'comfortable', label: 'Comfortable (icons + labels)' },
+						],
+						onChange: (value) => {
+							this.plugin.settings.toolbarDensity =
+								value === 'comfortable' ? 'comfortable' : 'compact'
+							void this.plugin.saveSettings()
+							activeDocument.dispatchEvent(new CustomEvent('teleprompter:toolbar-changed'))
+						},
+					},
+				],
+			},
+			{
+				id: 'toolbar-icon-style',
+				name: 'Icon style',
+				icon: 'palette',
+				hasToggle: false,
+				settings: [
+					{
+						name: 'Toolbar icons',
+						desc: 'Native uses Obsidian’s Lucide icons (consistent with the rest of Obsidian and your Stream Deck keys). Custom uses the bespoke Teleprompter Plus icon set.',
+						type: 'dropdown',
+						value: this.plugin.settings.iconStyle,
+						options: [
+							{ value: 'native', label: 'Native (Lucide)' },
+							{ value: 'custom', label: 'Custom (Teleprompter Plus)' },
+						],
+						onChange: (value) => {
+							this.plugin.settings.iconStyle = value === 'custom' ? 'custom' : 'native'
+							void this.plugin.saveSettings()
+							activeDocument.dispatchEvent(new CustomEvent('teleprompter:toolbar-changed'))
+						},
+					},
+				],
+			},
+			{
+				id: 'toolbar-zone-labels',
+				name: 'Zone labels',
+				icon: 'tag',
+				hasToggle: true,
+				toggleValue: this.plugin.settings.toolbarShowZoneLabels,
+				onToggle: (value) => {
+					this.plugin.settings.toolbarShowZoneLabels = value
+					void this.plugin.saveSettings()
+					activeDocument.dispatchEvent(new CustomEvent('teleprompter:toolbar-changed'))
+				},
+				settings: [],
+			},
+		])
+
+		// Recommended layout action — collapse low-frequency controls into ⋯ More
+		const recommendedSetting = new Setting(containerEl)
+			.setName('Recommended layout')
+			.setDesc('Move low-frequency controls into the ⋯ More menu and keep the essentials on the bar. Reversible — re-pin anything below.')
+		recommendedSetting.addButton(btn => btn
+			.setButtonText('Apply recommended layout')
+			.setIcon('wand-2')
+			.onClick(() => {
+				new ConfirmModal(
+					this.app,
+					'Apply the recommended toolbar layout? Low-frequency controls move into the ⋯ More menu. You can re-pin or show any control afterward.',
+					() => {
+						this.applyRecommendedToolbarLayout()
+					}
+				).open()
+			}))
 
 		// Toolbar preview
 		const previewSection = containerEl.createDiv('tp-section-header')
@@ -798,7 +947,7 @@ export class TeleprompterSettingTab extends PluginSettingTab {
 			item.dataset.index = String(index)
 
 			const itemIcon = item.createDiv('tp-toolbar-item-icon')
-			setIcon(itemIcon, control.icon)
+			setIcon(itemIcon, resolveControlIcon(control.icon, this.plugin.settings.iconStyle))
 			item.title = `${control.name} (drag to reorder)`
 
 			// Drag events
@@ -883,7 +1032,7 @@ export class TeleprompterSettingTab extends PluginSettingTab {
 			setIcon(dragHandle, 'grip-vertical')
 
 			const controlIcon = controlEl.createDiv('tp-toolbar-control-icon')
-			setIcon(controlIcon, control.icon)
+			setIcon(controlIcon, resolveControlIcon(control.icon, this.plugin.settings.iconStyle))
 
 			controlEl.createSpan({ text: control.name, cls: 'tp-toolbar-control-name' })
 
@@ -1202,7 +1351,7 @@ export class TeleprompterSettingTab extends PluginSettingTab {
 		])
 
 		// Colors Feature Group
-		this.createFeatureGroup(containerEl, 'colors', 'Colors & Opacity', 'palette', [
+		this.createFeatureGroup(containerEl, 'colors', 'Colors & opacity', 'palette', [
 			{
 				id: 'colors',
 				name: 'Color scheme',
@@ -1388,7 +1537,7 @@ export class TeleprompterSettingTab extends PluginSettingTab {
 		])
 
 		// Voice Tracking Feature Group
-		this.createFeatureGroup(containerEl, 'voice', 'Voice Tracking', 'mic', [
+		this.createFeatureGroup(containerEl, 'voice', 'Voice tracking', 'mic', [
 			{
 				id: 'voice-tracking',
 				name: 'Voice-activated scrolling',
@@ -1553,6 +1702,49 @@ export class TeleprompterSettingTab extends PluginSettingTab {
 							this.plugin.settings.voiceTrackingScrollPosition = value as number
 							void this.plugin.saveSettings()
 						}
+					},
+					{
+						name: 'Scroll trail (words behind your voice)',
+						desc: 'If the prompter runs AHEAD of you, raise this. Anchors the scroll this many words behind the word you just spoke. Re-toggle voice tracking (V) to apply.',
+						type: 'slider',
+						min: 0, max: 25, step: 1,
+						value: this.plugin.settings.voiceTrackingReadTrail,
+						onChange: (value) => {
+							this.plugin.settings.voiceTrackingReadTrail = value as number
+							void this.plugin.saveSettings()
+						}
+					},
+					{
+						name: 'Scroll smoothness',
+						desc: 'Lower = calmer/slower glide, higher = snappier (value ×100, so 16 = 0.16). Re-toggle voice tracking (V) to apply.',
+						type: 'slider',
+						min: 5, max: 40, step: 1,
+						value: this.plugin.settings.voiceTrackingSmoothness,
+						onChange: (value) => {
+							this.plugin.settings.voiceTrackingSmoothness = value as number
+							void this.plugin.saveSettings()
+						}
+					},
+					{
+						name: 'Highlight the current word',
+						desc: 'Paint a karaoke-style marker on the word you are speaking. Off (default) = the page still scrolls smoothly to follow your voice, but no per-word box jumps around — easier to keep your place. Re-toggle voice tracking (V) to apply.',
+						type: 'toggle',
+						value: this.plugin.settings.voiceTrackingShowWordHighlight,
+						onChange: (value) => {
+							this.plugin.settings.voiceTrackingShowWordHighlight = value as boolean
+							void this.plugin.saveSettings()
+						}
+					},
+					{
+						name: 'Highlight offset (words ahead/behind your voice)',
+						desc: 'Only applies when "Highlight the current word" is on. Fine-tunes where the highlight sits relative to the word you are speaking. 0 = on the recognized word. If the highlight feels AHEAD of you, go negative (-1, -2). If it feels BEHIND, go positive (+1, +2). Re-toggle voice tracking (V) to apply.',
+						type: 'slider',
+						min: -3, max: 3, step: 1,
+						value: this.plugin.settings.voiceTrackingHighlightLead,
+						onChange: (value) => {
+							this.plugin.settings.voiceTrackingHighlightLead = value as number
+							void this.plugin.saveSettings()
+						}
 					}
 				]
 			}
@@ -1575,10 +1767,14 @@ export class TeleprompterSettingTab extends PluginSettingTab {
 							{ value: 'kokoro', label: 'Kokoro (neural, best quality)' },
 							{ value: 'mac-say', label: 'macOS Say (native, good quality)' },
 							{ value: 'web-speech', label: 'Web Speech API (basic fallback)' },
+							{ value: 'elevenlabs', label: 'ElevenLabs (cloud, paid — needs API key)' },
 						],
 						value: this.plugin.settings.ttsEngine,
 						onChange: (value) => {
-							this.plugin.settings.ttsEngine = value as 'auto' | 'mac-say' | 'web-speech' | 'kokoro'
+							this.plugin.settings.ttsEngine = value as 'auto' | 'mac-say' | 'web-speech' | 'kokoro' | 'elevenlabs'
+							if (value === 'elevenlabs') {
+								new Notice('ElevenLabs is a cloud, paid service. Your script text is sent to ElevenLabs servers, playback uses your ElevenLabs account credits, and you must supply your own API key (get one at elevenlabs.io). Prefer offline and free? Kokoro, macOS, and Web Speech remain available.', 12000)
+							}
 							void this.plugin.saveSettings()
 						}
 					},
@@ -1635,6 +1831,49 @@ export class TeleprompterSettingTab extends PluginSettingTab {
 						value: this.plugin.settings.ttsRate,
 						onChange: (value) => {
 							this.plugin.settings.ttsRate = value as number
+							void this.plugin.saveSettings()
+						}
+					}
+				]
+			},
+			{
+				id: 'tts-elevenlabs',
+				name: 'ElevenLabs (cloud, paid)',
+				icon: 'cloud',
+				hasToggle: false,
+				settings: [
+					{
+						name: 'API key',
+						desc: 'Cloud, PAID service. Your script text is sent to ElevenLabs and playback uses your account credits. Bring your own key from elevenlabs.io. Used only when the engine above is set to ElevenLabs; offline engines stay available.',
+						type: 'password',
+						value: this.plugin.settings.elevenLabsApiKey,
+						onChange: (value) => {
+							this.plugin.settings.elevenLabsApiKey = value as string
+							void this.plugin.saveSettings()
+						}
+					},
+					{
+						name: 'Model',
+						desc: 'Flash = fastest/cheapest, Turbo = low latency, Multilingual = best quality',
+						type: 'dropdown',
+						options: [
+							{ value: 'eleven_flash_v2_5', label: 'Flash v2.5 (fastest ~75ms)' },
+							{ value: 'eleven_turbo_v2_5', label: 'Turbo v2.5 (low latency)' },
+							{ value: 'eleven_multilingual_v2', label: 'Multilingual v2 (best quality)' },
+						],
+						value: this.plugin.settings.elevenLabsModelId,
+						onChange: (value) => {
+							this.plugin.settings.elevenLabsModelId = value as string
+							void this.plugin.saveSettings()
+						}
+					},
+					{
+						name: 'Voice ID',
+						desc: 'ElevenLabs voice ID. Default is Rachel (21m00Tcm4TlvDq8ikWAM). Find more in your ElevenLabs Voice Library; paste a cloned-voice ID here too.',
+						type: 'text',
+						value: this.plugin.settings.elevenLabsVoiceId,
+						onChange: (value) => {
+							this.plugin.settings.elevenLabsVoiceId = value as string
 							void this.plugin.saveSettings()
 						}
 					}
@@ -1710,7 +1949,7 @@ export class TeleprompterSettingTab extends PluginSettingTab {
 			settings: Array<{
 				name: string
 				desc: string
-				type: 'slider' | 'toggle' | 'text' | 'color' | 'dropdown'
+				type: 'slider' | 'toggle' | 'text' | 'password' | 'color' | 'dropdown'
 				min?: number
 				max?: number
 				step?: number
@@ -1843,6 +2082,18 @@ export class TeleprompterSettingTab extends PluginSettingTab {
 								})
 								.settingEl.addClass('tp-setting-no-border')
 							break
+						case 'text':
+						case 'password': {
+							const textInput = settingControl.createEl('input', {
+								type: setting.type === 'password' ? 'password' : 'text',
+								value: setting.value as string,
+								cls: 'tp-text-input'
+							})
+							textInput.addEventListener('change', (e) => {
+								setting.onChange((e.target as HTMLInputElement).value)
+							})
+							break
+						}
 					}
 				})
 			}
@@ -2552,9 +2803,9 @@ export class TeleprompterSettingTab extends PluginSettingTab {
 		// About Header
 		const aboutHeader = containerEl.createDiv('tp-about-header')
 		const aboutLogo = aboutHeader.createDiv('tp-about-logo')
-		setIcon(aboutLogo, 'presentation')
+		setIcon(aboutLogo, 'teleprompter-final')  // the Teleprompter Plus brand mark (ribbon icon)
 		aboutHeader.createDiv({ text: 'Teleprompter Plus', cls: 'tp-about-name' })  // Proper noun - keep title case
-		aboutHeader.createDiv({ text: 'Version 1.0.0', cls: 'tp-about-version' })
+		aboutHeader.createDiv({ text: `Version ${this.plugin.manifest.version}`, cls: 'tp-about-version' })  // read from manifest so it never drifts
 
 		// Links row
 		const linksRow = aboutHeader.createDiv('tp-about-links')
@@ -2587,7 +2838,7 @@ export class TeleprompterSettingTab extends PluginSettingTab {
 
 		const features = [
 			{ icon: 'play', label: 'Auto-scroll', desc: 'Adjustable speed' },
-			{ icon: 'palette', label: 'Custom icons', desc: '46+ designs' },
+			{ icon: 'palette', label: 'Native icons', desc: 'Lucide + custom set' },
 			{ icon: 'maximize', label: 'Fullscreen', desc: 'Persistent toolbar' },
 			{ icon: 'map', label: 'Navigation', desc: 'Minimap & sections' },
 			{ icon: 'wifi', label: 'External control', desc: 'Remote API' },
