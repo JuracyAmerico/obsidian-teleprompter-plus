@@ -612,12 +612,12 @@
     // Display / type zone
     { id: 'font-size', type: 'popup-slider', name: 'Font size', zone: 'display' },
     { id: 'line-height', type: 'popup-slider', name: 'Line height', zone: 'display' },
-    { id: 'letter-spacing', type: 'popup-slider', name: 'Letter spacing', zone: 'display', defaultMore: true },
+    { id: 'letter-spacing', type: 'popup-slider', name: 'Letter spacing', zone: 'display' },
     { id: 'font-family', type: 'popup-list', name: 'Font family', zone: 'display' },
-    { id: 'opacity', type: 'popup-slider', name: 'Opacity', zone: 'display', defaultMore: true },
-    { id: 'padding', type: 'popup-multi', name: 'Padding', zone: 'display', defaultMore: true },
-    { id: 'text-color', type: 'color-picker', name: 'Text color', zone: 'display', defaultMore: true },
-    { id: 'bg-color', type: 'color-picker', name: 'Background color', zone: 'display', defaultMore: true },
+    { id: 'opacity', type: 'popup-slider', name: 'Opacity', zone: 'display' },
+    { id: 'padding', type: 'popup-multi', name: 'Padding', zone: 'display' },
+    { id: 'text-color', type: 'color-picker', name: 'Text color', zone: 'display' },
+    { id: 'bg-color', type: 'color-picker', name: 'Background color', zone: 'display' },
     { id: 'alignment', type: 'icon-button', name: 'Text alignment', zone: 'display', defaultMore: true },
     // View zone
     { id: 'fullscreen', type: 'icon-button', name: 'Fullscreen', zone: 'view' },
@@ -636,7 +636,7 @@
     { id: 'keep-awake', type: 'icon-button', name: 'Keep awake', zone: 'system', defaultMore: true },
     { id: 'pin', type: 'icon-button', name: 'Pin note', zone: 'system', defaultMore: true },
     { id: 'detach', type: 'icon-button', name: 'Open in Window', zone: 'system', defaultMore: true },
-    { id: 'quick-presets', type: 'popup-list', name: 'Quick presets', zone: 'system', defaultMore: true },
+    { id: 'quick-presets', type: 'popup-list', name: 'Quick presets', zone: 'system' },
     // Readout zone - the timer is a status readout, not a button.
     { id: 'time-display', type: 'info-display', name: 'Time display', zone: 'readout' },
   ]
@@ -722,8 +722,17 @@
   // A control collapses into More only when it is flagged defaultMore AND the
   // user did not explicitly pin it to the primary (main-bar) layout. The readout
   // (time-display) is never eligible for More — it owns its own bar zone.
+  // Controls that open their OWN panel (color pickers, sliders, the presets list) must NOT live in
+  // the ⋯ More menu: the menu is an overflow-clipped scroll container (max-height + overflow-y:auto),
+  // so a nested panel gets cut off and cramped (the "color picker looks broken / presets don't work"
+  // reports). They stay on the bar where their popup floats freely. The More menu hosts one-click
+  // toggles only. This OVERRIDES a saved layout that had collapsed them, so existing users are fixed
+  // without re-applying anything.
+  const PANEL_CONTROL_TYPES = new Set<ToolbarControlType>(['popup-slider', 'popup-multi', 'popup-list', 'color-picker'])
+
   function isMoreControl(def: ToolbarControlDef): boolean {
     if (def.zone === 'readout') return false
+    if (PANEL_CONTROL_TYPES.has(def.type)) return false
     if (!def.defaultMore) return false
     const primary = plugin?.settings?.toolbarLayout?.primary || []
     return !primary.includes(def.id)

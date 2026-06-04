@@ -487,12 +487,12 @@ const TOOLBAR_CONTROLS: ToolbarControlMeta[] = [
 	// Display controls
 	{ id: 'font-size', name: 'Font size', icon: 'tp-font-up' },
 	{ id: 'line-height', name: 'Line height', icon: 'tp-line-height' },
-	{ id: 'letter-spacing', name: 'Letter spacing', icon: 'tp-letter-spacing', defaultMore: true },
+	{ id: 'letter-spacing', name: 'Letter spacing', icon: 'tp-letter-spacing' },
 	{ id: 'font-family', name: 'Font family', icon: 'tp-font-system' },
-	{ id: 'opacity', name: 'Opacity', icon: 'tp-opacity', defaultMore: true },
-	{ id: 'padding', name: 'Padding', icon: 'tp-padding', defaultMore: true },
-	{ id: 'text-color', name: 'Text color', icon: 'tp-text-color', defaultMore: true },
-	{ id: 'bg-color', name: 'Background color', icon: 'tp-bg-color', defaultMore: true },
+	{ id: 'opacity', name: 'Opacity', icon: 'tp-opacity' },
+	{ id: 'padding', name: 'Padding', icon: 'tp-padding' },
+	{ id: 'text-color', name: 'Text color', icon: 'tp-text-color' },
+	{ id: 'bg-color', name: 'Background color', icon: 'tp-bg-color' },
 	// Feature toggles
 	{ id: 'eyeline', name: 'Eyeline', icon: 'tp-eyeline' },
 	{ id: 'focus-mode', name: 'Focus mode', icon: 'focus' },
@@ -508,7 +508,7 @@ const TOOLBAR_CONTROLS: ToolbarControlMeta[] = [
 	{ id: 'keep-awake', name: 'Keep awake', icon: 'tp-keep-awake', defaultMore: true },
 	{ id: 'pin', name: 'Pin note', icon: 'tp-pin', defaultMore: true },
 	{ id: 'detach', name: 'Open in window', icon: 'tp-detach', defaultMore: true },
-	{ id: 'quick-presets', name: 'Quick presets', icon: 'tp-quick-presets', defaultMore: true },
+	{ id: 'quick-presets', name: 'Quick presets', icon: 'tp-quick-presets' },
 	// Info displays
 	{ id: 'time-display', name: 'Time display', icon: 'clock' },
 	// Voice tracking
