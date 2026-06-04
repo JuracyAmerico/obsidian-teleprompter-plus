@@ -2803,7 +2803,7 @@ export class TeleprompterSettingTab extends PluginSettingTab {
 		// About Header
 		const aboutHeader = containerEl.createDiv('tp-about-header')
 		const aboutLogo = aboutHeader.createDiv('tp-about-logo')
-		setIcon(aboutLogo, 'presentation')
+		setIcon(aboutLogo, 'teleprompter-final')  // the Teleprompter Plus brand mark (ribbon icon)
 		aboutHeader.createDiv({ text: 'Teleprompter Plus', cls: 'tp-about-name' })  // Proper noun - keep title case
 		aboutHeader.createDiv({ text: 'Version 1.0.0', cls: 'tp-about-version' })
 
