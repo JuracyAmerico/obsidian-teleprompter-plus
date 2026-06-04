@@ -62,7 +62,6 @@ export const CUSTOM_TO_LUCIDE: Record<string, string> = {
   'tp-tts-playing': 'audio-lines',
   'tp-tts-paused': 'circle-pause',
   'tp-tts-stop': 'square',
-  'tp-tts-active-sentence': 'audio-lines',
 }
 
 /**

@@ -3,7 +3,7 @@ import type { App } from 'obsidian'
 import type TeleprompterPlusPlugin from './main'
 import { ConfirmModal } from './confirm-modal'
 import { PromptModal } from './prompt-modal'
-import type { IconStyle } from './icon-vocabulary'
+import { resolveControlIcon, type IconStyle } from './icon-vocabulary'
 
 // Hotkey action names
 export type HotkeyAction =
@@ -947,7 +947,7 @@ export class TeleprompterSettingTab extends PluginSettingTab {
 			item.dataset.index = String(index)
 
 			const itemIcon = item.createDiv('tp-toolbar-item-icon')
-			setIcon(itemIcon, control.icon)
+			setIcon(itemIcon, resolveControlIcon(control.icon, this.plugin.settings.iconStyle))
 			item.title = `${control.name} (drag to reorder)`
 
 			// Drag events
@@ -1032,7 +1032,7 @@ export class TeleprompterSettingTab extends PluginSettingTab {
 			setIcon(dragHandle, 'grip-vertical')
 
 			const controlIcon = controlEl.createDiv('tp-toolbar-control-icon')
-			setIcon(controlIcon, control.icon)
+			setIcon(controlIcon, resolveControlIcon(control.icon, this.plugin.settings.iconStyle))
 
 			controlEl.createSpan({ text: control.name, cls: 'tp-toolbar-control-name' })
 
