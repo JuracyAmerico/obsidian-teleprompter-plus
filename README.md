@@ -28,6 +28,7 @@ Teleprompter Plus turns any Obsidian note into a professional teleprompter. Auto
 ## Key features
 
 - **Smooth auto-scroll** — variable speed (0.5×–10×), countdown timer, manual scroll, horizontal/vertical flip for camera-rig mirrors
+- **Voice-tracked scrolling** — read aloud and the prompter follows your voice, scrolling and highlighting to keep your place, using on-device speech recognition (no cloud)
 - **Hierarchical navigation** — collapsible header tree, abstract-scrollbar minimap, click-to-jump, active-section highlighting
 - **Stream Deck integration** — 55+ actions across 8 categories with real-time bidirectional state sync ([catalog](docs/stream-deck-actions.md))
 - **Mobile remote control** — touch-friendly web interface, control from any device on your network
