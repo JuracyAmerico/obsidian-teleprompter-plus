@@ -26,7 +26,10 @@ export default class TeleprompterPlusPlugin extends Plugin {
 	async onload(): Promise<void> {
 		// Teleprompter icon - CORRECT FORMAT per Obsidian docs
 		// NO <svg> wrapper, coordinates for 100x100 viewBox
-		const iconSvg = `<path d="M 15 10 L 85 10 L 75 70 L 25 70 Z" fill="currentColor"></path><rect x="47" y="70" width="6" height="15" fill="currentColor"></rect><rect x="30" y="85" width="40" height="8" fill="currentColor"></rect><line x1="30" y1="35" x2="70" y2="35" stroke="currentColor" stroke-width="3" opacity="0.5"></line>`
+		// Brand mark: screen + active reading line + left eyeline caret (echoes the app's voice-tracked
+		// reading line). Authored on a 24-grid (Lucide grammar) and scaled ×4.167 into the 100-grid
+		// addIcon space, so stroke-width 2 renders at Lucide weight in the ribbon.
+		const iconSvg = `<g transform="scale(4.16667)" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="4" width="16" height="15" rx="2"></rect><line x1="9" y1="8" x2="16" y2="8" opacity="0.45"></line><line x1="9" y1="11.5" x2="18" y2="11.5"></line><line x1="9" y1="15" x2="14" y2="15" opacity="0.45"></line><path d="M1.5 11.5 L4.5 9.8 L4.5 13.2 Z" fill="currentColor" stroke="none"></path></g>`
 		const iconName = 'teleprompter-final'
 
 		addIcon(iconName, iconSvg)
