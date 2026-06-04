@@ -1408,6 +1408,14 @@ Use this address to connect from external devices.`
 		if (!langPattern.test(s.voiceTrackingLanguage)) {
 			s.voiceTrackingLanguage = 'en-US'
 		}
+
+		// Coerce booleans/enums that are read with strict comparisons, so a corrupt persisted value
+		// (e.g. the string "false", which `??` does NOT replace) can't silently flip behavior.
+		s.voiceTrackingShowWordHighlight = s.voiceTrackingShowWordHighlight === true
+		s.toolbarShowZoneLabels = s.toolbarShowZoneLabels === true
+		if (s.toolbarDensity !== 'comfortable' && s.toolbarDensity !== 'compact') {
+			s.toolbarDensity = d.toolbarDensity
+		}
 	}
 
 	/**
