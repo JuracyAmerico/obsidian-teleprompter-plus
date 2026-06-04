@@ -46,7 +46,7 @@ Teleprompter Plus turns any Obsidian note into a professional teleprompter. Auto
 ### Main interface
 
 <p align="center">
-  <img src="docs/screenshots/main-interface.png" alt="Main teleprompter interface" width="800">
+  <img src="docs/screenshots/main-interface.gif" alt="Main teleprompter interface" width="800">
 </p>
 
 *Clean reading display with hierarchical navigation panel, eyeline guide, and real-time position tracking.*
@@ -54,7 +54,7 @@ Teleprompter Plus turns any Obsidian note into a professional teleprompter. Auto
 ### Mobile remote
 
 <p align="center">
-  <img src="docs/screenshots/mobile-remote.png" alt="Mobile remote interface" width="400">
+  <img src="docs/screenshots/mobile-remote.gif" alt="Mobile remote interface" width="360">
 </p>
 
 *Touch-friendly remote — phone, tablet, or second computer on the same network.*
