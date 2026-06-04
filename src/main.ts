@@ -30,7 +30,7 @@ export default class TeleprompterPlusPlugin extends Plugin {
 		// reading line). Authored on a 24-grid (Lucide grammar) and scaled ×4.167 into the 100-grid
 		// addIcon space, so stroke-width 2 renders at Lucide weight in the ribbon.
 		const iconSvg = `<g transform="scale(4.16667)" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="4" width="16" height="15" rx="2"></rect><line x1="9" y1="8" x2="16" y2="8" opacity="0.45"></line><line x1="9" y1="11.5" x2="18" y2="11.5"></line><line x1="9" y1="15" x2="14" y2="15" opacity="0.45"></line><path d="M1.5 11.5 L4.5 9.8 L4.5 13.2 Z" fill="currentColor" stroke="none"></path></g>`
-		const iconName = 'teleprompter-final'
+		const iconName = 'teleprompter-plus'
 
 		addIcon(iconName, iconSvg)
 

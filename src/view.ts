@@ -23,7 +23,7 @@ export class TeleprompterView extends ItemView {
 	}
 
 	getIcon() {
-		return 'teleprompter-final'
+		return 'teleprompter-plus'
 	}
 
 	async onOpen(): Promise<void> {
