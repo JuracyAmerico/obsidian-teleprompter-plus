@@ -5,6 +5,20 @@
 
 This document provides a visual reference of all icons in the Teleprompter Plus design system.
 
+## Icon vocabulary & styles
+
+The toolbar has **one icon vocabulary** with two render styles, chosen in
+**Settings → Toolbar → Toolbar options → Icon style**:
+
+- **Native (default)** — Obsidian's built-in **Lucide** icons. Consistent with the rest of
+  Obsidian (and with the Stream Deck keys, which render the same glyph per action), theme-aware.
+- **Custom** — the bespoke `tp-*` set documented below (registered via `addIcon` in `main.ts`).
+
+Single source of truth: `src/icon-vocabulary.ts` — `CUSTOM_TO_LUCIDE` maps every `tp-*` icon to its
+Lucide equivalent, and `resolveControlIcon(name, style)` is what the toolbar's `setIconAction`
+calls. The same map is intended to drive the Stream Deck key generator, so a "play" is the same
+glyph everywhere (monochrome-native in Obsidian, an accent key on Stream Deck).
+
 ---
 
 ## Obsidian Plugin Icons (24×24px)

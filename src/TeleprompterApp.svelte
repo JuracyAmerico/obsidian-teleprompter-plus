@@ -26,6 +26,7 @@
 <script lang="ts">
   import type { App as ObsidianApp, TFile } from 'obsidian'
   import { MarkdownView, Notice, setIcon, sanitizeHTMLToDom } from 'obsidian'
+  import { resolveControlIcon } from './icon-vocabulary'
   import { onMount } from 'svelte'
   import { marked } from 'marked'
   import { VOICE_TRACKING_PRESETS, type VoiceTrackingPacePreset } from './settings'
@@ -569,6 +570,7 @@
     return !hidden.includes(controlId)
   }
 
+
   // Toolbar control definitions - maps IDs to their type for rendering
   type ToolbarControlType = 'icon-button' | 'text-button' | 'popup-slider' | 'popup-multi' | 'popup-list' | 'color-picker' | 'info-display'
 
@@ -695,6 +697,13 @@
   const showZoneLabels = $derived.by(() => {
     void toolbarLayoutVersion
     return plugin?.settings?.toolbarShowZoneLabels === true
+  })
+  // Icon style (native Lucide vs custom tp-*). Used to {#key} the toolbar so switching it re-creates
+  // the buttons and re-runs use:setIconAction live (the action's string param doesn't otherwise
+  // change when only the style flips).
+  const iconStyle = $derived.by(() => {
+    void toolbarLayoutVersion
+    return plugin?.settings?.iconStyle === 'custom' ? 'custom' : 'native'
   })
 
   // ── Zone reconciliation (redesigned toolbar) ──────────────────────────────
@@ -2118,11 +2127,17 @@
 
   // Svelte action to set icon on element
   function setIconAction(node: HTMLElement, iconName: string) {
-    setIcon(node, iconName)
+    // Route every toolbar icon through the icon vocabulary: 'native' (default) maps a tp-* name to
+    // its Lucide equivalent (consistent with Obsidian + Stream Deck); 'custom' keeps the bespoke
+    // tp-* set. This is the single chokepoint for all use:setIconAction sites, so the Icon-style
+    // setting flips the whole toolbar at once. Re-runs when the toolbar re-renders (version bump).
+    const resolve = (n: string): string =>
+      resolveControlIcon(n, plugin?.settings?.iconStyle === 'custom' ? 'custom' : 'native')
+    setIcon(node, resolve(iconName))
     return {
       update(newIconName: string) {
         while (node.firstChild) node.removeChild(node.firstChild)
-        setIcon(node, newIconName)
+        setIcon(node, resolve(newIconName))
       }
     }
   }
@@ -5445,6 +5460,7 @@
     class:density-comfortable={toolbarDensity === 'comfortable'}
     class:show-zone-labels={showZoneLabels}
   >
+    {#key iconStyle}
     <!-- Main-bar zones, separated by 1px dividers (only between non-empty zones) -->
     {#each mainBarZones as group, groupIndex (group.zone)}
       {#if groupIndex > 0}
@@ -5516,6 +5532,7 @@
         {/if}
       </div>
     {/if}
+    {/key}
 
   </div>
 
