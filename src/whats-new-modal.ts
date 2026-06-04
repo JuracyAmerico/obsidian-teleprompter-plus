@@ -24,12 +24,16 @@ export class WhatsNewModal extends Modal {
 		// Header with logo
 		const header = contentEl.createDiv({ cls: 'whats-new-header' })
 
-		// Logo placeholder - using SVG element
+		// Brand mark — same glyph as the ribbon icon + docs/logo.png (purple tile + white prompter mark)
 		const logoContainer = header.createDiv({ cls: 'whats-new-logo' })
-		const logoSvg = logoContainer.createSvg('svg', { attr: { width: '80', height: '80', viewBox: '0 0 100 100' } })
-		logoSvg.createSvg('circle', { attr: { cx: '50', cy: '50', r: '45', fill: '#7c3aed' } })
-		const logoText = logoSvg.createSvg('text', { attr: { x: '50', y: '62', 'text-anchor': 'middle', fill: 'white', 'font-size': '32', 'font-weight': 'bold', 'font-family': 'system-ui' } })
-		logoText.textContent = 'T+'
+		const logoSvg = logoContainer.createSvg('svg', { attr: { width: '80', height: '80', viewBox: '0 0 512 512' } })
+		logoSvg.createSvg('rect', { attr: { x: '16', y: '16', width: '480', height: '480', rx: '112', fill: '#7c6cf6' } })
+		const mark = logoSvg.createSvg('g', { attr: { transform: 'translate(106,106) scale(12.5)', fill: 'none', stroke: '#ffffff', 'stroke-width': '2', 'stroke-linecap': 'round', 'stroke-linejoin': 'round' } })
+		mark.createSvg('rect', { attr: { x: '5', y: '4', width: '16', height: '15', rx: '2' } })
+		mark.createSvg('line', { attr: { x1: '9', y1: '8', x2: '16', y2: '8', opacity: '0.5' } })
+		mark.createSvg('line', { attr: { x1: '9', y1: '11.5', x2: '18', y2: '11.5' } })
+		mark.createSvg('line', { attr: { x1: '9', y1: '15', x2: '14', y2: '15', opacity: '0.5' } })
+		mark.createSvg('path', { attr: { d: 'M1.5 11.5 L4.5 9.8 L4.5 13.2 Z', fill: '#ffffff', stroke: 'none' } })
 
 		// Title and version - using div instead of h2 for Obsidian plugin guidelines
 		const titleContainer = header.createDiv({ cls: 'whats-new-title-container' })
@@ -52,29 +56,29 @@ export class WhatsNewModal extends Modal {
 
 		const features = [
 			{
-				icon: '📱',
-				title: 'Remote web interface',
-				description: 'Control from any device on your network - phone, tablet, or second computer'
+				icon: '🗣️',
+				title: 'Neural text-to-speech',
+				description: 'Read your script aloud — ElevenLabs cloud voices, or offline Kokoro / macOS / Web Speech'
 			},
 			{
-				icon: '⏱️',
-				title: 'Countdown timer',
-				description: 'Get ready with a visual countdown before auto-scroll starts'
+				icon: '🎯',
+				title: 'Voice-tracked scrolling',
+				description: 'The prompter follows your voice and scrolls smoothly to keep your place'
 			},
 			{
-				icon: '📍',
-				title: 'Section navigation',
-				description: 'Jump to headers/sections with a tap - works from mobile remote too'
+				icon: '🧰',
+				title: 'Redesigned toolbar',
+				description: 'Grouped zones, a hero Play, and a tidy More menu — fully theme-aware'
 			},
 			{
-				icon: '🎛️',
-				title: 'External device integration',
-				description: '55+ actions for professional teleprompter control'
+				icon: '⚙️',
+				title: 'Native settings',
+				description: 'Cleaner Obsidian-native settings with a status dashboard and density options'
 			},
 			{
-				icon: '🎤',
-				title: 'Voice tracking (beta)',
-				description: 'Experimental feature - scrolls as you speak'
+				icon: '✨',
+				title: 'A fresh look',
+				description: 'Unified Lucide icon set, a new brand mark, and a re-skinned mobile remote'
 			}
 		]
 
