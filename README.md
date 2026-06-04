@@ -28,13 +28,14 @@ Teleprompter Plus turns any Obsidian note into a professional teleprompter. Auto
 ## Key features
 
 - **Smooth auto-scroll** — variable speed (0.5×–10×), countdown timer, manual scroll, horizontal/vertical flip for camera-rig mirrors
+- **Voice-tracked scrolling** — read aloud and the prompter follows your voice, scrolling and highlighting to keep your place, using on-device speech recognition (no cloud)
 - **Hierarchical navigation** — collapsible header tree, abstract-scrollbar minimap, click-to-jump, active-section highlighting
 - **Stream Deck integration** — 55+ actions across 8 categories with real-time bidirectional state sync ([catalog](docs/stream-deck-actions.md))
 - **Mobile remote control** — touch-friendly web interface, control from any device on your network
 - **Neural text-to-speech** — Kokoro MLX (22 voices, Apple Silicon), macOS `say`, Web Speech fallback, sentence-by-sentence highlighting
 - **Citation resolution** — `[@ries2011]` spoken as *"(Ries, 2011)"* using your `.bib` files
 - **Full Markdown support** — Obsidian syntax, math, callouts, code with syntax highlighting, tables, images, internal links
-- **8 built-in themes** — Professional, Broadcast, Stream, Practice, Accessibility, Cinema, plus custom colors and fonts
+- **6 built-in profiles** — Professional, Broadcast, Stream, Practice, Accessibility, Cinema, plus custom colors and fonts
 - **OBS integration** — start/stop recording synced with teleprompter playback
 - **Local WebSocket API** — build custom integrations in any language ([API reference](docs/websocket-api.md))
 
@@ -45,7 +46,7 @@ Teleprompter Plus turns any Obsidian note into a professional teleprompter. Auto
 ### Main interface
 
 <p align="center">
-  <img src="docs/screenshots/main-interface.png" alt="Main teleprompter interface" width="800">
+  <img src="docs/screenshots/main-interface.gif" alt="Main teleprompter interface" width="800">
 </p>
 
 *Clean reading display with hierarchical navigation panel, eyeline guide, and real-time position tracking.*
@@ -53,7 +54,7 @@ Teleprompter Plus turns any Obsidian note into a professional teleprompter. Auto
 ### Mobile remote
 
 <p align="center">
-  <img src="docs/screenshots/mobile-remote.png" alt="Mobile remote interface" width="400">
+  <img src="docs/screenshots/mobile-remote.gif" alt="Mobile remote interface" width="360">
 </p>
 
 *Touch-friendly remote — phone, tablet, or second computer on the same network.*
@@ -121,7 +122,7 @@ For 25+ keyboard commands, see Obsidian → Settings → Hotkeys → Teleprompte
 | **Dashboard** | Live preview, quick profile picker, health status |
 | **Toolbar** | Choose which controls appear in the teleprompter toolbar |
 | **Features** | Collapsible cards by category — appearance, playback, navigation, voice, OBS, WebSocket |
-| **Profiles** | 8 built-in profiles + your own saved configurations |
+| **Profiles** | 6 built-in profiles + your own saved configurations |
 | **Connection** | Optional local WebSocket server for Stream Deck + mobile remote |
 | **About** | Plugin info, shortcuts, credits |
 
@@ -164,13 +165,18 @@ Full command list, state shape, and integration examples: **[docs/websocket-api.
 
 ## Text-to-Speech
 
-Three engines, selected automatically based on availability:
+Three offline engines, selected automatically based on availability, plus one optional cloud engine:
 
 1. **Kokoro MLX** *(best quality, Apple Silicon)* — 22 voice presets (male/female, American/British English), audio-synced scrolling, sentence-by-sentence highlighting. See [docs/tts-setup.md](docs/tts-setup.md) for the one-time Python venv install.
 2. **macOS `say`** — built-in system voices (Samantha, Daniel, etc.). No setup.
 3. **Web Speech API** — universal fallback. Quality varies by OS and browser engine.
+4. **ElevenLabs** *(optional, cloud, paid — bring your own key)* — high-quality neural voices via the ElevenLabs API. Off by default and never auto-selected; choose it explicitly in settings and paste your own API key. See the privacy note below.
 
 Pause/resume from the toolbar or keyboard. Citations are resolved from your bibliography (Quarto/Pandoc `.bib` files).
+
+### Network use & privacy
+
+All default engines run **fully offline** — no audio or text leaves your machine. The **ElevenLabs** engine is the one exception and is strictly opt-in: when you explicitly select it and provide your own API key, the text of the script you are reading is sent to ElevenLabs' servers to synthesize audio, and playback consumes credits on **your** ElevenLabs account. No key is bundled with the plugin, and nothing is sent to ElevenLabs unless you turn the engine on. Prefer to keep everything local and free? Use Kokoro, macOS `say`, or Web Speech.
 
 ---
 
@@ -288,9 +294,18 @@ Have an idea? [Open a discussion](https://github.com/JuracyAmerico/obsidian-tele
 
 ## Credits & license
 
-Created by **Juracy Américo** ([@JuracyAmerico](https://github.com/JuracyAmerico)).
+Created by **Americo** ([@JuracyAmerico](https://github.com/JuracyAmerico)).
 
 Built with [Obsidian](https://obsidian.md), [Svelte 5](https://svelte.dev), [TypeScript](https://www.typescriptlang.org), [Vite](https://vitejs.dev), [Tailwind CSS](https://tailwindcss.com), [marked.js](https://marked.js.org), [highlight.js](https://highlightjs.org), and [ws](https://github.com/websockets/ws).
+
+### Acknowledgements
+
+The voice-tracking matcher (speech-to-script alignment) is **ported from
+[jlecomte/voice-activated-teleprompter](https://github.com/jlecomte/voice-activated-teleprompter)**
+(MIT) — its Levenshtein look-ahead algorithm and tokenizer are the basis for
+`src/voice/speech-matcher.ts`, `word-tokenizer.ts`, and `levenshtein.ts`, with the
+edit-distance core from [js-levenshtein](https://github.com/gustf/js-levenshtein) (MIT).
+Thank you to those projects.
 
 MIT License. Copyright © 2024–2026 Juracy Américo. See [LICENSE](LICENSE).
 

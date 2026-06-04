@@ -61,18 +61,26 @@ export function computeSpeechRecognitionTokenIndex(
     return null
   }
 
-  // Convert tokens to a comparison string
-  const comparisonString = tokensToString(recognizedTokens)
-
-  // Ensure we have a valid starting index
   if (lastRecognizedTokenIndex < 0) {
     lastRecognizedTokenIndex = 0
   }
 
-  // Get reference tokens from current position using configured window size
-  // NOTE: reference should already be word-only, but filter just in case
+  // Match only the RECENT TAIL of the recognized speech, not the whole cumulative partial.
+  // Apple keeps growing one long partial from the start of the utterance, but we match forward
+  // from the current position — so the partial's beginning (words already read) misaligns the
+  // match and pushes it noisily ahead. The last few spoken words anchor the match where the
+  // voice actually is. The window is kept just big enough to locate that short tail.
+  const TAIL_WORDS = 5
+  const tailTokens = recognizedTokens.slice(-TAIL_WORDS)
+  const comparisonString = tokensToString(tailTokens)
+
+  // Wide enough to SEE a reader who surged a full clause ahead. A narrow window (tail+8) can't
+  // reach a word ~14 tokens out ("...international mover"), so the matcher stalls on the nearest
+  // copy and the highlight falls behind. With the index-alignment bug fixed there is no longer a
+  // drift to guard against, so we can afford to look further ahead for the true position.
+  const lookAhead = Math.max(windowSize, tailTokens.length + 18)
   const referenceTokens = reference
-    .slice(lastRecognizedTokenIndex, lastRecognizedTokenIndex + windowSize)
+    .slice(lastRecognizedTokenIndex, lastRecognizedTokenIndex + lookAhead)
     .filter(element => element.type === 'TOKEN')
 
   // If no reference tokens in window, no match possible
@@ -99,9 +107,26 @@ export function computeSpeechRecognitionTokenIndex(
     distances.push(levenshteinDistance(comparisonString, referenceSubstring))
   }
 
-  // Find the index with minimum distance
-  const minDistance = Math.min(...distances)
-  const localIndex = distances.indexOf(minDistance)
+  // Prefer the NEAREST good alignment, not the raw global minimum. In repeat-heavy text the same
+  // spoken tail ("...the cross-border friction") aligns to a LATER copy of a repeated word/phrase
+  // with an equal or near-equal edit distance; taking the bare minimum makes the highlight leap to
+  // that second occurrence (the "30 words ahead" jump). A small per-position penalty means a farther
+  // candidate only wins when it is DISTINCTLY better, so the matcher stays locked to the copy the
+  // reader is actually on. Index 0 (closest to current) carries no penalty.
+  // Gentle tie-break toward the nearer copy. This was 0.6 to fight the highlight "leaping" to a
+  // later repeat — but that leap was the index-misalignment bug, not a matching error. With that
+  // fixed, a high penalty just PINS the matcher behind a faster reader. Keep it small: break true
+  // ties toward the near copy, but let a clearly-better forward match (the reader moved on) win.
+  const PROXIMITY_PENALTY = 0.2
+  let localIndex = 0
+  let bestScore = distances[0]
+  for (let k = 1; k < distances.length; k++) {
+    const score = distances[k] + PROXIMITY_PENALTY * k
+    if (score < bestScore) {
+      bestScore = score
+      localIndex = k
+    }
+  }
 
   // Get the corresponding token
   const token = referenceTokens[localIndex]
@@ -159,7 +184,8 @@ export function findGlobalPosition(
   recognized: string,
   reference: TextElement[],
   config: SpeechMatcherConfig = DEFAULT_MATCHER_CONFIG,
-  hintPosition: number = 0
+  hintPosition: number = 0,
+  searchRadius: number = Infinity
 ): number {
   // Tokenize the recognized input and filter to words only
   const recognizedTokens = tokenize(recognized).filter(
@@ -176,11 +202,20 @@ export function findGlobalPosition(
   // Collect all matches above threshold
   const matches: { index: number; confidence: number }[] = []
 
-  // Slide through the entire document with step size for efficiency
-  // Use larger steps for longer documents
-  const stepSize = Math.max(1, Math.floor(reference.length / 200))
+  // Bound the search to a window AROUND the reader's current position (hint).
+  // The original jlecomte algorithm only ever matches a small local window ahead and
+  // never searches the whole document — that is what prevents teleporting to the end.
+  // We keep a (larger) bounded window so re-sync can relocate near where the user is
+  // looking, but a few mis-heard words can never fling them to an unrelated section.
+  const lastWindowStart = reference.length - windowSize + 1
+  const scanStart = Math.max(0, Math.floor(hintPosition - searchRadius))
+  const scanEnd = Math.min(lastWindowStart, Math.ceil(hintPosition + searchRadius) + 1)
 
-  for (let i = 0; i < reference.length - windowSize + 1; i += stepSize) {
+  // Step size scaled to the SEARCHED range (not the whole doc) for efficiency
+  const scanSpan = Math.max(1, scanEnd - scanStart)
+  const stepSize = Math.max(1, Math.floor(scanSpan / 200))
+
+  for (let i = scanStart; i < scanEnd; i += stepSize) {
     // Get reference window
     const windowTokens = reference.slice(i, i + windowSize)
     const windowString = tokensToString(windowTokens)
@@ -296,13 +331,9 @@ export function findNextPosition(
     return currentIndex
   }
 
-  // Use max jump from config (set by user's preset)
-  const maxJump = config.maxJumpDistance
-  const actualJump = result.matchedWordIndex - currentIndex
-
-  if (actualJump > maxJump) {
-    return currentIndex + maxJump
-  }
-
+  // Return the TRUE matched position. Jump magnitude is owned by the service layer:
+  // small steps are capped for smoothness, large forward gaps are handled by catch-up.
+  // Capping here is what made the tracker permanently trail a fast reader (and it also
+  // starved the catch-up logic, since the reported jump never exceeded maxJump).
   return result.matchedWordIndex
 }

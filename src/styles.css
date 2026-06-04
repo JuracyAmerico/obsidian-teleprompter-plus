@@ -232,7 +232,10 @@
   margin-bottom: 1.5rem;
   border-bottom: 2px solid var(--background-modifier-border);
   padding-bottom: 0;
-  overflow-x: auto;
+  /* Wrap instead of horizontally scrolling: with 7 tabs the old `overflow-x: auto` (with a hidden
+     scrollbar) silently clipped the last tab ("About") off the edge with no affordance. Wrapping
+     keeps every tab visible and clickable at any settings width. */
+  flex-wrap: wrap;
   scrollbar-width: none;
 }
 
@@ -329,8 +332,6 @@
 
 .tp-preview-label {
   font-size: 0.75rem;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
   color: var(--text-muted);
   margin-bottom: 0.25rem;
 }
@@ -411,8 +412,6 @@
 .tp-feature-group-title {
   font-size: 0.9rem;
   font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
   color: var(--text-muted);
 }
 
@@ -740,13 +739,13 @@
 }
 
 .tp-connection-indicator.connected {
-  background: #4ade80;
-  box-shadow: 0 0 8px #4ade80;
+  background: var(--color-green);
+  box-shadow: 0 0 8px var(--color-green);
 }
 
 .tp-connection-indicator.disconnected {
-  background: #f87171;
-  box-shadow: 0 0 8px #f87171;
+  background: var(--color-red);
+  box-shadow: 0 0 8px var(--color-red);
 }
 
 .tp-connection-info {
@@ -765,40 +764,42 @@
 }
 
 /* Health Check Cards */
+/* Compact, utilitarian status row — small chips (icon · value · muted label) instead of big
+   hero-number "dashboard" cards, so settings read native to Obsidian rather than marketing-y. */
 .tp-health-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
-  gap: 1rem;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
   margin-bottom: 1.5rem;
 }
 
 .tp-health-card {
-  padding: 1rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.4rem 0.7rem;
   background: var(--background-secondary);
-  border-radius: 10px;
+  border-radius: 6px;
   border: 1px solid var(--background-modifier-border);
-  text-align: center;
+  text-align: left;
 }
 
 .tp-health-card-icon {
-  width: 28px;
-  height: 28px;
-  margin: 0 auto 0.5rem;
-  color: var(--interactive-accent);
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+  color: var(--text-muted);
 }
 
 .tp-health-card-value {
-  font-size: 1.5rem;
-  font-weight: 700;
+  font-size: 0.9rem;
+  font-weight: 600;
   color: var(--text-normal);
-  margin-bottom: 0.25rem;
 }
 
 .tp-health-card-label {
-  font-size: 0.75rem;
+  font-size: 0.8rem;
   color: var(--text-muted);
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
 }
 
 /* About Tab */
@@ -1258,4 +1259,20 @@
   text-align: center;
   padding: 1rem;
   color: var(--text-muted);
+}
+
+/* ===== Voice tracking word highlight (Textream-style) ===== */
+.voice-word {
+  border-radius: 4px;
+  transition: background-color 0.12s ease, color 0.12s ease, opacity 0.2s ease;
+}
+/* The word you're saying right now */
+.voice-word.voice-active {
+  background-color: rgba(74, 144, 226, 0.45); /* Teleprompter Blue */
+  color: #ffffff;
+  box-shadow: 0 0 0 3px rgba(74, 144, 226, 0.45);
+}
+/* Words already read — gently dimmed so focus stays forward */
+.voice-word.voice-past {
+  opacity: 0.55;
 }

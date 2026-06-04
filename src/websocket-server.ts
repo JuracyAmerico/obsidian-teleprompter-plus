@@ -258,9 +258,11 @@ export class TeleprompterWebSocketServer {
 			rateLimitPerSecond: config.rateLimitPerSecond || 50, // Max 50 messages/second
 		}
 
-		// Warn if binding to non-localhost (security risk)
+		// Note if binding to non-localhost (security consideration). Logged at debug level — LAN
+		// binding is a deliberate choice for the mobile remote, so this shouldn't warn every load;
+		// it stays discoverable in verbose console output.
 		if (this.config.host !== '127.0.0.1' && this.config.host !== 'localhost') {
-			console.warn('[TeleprompterWS] WARNING: Server binding to non-localhost address. ' +
+			console.debug('[TeleprompterWS] Server binding to non-localhost address. ' +
 				'Communication is unencrypted. Consider using localhost or a secure proxy.')
 		}
 

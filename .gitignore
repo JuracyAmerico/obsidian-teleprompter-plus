@@ -27,3 +27,6 @@ dist-ssr
 
 # Bun
 bun.lockb
+
+# compiled Swift sidecar (rebuild with: swiftc -O native/teleprompter-stt.swift -o native/teleprompter-stt)
+native/teleprompter-stt

@@ -52,6 +52,9 @@ export type VoiceTrackingError =
  * Configuration for voice tracking.
  */
 export interface VoiceTrackingConfig {
+  /** Recognition engine: 'apple' (on-device, macOS, most accurate), 'vosk' (offline model,
+   *  cross-platform), or 'auto' (prefer Apple when available, else Vosk). */
+  engine?: 'apple' | 'vosk' | 'auto'
   /** Language code for recognition (e.g., 'en-US') */
   language: string
   /** Scroll behavior when moving to matched word */
@@ -86,6 +89,18 @@ export interface VoiceTrackingConfig {
   // Scroll position settings
   /** Where current word appears on screen (0-100%, from top) */
   scrollPosition?: number
+  /** Words to keep the scroll BEHIND your spoken word (fix for "scroll runs ahead"). */
+  readTrail?: number
+  /** Scroll-follow smoothness 0..1 (lower = calmer glide, higher = snappier). */
+  smoothness?: number
+  /** Words to lead (+) or lag (-) the HIGHLIGHT vs the matched word. Offsets recognition
+   *  latency / predictive partials so the highlight sits exactly on what you're reading.
+   *  + = highlight sits ahead of your voice, - = behind. Default 0. */
+  highlightLead?: number
+  /** Show the per-word karaoke highlight. When false, voice tracking still scrolls the page
+   *  smoothly to follow your voice, but no word is visually highlighted (no jumping box).
+   *  Default false — smooth follow without the distracting per-word marker. */
+  showWordHighlight?: boolean
 }
 
 /**

@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="144" height="144" viewBox="0 0 144 144">
+  <rect x="1.5" y="1.5" width="141" height="141" rx="30" fill="#16161c" stroke="rgba(255,255,255,0.07)" stroke-width="1.5"/>
+  <g transform="translate(30 30) scale(3.5)" style="color:#cbd5e1" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M2 10v3" />
+  <path d="M6 6v11" />
+  <path d="M10 3v18" />
+  <path d="M14 8v7" />
+  <path d="M18 5v13" />
+  <path d="M22 10v3" />
+  </g>
+</svg>
