@@ -2838,7 +2838,7 @@ export class TeleprompterSettingTab extends PluginSettingTab {
 
 		const features = [
 			{ icon: 'play', label: 'Auto-scroll', desc: 'Adjustable speed' },
-			{ icon: 'palette', label: 'Custom icons', desc: '46+ designs' },
+			{ icon: 'palette', label: 'Native icons', desc: 'Lucide + custom set' },
 			{ icon: 'maximize', label: 'Fullscreen', desc: 'Persistent toolbar' },
 			{ icon: 'map', label: 'Navigation', desc: 'Minimap & sections' },
 			{ icon: 'wifi', label: 'External control', desc: 'Remote API' },
