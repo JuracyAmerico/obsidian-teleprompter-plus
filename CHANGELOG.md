@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.11.1] - 2026-06-04
+
+### Changed
+- **What's-new modal refreshed.** The post-update dialog now shows the brand-mark icon
+  (matching the ribbon icon and store logo) and the **actual 0.11.0 highlights** — neural
+  text-to-speech, voice-tracked scrolling, the redesigned toolbar, native settings, and the
+  refreshed look — replacing the stale pre-redesign feature list.
+- **Internal:** brand-mark icon id renamed `teleprompter-final` → `teleprompter-plus`.
+
 ## [0.11.0] - 2026-06-04
 
 ### Changed

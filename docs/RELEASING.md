@@ -32,26 +32,34 @@ the community store. **No re-submission, no PR to `obsidianmd/obsidian-releases`
    - `manifest.json` → `"version": "X.Y.Z"`
    - `versions.json` → add `"X.Y.Z": "<minAppVersion>"` at the top
    - `CHANGELOG.md` → promote `## [Unreleased]` to `## [X.Y.Z] - YYYY-MM-DD`
-4. **Verify the build locally — must be 0 errors** (a broken build = a *failed* release, like 0.10.0):
+4. **Update the in-app "What's new" modal** — `src/whats-new-modal.ts`. The post-update
+   dialog (shown to every user when the version changes) has a **hardcoded `features` array**;
+   refresh it to the new version's actual highlights, or users see stale notes. It does **not**
+   read the CHANGELOG. Also confirm the brand-mark icon block still matches `docs/logo.png`.
+   *(Missed once — 0.11.0 shipped with the pre-redesign feature list still showing.)*
+5. **Refresh public-facing surfaces if they changed this release** — `README.md` (feature
+   bullets, screenshots in `docs/screenshots/`, credits), `docs/logo.png`. The community store
+   re-renders the README live; the version/downloads stats lag behind on Obsidian's bot.
+6. **Verify the build locally — must be 0 errors** (a broken build = a *failed* release, like 0.10.0):
    ```
    bun run check && bun run build
    ```
-5. **Commit + push `main`:**
+7. **Commit + push `main`:**
    ```
-   git add manifest.json versions.json CHANGELOG.md
+   git add manifest.json versions.json CHANGELOG.md src/whats-new-modal.ts README.md docs/
    git commit -m "release: X.Y.Z — <summary>"
    git push origin main
    ```
-6. **Tag and push — this triggers the release.** The tag **must equal** `manifest.json`'s
+8. **Tag and push — this triggers the release.** The tag **must equal** `manifest.json`'s
    version and use the **bare `X.Y.Z` format (no `v` prefix)** — the workflow only fires on
    `[0-9]+.[0-9]+.[0-9]+`:
    ```
    git tag X.Y.Z
    git push origin X.Y.Z
    ```
-7. **Watch it:** `gh run list --limit 1` (or the repo **Actions** tab). ~30s–2min.
-8. **Confirm:** `gh release view X.Y.Z` — expect assets `main.js`, `manifest.json`,
-   `styles.css`, `isDraft: false`. The store updates within a short while.
+9. **Watch it:** `gh run list --limit 1` (or the repo **Actions** tab). ~30s–2min.
+10. **Confirm:** `gh release view X.Y.Z` — expect assets `main.js`, `manifest.json`,
+    `styles.css`, `isDraft: false`. The store updates within a short while.
 
 ## Common mistakes (the ones we've actually hit)
 
@@ -62,7 +70,10 @@ the community store. **No re-submission, no PR to `obsidianmd/obsidian-releases`
 - **Tag ≠ manifest version.** Obsidian matches the release tag to `manifest.json`; a mismatch
   is rejected. Bump the manifest *before* tagging.
 - **Skipping the local build check.** CI builds the same way; if `bun run build` fails locally
-  it fails in CI and you get a *Failed* release. Always run step 4 first.
+  it fails in CI and you get a *Failed* release. Always run the build step first.
+- **Forgetting the What's-new modal.** `src/whats-new-modal.ts` has a hardcoded feature list
+  that does **not** read the CHANGELOG; if you don't refresh it, every user who updates sees
+  stale release notes. *(Hit 0.11.0 — shipped with the old pre-redesign list.)*
 
 ## What the store will reflect (and known non-blocking warnings)
 
