@@ -765,37 +765,41 @@
 }
 
 /* Health Check Cards */
+/* Compact, utilitarian status row — small chips (icon · value · muted label) instead of big
+   hero-number "dashboard" cards, so settings read native to Obsidian rather than marketing-y. */
 .tp-health-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
-  gap: 1rem;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
   margin-bottom: 1.5rem;
 }
 
 .tp-health-card {
-  padding: 1rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.4rem 0.7rem;
   background: var(--background-secondary);
-  border-radius: 10px;
+  border-radius: 6px;
   border: 1px solid var(--background-modifier-border);
-  text-align: center;
+  text-align: left;
 }
 
 .tp-health-card-icon {
-  width: 28px;
-  height: 28px;
-  margin: 0 auto 0.5rem;
-  color: var(--interactive-accent);
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+  color: var(--text-muted);
 }
 
 .tp-health-card-value {
-  font-size: 1.5rem;
-  font-weight: 700;
+  font-size: 0.9rem;
+  font-weight: 600;
   color: var(--text-normal);
-  margin-bottom: 0.25rem;
 }
 
 .tp-health-card-label {
-  font-size: 0.75rem;
+  font-size: 0.8rem;
   color: var(--text-muted);
 }
 
