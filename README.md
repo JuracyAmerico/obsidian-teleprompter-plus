@@ -32,7 +32,7 @@ Teleprompter Plus turns any Obsidian note into a professional teleprompter. Auto
 - **Hierarchical navigation** — collapsible header tree, abstract-scrollbar minimap, click-to-jump, active-section highlighting
 - **Stream Deck integration** — 55+ actions across 8 categories with real-time bidirectional state sync ([catalog](docs/stream-deck-actions.md))
 - **Mobile remote control** — touch-friendly web interface, control from any device on your network
-- **Neural text-to-speech** — Kokoro MLX (22 voices, Apple Silicon), macOS `say`, Web Speech fallback, sentence-by-sentence highlighting
+- **Neural text-to-speech** — ElevenLabs (cloud, opt-in, bring-your-own-key), Kokoro MLX (22 local voices, Apple Silicon), macOS `say`, Web Speech fallback, sentence-by-sentence highlighting
 - **Citation resolution** — `[@ries2011]` spoken as *"(Ries, 2011)"* using your `.bib` files
 - **Full Markdown support** — Obsidian syntax, math, callouts, code with syntax highlighting, tables, images, internal links
 - **6 built-in profiles** — Professional, Broadcast, Stream, Practice, Accessibility, Cinema, plus custom colors and fonts
