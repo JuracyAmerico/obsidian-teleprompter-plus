@@ -1322,7 +1322,7 @@ export class TeleprompterSettingTab extends PluginSettingTab {
 		])
 
 		// Colors Feature Group
-		this.createFeatureGroup(containerEl, 'colors', 'Colors & Opacity', 'palette', [
+		this.createFeatureGroup(containerEl, 'colors', 'Colors & opacity', 'palette', [
 			{
 				id: 'colors',
 				name: 'Color scheme',
@@ -1508,7 +1508,7 @@ export class TeleprompterSettingTab extends PluginSettingTab {
 		])
 
 		// Voice Tracking Feature Group
-		this.createFeatureGroup(containerEl, 'voice', 'Voice Tracking', 'mic', [
+		this.createFeatureGroup(containerEl, 'voice', 'Voice tracking', 'mic', [
 			{
 				id: 'voice-tracking',
 				name: 'Voice-activated scrolling',
