@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.11.0] - 2026-06-04
+
 ### Changed
 - **Reading-view toolbar redesign — hierarchy, grouping, progressive disclosure.** The flat row of equal-weight icons is now organised into scannable zones (Playback · Display/Type · View · Capture · System) separated by dividers, with a dominant **hero** Play/Pause, one consistent active-toggle language (accent fill + ring), the timer pulled into its own right-aligned **readout** zone, and low-frequency controls collapsed into a `⋯ More` overflow menu. Fully theme-driven (Obsidian CSS variables — light/dark/third-party). The settings show/hide/reorder system is preserved; controls pinned to the primary layout always stay on the main bar. See [docs/toolbar.md](docs/toolbar.md).
 
