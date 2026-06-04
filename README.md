@@ -294,7 +294,7 @@ Have an idea? [Open a discussion](https://github.com/JuracyAmerico/obsidian-tele
 
 ## Credits & license
 
-Created by **Juracy Américo** ([@JuracyAmerico](https://github.com/JuracyAmerico)).
+Created by **Americo** ([@JuracyAmerico](https://github.com/JuracyAmerico)).
 
 Built with [Obsidian](https://obsidian.md), [Svelte 5](https://svelte.dev), [TypeScript](https://www.typescriptlang.org), [Vite](https://vitejs.dev), [Tailwind CSS](https://tailwindcss.com), [marked.js](https://marked.js.org), [highlight.js](https://highlightjs.org), and [ws](https://github.com/websockets/ws).
 
