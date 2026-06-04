@@ -1049,21 +1049,26 @@
     }
   })
 
-  // Update play button icon when state changes
+  // Update play button icon when state changes. These two buttons are set imperatively (not via
+  // use:setIconAction), so they must ALSO go through resolveIcon — otherwise play/TTS would render
+  // the custom tp-* glyph even in native mode while every neighbour is Lucide. `void iconStyle`
+  // makes the effect re-run when the Icon-style setting flips, live.
   $effect(() => {
+    void iconStyle
     if (btnPlay) {
       const iconName = isPlaying ? 'tp-pause' : isCountingDown ? 'x' : 'tp-play'
       while (btnPlay.firstChild) btnPlay.removeChild(btnPlay.firstChild)
-      setIcon(btnPlay, iconName)
+      setIcon(btnPlay, resolveIcon(iconName))
     }
   })
 
-  // Update TTS button icon when playback state changes
+  // Update TTS button icon when playback state changes (same resolver routing as play above).
   $effect(() => {
+    void iconStyle
     if (btnTTS) {
       const iconName = ttsPlaybackState === 'playing' ? 'tp-tts-playing' : ttsPlaybackState === 'paused' ? 'tp-tts-paused' : 'tp-tts'
       while (btnTTS.firstChild) btnTTS.removeChild(btnTTS.firstChild)
-      setIcon(btnTTS, iconName)
+      setIcon(btnTTS, resolveIcon(iconName))
     }
   })
 
@@ -2126,18 +2131,20 @@
   }
 
   // Svelte action to set icon on element
+  // Route a toolbar icon name through the icon vocabulary: 'native' (default) maps a tp-* name to its
+  // Lucide equivalent (consistent with Obsidian + Stream Deck); 'custom' keeps the bespoke tp-* set.
+  // Used by use:setIconAction AND the imperative play/TTS effects so the Icon-style setting flips the
+  // WHOLE toolbar (no button left on the old style).
+  function resolveIcon(name: string): string {
+    return resolveControlIcon(name, plugin?.settings?.iconStyle === 'custom' ? 'custom' : 'native')
+  }
+
   function setIconAction(node: HTMLElement, iconName: string) {
-    // Route every toolbar icon through the icon vocabulary: 'native' (default) maps a tp-* name to
-    // its Lucide equivalent (consistent with Obsidian + Stream Deck); 'custom' keeps the bespoke
-    // tp-* set. This is the single chokepoint for all use:setIconAction sites, so the Icon-style
-    // setting flips the whole toolbar at once. Re-runs when the toolbar re-renders (version bump).
-    const resolve = (n: string): string =>
-      resolveControlIcon(n, plugin?.settings?.iconStyle === 'custom' ? 'custom' : 'native')
-    setIcon(node, resolve(iconName))
+    setIcon(node, resolveIcon(iconName))
     return {
       update(newIconName: string) {
         while (node.firstChild) node.removeChild(node.firstChild)
-        setIcon(node, resolve(newIconName))
+        setIcon(node, resolveIcon(newIconName))
       }
     }
   }

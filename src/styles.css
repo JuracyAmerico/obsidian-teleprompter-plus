@@ -236,7 +236,6 @@
      scrollbar) silently clipped the last tab ("About") off the edge with no affordance. Wrapping
      keeps every tab visible and clickable at any settings width. */
   flex-wrap: wrap;
-  row-gap: 0.125rem;
   scrollbar-width: none;
 }
 
