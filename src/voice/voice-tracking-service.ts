@@ -398,9 +398,11 @@ export class VoiceTrackingService {
     // CRITICAL: the matcher must index the EXACT same word list as the highlight. Replace the
     // whole-document tokens (which included skipped code blocks and counted compounds differently)
     // with the tokens we actually wrapped, in order. Now wordSpans.get(i) ↔ wordTokens[i] forever.
-    if (rebuiltTokens.length > 0) {
-      this.wordTokens = rebuiltTokens
-    }
+    // Assign UNCONDITIONALLY — even an empty result is correct: a body that is entirely inside
+    // skipped selectors (one big code block / embedded note) legitimately has zero matchable words,
+    // and keeping the stale code-inclusive list here would silently re-introduce the span↔token
+    // drift this rebuild exists to kill (matcher would index words that have no spans).
+    this.wordTokens = rebuiltTokens
 
     // Update offsetTop values after DOM is modified
     this.wordSpans.forEach((span, index) => {
@@ -421,6 +423,9 @@ export class VoiceTrackingService {
   highlightWord(wordIndex: number): void {
     // Word highlight disabled: keep the page following your voice (scrollToWord still runs), but
     // paint no per-word marker — no jumping highlight box to lose your place against.
+    // NOTE: `highlightedWordIndex` is a RENDER-ONLY field (the painted marker's position). It stays
+    // at its initial -1 while the marker is off; the matcher's true position is `currentWordIndex`.
+    // Do not read `highlightedWordIndex` as "where the reader is" — read `currentWordIndex`.
     if (this.config.showWordHighlight === false) return
     if (this.highlightedWordIndex === wordIndex) return
 
@@ -848,11 +853,18 @@ export class VoiceTrackingService {
       // noisy over-match still can't trigger it — it takes two votes. Backward flings are rejected
       // elsewhere.) FORWARD_CAP still bounds each step, so catch-up closes the gap over 1–2 commits
       // rather than one jarring leap.
+      // Two recent matches BOTH well ahead of the highlight — AND clustered with each other — mean a
+      // genuine fall-behind. The cluster check matters: in repeat-heavy text two partials can each
+      // latch a DIFFERENT far copy of a common word, both clearing the ahead threshold while pointing
+      // at unrelated places. Without requiring them to agree (same as the `confirmed` gate), that
+      // would spuriously trigger catch-up and switch OFF the pace governor exactly when the match is
+      // least trustworthy. Requiring max−min ≤ AGREE_WORDS keeps catch-up to a real, consistent surge.
       const CATCHUP_AHEAD = this.AGREE_WORDS + 1
-      const aheadVotes = this.recentMatchPositions.filter(
+      const aheadPositions = this.recentMatchPositions.filter(
         p => p >= this.currentWordIndex + CATCHUP_AHEAD
-      ).length
-      const catchingUp = aheadVotes >= 2
+      )
+      const catchingUp = aheadPositions.length >= 2 &&
+        (Math.max(...aheadPositions) - Math.min(...aheadPositions)) <= this.AGREE_WORDS
       if (smallStep || confirmed || catchingUp) {
         // Cap the advance so a single over-reaching match can't lurch the highlight far ahead.
         let capped = Math.min(newIndex, this.currentWordIndex + this.FORWARD_CAP)

@@ -698,11 +698,17 @@
   })
 
   // ── Zone reconciliation (redesigned toolbar) ──────────────────────────────
-  // The visible/ordered list above already honors the user's show/hide and
-  // reorder choices from settings (toolbarLayout). Here we only decide WHERE
-  // each already-visible control renders: on the main bar (grouped by zone) or
-  // in the ⋯ More overflow menu. We never re-order within a zone — `orderedControls`
-  // order is preserved — and we never override an explicit user placement.
+  // The visible/ordered list above already honors the user's show/hide choices and
+  // their reorder WITHIN a zone (toolbarLayout). Here we decide WHERE each already-
+  // visible control renders: on the main bar (grouped by zone) or in the ⋯ More
+  // overflow menu.
+  //
+  // ORDERING CONTRACT (changed by the redesign): the bar is grouped by the fixed
+  // TOOLBAR_ZONE_ORDER first, and the user's `toolbarLayout` order is honored only
+  // *within* each zone. So a cross-zone reorder (e.g. dragging a View control ahead
+  // of a Playback control) no longer moves it across the zone boundary — zone order
+  // wins. This is intentional (zones are the whole point of the redesign); it is a
+  // deliberate change from the prior flat single-row render.
 
   // A control collapses into More only when it is flagged defaultMore AND the
   // user did not explicitly pin it to the primary (main-bar) layout. The readout
@@ -2066,6 +2072,14 @@
   }
 
   // Helper function to close all popups except the specified one
+  // Popup-toggle key → toolbar control id, so closeOtherPopups can tell whether the popup being
+  // opened belongs to a control that currently lives INSIDE the ⋯ More menu.
+  const POPUP_KEY_TO_CONTROL_ID: Record<string, string> = {
+    speed: 'speed', countdown: 'countdown', fontSize: 'font-size', lineHeight: 'line-height',
+    letterSpacing: 'letter-spacing', opacity: 'opacity', padding: 'padding', fontFamily: 'font-family',
+    textColor: 'text-color', bgColor: 'bg-color', quickPresets: 'quick-presets'
+  }
+
   function closeOtherPopups(except: string) {
     if (except !== 'speed') showSpeedSlider = false
     if (except !== 'countdown') showCountdownSlider = false
@@ -2078,7 +2092,13 @@
     if (except !== 'textColor') showTextColorPicker = false
     if (except !== 'bgColor') showBgColorPicker = false
     if (except !== 'quickPresets') showQuickPresetsMenu = false
-    if (except !== 'more') showMoreMenu = false
+    // Close the ⋯ More menu UNLESS the popup being opened belongs to a control that lives inside it.
+    // Those controls render within the menu (moreMenuGroups → renderControl), so closing it would
+    // unmount the very popup just opened — the blocker that made opacity/padding/colors/presets dead
+    // in the More menu.
+    const exceptId = POPUP_KEY_TO_CONTROL_ID[except]
+    const exceptInMore = exceptId ? moreControls.some((def) => def.id === exceptId) : false
+    if (except !== 'more' && !exceptInMore) showMoreMenu = false
   }
 
   // Toggle the ⋯ More overflow menu, closing any other open popup first.
@@ -5463,7 +5483,7 @@
     <div class="tp-spacer"></div>
 
     <!-- Readout zone: the timer renders here as a status pill, not a button -->
-    {#if readoutControl}
+    {#if readoutControl && (showElapsedTime || showTimeEstimation)}
       <div class="tp-zone tp-readout-zone" data-zone="readout">
         {@render renderControl(readoutControl)}
       </div>
