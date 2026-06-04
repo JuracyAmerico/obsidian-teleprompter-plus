@@ -3,6 +3,7 @@ import type { App } from 'obsidian'
 import type TeleprompterPlusPlugin from './main'
 import { ConfirmModal } from './confirm-modal'
 import { PromptModal } from './prompt-modal'
+import type { IconStyle } from './icon-vocabulary'
 
 // Hotkey action names
 export type HotkeyAction =
@@ -180,6 +181,9 @@ export interface TeleprompterSettings {
 	toolbarDensity: 'compact' | 'comfortable'
 	// NEW: Show small uppercase zone sub-labels above each main-bar zone
 	toolbarShowZoneLabels: boolean
+	// Icon style for the toolbar: 'native' = Lucide (default, consistent w/ Obsidian + Stream Deck),
+	// 'custom' = the bespoke tp-* set.
+	iconStyle: IconStyle
 	// NEW: Profiles
 	profiles: {
 		active: string       // Active profile ID
@@ -334,6 +338,8 @@ export const DEFAULT_SETTINGS: TeleprompterSettings = {
 	toolbarDensity: 'compact' as const,
 	// NEW: Zone sub-labels off by default (they add height to the bar)
 	toolbarShowZoneLabels: false,
+	// Toolbar icons default to native Lucide (consistent with Obsidian + Stream Deck)
+	iconStyle: 'native' as const,
 	// NEW: Profiles
 	profiles: {
 		active: 'professional',
@@ -829,6 +835,29 @@ export class TeleprompterSettingTab extends PluginSettingTab {
 						onChange: (value) => {
 							this.plugin.settings.toolbarDensity =
 								value === 'comfortable' ? 'comfortable' : 'compact'
+							void this.plugin.saveSettings()
+							activeDocument.dispatchEvent(new CustomEvent('teleprompter:toolbar-changed'))
+						},
+					},
+				],
+			},
+			{
+				id: 'toolbar-icon-style',
+				name: 'Icon style',
+				icon: 'palette',
+				hasToggle: false,
+				settings: [
+					{
+						name: 'Toolbar icons',
+						desc: 'Native uses Obsidian’s Lucide icons (consistent with the rest of Obsidian and your Stream Deck keys). Custom uses the bespoke Teleprompter Plus icon set.',
+						type: 'dropdown',
+						value: this.plugin.settings.iconStyle,
+						options: [
+							{ value: 'native', label: 'Native (Lucide)' },
+							{ value: 'custom', label: 'Custom (Teleprompter Plus)' },
+						],
+						onChange: (value) => {
+							this.plugin.settings.iconStyle = value === 'custom' ? 'custom' : 'native'
 							void this.plugin.saveSettings()
 							activeDocument.dispatchEvent(new CustomEvent('teleprompter:toolbar-changed'))
 						},

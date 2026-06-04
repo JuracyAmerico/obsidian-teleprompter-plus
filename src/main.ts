@@ -1416,6 +1416,9 @@ Use this address to connect from external devices.`
 		if (s.toolbarDensity !== 'comfortable' && s.toolbarDensity !== 'compact') {
 			s.toolbarDensity = d.toolbarDensity
 		}
+		if (s.iconStyle !== 'native' && s.iconStyle !== 'custom') {
+			s.iconStyle = d.iconStyle
+		}
 	}
 
 	/**
