@@ -1,7 +1,1 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 72 72" width="72" height="72">
-  <title>tp-obs-disconnect</title>
-  <rect width="72" height="72" fill="#16161c"></rect>
-  <g fill="none" stroke="#f87171" stroke-width="4.5" stroke-linecap="round" stroke-linejoin="round">
-    <path d="M31 26 H25 a10 10 0 0 0 0 20 H31"></path><path d="M41 26 H47 a10 10 0 0 0 0 20 H41"></path><line x1="27" y1="36" x2="32" y2="36"></line><line x1="40" y1="36" x2="45" y2="36"></line>
-  </g>
-</svg>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 72 72" width="72" height="72"><rect width="72" height="72" fill="#16161c"></rect><g fill="none" stroke="#f87171" stroke-width="4.5" stroke-linecap="round" stroke-linejoin="round"><path d="M31 26 H25 a10 10 0 0 0 0 20 H31"></path><path d="M41 26 H47 a10 10 0 0 0 0 20 H41"></path><line x1="27" y1="36" x2="32" y2="36"></line><line x1="40" y1="36" x2="45" y2="36"></line></g></svg>

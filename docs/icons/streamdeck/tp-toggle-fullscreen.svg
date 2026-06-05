@@ -1,7 +1,1 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 72 72" width="72" height="72">
-  <title>tp-toggle-fullscreen</title>
-  <rect width="72" height="72" fill="#16161c"></rect>
-  <g fill="none" stroke="#60a5fa" stroke-width="4.5" stroke-linecap="round" stroke-linejoin="round">
-    <path d="M24 31 L24 23 L32 23"></path><path d="M48 23 L56 23 L56 31"></path><path d="M56 41 L56 49 L48 49"></path><path d="M32 49 L24 49 L24 41"></path>
-  </g>
-</svg>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 72 72" width="72" height="72"><rect width="72" height="72" fill="#16161c"></rect><g fill="none" stroke="#60a5fa" stroke-width="4.5" stroke-linecap="round" stroke-linejoin="round"><path d="M24 31 L24 23 L32 23"></path><path d="M48 23 L56 23 L56 31"></path><path d="M56 41 L56 49 L48 49"></path><path d="M32 49 L24 49 L24 41"></path></g></svg>

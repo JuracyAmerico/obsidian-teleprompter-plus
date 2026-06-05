@@ -1,7 +1,1 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 72 72" width="72" height="72">
-  <title>tp-play-pause</title>
-  <rect width="72" height="72" fill="#16161c"></rect>
-  <g fill="none" stroke="#cbd5e1" stroke-width="4.5" stroke-linecap="round" stroke-linejoin="round">
-    <path d="M21 23 L21 49 L39 36 Z" fill="#cbd5e1"></path><rect x="44" y="23" width="6.5" height="26" rx="3.25" fill="#cbd5e1"></rect><rect x="53.5" y="23" width="6.5" height="26" rx="3.25" fill="#cbd5e1"></rect>
-  </g>
-</svg>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 72 72" width="72" height="72"><rect width="72" height="72" fill="#16161c"></rect><g fill="none" stroke="#cbd5e1" stroke-width="4.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 23 L21 49 L39 36 Z" fill="#cbd5e1"></path><rect x="44" y="23" width="6.5" height="26" rx="3.25" fill="#cbd5e1"></rect><rect x="53.5" y="23" width="6.5" height="26" rx="3.25" fill="#cbd5e1"></rect></g></svg>
