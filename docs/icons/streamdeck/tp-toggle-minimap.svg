@@ -1,7 +1,1 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 72 72" width="72" height="72">
-  <title>tp-toggle-minimap</title>
-  <rect width="72" height="72" fill="#16161c"></rect>
-  <g fill="none" stroke="#60a5fa" stroke-width="4.5" stroke-linecap="round" stroke-linejoin="round">
-    <rect x="14" y="18" width="44" height="36" rx="6"></rect><line x1="44" y1="20" x2="44" y2="52" opacity="0.45"></line><line x1="48" y1="27" x2="54" y2="27"></line><line x1="48" y1="33" x2="54" y2="33"></line><line x1="48" y1="39" x2="54" y2="39"></line><line x1="48" y1="45" x2="54" y2="45"></line><line x1="20" y1="30" x2="38" y2="30" opacity="0.35"></line><line x1="20" y1="38" x2="33" y2="38" opacity="0.35"></line>
-  </g>
-</svg>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 72 72" width="72" height="72"><rect width="72" height="72" fill="#16161c"></rect><g fill="none" stroke="#60a5fa" stroke-width="4.5" stroke-linecap="round" stroke-linejoin="round"><rect x="14" y="18" width="44" height="36" rx="6"></rect><line x1="44" y1="20" x2="44" y2="52" opacity="0.45"></line><line x1="48" y1="27" x2="54" y2="27"></line><line x1="48" y1="33" x2="54" y2="33"></line><line x1="48" y1="39" x2="54" y2="39"></line><line x1="48" y1="45" x2="54" y2="45"></line><line x1="20" y1="30" x2="38" y2="30" opacity="0.35"></line><line x1="20" y1="38" x2="33" y2="38" opacity="0.35"></line></g></svg>

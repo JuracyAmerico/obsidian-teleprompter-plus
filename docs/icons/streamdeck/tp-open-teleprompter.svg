@@ -1,7 +1,1 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 72 72" width="72" height="72">
-  <title>tp-open-teleprompter</title>
-  <rect width="72" height="72" fill="#16161c"></rect>
-  <g fill="none" stroke="#a78bfa" stroke-width="4.5" stroke-linecap="round" stroke-linejoin="round">
-    <rect x="13" y="16" width="46" height="34" rx="7"></rect><line x1="22" y1="25" x2="41" y2="25" opacity="0.4"></line><line x1="22" y1="33" x2="47" y2="33"></line><line x1="22" y1="41" x2="37" y2="41" opacity="0.4"></line><path d="M54 28 L49 33 L54 38"></path>
-  </g>
-</svg>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 72 72" width="72" height="72"><rect width="72" height="72" fill="#16161c"></rect><g fill="none" stroke="#a78bfa" stroke-width="4.5" stroke-linecap="round" stroke-linejoin="round"><rect x="13" y="16" width="46" height="34" rx="7"></rect><line x1="22" y1="25" x2="41" y2="25" opacity="0.4"></line><line x1="22" y1="33" x2="47" y2="33"></line><line x1="22" y1="41" x2="37" y2="41" opacity="0.4"></line><path d="M54 28 L49 33 L54 38"></path></g></svg>

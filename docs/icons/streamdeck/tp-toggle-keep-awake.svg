@@ -1,7 +1,1 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 72 72" width="72" height="72">
-  <title>tp-toggle-keep-awake</title>
-  <rect width="72" height="72" fill="#16161c"></rect>
-  <g fill="none" stroke="#cbd5e1" stroke-width="4.5" stroke-linecap="round" stroke-linejoin="round">
-    <path d="M14 36 C26 22 46 22 58 36 C46 50 26 50 14 36 Z"></path><circle cx="36" cy="36" r="6"></circle>
-  </g>
-</svg>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 72 72" width="72" height="72"><rect width="72" height="72" fill="#16161c"></rect><g fill="none" stroke="#cbd5e1" stroke-width="4.5" stroke-linecap="round" stroke-linejoin="round"><path d="M18 29 H45 V41 a9 9 0 0 1 -9 9 H27 a9 9 0 0 1 -9 -9 Z"></path><path d="M45 32 H51 a5 5 0 0 1 0 11 H45"></path><path d="M26 15 c-3 3 -3 6 0 9"></path><path d="M36 15 c-3 3 -3 6 0 9"></path></g></svg>
