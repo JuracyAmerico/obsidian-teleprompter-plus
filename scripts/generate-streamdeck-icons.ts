@@ -1,4 +1,10 @@
 /**
+ * ⚠️ DEPRECATED (2026-06-05) — superseded by the hand-designed bespoke icon set now living in
+ * `docs/icons/streamdeck/` (source of truth: `docs/icons/streamdeck/icons-data.js`). This generator
+ * produced the earlier auto-generated Lucide set; do NOT re-run it — it would overwrite the bespoke
+ * SVGs/PNGs. Kept for reference only. To edit the current icons, change `icons-data.js` and
+ * re-export, per `docs/icons/streamdeck/README.md`.
+ *
  * Stream Deck key icon generator for Teleprompter Plus.
  *
  * Renders one key per Obsidian command, using the SAME Lucide glyph vocabulary as the in-app

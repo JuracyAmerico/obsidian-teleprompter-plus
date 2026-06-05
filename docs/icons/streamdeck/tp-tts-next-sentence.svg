@@ -1,7 +1,7 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="144" height="144" viewBox="0 0 144 144">
-  <rect x="1.5" y="1.5" width="141" height="141" rx="30" fill="#16161c" stroke="rgba(255,255,255,0.07)" stroke-width="1.5"/>
-  <g transform="translate(30 30) scale(3.5)" style="color:#60a5fa" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-    <path d="M21 4v16" />
-  <path d="M6.029 4.285A2 2 0 0 0 3 6v12a2 2 0 0 0 3.029 1.715l9.997-5.998a2 2 0 0 0 .003-3.432z" />
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 72 72" width="72" height="72">
+  <title>tp-tts-next-sentence</title>
+  <rect width="72" height="72" fill="#16161c"></rect>
+  <g fill="none" stroke="#60a5fa" stroke-width="4.5" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M25 25 L41 36 L25 47 Z"></path><line x1="47" y1="25" x2="47" y2="47"></line>
   </g>
 </svg>

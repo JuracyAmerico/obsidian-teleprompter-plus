@@ -1,7 +1,7 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="144" height="144" viewBox="0 0 144 144">
-  <rect x="1.5" y="1.5" width="141" height="141" rx="30" fill="#16161c" stroke="rgba(255,255,255,0.07)" stroke-width="1.5"/>
-  <g transform="translate(30 30) scale(3.5)" style="color:#cbd5e1" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-    <path d="M2.062 12.348a1 1 0 0 1 0-.696 10.75 10.75 0 0 1 19.876 0 1 1 0 0 1 0 .696 10.75 10.75 0 0 1-19.876 0" />
-  <circle cx="12" cy="12" r="3" />
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 72 72" width="72" height="72">
+  <title>tp-toggle-eyeline</title>
+  <rect width="72" height="72" fill="#16161c"></rect>
+  <g fill="none" stroke="#60a5fa" stroke-width="4.5" stroke-linecap="round" stroke-linejoin="round">
+    <rect x="14" y="18" width="44" height="36" rx="6" opacity="0.4"></rect><line x1="20" y1="36" x2="46" y2="36"></line><path d="M54 31 L49 36 L54 41"></path>
   </g>
 </svg>

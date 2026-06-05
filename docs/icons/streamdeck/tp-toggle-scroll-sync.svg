@@ -1,8 +1,7 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="144" height="144" viewBox="0 0 144 144">
-  <rect x="1.5" y="1.5" width="141" height="141" rx="30" fill="#16161c" stroke="rgba(255,255,255,0.07)" stroke-width="1.5"/>
-  <g transform="translate(30 30) scale(3.5)" style="color:#60a5fa" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-    <path d="M9 17H7A5 5 0 0 1 7 7h2" />
-  <path d="M15 7h2a5 5 0 1 1 0 10h-2" />
-  <line x1="8" x2="16" y1="12" y2="12" />
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 72 72" width="72" height="72">
+  <title>tp-toggle-scroll-sync</title>
+  <rect width="72" height="72" fill="#16161c"></rect>
+  <g fill="none" stroke="#60a5fa" stroke-width="4.5" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M22 32 A15 15 0 0 1 49 28"></path><path d="M49 19 L50 28.5 L41 30"></path><path d="M50 40 A15 15 0 0 1 23 44"></path><path d="M23 53 L22 43.5 L31 42"></path>
   </g>
 </svg>
