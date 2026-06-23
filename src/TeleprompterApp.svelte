@@ -4396,6 +4396,30 @@
     debugLog(`[ScrollSync] Synced to editor line ${headerLineInFile} (header: ${headerId})`)
   }
 
+  /**
+   * Find the voice-tracking word index for the first tracked word at or after a heading element.
+   * Voice tracking wraps each word in a `.voice-word` span carrying its matcher index in
+   * `data-word-index`; the heading's own words are wrapped too, so its first span is the section
+   * anchor. Falls back to the next `.voice-word` in document order. Returns -1 if none / not tracking.
+   */
+  function firstTrackedWordIndexAtOrAfter(headerEl: HTMLElement): number {
+    if (!contentArea) return -1
+    let span = headerEl.querySelector<HTMLElement>('.voice-word')
+    if (!span) {
+      // No word span inside the heading — take the first one that follows it in the document.
+      const all = contentArea.querySelectorAll<HTMLElement>('.voice-word')
+      for (const el of all) {
+        if (headerEl.compareDocumentPosition(el) & Node.DOCUMENT_POSITION_FOLLOWING) {
+          span = el
+          break
+        }
+      }
+    }
+    if (!span) return -1
+    const idx = parseInt(span.dataset.wordIndex ?? '', 10)
+    return Number.isNaN(idx) ? -1 : idx
+  }
+
   function jumpToHeader(headerId: string) {
     const element = headerElements.get(headerId)
     if (element && contentArea) {
@@ -4454,6 +4478,14 @@
       // If TTS is active, also jump TTS to this section
       if (ttsService && ttsPlaybackState !== 'idle') {
         void ttsService.jumpToSection(headerId)
+      }
+
+      // If voice tracking is listening, move its attention to this section too, so it follows your
+      // voice from here instead of staying locked on the section you left. We anchor on the heading's
+      // first tracked word (a hair before the body, which is safe — matching is forward-only).
+      if (voiceTrackingActive && voiceTrackingService) {
+        const wordIndex = firstTrackedWordIndexAtOrAfter(element)
+        if (wordIndex >= 0) voiceTrackingService.seekToWord(wordIndex)
       }
 
       // Also jump to header in the actual note editor
