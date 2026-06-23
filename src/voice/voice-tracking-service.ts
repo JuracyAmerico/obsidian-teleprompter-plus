@@ -581,6 +581,59 @@ export class VoiceTrackingService {
   }
 
   /**
+   * Re-anchor tracking to a specific word index — the listening counterpart to "Jump to Section".
+   * When the reader picks a section from the navigation panel, the page scrolls there but the matcher
+   * would otherwise keep hunting near the OLD position (recovering only after the stall re-sync). This
+   * snaps the matcher's index directly to the section's word so the next thing you say is matched from
+   * there immediately. Like forceResync()/the manual-scroll SNAP, but to an exact, caller-supplied index
+   * — no global search, no scroll estimation.
+   *
+   * @param wordIndex - Target word index. Clamped to the valid range; no-op if there are no words yet.
+   */
+  seekToWord(wordIndex: number): void {
+    if (this.wordTokens.length === 0) return
+    const clamped = Math.max(0, Math.min(this.wordTokens.length - 1, Math.floor(wordIndex)))
+
+    // Re-anchor LOCAL matching here. We KNOW where the reader is (they chose it), so resume forward
+    // matching from this word — don't arm a global search.
+    this.currentWordIndex = clamped
+    this.lastMatchedIndex = clamped
+    this.needsGlobalSearch = false
+
+    // Clear all latch / confirmation / accumulator / pace state so the next partial matches cleanly
+    // from the new anchor and isn't gated or clamped by history from the section we just left.
+    this.recentMatchPositions = []
+    this.matchAccumulator = []
+    this.pendingScrollTarget = -1
+    this.pendingGlobalIndex = -1
+    this.consecutiveFailedMatches = 0
+    this.resyncRequested = false
+    this.resyncToScrollPending = false   // setting the index directly, not via scroll estimate
+    this.resetPaceGovernor()             // discontinuity: don't clamp the next commit against old pace
+
+    // CRITICAL — the "jumps then comes back" bug. If the reader was mid-reading, the auto-follow
+    // animation loop is RUNNING and still easing the page toward the LAST-matched word's scroll
+    // position. Re-anchoring the matcher index (above) does not touch that loop, so it would drag
+    // the page straight back out of the section the caller just jumped to (confirmed: scrollTop
+    // decayed 2465→195 with the FOLLOW_FACTOR signature while currentWordIndex held at the new
+    // section). Stop the loop and point its target at where the page now sits, so nothing pulls it
+    // back; the next real voice match re-arms the follow from the correct place.
+    if (this.scrollAnimationId !== null) {
+      cancelAnimationFrame(this.scrollAnimationId)
+      this.scrollAnimationId = null
+    }
+    if (this.contentArea) this.targetScrollPos = this.contentArea.scrollTop
+
+    // Repaint the karaoke marker at the new anchor (when enabled). Clear stale read/active marks first
+    // so a BACKWARD jump doesn't leave words after the anchor dimmed as "already read".
+    if (ENABLE_KARAOKE_HIGHLIGHTING) {
+      this.wordSpans.forEach(span => span.classList.remove('voice-active', 'voice-past'))
+      this.highlightedWordIndex = -1
+      this.highlightWord(clamped)
+    }
+  }
+
+  /**
    * Build a Vosk grammar (JSON string-array of allowed words) from the current
    * script. Constraining recognition to words actually in the document is the
    * single biggest accuracy win — far fewer mis-hears, far fewer false jumps.
