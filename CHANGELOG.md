@@ -7,6 +7,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.11.2] - 2026-06-22
+
+### Fixed
+- **Voice tracking now follows you when you jump to a section.** While voice tracking is listening,
+  picking a section from the **Jump to Section** panel (or next/previous-section) re-anchors the
+  speech matcher to that section, so it keeps following your voice from there instead of staying
+  locked on the section you left. Works both forward and backward through the document.
+- **"Jumps then comes back."** A section jump made while reading aloud would scroll to the section
+  and then slide back out of it — the auto-follow animation was still easing the page toward the
+  last-matched word. The jump now stops that animation and re-points its target, so the page holds
+  at the chosen section.
+
+### Technical
+- New `VoiceTrackingService.seekToWord(index)` — snaps the matcher's anchor to an exact word, clears
+  latch/confirmation/accumulator/pace state, stops the in-flight scroll-follow and realigns its
+  target, and repaints the karaoke highlight (clearing stale marks so backward jumps don't leave
+  later words dimmed).
+- `TeleprompterApp.svelte`: `firstTrackedWordIndexAtOrAfter()` resolves a heading to its first
+  `.voice-word` index; `jumpToHeader()` calls `seekToWord()` when voice tracking is active.
+
 ## [0.11.1] - 2026-06-04
 
 ### Changed
