@@ -1404,12 +1404,16 @@
       const fullPath = pathMod.join(adapter.basePath, filePath)
 
       const cp = require('child_process') as {
-        execSync: (cmd: string, opts: Record<string, unknown>) => string
+        execFileSync: (file: string, args: string[], opts: Record<string, unknown>) => string
       }
 
-      // Use pdftotext with -layout to preserve paragraph structure
-      const text = cp.execSync(
-        `pdftotext -layout "${fullPath}" -`,
+      // execFileSync passes args directly to the process — NO shell — so a PDF filename
+      // containing shell metacharacters (e.g. `id`.pdf, or a";cmd;"b.pdf) is treated as a
+      // literal path and cannot inject commands. Never build this as an execSync string:
+      // double-quoting does not stop injection ($()/backticks evaluate, a " closes the quote).
+      const text = cp.execFileSync(
+        'pdftotext',
+        ['-layout', fullPath, '-'],
         { encoding: 'utf-8', timeout: 15000, maxBuffer: 10 * 1024 * 1024 } as Record<string, unknown>
       ) as string
 

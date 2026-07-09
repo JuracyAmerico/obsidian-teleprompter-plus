@@ -1,6 +1,6 @@
 {
   "name": "teleprompter-plus",
-  "version": "0.11.3",
+  "version": "0.11.4",
   "description": "Scroll notes as a teleprompter with mobile remote control, Stream Deck integration, countdown timer, and voice tracking.",
   "private": true,
   "type": "module",
