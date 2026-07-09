@@ -35,6 +35,7 @@
   import type { TTSState, TTSPlaybackState, TTSVoice } from './tts'
   import { resolveCitations, loadBibliography } from './parser/citation-resolver'
   import { extractBibPath, splitSentences, stripRawLatexCommands, stripFencedDivs, stripBareUrls } from './parser/text-cleaner'
+  import { removeYAMLFrontmatter, createHeadingLineMapper, type HeadingLineMapper } from './parser/heading-source-map'
   import type { TTSDocument, TTSSection } from './tts/tts-types'
   import hljs from 'highlight.js/lib/core'
   // Import common languages for syntax highlighting
@@ -59,10 +60,27 @@
   const renderer = new marked.Renderer()
   let headerCounter = 0 // Counter for generating header IDs
 
+  // Heading ordinal -> 0-based line in `content`. -1 means unresolvable.
+  // `headerId` is only an ordinal; it carries no positional information. Anything that
+  // needs a source line reads it from here, never by parsing the id.
+  // Mapping logic lives in parser/heading-source-map.ts so it can be tested directly.
+  let headerSourceLines: number[] = []
+  let headingMapper: HeadingLineMapper | null = null
+  let lineMapActive = false
+
+  function resetHeadingLineMap(source: string) {
+    headerCounter = 0
+    headerSourceLines = []
+    headingMapper = createHeadingLineMapper(source)
+    lineMapActive = true
+  }
+
   // Override heading renderer to add IDs and data attributes
   // New marked.js API uses an object parameter
-  renderer.heading = function({ text, depth }) {
+  renderer.heading = function(token) {
+    const { text, depth } = token
     const headerId = `header-${headerCounter++}`
+    if (lineMapActive && headingMapper) headerSourceLines.push(headingMapper.resolve(token.raw))
     const level = depth // depth is 1, 2, 3, etc.
     return `<h${level} id="${headerId}" data-header-id="${headerId}">${text}</h${level}>\n`
   }
@@ -907,8 +925,9 @@
   $effect(() => {
     if (!settings.ttsResolveCitations || !content) return
 
-    // Read raw file to extract bib path from frontmatter (content has YAML already stripped)
-    const activeFile = app.workspace.getActiveFile()
+    // Read raw file to extract bib path from frontmatter (content has YAML already stripped).
+    // Must be the prompted note — a pinned note's bibliography is declared in its own frontmatter.
+    const activeFile = currentSourceFile()
     if (!activeFile) return
 
     void app.vault.read(activeFile).then(rawFileContent => {
@@ -1208,12 +1227,14 @@
     if (content === lastRenderedContent && renderedHTML) return
 
     try {
-      // Reset header counter before parsing
-      headerCounter = 0
+      // Reset header counter and the ordinal -> source-line map before parsing.
+      // Ordinals resolve against `content`, not against the stripped `processedContent`.
+      resetHeadingLineMap(content)
 
-      // Convert Obsidian wiki-link images to standard markdown before parsing
-      const activeFile = app.workspace.getActiveFile()
-      const sourcePath = activeFile?.path || ''
+      // Convert Obsidian wiki-link images to standard markdown before parsing.
+      // Resolve against the note we are prompting, not whatever is focused in the sidebar —
+      // a pinned note's images live in the pinned note's folder.
+      const sourcePath = currentSourcePath() || ''
       let processedContent = convertObsidianWikiLinks(content, sourcePath)
 
       // Strip HTML comments (<!-- ... -->) from content
@@ -1246,7 +1267,13 @@
         processedContent = resolveCitations(processedContent, cachedBibEntries)
       }
 
-      renderedHTML = marked.parse(processedContent) as string
+      try {
+        renderedHTML = marked.parse(processedContent) as string
+      } finally {
+        // Embedded notes render through the same renderer afterwards; their headings must
+        // not append to this note's map. Cleared even if the parse throws.
+        lineMapActive = false
+      }
       lastRenderedContent = content
 
       // Update word count when content changes
@@ -1403,21 +1430,24 @@
     }
   }
 
-  function removeYAMLFrontmatter(text: string): { content: string; linesRemoved: number } {
-    // Check if starts with ---
-    if (text.startsWith('---\n')) {
-      const endIndex = text.indexOf('\n---\n', 4)
-      if (endIndex !== -1) {
-        // Found closing ---, remove everything including the closing ---
-        const removed = text.slice(0, endIndex + 5)
-        const linesRemoved = removed.split('\n').length
-        return {
-          content: text.slice(endIndex + 5),
-          linesRemoved
-        }
-      }
-    }
-    return { content: text, linesRemoved: 0 }
+  /**
+   * The note the teleprompter is actually prompting from.
+   *
+   * NOT the same as `getActiveFile()`. When a note is pinned, or was opened from the Stream
+   * Deck, Obsidian's "active file" is whatever the user last clicked in the sidebar — using it
+   * resolves image paths, bibliographies and remote-state titles against the wrong document.
+   */
+  function currentSourcePath(): string | null {
+    if (isPinned && pinnedNotePath) return pinnedNotePath
+    return currentNotePath || app.workspace.getActiveFile()?.path || null
+  }
+
+  /** The TFile for `currentSourcePath()`, or null when it is not a vault file. */
+  function currentSourceFile(): TFile | null {
+    const path = currentSourcePath()
+    if (!path) return null
+    const file = app.vault.getAbstractFileByPath(path)
+    return file && 'extension' in file ? (file as TFile) : null
   }
 
   // Remove references/bibliography section from end of content
@@ -3066,6 +3096,7 @@
         content = removeReferencesSection(result.content)
         yamlLineOffset = result.linesRemoved
         currentFileName = file.name.replace('.md', '')
+        currentNotePath = filePath
         hasUsedCountdown = false
         debugLog(`[OpenFile] Loaded: ${currentFileName}`)
       } catch (err) {
@@ -3926,7 +3957,8 @@
   function broadcastStateToWebSocket() {
     if (!plugin) return
 
-    const activeFile = app.workspace.getActiveFile()
+    // Remotes must be told which note is on the prompter, not which is focused in the sidebar.
+    const activeFile = currentSourceFile()
 
     plugin.broadcastState({
       isPlaying,
@@ -4375,25 +4407,78 @@
     }
   }
 
-  function syncToEditor(headerId: string) {
-    // Find the corresponding line in the editor
-    const headerLineInFile = parseInt(headerId.replace('header-', '')) + yamlLineOffset
+  /**
+   * Find the MarkdownView showing the note we are prompting from. The teleprompter is the
+   * active leaf whenever the user clicks inside it, so `getActiveViewOfType` returns null
+   * in exactly the case that matters — search every leaf by file path instead.
+   */
+  function resolveMarkdownViewForCurrentNote(): MarkdownView | null {
+    const targetPath = currentSourcePath()
+    if (!targetPath) return null
 
-    // Get the active markdown view
-    const view = app.workspace.getActiveViewOfType(MarkdownView)
+    // The active view is only a valid target if it is showing the note we are prompting.
+    // Autoscroll fires scroll-sync without changing focus, so a different note's editor can
+    // be the active leaf — scrolling that one would move the wrong document.
+    const active = app.workspace.getActiveViewOfType(MarkdownView)
+    if (active && active.file?.path === targetPath) return active
+
+    let found: MarkdownView | null = null
+    app.workspace.iterateAllLeaves((leaf) => {
+      if (found) return
+      const view = leaf.view
+      if (view instanceof MarkdownView && view.file?.path === targetPath) {
+        found = view
+      }
+    })
+    return found
+  }
+
+  /**
+   * Scroll the note's editor pane to a 0-based source line. `focus` is opt-in: navigation
+   * and scroll-sync must leave the teleprompter focused, only double-click-to-edit steals it.
+   */
+  function jumpEditorToSourceLine(sourceLine: number, options: { focus?: boolean } = {}): boolean {
+    if (sourceLine < 0) return false
+
+    const view = resolveMarkdownViewForCurrentNote()
     if (!view) {
-      debugLog('[ScrollSync] No active markdown view found')
-      return
+      debugLog('[EditorSync] No MarkdownView found for the current note')
+      return false
+    }
+
+    if (view.getMode() === 'preview') {
+      view.previewMode.applyScroll(sourceLine)
+      debugLog(`[EditorSync] Preview scrolled to line ${sourceLine}`)
+      return true
     }
 
     const editor = view.editor
-    if (!editor) return
+    if (!editor) return false
 
-    // Scroll editor to the header line
-    editor.setCursor({ line: headerLineInFile, ch: 0 })
-    editor.scrollIntoView({ from: { line: headerLineInFile, ch: 0 }, to: { line: headerLineInFile, ch: 0 } }, true)
+    const pos = { line: sourceLine, ch: 0 }
+    editor.setCursor(pos)
+    editor.scrollIntoView({ from: pos, to: pos }, true)
+    if (options.focus) editor.focus()
 
-    debugLog(`[ScrollSync] Synced to editor line ${headerLineInFile} (header: ${headerId})`)
+    debugLog(`[EditorSync] Editor scrolled to line ${sourceLine}`)
+    return true
+  }
+
+  /** 0-based line in the file for a heading ordinal, or -1 when unresolvable. */
+  function sourceLineForHeader(headerId: string): number {
+    const ordinal = parseInt(headerId.replace('header-', ''), 10)
+    const contentLine = headerSourceLines[ordinal]
+    if (contentLine === undefined || contentLine < 0) return -1
+    return contentLine + yamlLineOffset
+  }
+
+  function syncToEditor(headerId: string) {
+    const sourceLine = sourceLineForHeader(headerId)
+    if (sourceLine < 0) {
+      debugLog(`[ScrollSync] No source line mapped for ${headerId}`)
+      return
+    }
+    jumpEditorToSourceLine(sourceLine)
   }
 
   /**
@@ -4488,21 +4573,8 @@
         if (wordIndex >= 0) voiceTrackingService.seekToWord(wordIndex)
       }
 
-      // Also jump to header in the actual note editor
-      const header = headers().find(h => h.id === headerId)
-      if (header) {
-        const activeView = app.workspace.getActiveViewOfType(MarkdownView)
-        if (activeView) {
-          // Get the line number from the header ID and add the YAML offset
-          const displayLineNumber = parseInt(headerId.replace('header-', ''))
-          const actualLineNumber = displayLineNumber + yamlLineOffset
-
-          // Jump to that line in the editor
-          const editor = activeView.editor
-          editor.setCursor({ line: actualLineNumber, ch: 0 })
-          editor.scrollIntoView({ from: { line: actualLineNumber, ch: 0 }, to: { line: actualLineNumber, ch: 0 } }, true)
-        }
-      }
+      // Also jump to the heading in the note's editor pane, without taking focus.
+      syncToEditor(headerId)
     }
   }
 
@@ -4626,41 +4698,9 @@
     const actualLineNumber = foundLine + yamlLineOffset
     debugLog(`[DoubleClick] Jumping to line ${actualLineNumber}`)
 
-    // Jump to that line in the editor
-    // First try active view, then search all leaves for a MarkdownView with the same file
-    let targetView = app.workspace.getActiveViewOfType(MarkdownView)
-
-    // If no active MarkdownView, search all leaves for one showing the current file
-    if (!targetView) {
-      const activeFile = app.workspace.getActiveFile()
-      const currentPath = isPinned ? pinnedNotePath : activeFile?.path
-
-      // Search all leaves for a MarkdownView with the same file
-      app.workspace.iterateAllLeaves((leaf) => {
-        if (targetView) return // Already found one
-
-        const view = leaf.view
-        if (view instanceof MarkdownView && view.file?.path === currentPath) {
-          targetView = view
-        }
-      })
-    }
-
-    if (!targetView) {
-      debugLog('[DoubleClick] No MarkdownView found for current file')
-      return
-    }
-
-    const editor = targetView.editor
-    if (editor) {
-      editor.setCursor({ line: actualLineNumber, ch: 0 })
-      editor.scrollIntoView({ from: { line: actualLineNumber, ch: 0 }, to: { line: actualLineNumber, ch: 0 } }, true)
-
-      // Focus the editor so user can start editing immediately
-      editor.focus()
-
-      debugLog(`[DoubleClick] Jumped to line ${actualLineNumber + 1}`)
-    }
+    // Focus the editor so the user can start editing immediately — this is the one
+    // caller that should steal focus.
+    jumpEditorToSourceLine(actualLineNumber, { focus: true })
   }
 
   function jumpToNextSection() {
