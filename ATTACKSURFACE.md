@@ -87,12 +87,20 @@ WebSocket + HTTP on `127.0.0.1:<port>`, **auto-started by default** (`autoStartW
 server data (section labels, titles, status) is written with **`textContent`**, never `innerHTML` — no
 XSS sink. Good as-is.
 
-## SURF-04 — Markdown note → renderer (Sanitized)
+## SURF-04 — Markdown note → renderer (Sanitized; ReDoS fixed in 0.11.5)
 
-Note content is rendered with `marked` and injected via Obsidian's **`sanitizeHTMLToDom`**. Embedded-note
-recursion is depth/circular-ref guarded. Strip-pass regexes are lazy/bounded — **no ReDoS** (checked).
-Trust note: a synced/shared note is authored by someone else, but the sanitizer is the boundary and it
-is used consistently.
+Note content is rendered with `marked` and injected via Obsidian's **`sanitizeHTMLToDom`** (no XSS sink).
+Embedded-note recursion is depth/circular-ref guarded. Trust note: a synced/shared note is authored by
+someone else, but the sanitizer is the boundary and it is used consistently.
+
+**ReDoS (fixed 0.11.5):** a deeper audit found three *quadratic* backtracking regexes running on raw
+note/.bib content — `stripPandocAttributes` (text-cleaner), the bracketed-citation regex and the
+`.bib` entry lookahead (citation-resolver). A synced note of `"[".repeat(100000)` (with a bib
+configured, default-on) or `"{".repeat(100000)` (on read-aloud) froze the main thread. Fixed by
+bounding the char classes / end anchor; regression-locked by `src/parser/redos.test.ts` (pathological
+100k-char input must finish <1s). Two lower items shipped in 0.11.5 too: `say` argv now has a `--`
+terminator (arg-injection hardening, `mac-say-engine.ts`), and Settings→Export / Save-as-Profile now
+strip `elevenLabsApiKey` + `obsPassword` via `redactSecrets` (`settings-secrets.ts`, tested).
 
 ## SURF-07 — Local TTS subprocesses (Safe)
 

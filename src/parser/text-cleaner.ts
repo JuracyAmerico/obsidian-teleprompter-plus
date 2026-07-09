@@ -143,7 +143,9 @@ function stripEmbeds(text: string): string {
 
 /** Strip Pandoc/Quarto attributes ({width=70%}, {#id .class}, {.unnumbered}, etc.) */
 function stripPandocAttributes(text: string): string {
-	return text.replace(/\{[#.]?[^}]*(?:width|height|fig-|\.unnumbered|\.unlisted)[^}]*\}/g, '')
+	// Bound each side to {0,200} single-line chars: a Pandoc attribute block is short and never
+	// spans lines. Unbounded `[^}]*` on both sides is O(n²) backtracking on a note full of `{`.
+	return text.replace(/\{[#.]?[^}\n]{0,200}(?:width|height|fig-|\.unnumbered|\.unlisted)[^}\n]{0,200}\}/g, '')
 }
 
 /** Convert markdown links to just their text */

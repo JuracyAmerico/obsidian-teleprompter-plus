@@ -109,8 +109,10 @@ export class MacSayEngine implements TTSEngine {
 			// Normal speaking pace ~175 WPM
 			const wpm = Math.round(175 * options.rate)
 
-			// Escape text for shell safety — use spawn (no shell) for safety
-			const args = ['-v', voiceName, '--rate', String(wpm), text]
+			// spawn (no shell) blocks shell injection; the trailing `--` blocks ARGUMENT injection —
+			// without it a note sentence beginning with `-` (e.g. "-o/tmp/x.aiff") is parsed by `say`
+			// as a flag rather than spoken text. `--` forces everything after it to be positional.
+			const args = ['-v', voiceName, '--rate', String(wpm), '--', text]
 
 			try {
 				const proc = childProcess.spawn('say', args)
