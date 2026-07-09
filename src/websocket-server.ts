@@ -15,6 +15,7 @@
 import type { Plugin } from 'obsidian'
 import { loadWebSocketModule, getDiagnostics } from './websocket-loader'
 import { REMOTE_INTERFACE_HTML } from './remote-interface'
+import { isWebSocketOriginAllowed, isHttpHostAllowed } from './net-access'
 
 // Declare require for runtime module loading (Obsidian/Electron environment)
 declare function require(_name: string): unknown
@@ -29,6 +30,7 @@ interface HttpServer {
 interface IncomingMessage {
 	method?: string
 	url?: string
+	headers?: Record<string, string | string[] | undefined>
 }
 
 interface ServerResponse {
@@ -313,7 +315,9 @@ export class TeleprompterWebSocketServer {
 					server,
 				})
 
-				this.wss.on('connection', (ws: unknown) => this.handleConnection(ws as WebSocketInstance))
+				this.wss.on('connection', (ws: unknown, request: unknown) =>
+				this.handleConnection(ws as WebSocketInstance, request as IncomingMessage | undefined),
+			)
 
 				this.wss.on('error', (error) => {
 					console.error('[TeleprompterWS] WebSocket server error:', error)
@@ -341,10 +345,19 @@ export class TeleprompterWebSocketServer {
 	 * Handle HTTP requests for Remote Interface
 	 */
 	private handleHttpRequest(req: IncomingMessage, res: ServerResponse): void {
-		// CORS headers for cross-origin requests
-		res.setHeader('Access-Control-Allow-Origin', '*')
-		res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS')
-		res.setHeader('Access-Control-Allow-Headers', 'Content-Type')
+		// No CORS allowlist: the remote page is served by THIS server, so it is same-origin and
+		// needs none. Reflecting `Access-Control-Allow-Origin: *` (the old behavior) let any
+		// website read /api/state — the note's path, title, and heading outline — cross-origin.
+
+		// DNS-rebinding defense: a rebound request keeps the attacker's domain in the Host header.
+		// A legit request's Host is always a local/LAN address (that's how a localhost server is
+		// reached). Non-browser clients may omit Host and pass.
+		const hostHeader = req.headers?.host
+		if (!isHttpHostAllowed(Array.isArray(hostHeader) ? hostHeader[0] : hostHeader)) {
+			res.writeHead(403, { 'Content-Type': 'text/plain' })
+			res.end('Forbidden')
+			return
+		}
 
 		// Handle OPTIONS (preflight)
 		if (req.method === 'OPTIONS') {
@@ -539,7 +552,17 @@ export class TeleprompterWebSocketServer {
 	/**
 	 * Handle new client connection
 	 */
-	private handleConnection(ws: WebSocketInstance): void {
+	private handleConnection(ws: WebSocketInstance, request?: IncomingMessage): void {
+		// Reject Cross-Site WebSocket Hijacking: a browser mounting one always sends an Origin,
+		// and it will be a public site, not a local address. Non-browser clients (Stream Deck)
+		// send no Origin and pass. See net-access.ts.
+		const origin = request?.headers?.origin
+		if (!isWebSocketOriginAllowed(Array.isArray(origin) ? origin[0] : origin)) {
+			console.debug(`[TeleprompterWS] Rejected WebSocket from disallowed origin: ${String(origin)}`)
+			ws.close(4403, 'Origin not allowed')
+			return
+		}
+
 		// Check max clients
 		if (this.clients.size >= this.config.maxClients) {
 			ws.close(1008, 'Server at maximum capacity')
