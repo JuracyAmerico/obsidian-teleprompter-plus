@@ -4,6 +4,7 @@ import type TeleprompterPlusPlugin from './main'
 import { ConfirmModal } from './confirm-modal'
 import { PromptModal } from './prompt-modal'
 import { resolveControlIcon, type IconStyle } from './icon-vocabulary'
+import { redactSecrets } from './settings-secrets'
 
 // Hotkey action names
 export type HotkeyAction =
@@ -730,7 +731,7 @@ export class TeleprompterSettingTab extends PluginSettingTab {
 		setIcon(exportBtnIcon, 'download')
 		exportBtn.createSpan({ text: 'Export' })
 		exportBtn.addEventListener('click', () => {
-			const settingsJSON = JSON.stringify(this.plugin.settings, null, 2)
+			const settingsJSON = JSON.stringify(redactSecrets(this.plugin.settings), null, 2)
 			const blob = new Blob([settingsJSON], { type: 'application/json' })
 			const url = URL.createObjectURL(blob)
 			const a = document.createElement('a')
@@ -738,7 +739,7 @@ export class TeleprompterSettingTab extends PluginSettingTab {
 			a.download = `teleprompter-settings-${Date.now()}.json`
 			a.click()
 			URL.revokeObjectURL(url)
-			new Notice('Settings exported')
+			new Notice('Settings exported (API key and OBS password excluded)')
 		})
 
 		// Import settings button
@@ -2233,11 +2234,11 @@ export class TeleprompterSettingTab extends PluginSettingTab {
 						name,
 						icon: 'user',
 						description: 'Custom profile',
-						settings: { ...this.plugin.settings },
+						settings: redactSecrets(this.plugin.settings),
 						createdAt: Date.now(),
 						isBuiltIn: false
 					}
-					// Remove circular references
+					// Remove circular references (secrets already stripped by redactSecrets)
 					const profileSettings: Partial<TeleprompterSettings> = newProfile.settings
 					delete profileSettings.profiles
 					delete profileSettings.settingsUI

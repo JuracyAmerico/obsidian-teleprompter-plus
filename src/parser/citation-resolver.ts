@@ -29,7 +29,9 @@ export function parseBibFile(content: string): Map<string, BibEntry> {
 	const entries = new Map<string, BibEntry>()
 
 	// Match @type{key, ... }
-	const entryRegex = /@\w+\{([^,]+),\s*([\s\S]*?)(?=\n@|\n*$)/g
+	// End anchor is `$` (not `\n*$`): a trailing run of newlines under the lazy body makes `\n*`
+	// re-scan the run at every position — O(n²) on a .bib padded with blank lines.
+	const entryRegex = /@\w+\{([^,]+),\s*([\s\S]*?)(?=\n@|$)/g
 	let match: RegExpExecArray | null
 
 	while ((match = entryRegex.exec(content)) !== null) {
@@ -222,7 +224,9 @@ export function clearBibCache(): void {
  */
 export function resolveCitations(text: string, entries: Map<string, BibEntry>): string {
 	// Handle bracketed citations: [@key], [-@key], [@key1; @key2]
-	text = text.replace(/\[([^\]]*@[^\]]+)\]/g, (_match, inner: string) => {
+	// Bound each side to single-line, {0,500}/{1,500}: citation groups are short and single-line.
+	// Unbounded `[^\]]*@[^\]]+` is O(n²) backtracking on a note full of `[`.
+	text = text.replace(/\[([^\]\n]{0,500}@[^\]\n]{1,500})\]/g, (_match, inner: string) => {
 		const parts = inner.split(';').map((p: string) => p.trim())
 
 		const formatted = parts.map((part: string) => {
