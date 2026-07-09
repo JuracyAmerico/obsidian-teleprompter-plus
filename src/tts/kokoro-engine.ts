@@ -75,9 +75,11 @@ export class KokoroEngine implements TTSEngine {
 		)
 		try {
 			if (fs.existsSync(venvPython)) {
-				// Quick check: can we import mlx_audio?
-				childProcess.execSync(
-					`"${venvPython}" -c "import mlx_audio"`,
+				// Quick check: can we import mlx_audio? execFileSync (array args, no shell) so a
+				// venv path containing shell metacharacters cannot inject — see ATTACKSURFACE.md SURF-06.
+				childProcess.execFileSync(
+					venvPython,
+					['-c', 'import mlx_audio'],
 					{ encoding: 'utf-8', timeout: 5000 } as Record<string, unknown>
 				)
 				this.pythonPath = venvPython
