@@ -1254,7 +1254,10 @@
       processedContent = stripBareUrls(processedContent)
 
       // Strip Pandoc/Quarto attributes ({width=70%}, {#id .class}, {.unnumbered}, etc.)
-      processedContent = processedContent.replace(/\{[#.]?[^}]*(?:width|height|fig-|\.unnumbered|\.unlisted)[^}]*\}/g, '')
+      // Bounded classes ({0,200}, single-line): this is a render-path duplicate of
+      // stripPandocAttributes in text-cleaner.ts — unbounded `[^}]*` is O(n²) ReDoS on a note
+      // full of `{`. (Duplication tracked as a follow-up; both copies must stay bounded.)
+      processedContent = processedContent.replace(/\{[#.]?[^}\n]{0,200}(?:width|height|fig-|\.unnumbered|\.unlisted)[^}\n]{0,200}\}/g, '')
 
       // Resolve relative image paths to Obsidian vault resource URLs
       processedContent = resolveImagePaths(processedContent, sourcePath)
@@ -1268,7 +1271,15 @@
       }
 
       try {
-        renderedHTML = marked.parse(processedContent) as string
+        // Sanitize before rendering with {@html}: marked preserves raw inline HTML, so a
+        // synced/shared note could carry `<img onerror=…>` / `<svg onload=…>` into the DOM.
+        // sanitizeHTMLToDom strips handlers/scripts while keeping the safe tags + data-*/class/id
+        // attributes the pipeline (images, embeds, callouts) and navigation (data-header-id) rely on
+        // — the embedded-note path already depends on that same preservation. Mirrors that path.
+        const parsed = marked.parse(processedContent) as string
+        const sanitizerHost = document.createElement('div')
+        sanitizerHost.appendChild(sanitizeHTMLToDom(parsed))
+        renderedHTML = sanitizerHost.innerHTML
       } finally {
         // Embedded notes render through the same renderer afterwards; their headings must
         // not append to this note's map. Cleared even if the parse throws.

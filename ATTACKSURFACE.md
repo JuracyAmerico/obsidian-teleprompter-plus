@@ -65,6 +65,19 @@ string-to-shell pattern, but `venvPython` is a plugin-internal path, exploitable
 install path itself contained shell metacharacters (user's own environment, not attacker-delivered).
 Fixed the same way: `execFileSync(venvPython, ['-c', 'import mlx_audio'], …)`.
 
+## SURF-06b — Kokoro generation Python-code injection (HIGH, RCE) — FIXED in 0.11.6
+
+Found by a cross-vendor (GPT-5.4/Forge) review: the 0.11.4 fix above hardened only the *availability
+probe*. The actual audio-generation path (`generateWav` + `startPregen`) still built a Python **script
+string** by raw interpolation — `voice="${voiceId}", speed=${speed}` — and ran it via
+`spawn(python, ['-c', script])`. `voiceId`/`speed` came from `settings.ttsVoice`/`ttsRate`, which
+`validateSettings` never checked and Kokoro never matched against its own `KOKORO_VOICES` allowlist.
+A `ttsVoice` like `af_heart", speed=1.0)\nimport os\nos.system('id')\n#` in a synced/shared `data.json`
+(or an imported settings/profile) executed arbitrary Python on the next TTS play. **Gated on the victim
+having the mlx-tts venv installed** (Kokoro is the live engine). Fixed by resolving `voiceId` against the
+allowlist and coercing `speed` to a clamped number *before* interpolation (`src/tts/kokoro-safety.ts`,
+tested). Lesson logged: the 0.11.4 patch fixed the probe the finding named and missed the sibling sink.
+
 ## SURF-01 / SURF-02 — Local control server (Hardened in 0.11.3)
 
 WebSocket + HTTP on `127.0.0.1:<port>`, **auto-started by default** (`autoStartWebSocket: true`),
@@ -92,6 +105,15 @@ XSS sink. Good as-is.
 Note content is rendered with `marked` and injected via Obsidian's **`sanitizeHTMLToDom`** (no XSS sink).
 Embedded-note recursion is depth/circular-ref guarded. Trust note: a synced/shared note is authored by
 someone else, but the sanitizer is the boundary and it is used consistently.
+
+**Raw-HTML injection (fixed 0.11.6):** the primary note render did `{@html marked.parse(content)}` with
+**no sanitizer** — marked preserves raw inline HTML, so a synced note's `<img onerror=…>` / `<svg onload=…>`
+reached the DOM on open (confirmed injection; RCE plausible, depends on Obsidian's CSP). The *embedded-note*
+path already sanitized identical output; the main path didn't. Fixed by routing the main render through
+`sanitizeHTMLToDom` too — which preserves the safe tags + `data-*`/`class`/`id` the pipeline (images,
+embeds, callouts) and navigation (`data-header-id`) rely on. A render-path duplicate of the
+`stripPandocAttributes` ReDoS regex (missed in 0.11.5, only the text-cleaner copy was bounded) was also
+bounded here.
 
 **ReDoS (fixed 0.11.5):** a deeper audit found three *quadratic* backtracking regexes running on raw
 note/.bib content — `stripPandocAttributes` (text-cleaner), the bracketed-citation regex and the

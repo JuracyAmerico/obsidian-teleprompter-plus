@@ -519,6 +519,14 @@ export class TeleprompterWebSocketServer {
 			}
 		}
 
+		// Cap free-form content (load-speaker-notes) so a client can't push an unbounded string.
+		// Content is rendered through the sanitizer downstream; this bounds memory, not injection.
+		if ('content' in command && typeof (command as { content?: unknown }).content === 'string') {
+			if ((command as { content: string }).content.length > 1_000_000) {
+				return { valid: false, error: 'Content too long (max 1000000 chars)' }
+			}
+		}
+
 		return { valid: true }
 	}
 
