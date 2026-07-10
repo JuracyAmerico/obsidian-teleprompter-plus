@@ -5,6 +5,7 @@ import { TeleprompterSettingTab, DEFAULT_SETTINGS } from './settings'
 import type { TeleprompterSettings } from './settings'
 import { OBSService, type OBSState } from './obs-service'
 import { WhatsNewModal } from './whats-new-modal'
+import { describeRemoteServerStartFailure } from './remote-server-errors'
 import './styles.css'
 
 // Extended state type for broadcast updates that include additional properties
@@ -588,15 +589,10 @@ export default class TeleprompterPlusPlugin extends Plugin {
 				this.wsServer = null
 			}
 
-			// Check if it's a port conflict
-			if (error instanceof Error && error.message.includes('EADDRINUSE')) {
-				new Notice(
-					`Port ${this.settings.wsPort} already in use. Remote server disabled.`,
-					5000
-				)
-			} else {
-				new Notice('Failed to start remote server', 5000)
-			}
+			new Notice(
+				describeRemoteServerStartFailure(error, this.settings.wsPort, this.settings.wsHost),
+				7000,
+			)
 		}
 	}
 
