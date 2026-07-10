@@ -31,11 +31,13 @@ bun install
 
 bun run dev      # hot-reload dev build
 bun run build    # production build → dist/
+bun run package:plugin # self-contained plugin folder → build/obsidian-plugin/teleprompter-plus/
 bun run check    # svelte-check + tsc
 bun run lint     # eslint src/
 ```
 
 To test in a real vault, symlink (or copy) `dist/main.js`, `dist/styles.css`, and `manifest.json` into `<vault>/.obsidian/plugins/teleprompter-plus/` and reload Obsidian.
+For WebSocket/remote-server work, prefer `bun run package:plugin` and copy the packaged folder into the vault so `node_modules/ws` is included.
 
 ---
 
@@ -100,6 +102,7 @@ obsidian-teleprompter-plus/
 2. Make changes. Run `bun run check` and `bun run lint` as you go.
 3. Test in Obsidian against a real vault — both light and dark themes, both small (~50 lines) and large (>1000 lines) documents.
 4. Test WebSocket changes against the Stream Deck plugin OR a one-off script (see [WebSocket API](docs/websocket-api.md)).
+   For remote-server changes, use `bun run package:plugin` so the vault copy includes runtime dependencies.
 5. Update `CHANGELOG.md` with a one-line entry under "Unreleased".
 6. Commit with a clear message. Conventional Commits style preferred (`fix:`, `feat:`, `chore:`, `docs:`, `ci:`, `refactor:`).
 7. Push and open a PR. Describe what you changed, why, and how you tested it.
