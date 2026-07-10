@@ -8,6 +8,7 @@
  */
 
 import type { TTSEngine, TTSVoice, SpeakOptions } from './tts-types'
+import { resolveVoiceId, clampSpeed } from './kokoro-safety'
 import type { ChildProcess } from 'child_process'
 import { Platform } from 'obsidian'
 // Node.js modules — externalized by Vite, available in Obsidian's CJS environment
@@ -126,8 +127,10 @@ export class KokoroEngine implements TTSEngine {
 
 	/** Generate a WAV file for the given text. Returns the file path. */
 	private generateWav(text: string, options: SpeakOptions): Promise<string> {
-		const voiceId = options.voice || 'af_heart'
-		const speed = options.rate || 1.0
+		// Resolve against the allowlist / clamp to a number BEFORE interpolating into the Python
+		// script below — settings.ttsVoice/ttsRate are attacker-reachable and otherwise unvalidated.
+		const voiceId = resolveVoiceId(options.voice, KOKORO_VOICES.map((v) => v.id))
+		const speed = clampSpeed(options.rate)
 		const outputPrefix = `sent_${Date.now()}`
 		const outputPath = this.cacheDir
 
@@ -207,8 +210,10 @@ print("DONE:" + "${outputPrefix}_000.wav")
 		this.cancelPregen()
 		this.pregenText = text
 
-		const voiceId = options.voice || 'af_heart'
-		const speed = options.rate || 1.0
+		// Resolve against the allowlist / clamp to a number BEFORE interpolating into the Python
+		// script below — settings.ttsVoice/ttsRate are attacker-reachable and otherwise unvalidated.
+		const voiceId = resolveVoiceId(options.voice, KOKORO_VOICES.map((v) => v.id))
+		const speed = clampSpeed(options.rate)
 		const outputPrefix = `pregen_${Date.now()}`
 		const outputPath = this.cacheDir
 
