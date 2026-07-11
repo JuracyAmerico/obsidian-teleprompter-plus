@@ -273,6 +273,37 @@ export function findGlobalPosition(
     }
   }
 
+  // ── Anti-wrong-section guards (2026-07-11) ──────────────────────────────────
+  // On scripts with several near-identical sections (e.g. multiple "Story" blocks),
+  // proximity weighting alone can still teleport to the wrong twin. Two guards:
+  //
+  // Guard 1 — AMBIGUITY FREEZE: if a rival match FAR from the winner (farther than
+  // one look-ahead span) is nearly as confident, the evidence does not distinguish
+  // the twins. Freezing (return -1) is a minor stall the next utterance resolves;
+  // a wrong-section jump derails the whole rehearsal. Do no harm.
+  const AMBIGUITY_MARGIN = 0.08
+  const FAR_SPAN = windowSize * 2
+  for (const match of matches) {
+    if (match === bestMatch) continue
+    if (Math.abs(match.index - bestMatch.index) <= FAR_SPAN) continue // same locale — fine
+    if (bestMatch.confidence - match.confidence < AMBIGUITY_MARGIN) {
+      return -1
+    }
+  }
+
+  // Guard 2 — WEAK-EVIDENCE TELEPORT BLOCK: a couple of recognized words ("story",
+  // "one that") must not fling the prompter far from where the reader actually is.
+  // Long-distance jumps require at least 4 recognized words of evidence.
+  const MIN_TOKENS_FOR_FAR_JUMP = 4
+  const FAR_JUMP_WORDS = 50
+  if (
+    recognizedTokens.length < MIN_TOKENS_FOR_FAR_JUMP &&
+    Math.abs(bestMatch.index - hintPosition) > FAR_JUMP_WORDS
+  ) {
+    return -1
+  }
+  // ────────────────────────────────────────────────────────────────────────────
+
   return bestMatch.index
 }
 

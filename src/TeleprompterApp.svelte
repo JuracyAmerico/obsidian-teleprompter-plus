@@ -5084,6 +5084,27 @@
                     <div class="preset-check">✓</div>
                   {/if}
                 </button>
+
+                <button
+                  class="preset-item"
+                  class:active={settings.voiceTrackingPacePreset === 'rehearsal'}
+                  onclick={() => applyVoicePreset('rehearsal')}
+                >
+                  <div class="preset-icon rehearsal">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/>
+                      <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
+                      <line x1="12" y1="19" x2="12" y2="22"/>
+                    </svg>
+                  </div>
+                  <div class="preset-text">
+                    <span class="preset-name">Rehearsal</span>
+                    <span class="preset-desc">Ad-lib / interview practice, anti-jump</span>
+                  </div>
+                  {#if settings.voiceTrackingPacePreset === 'rehearsal'}
+                    <div class="preset-check">✓</div>
+                  {/if}
+                </button>
               </div>
             </div>
           {/if}
@@ -7572,6 +7593,11 @@
   .preset-icon.responsive {
     background: rgba(180, 100, 180, 0.2);
     color: #b464b4;
+  }
+
+  .preset-icon.rehearsal {
+    background: rgba(220, 160, 60, 0.2);
+    color: #dca03c;
   }
 
   .preset-text {

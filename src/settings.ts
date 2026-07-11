@@ -29,7 +29,7 @@ export interface HotkeyConfig {
 }
 
 // Voice tracking pace presets
-export type VoiceTrackingPacePreset = 'conservative' | 'balanced' | 'responsive' | 'custom'
+export type VoiceTrackingPacePreset = 'conservative' | 'balanced' | 'responsive' | 'rehearsal' | 'custom'
 
 export interface VoiceTrackingPresetConfig {
 	confidenceThreshold: number
@@ -69,6 +69,15 @@ export const VOICE_TRACKING_PRESETS: Record<Exclude<VoiceTrackingPacePreset, 'cu
 		updateFrequencyMs: 400,      // More frequent updates
 		animationBaseMs: 300,        // Faster animation
 		description: 'For experienced speakers or fast pace. More responsive, larger movements.'
+	},
+	rehearsal: {
+		confidenceThreshold: 0.15,   // Loose — paraphrased speech rarely matches verbatim
+		maxJumpDistance: 6,          // Allow catching up after skipped/ad-libbed passages
+		minJumpDistance: 1,          // Respond to small confirmations
+		windowSize: 10,              // Wide look-ahead absorbs reordering and filler
+		updateFrequencyMs: 450,      // Responsive without thrash
+		animationBaseMs: 350,        // Smooth catch-up
+		description: 'Ad-lib / interview practice. Follows paraphrasing instead of exact words; pairs with the anti-jump guard so losing your place freezes rather than leaps.'
 	}
 }
 
