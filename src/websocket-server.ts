@@ -16,6 +16,7 @@ import type { Plugin } from 'obsidian'
 import { loadWebSocketModule, getDiagnostics } from './websocket-loader'
 import { REMOTE_INTERFACE_HTML } from './remote-interface'
 import { isWebSocketOriginAllowed, isHttpHostAllowed } from './net-access'
+import { REMOTE_SERVER_MODULE_LOAD_ERROR_PREFIX } from './remote-server-errors'
 
 // Declare require for runtime module loading (Obsidian/Electron environment)
 declare function require(_name: string): unknown
@@ -56,6 +57,28 @@ interface OsModule {
 // WebSocket module loaded lazily when server starts (needs app instance)
 let wsModule: ReturnType<typeof loadWebSocketModule> | null = null
 let WebSocketServerClass: ReturnType<typeof loadWebSocketModule>['WebSocketServer'] = null
+
+export function ensureWebSocketServerClass(
+	appSubset: Parameters<typeof loadWebSocketModule>[0],
+	loadModule: typeof loadWebSocketModule = loadWebSocketModule,
+	getModuleDiagnostics: typeof getDiagnostics = getDiagnostics,
+): NonNullable<ReturnType<typeof loadWebSocketModule>['WebSocketServer']> {
+	const loadedModule = loadModule(appSubset)
+	const serverClass = loadedModule.WebSocketServer
+
+	if (!loadedModule.loaded || !serverClass) {
+		console.error('[TeleprompterWS] WebSocket module failed to load')
+		console.error('[TeleprompterWS] Error:', loadedModule.error)
+		console.error('[TeleprompterWS] Diagnostics:', getModuleDiagnostics(appSubset))
+		console.error('[TeleprompterWS] Plugin will continue without WebSocket support')
+
+		throw new Error(
+			`${REMOTE_SERVER_MODULE_LOAD_ERROR_PREFIX}: ${loadedModule.error ?? 'Could not load ws module'}`
+		)
+	}
+
+	return serverClass
+}
 
 // Type definitions for WebSocket instances
 type WebSocketServerInstance = {
@@ -285,15 +308,8 @@ export class TeleprompterWebSocketServer {
 		// for vault.adapter.basePath + vault.configDir; FileSystemAdapter satisfies it.
 		if (!wsModule) {
 			const appSubset = this.plugin.app as unknown as Parameters<typeof loadWebSocketModule>[0]
-			wsModule = loadWebSocketModule(appSubset)
-			WebSocketServerClass = wsModule.WebSocketServer
-			if (!wsModule.loaded) {
-				console.error('[TeleprompterWS] WebSocket module failed to load')
-				console.error('[TeleprompterWS] Error:', wsModule.error)
-				console.error('[TeleprompterWS] Diagnostics:', getDiagnostics(appSubset))
-				console.error('[TeleprompterWS] Plugin will continue without WebSocket support')
-				return // Cannot start server without ws module
-			}
+			WebSocketServerClass = ensureWebSocketServerClass(appSubset)
+			wsModule = { WebSocketServer: WebSocketServerClass, WebSocket: null, loaded: true }
 		}
 
 		return new Promise((resolve, reject) => {
