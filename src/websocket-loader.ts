@@ -67,6 +67,17 @@ interface ObsidianApp {
 	}
 }
 
+function applyWsModule(result: WebSocketModule, ws: WsModule | undefined): boolean {
+	if (!ws) {
+		return false
+	}
+
+	result.WebSocketServer = (ws.WebSocketServer || ws.Server) as WebSocketServerConstructor
+	result.WebSocket = (ws.WebSocket || ws) as WebSocketConstructor
+	result.loaded = true
+	return true
+}
+
 /**
  * Load the ws module using multiple fallback strategies
  * @param app - The Obsidian app instance (avoids using window.app)
@@ -86,10 +97,7 @@ export function loadWebSocketModule(app?: ObsidianApp): WebSocketModule {
 			const remote = electron.remote
 			const ws = remote.require('ws') as WsModule | undefined
 
-			if (ws) {
-				result.WebSocketServer = (ws.WebSocketServer || ws.Server) as WebSocketServerConstructor
-				result.WebSocket = (ws.WebSocket || ws) as WebSocketConstructor
-				result.loaded = true
+			if (applyWsModule(result, ws)) {
 				return result
 			}
 		}
@@ -109,10 +117,7 @@ export function loadWebSocketModule(app?: ObsidianApp): WebSocketModule {
 
 			const ws = require(wsPath) as WsModule | undefined
 
-			if (ws) {
-				result.WebSocketServer = (ws.WebSocketServer || ws.Server) as WebSocketServerConstructor
-				result.WebSocket = (ws.WebSocket || ws) as WebSocketConstructor
-				result.loaded = true
+			if (applyWsModule(result, ws)) {
 				return result
 			}
 		}
@@ -141,10 +146,7 @@ export function loadWebSocketModule(app?: ObsidianApp): WebSocketModule {
 			try {
 				const ws = require(wsPath) as WsModule | undefined
 
-				if (ws) {
-					result.WebSocketServer = (ws.WebSocketServer || ws.Server) as WebSocketServerConstructor
-					result.WebSocket = (ws.WebSocket || ws) as WebSocketConstructor
-					result.loaded = true
+				if (applyWsModule(result, ws)) {
 					return result
 				}
 			} catch {
@@ -166,10 +168,7 @@ export function loadWebSocketModule(app?: ObsidianApp): WebSocketModule {
 
 		const ws = require(wsPath) as WsModule | undefined
 
-		if (ws) {
-			result.WebSocketServer = (ws.WebSocketServer || ws.Server) as WebSocketServerConstructor
-			result.WebSocket = (ws.WebSocket || ws) as WebSocketConstructor
-			result.loaded = true
+		if (applyWsModule(result, ws)) {
 			return result
 		}
 	} catch {
@@ -180,10 +179,7 @@ export function loadWebSocketModule(app?: ObsidianApp): WebSocketModule {
 	try {
 		const ws = require('ws') as WsModule | undefined
 
-		if (ws) {
-			result.WebSocketServer = (ws.WebSocketServer || ws.Server) as WebSocketServerConstructor
-			result.WebSocket = (ws.WebSocket || ws) as WebSocketConstructor
-			result.loaded = true
+		if (applyWsModule(result, ws)) {
 			return result
 		}
 	} catch {

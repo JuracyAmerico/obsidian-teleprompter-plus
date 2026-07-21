@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+- Added a `bun run package:plugin` workflow that stages a self-contained Obsidian plugin folder, including the runtime `ws` dependency needed for remote-server testing.
+
 ## [0.11.2] - 2026-06-22
 
 ### Fixed
