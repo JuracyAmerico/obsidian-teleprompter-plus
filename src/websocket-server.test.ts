@@ -17,7 +17,10 @@ describe('ensureWebSocketServerClass', () => {
 	})
 
 	test('returns the constructor when the module loads', () => {
-		class FakeServer {}
+		class FakeServer {
+			on(_event: string, _handler: (..._args: unknown[]) => void): void {}
+			close(_callback?: () => void): void {}
+		}
 
 		expect(ensureWebSocketServerClass(
 			{},
