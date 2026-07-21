@@ -5,7 +5,11 @@ All notable changes to Obsidian Teleprompter Plus will be documented in this fil
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.11.7] - 2026-07-21
+
+### Fixed
+- **Remote server now starts reliably from a normal vault install.** The `ws` WebSocket module could resolve to the browser shim (or fall back to a runtime `require('ws')` that was not present in the installed plugin folder), so the remote server failed to start with a "could not load its WebSocket module" error. `ws` now resolves to the Node entry and the loader prefers the packaged module, so no manual `node_modules/ws` copy is needed. (#4, #5)
+- Clearer remote-server startup errors for port-in-use, invalid/unavailable host, and WebSocket module load failures.
 
 ### Changed
 - Added a `bun run package:plugin` workflow that stages a self-contained Obsidian plugin folder, including the runtime `ws` dependency needed for remote-server testing.
