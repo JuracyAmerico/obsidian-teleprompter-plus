@@ -5,6 +5,19 @@ All notable changes to Obsidian Teleprompter Plus will be documented in this fil
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.11.8] - 2026-09-14
+
+### Fixed
+- **Read-aloud now speaks numbers and formulas clearly.** Smaller voices (notably ElevenLabs Flash v2.5) guessed at raw digits and symbols, so `r = +0.012`, `p = .35` or `595,445` came out garbled. Sentences are now converted to spoken form just before they reach the voice — "r equals plus zero point zero one two", "five hundred ninety-five thousand…", "the first of September", "twenty twenty-two". Covers decimals, thousands separators, percentages, currency, ordinals, dash ranges, signs and comparison operators. Identifiers such as `32-10-0231`, `v2.5`, `0.11.7`, times and fractions are left alone. English voices only; the on-screen script is unchanged.
+- **Paragraph and heading spacing scales with the prompter font.** Margins are now relative to the text size instead of fixed, so a blank line between paragraphs stays a visible pause at large reading sizes.
+
+### Security
+- `ws` updated to 8.21.3 (GHSA-96hv-2xvq-fx4p memory-exhaustion DoS, GHSA-58qx-3vcg-4xpx uninitialized memory disclosure). If you copied `ws` into your plugin folder manually, update that copy too.
+
+### Changed
+- `obs-websocket-js` 5.0.8 and `highlight.js` 11.12.0.
+- Settings notices reworded to pass Obsidian's automated review lint.
+
 ## [0.11.7] - 2026-07-21
 
 ### Fixed
