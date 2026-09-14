@@ -6589,7 +6589,7 @@
   .markdown-content :global(h1) {
     font-size: calc(var(--base-font-size) * 1.8);
     font-weight: bold;
-    margin: 2rem 0 1.5rem 0;
+    margin: 1.2em 0 0.4em 0;
     line-height: 1.3;
     color: var(--text-accent);
   }
@@ -6597,7 +6597,7 @@
   .markdown-content :global(h2) {
     font-size: calc(var(--base-font-size) * 1.4);
     font-weight: bold;
-    margin: 1.5rem 0 1rem 0;
+    margin: 1.0em 0 0.35em 0;
     line-height: 1.3;
     color: var(--text-accent);
   }
@@ -6605,16 +6605,23 @@
   .markdown-content :global(h3) {
     font-size: calc(var(--base-font-size) * 1.2);
     font-weight: bold;
-    margin: 1.25rem 0 0.75rem 0;
+    margin: 0.8em 0 0.3em 0;
     line-height: 1.3;
     color: var(--text-normal);
   }
 
   /* Markdown content styles - using :global() for dynamically rendered HTML */
+  /* Spacing is in `em`, NOT `rem`, on purpose. Text here scales with
+     --base-font-size (px, user-set, often 40-80px for reading distance) while
+     `rem` is pinned to the 16px root — so a rem margin shrinks to nothing
+     relative to the text as the prompter font grows. At 40px/1.8 a 0.5rem
+     margin made the paragraph gap only 22% wider than the line gap, which
+     erased the blank-line-as-pause convention the script format depends on.
+     `em` resolves against this element's own font-size, so the beat scales. */
   .markdown-content :global(p) {
     font-size: var(--base-font-size) !important;
     line-height: var(--line-height, 1.8);
-    margin: 0.5rem 0;
+    margin: 0.8em 0;
   }
 
   /* Lists */

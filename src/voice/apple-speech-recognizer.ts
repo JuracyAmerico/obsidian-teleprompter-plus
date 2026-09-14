@@ -210,7 +210,7 @@ export class AppleSpeechRecognizer {
   private handleLine(line: string): void {
     let msg: { type?: string; value?: string; text?: string; code?: string; message?: string }
     try {
-      msg = JSON.parse(line)
+      msg = JSON.parse(line) as typeof msg
     } catch {
       return // ignore non-JSON noise
     }

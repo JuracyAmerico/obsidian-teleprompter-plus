@@ -739,7 +739,7 @@ export class TeleprompterSettingTab extends PluginSettingTab {
 			a.download = `teleprompter-settings-${Date.now()}.json`
 			a.click()
 			URL.revokeObjectURL(url)
-			new Notice('Settings exported (API key and OBS password excluded)')
+			new Notice('Settings exported without saved passwords or API keys')
 		})
 
 		// Import settings button
@@ -883,7 +883,7 @@ export class TeleprompterSettingTab extends PluginSettingTab {
 		// Recommended layout action — collapse low-frequency controls into ⋯ More
 		const recommendedSetting = new Setting(containerEl)
 			.setName('Recommended layout')
-			.setDesc('Move low-frequency controls into the ⋯ More menu and keep the essentials on the bar. Reversible — re-pin anything below.')
+			.setDesc('Move rarely used controls into the ⋯ overflow menu and keep the essentials on the bar. Reversible — re-pin anything below.')
 		recommendedSetting.addButton(btn => btn
 			.setButtonText('Apply recommended layout')
 			.setIcon('wand-2')
@@ -1774,7 +1774,7 @@ export class TeleprompterSettingTab extends PluginSettingTab {
 						onChange: (value) => {
 							this.plugin.settings.ttsEngine = value as 'auto' | 'mac-say' | 'web-speech' | 'kokoro' | 'elevenlabs'
 							if (value === 'elevenlabs') {
-								new Notice('ElevenLabs is a cloud, paid service. Your script text is sent to ElevenLabs servers, playback uses your ElevenLabs account credits, and you must supply your own API key (get one at elevenlabs.io). Prefer offline and free? Kokoro, macOS, and Web Speech remain available.', 12000)
+								new Notice('This engine is a paid cloud service. Your script text is sent to its servers, playback uses your account credits, and you must supply your own API key from elevenlabs.io. For free offline speech, choose one of the local engines instead.', 12000)
 							}
 							void this.plugin.saveSettings()
 						}

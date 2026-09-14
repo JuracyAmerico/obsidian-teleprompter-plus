@@ -10,6 +10,7 @@ import type {
 import { createTTSEngine } from './engine-factory'
 import { cleanDocument, extractBibPath } from '../parser/text-cleaner'
 import { resolveCitations, loadBibliography, clearBibCache } from '../parser/citation-resolver'
+import { normalizeForSpeech } from '../parser/speech-normalizer'
 import type { CleanerOptions } from '../parser/text-cleaner'
 
 /** Listener callback type */
@@ -390,6 +391,12 @@ export class TTSService {
 
 	// ===== Private methods =====
 
+	/** Numbers and formulas spelled out for the engine. English-only; the displayed sentence is untouched. */
+	private spokenForm(sentence: string): string {
+		const lang = (this.config.language || 'en').toLowerCase()
+		return lang.startsWith('en') ? normalizeForSpeech(sentence) : sentence
+	}
+
 	private async speakCurrentSentence(): Promise<void> {
 		if (!this.engine || !this.document || this.isDestroyed) return
 
@@ -399,7 +406,7 @@ export class TTSService {
 			return
 		}
 
-		const text = this.document.allSentences[this.currentIndex]
+		const text = this.spokenForm(this.document.allSentences[this.currentIndex])
 		this.emitSentenceStart()
 
 		const options: SpeakOptions = {
@@ -411,7 +418,8 @@ export class TTSService {
 		// Hint the engine about the next sentence for pregeneration
 		const nextIndex = this.currentIndex + 1
 		if (nextIndex < this.document.allSentences.length && this.engine.hintNext) {
-			this.engine.hintNext(this.document.allSentences[nextIndex], options)
+			// Same spoken form as speak(), or the engine's pregenerated cache key never hits.
+			this.engine.hintNext(this.spokenForm(this.document.allSentences[nextIndex]), options)
 		}
 
 		try {
