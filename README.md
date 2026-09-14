@@ -296,7 +296,7 @@ Have an idea? [Open a discussion](https://github.com/JuracyAmerico/obsidian-tele
 
 Created by **Americo** ([@JuracyAmerico](https://github.com/JuracyAmerico)).
 
-Built with [Obsidian](https://obsidian.md), [Svelte 5](https://svelte.dev), [TypeScript](https://www.typescriptlang.org), [Vite](https://vitejs.dev), [Tailwind CSS](https://tailwindcss.com), [marked.js](https://marked.js.org), [highlight.js](https://highlightjs.org), and [ws](https://github.com/websockets/ws).
+Built with [Obsidian](https://obsidian.md), [Svelte 5](https://svelte.dev), [TypeScript](https://www.typescriptlang.org), [Vite](https://vitejs.dev), [marked.js](https://marked.js.org), [highlight.js](https://highlightjs.org), and [ws](https://github.com/websockets/ws).
 
 ### Acknowledgements
 

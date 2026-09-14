@@ -69,7 +69,7 @@ obsidian-teleprompter-plus/
 │       ├── model-manager.ts         # Vosk model download + cache
 │       ├── voice-tracking-service.ts # voice-following scroll (beta)
 │       └── vosk-recognizer.ts
-├── dist/                            # build output (committed for release)
+├── dist/                            # build output (git-ignored; CI builds it for releases)
 │   ├── main.js
 │   └── styles.css
 ├── docs/                            # design system, screenshots, extended docs
@@ -114,7 +114,7 @@ obsidian-teleprompter-plus/
 Maintainer-only:
 
 1. Bump `manifest.json` `version` and add the corresponding entry to `versions.json` mapping the version to the minimum Obsidian version it requires.
-2. Run `bun run build` and commit `dist/main.js` (and `dist/styles.css` if changed).
+2. Run `bun run lint`, `bun run check`, `bun test` and `bun run build` locally. Do not commit `dist/` — the release workflow builds it from the tagged source.
 3. Tag: `git tag -a 0.X.Y -m "0.X.Y — ..."`.
 4. Push: `git push origin main && git push origin 0.X.Y`.
 5. The `Release` GitHub Actions workflow builds, attests, and publishes the GitHub Release automatically.

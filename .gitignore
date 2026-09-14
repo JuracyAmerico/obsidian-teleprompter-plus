@@ -11,8 +11,12 @@ node_modules
 dist-ssr
 *.local
 
-# Build artifacts
+# Build artifacts (release CI builds dist/ from source and attaches it to the GitHub release)
+dist/
 *.zip
+
+# Local working notes
+CAPTURE.md
 
 # Editor directories and files
 .vscode/*
@@ -30,3 +34,7 @@ bun.lockb
 
 # compiled Swift sidecar (rebuild with: swiftc -O native/teleprompter-stt.swift -o native/teleprompter-stt)
 native/teleprompter-stt
+
+# MkDocs
+site/
+.venv-docs/
