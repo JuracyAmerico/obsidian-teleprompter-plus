@@ -4690,6 +4690,15 @@
       // Cleanup keep awake
       stopKeepAwake()
 
+      // Stop listening when the view goes away. Nothing did this before, so closing the
+      // teleprompter left the speech sidecar running with the microphone open, and a stale
+      // view kept answering voice events with an empty script.
+      if (voiceTrackingActive && voiceTrackingService) {
+        voiceTrackingService.stop()
+        voiceTrackingActive = false
+        pauseSession()
+      }
+
       // Cleanup TTS
       if (ttsService) {
         ttsService.destroy()
