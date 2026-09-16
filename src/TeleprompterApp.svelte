@@ -34,7 +34,8 @@
   import { TTSService } from './tts'
   import type { TTSState, TTSPlaybackState, TTSVoice } from './tts'
   import { resolveCitations, loadBibliography } from './parser/citation-resolver'
-  import { extractBibPath, splitSentences, stripRawLatexCommands, stripFencedDivs, stripBareUrls } from './parser/text-cleaner'
+  import { extractBibPath, extractTargetTime, splitSentences, stripRawLatexCommands, stripFencedDivs, stripBareUrls } from './parser/text-cleaner'
+  import { SpeechClock, computePaceState, formatClock, resolveTarget, type ClockSnapshot, type PaceStatus, type TargetSource } from './timing/speech-timer'
   import { removeYAMLFrontmatter, createHeadingLineMapper, type HeadingLineMapper } from './parser/heading-source-map'
   import type { TTSDocument, TTSSection } from './tts/tts-types'
   import hljs from 'highlight.js/lib/core'
@@ -252,6 +253,12 @@
     ttsCurrentSentence?: number
     ttsTotalSentences?: number
     ttsRate?: number
+    // Rehearsal clock: the anchor, not the ticks (see broadcastClockState).
+    sessionState?: 'idle' | 'running' | 'paused' | 'finished'
+    clockSnapshot?: ClockSnapshot
+    targetSeconds?: number | null
+    targetSource?: TargetSource
+    voiceTrackingActive?: boolean
   }
 
   function broadcastState(partialState: SyncState) {
@@ -576,9 +583,20 @@
     }
     document.addEventListener('teleprompter:auto-pause-changed', handleAutoPauseChange)
 
+    // Timing settings are seeded once at init like every other setting, so without this the
+    // default target and the large clock would only take effect after reopening the view.
+    function handleTimingChange() {
+      largeTimeDisplay = plugin?.settings?.largeTimeDisplay ?? false
+      showTimeOverlay = plugin?.settings?.showTimeOverlay !== false
+      applyResolvedTarget()
+      debugLog('[Time] Timing settings changed from Settings UI')
+    }
+    document.addEventListener('teleprompter:timing-changed', handleTimingChange)
+
     return () => {
       activeDoc.removeEventListener('teleprompter:toolbar-changed', handleToolbarChange)
       document.removeEventListener('teleprompter:auto-pause-changed', handleAutoPauseChange)
+      document.removeEventListener('teleprompter:timing-changed', handleTimingChange)
     }
   })
 
@@ -891,6 +909,31 @@
   let timeDisplayMode = $state<'elapsed' | 'remaining'>('elapsed') // Toggle between elapsed/remaining display
   let timeDisplayStyle = $state<'compact' | 'full'>(settings.timeDisplayStyle ?? 'compact') // Display style
 
+  // ===== Rehearsal clock (target duration) =====
+  // A rehearsal is its own session, NOT a value derived from isPlaying/voiceTrackingActive.
+  // Those flags lie for this purpose: starting voice tracking sets isPlaying=false, TTS does the
+  // same, and switching the voice pace preset stops and restarts tracking (~100ms with
+  // voiceTrackingActive=false) — a derived clock would reset itself mid-rehearsal.
+  type SessionState = 'idle' | 'running' | 'paused' | 'finished'
+  const rehearsalClock = new SpeechClock()
+  let sessionState = $state<SessionState>('idle')
+  let targetSeconds = $state<number | null>(null)          // resolved: override > frontmatter > default
+  let targetSource = $state<TargetSource>('none')
+  let targetOverrideSeconds = $state<number | null>(null)  // set from the toolbar, cleared on note change
+  let noteTargetValue = $state<string | null>(null)        // raw frontmatter value for the prompted note
+  let paceStatus = $state<PaceStatus>('unknown')
+  let remainingSeconds = $state(0)
+  let isTimeWarning = $state(false)                        // inside the end-of-target warning band
+  let isOvertime = $state(false)
+  let showTargetPopup = $state(false)
+  let largeTimeDisplay = $state(settings.largeTimeDisplay ?? false)
+  let showTimeOverlay = $state(settings.showTimeOverlay !== false) // on by default when a target exists
+  let scriptProgress = $state(0)                           // 0..1, voice word index when available
+  let progressValid = $state(false)
+  let progressEpoch = 0                                    // bumped by jumps/resyncs: position is stale
+  let progressHighWater = 0                                // progress never walks backwards within an epoch
+  let progressSettleUntil = 0                              // wall-clock ms; verdict suppressed until then
+
   // Transparency state
   let backgroundOpacity = $state(100) // Background opacity (0-100)
   let enableBackgroundTransparency = $state(false) // Enable background transparency
@@ -920,6 +963,24 @@
   let cachedBibEntries = $state<Map<string, { key: string; authors: string[]; year: string; isInstitutional: boolean }> | null>(null)
   let cachedBibPath = $state('')
   let lastRenderedContent = $state('')
+
+  // Read the rehearsal target from the prompted note's frontmatter.
+  // Its own effect on purpose: the target must not depend on the TTS citation setting below,
+  // and it must follow the PROMPTED note (a pinned note keeps its own target).
+  $effect(() => {
+    content // re-run when the prompted note changes
+    const sourceFile = currentSourceFile()
+    if (!sourceFile) {
+      noteTargetValue = null
+      applyResolvedTarget()
+      return
+    }
+    void app.vault.read(sourceFile).then(raw => {
+      noteTargetValue = extractTargetTime(raw)
+      applyResolvedTarget()
+      debugLog('[Time] Target from note:', noteTargetValue, '→', targetSeconds, `(${targetSource})`)
+    })
+  })
 
   // Load bibliography file for citation resolution (visual + TTS)
   $effect(() => {
@@ -1194,23 +1255,165 @@
     app.saveLocalStorage('teleprompter-eyeline-visible', showEyeline.toString())
   })
 
-  // Update elapsed time and time estimation every second
+  // One always-on 1Hz tick. It deliberately reads state INSIDE the callback and tracks no
+  // dependencies: an effect that re-subscribed on play/pause would tear down and rebuild the
+  // interval each time, resetting the tick phase so the displayed second stalls or skips.
   $effect(() => {
     const interval = setInterval(() => {
-      if (startTimestamp && isPlaying) {
-        // Update elapsed time
-        elapsedSeconds = Math.floor((Date.now() - startTimestamp) / 1000)
+      if (sessionState === 'running') {
+        elapsedSeconds = rehearsalClock.elapsedSeconds
+        sampleProgress()
+        updatePaceState()
 
-        // Update time estimation
+        // Word-based estimate stays for scripts with no target.
         wordsRemaining = calculateWordsRemaining()
         estimatedRemainingMinutes = calculateTimeRemaining()
 
-        debugLog('[Time] Elapsed:', elapsedSeconds, 's | Remaining:', formatEstimatedTime(estimatedRemainingMinutes))
+        debugLog('[Time] Elapsed:', elapsedSeconds, 's | target:', targetSeconds, '| pace:', paceStatus, '| progress:', scriptProgress.toFixed(3))
       }
     }, 1000)
 
     return () => clearInterval(interval)
   })
+
+  // ===== Rehearsal session =====
+
+  /** Begin (or resume) counting stage time. Called from every path that starts speaking. */
+  function startSession(): void {
+    if (sessionState === 'running') return
+    if (sessionState === 'idle' || sessionState === 'finished') {
+      rehearsalClock.start()
+      progressHighWater = 0
+    } else {
+      rehearsalClock.resume()
+    }
+    sessionState = 'running'
+    elapsedSeconds = rehearsalClock.elapsedSeconds
+    updatePaceState()
+    broadcastClockState()
+  }
+
+  /** Stop counting but keep the time — pause, blur, manual scrub, voice/TTS stop. */
+  function pauseSession(): void {
+    if (sessionState !== 'running') return
+    rehearsalClock.pause()
+    sessionState = 'paused'
+    elapsedSeconds = rehearsalClock.elapsedSeconds
+    broadcastClockState()
+  }
+
+  /** Back to zero — reset to top, or loading a different note. */
+  function resetSession(): void {
+    rehearsalClock.reset()
+    sessionState = 'idle'
+    elapsedSeconds = 0
+    scriptProgress = 0
+    progressHighWater = 0
+    progressValid = false
+    paceStatus = 'unknown'
+    updatePaceState()
+    broadcastClockState()
+  }
+
+  /**
+   * Position moved discontinuously (section jump, resync, reset). The matcher index can now be
+   * anywhere, including backwards, so the ahead/behind verdict is suppressed until speech has
+   * had a few seconds to re-anchor — showing a confident wrong verdict mid-sentence is worse
+   * than showing none.
+   */
+  function bumpProgressEpoch(): void {
+    progressEpoch++
+    progressHighWater = 0
+    progressValid = false
+    progressSettleUntil = Date.now() + 4000
+  }
+
+  /**
+   * Sample how far through the script we are.
+   *
+   * Voice tracking is POLLED here rather than driven by onWordMatch: that callback only fires
+   * when the scroll target changes line (voice-tracking-service.ts:1037), so it is silent while
+   * speaking words on the current line and stops entirely for the final screenful once scroll
+   * saturates — exactly when the remaining number matters most. Index and total must come from
+   * the same source: getTotalWords() counts DOM tokens, totalWordCount counts markdown words.
+   */
+  function sampleProgress(): void {
+    let sampled: number | null = null
+
+    if (voiceTrackingActive && voiceTrackingService) {
+      const total = voiceTrackingService.getTotalWords()
+      if (total > 0) sampled = voiceTrackingService.getCurrentWordIndex() / total
+    } else if (contentArea) {
+      const scrollable = contentArea.scrollHeight - contentArea.clientHeight
+      if (scrollable > 0) sampled = contentArea.scrollTop / scrollable
+    }
+
+    if (sampled === null || !Number.isFinite(sampled)) {
+      progressValid = false
+      return
+    }
+
+    // Monotone within an epoch: a brief backward match must not make the verdict flip.
+    progressHighWater = Math.max(progressHighWater, Math.min(1, Math.max(0, sampled)))
+    scriptProgress = progressHighWater
+    progressValid = Date.now() >= progressSettleUntil
+  }
+
+  /** Toolbar override beats the note, the note beats the global default. */
+  function applyResolvedTarget(): void {
+    const resolved = resolveTarget(targetOverrideSeconds, noteTargetValue, settings.defaultTargetSeconds ?? null)
+    targetSeconds = resolved.targetSeconds
+    targetSource = resolved.source
+    updatePaceState()
+    broadcastClockState()
+  }
+
+  function toggleTargetPopup(): void {
+    showTargetPopup = !showTargetPopup
+  }
+
+  /**
+   * Step the target. Steps are adaptive (30s/1min/5min) rather than a slider: a per-second
+   * slider is unusable for an hour-long talk.
+   */
+  function nudgeTarget(deltaSeconds: number): void {
+    const base = targetSeconds ?? 0
+    setTargetOverride(Math.max(30, base + deltaSeconds))
+  }
+
+  /** Set (or clear, with null) the target for this rehearsal without editing the note. */
+  function setTargetOverride(seconds: number | null): void {
+    targetOverrideSeconds = seconds && seconds > 0 ? Math.round(seconds) : null
+    applyResolvedTarget()
+  }
+
+  /**
+   * Send the clock ANCHOR to the pop-out window, never the ticking value. Both windows share
+   * Date.now(), so each ticks locally from the same anchor and they cannot drift apart; a
+   * per-second broadcast would also fight the echo guard in handleBroadcastMessage.
+   */
+  function broadcastClockState(): void {
+    broadcastState({
+      sessionState,
+      clockSnapshot: rehearsalClock.snapshot(),
+      targetSeconds,
+      targetSource,
+    })
+  }
+
+  function updatePaceState(): void {
+    const state = computePaceState({
+      targetSeconds,
+      elapsedSeconds,
+      progress: scriptProgress,
+      progressValid,
+      previousStatus: paceStatus,
+    })
+    paceStatus = state.status
+    remainingSeconds = state.remainingSeconds
+    isTimeWarning = state.warning
+    isOvertime = state.overtime
+  }
 
   // Update words remaining when scrolling
   $effect(() => {
@@ -1376,7 +1579,12 @@
 
         if (!isSameFile) {
           hasUsedCountdown = false
-          debugLog('[Document] New document loaded - countdown flag reset')
+          // A different script is a different rehearsal: drop the clock and any toolbar target
+          // override, so the new note's own target applies.
+          targetOverrideSeconds = null
+          resetSession()
+          bumpProgressEpoch()
+          debugLog('[Document] New document loaded - countdown flag and rehearsal clock reset')
         }
 
         const savedPosition = scrollPositionPerNote.get(newPath)
@@ -1691,6 +1899,7 @@
       isCountingDown = false
       currentCountdown = 0
       startTimestamp = null // Pause timer
+      pauseSession()
       debugLog('[Play] Paused')
     } else {
       // Start playing
@@ -1732,6 +1941,7 @@
           debugLog('[Play] Starting playback immediately')
         }
         isPlaying = true
+        startSession()
         // Focus teleprompter so blur event fires when user clicks on editor (for auto-pause)
         focusTeleprompter()
       }
@@ -1758,6 +1968,8 @@
         setTimeout(() => {
           isCountingDown = false
           isPlaying = true
+          // Start the rehearsal clock HERE, not in togglePlay: the countdown is not speaking time.
+          startSession()
           // Focus teleprompter so blur event fires when user clicks on editor (for auto-pause)
           focusTeleprompter()
         }, 500)
@@ -2362,6 +2574,8 @@
         voiceTrackingActive = false
         voiceTrackingStatus = 'off'
         lastRecognizedText = ''
+        pauseSession()
+        broadcastState({ voiceTrackingActive })
         debugLog('[Voice] Voice tracking stopped')
       } else {
         // Start voice tracking
@@ -2450,6 +2664,10 @@
         // Start listening
         await voiceTrackingService.start()
         voiceTrackingActive = true
+        // The rehearsal clock runs on the SESSION, so it survives voice tracking stopping and
+        // restarting (which is what switching the pace preset does).
+        startSession()
+        broadcastState({ voiceTrackingActive })
         debugLog('[Voice] Voice tracking started')
       }
     } catch (error) {
@@ -2673,8 +2891,11 @@
       }
 
       await ttsService.play()
+      startSession()
     } else {
       await ttsService.togglePlayPause()
+      if (ttsPlaybackState === 'playing') startSession()
+      else pauseSession()
     }
   }
 
@@ -3172,8 +3393,11 @@
     }
     if (isPlaying) {
       isPlaying = false
+      pauseSession()
       debugLog('[Minimap] Paused playback due to manual navigation')
     }
+    // Position moved discontinuously — the pace verdict must not be trusted for a few seconds.
+    bumpProgressEpoch()
 
     const rect = minimapElement.getBoundingClientRect()
     const clickY = e.clientY - rect.top
@@ -3225,8 +3449,10 @@
     }
     if (isPlaying) {
       isPlaying = false
+      pauseSession()
       debugLog('[ProgressBar] Paused playback due to manual navigation')
     }
+    bumpProgressEpoch()
 
     contentArea.scrollTop = targetScroll
     debugLog(`[ProgressBar] Jumped to ${(clickPercentage * 100).toFixed(1)}% of document`)
@@ -3301,7 +3527,10 @@
       return
     }
 
-    // Auto-pause when user starts editing (clicks on editor)
+    // Auto-pause when user starts editing (clicks on editor). The clock pauses on the SESSION,
+    // not on isPlaying — otherwise leaving to edit a note would stop the clock in scroll mode
+    // and leave it running in voice mode, where isPlaying is already false.
+    if (autoPauseOnEdit) pauseSession()
     if (autoPauseOnEdit && isPlaying) {
       isPlaying = false
       debugLog('[AutoPause] Teleprompter paused - user clicked outside to edit')
@@ -3434,6 +3663,7 @@
       e.preventDefault()
       voiceTrackingService?.forceResync()
       lastRecognizedText = ''
+      bumpProgressEpoch()
       new Notice('Voice tracking: re-syncing — keep reading', 2000)
       debugLog('[Voice] Manual re-sync requested')
       return
@@ -3457,7 +3687,11 @@
 
       // Reset countdown flag when explicitly resetting to top
       hasUsedCountdown = false
-      debugLog('[Reset] Reset to top - countdown flag reset')
+      // Back to the top means a fresh rehearsal: the clock starts from zero, not from where
+      // the last run left it.
+      resetSession()
+      bumpProgressEpoch()
+      debugLog('[Reset] Reset to top - countdown flag and rehearsal clock reset')
     }
   }
 
@@ -3471,10 +3705,14 @@
         togglePlay()
         break
       case 'teleprompter:play':
+        // Remote starts (Stream Deck, phone, command palette) never started the clock before,
+        // because it was keyed on a timestamp only togglePlay ever set.
         if (!isPlaying) isPlaying = true
+        startSession()
         break
       case 'teleprompter:pause':
         if (isPlaying) isPlaying = false
+        pauseSession()
         break
       case 'teleprompter:increase-speed':
         speed = Math.min(speed + speedIncrement, settings.maxScrollSpeed || 10)
@@ -3911,7 +4149,10 @@
         toggleVoiceTracking()
         break
       case 'teleprompter:voice-resync':
-        if (voiceTrackingActive) voiceTrackingService?.forceResync()
+        if (voiceTrackingActive) {
+          voiceTrackingService?.forceResync()
+          bumpProgressEpoch()
+        }
         break
       // TTS commands
       case 'teleprompter:tts-toggle':
@@ -3978,6 +4219,12 @@
     plugin.broadcastState({
       isPlaying,
       speed,
+      // Rehearsal clock, so a phone or Stream Deck can show the time later.
+      targetSeconds,
+      elapsedSeconds,
+      remainingSeconds,
+      paceStatus,
+      sessionState,
       scrollPosition: contentArea?.scrollTop || 0,
       maxScroll: contentArea?.scrollHeight || 0,
       scrollPercentage: contentArea
@@ -4021,6 +4268,10 @@
       showNav: showNavigation,
       headerCount: headers().length,
       fontSize,
+      // Reading elapsedSeconds registers it as a dependency, so a running rehearsal pushes
+      // state once a second. Deliberate: without it the remote clock would sit stale until
+      // some other value happened to change.
+      elapsed: elapsedSeconds,
     }
 
     // Broadcast after a short debounce
@@ -4049,6 +4300,7 @@
       // Delay slightly to ensure content is loaded
       setTimeout(() => {
         isPlaying = true
+        startSession()
       }, 500)
     }
 
@@ -4293,6 +4545,18 @@
 
         // Apply received state changes
         if (data.isPlaying !== undefined) isPlaying = data.isPlaying
+        if (data.targetSeconds !== undefined) targetSeconds = data.targetSeconds
+        if (data.targetSource !== undefined) targetSource = data.targetSource
+        if (data.voiceTrackingActive !== undefined) voiceTrackingActive = data.voiceTrackingActive
+        if (data.clockSnapshot !== undefined) {
+          // Adopt the other window's anchor verbatim, then tick locally from it.
+          rehearsalClock.restore(data.clockSnapshot)
+          elapsedSeconds = rehearsalClock.elapsedSeconds
+        }
+        if (data.sessionState !== undefined) {
+          sessionState = data.sessionState
+          updatePaceState()
+        }
         if (data.speed !== undefined) speed = data.speed
         if (data.fontSize !== undefined) fontSize = data.fontSize
         if (data.showEyeline !== undefined) showEyeline = data.showEyeline
@@ -4534,9 +4798,13 @@
       }
       if (isPlaying) {
         isPlaying = false
+        pauseSession()
         broadcastState({ isPlaying: false })
         debugLog('[Navigation] Paused playback due to manual jump')
       }
+      // A section jump re-anchors the matcher, including backwards — the verdict goes quiet
+      // until speech settles rather than flipping to "behind" mid-sentence.
+      bumpProgressEpoch()
 
       // Scroll to header in teleprompter
       const offsetTop = element.offsetTop - contentArea.offsetTop
@@ -5521,7 +5789,63 @@
         </div>
       {:else if control.id === 'time-display'}
         <!-- Time Display -->
-        {#if showElapsedTime || showTimeEstimation}
+        {#if targetSeconds !== null}
+          <!-- Target mode: stage time against the target this script is budgeted for.
+               It replaces the WPM estimate rather than sitting beside it — two different
+               "remaining" numbers on screen at once is worse than none. -->
+          <div class="control-with-popup">
+            <button
+              class="time-display time-display-target"
+              class:large={largeTimeDisplay}
+              class:warning={isTimeWarning}
+              class:overtime={isOvertime}
+              class:behind={paceStatus === 'behind'}
+              class:ahead={paceStatus === 'ahead'}
+              onclick={toggleTargetPopup}
+              title={`Elapsed ${formatClock(elapsedSeconds)} of ${formatClock(targetSeconds)} (${targetSource}) — click to change the target`}
+            >
+              <span class="time-value elapsed">{formatClock(elapsedSeconds)}</span>
+              <span class="time-separator">/</span>
+              <span class="time-value remaining">{formatClock(remainingSeconds, { signed: true })}</span>
+              {#if paceStatus === 'behind' || paceStatus === 'ahead'}
+                <span class="pace-badge">{paceStatus === 'behind' ? 'atrasado' : 'adiantado'}</span>
+              {/if}
+            </button>
+            {#if showTargetPopup}
+              <div class="popup-slider popup-target">
+                <div class="color-picker-header">Tempo alvo</div>
+                <div class="target-value">{formatClock(targetSeconds)}</div>
+                <div class="target-steps">
+                  <button onclick={() => nudgeTarget(-300)} title="−5 min">−5m</button>
+                  <button onclick={() => nudgeTarget(-60)} title="−1 min">−1m</button>
+                  <button onclick={() => nudgeTarget(-30)} title="−30 s">−30s</button>
+                  <button onclick={() => nudgeTarget(30)} title="+30 s">+30s</button>
+                  <button onclick={() => nudgeTarget(60)} title="+1 min">+1m</button>
+                  <button onclick={() => nudgeTarget(300)} title="+5 min">+5m</button>
+                </div>
+                <div class="target-source">
+                  {targetSource === 'override' ? 'Ajustado agora' : targetSource === 'frontmatter' ? 'Definido na nota' : 'Padrão das configurações'}
+                </div>
+                <div class="popup-buttons">
+                  {#if targetOverrideSeconds !== null}
+                    <button onclick={() => setTargetOverride(null)} class="btn-close-popup">Voltar ao da nota</button>
+                  {/if}
+                  <button onclick={toggleTargetPopup} class="btn-close-popup">Fechar</button>
+                </div>
+              </div>
+            {/if}
+          </div>
+        {:else if showElapsedTime || showTimeEstimation}
+          <!-- No target on this script: offer one. Without this the target feature is only
+               reachable by editing frontmatter, which is not a discoverable path. -->
+          <div class="control-with-popup">
+            <button
+              class="btn-set-target icon-btn"
+              onclick={() => setTargetOverride(120)}
+              title="Definir tempo alvo para este ensaio (começa em 2:00)"
+              aria-label="Definir tempo alvo"
+            >⏱＋</button>
+          </div>
           {#if timeDisplayStyle === 'compact'}
             <!-- Compact: Click to toggle between elapsed/remaining -->
             <button
@@ -5601,13 +5925,6 @@
     <!-- Flex spacer separates the button stream from the right-aligned readout -->
     <div class="tp-spacer"></div>
 
-    <!-- Readout zone: the timer renders here as a status pill, not a button -->
-    {#if readoutControl && (showElapsedTime || showTimeEstimation)}
-      <div class="tp-zone tp-readout-zone" data-zone="readout">
-        {@render renderControl(readoutControl)}
-      </div>
-    {/if}
-
     <!-- ⋯ More overflow menu: progressive disclosure for low-frequency controls -->
     {#if moreMenuGroups.length > 0}
       <div class="control-with-popup tp-more">
@@ -5639,7 +5956,33 @@
 
   </div>
 
+  <!-- Readout row: its own strip under the buttons. Inside the button bar it competed for
+       width with every pinned icon and got clipped off the right edge in a narrow window. -->
+  {#if readoutControl && (showElapsedTime || showTimeEstimation || targetSeconds !== null)}
+    <div class="tp-readout-row" data-zone="readout">
+      {@render renderControl(readoutControl)}
+    </div>
+  {/if}
+
   <div class="main-content">
+    <!-- Rehearsal clock over the reading area. Anchored to .main-content (not the window) so it
+         never lands on the toolbar or behind the section panel, and mirrored with the same flip
+         as the script, because this screen feeds the prompter glass. -->
+    {#if targetSeconds !== null && sessionState !== 'idle' && showTimeOverlay}
+      <div
+        class="rehearsal-overlay"
+        class:warning={isTimeWarning}
+        class:overtime={isOvertime}
+        class:paused={sessionState === 'paused'}
+        style={`top: 12px; ${flipHorizontal ? 'left' : 'right'}: ${!flipHorizontal && showNavigation ? navigationWidth + 18 : 18}px; transform: ${flipHorizontal ? 'scaleX(-1) ' : ''}${flipVertical ? 'scaleY(-1)' : ''};`}
+      >
+        <span class="rehearsal-remaining">{formatClock(remainingSeconds, { signed: true })}</span>
+        <span class="rehearsal-meta">
+          {formatClock(elapsedSeconds)} / {formatClock(targetSeconds)}
+          {#if sessionState === 'paused'}· pausado{/if}
+        </span>
+      </div>
+    {/if}
     <div
       class="content-area"
       class:focus-mode-active={focusMode && showEyeline}
@@ -5694,7 +6037,7 @@
           </div>
 
           <!-- Time info -->
-          {#if showTimeEstimation && estimatedRemainingMinutes > 0}
+          {#if showTimeEstimation && targetSeconds === null && estimatedRemainingMinutes > 0}
             <div class="nav-progress-time">
               <span class="nav-progress-time-label">Est. remaining:</span>
               <span class="nav-progress-time-value">
@@ -5782,7 +6125,7 @@
       <!-- Progress info overlay -->
       <div class="progress-bar-info">
         <span class="progress-percentage">{scrollPercentage}%</span>
-        {#if showTimeEstimation && estimatedRemainingMinutes > 0}
+        {#if showTimeEstimation && targetSeconds === null && estimatedRemainingMinutes > 0}
           <span class="progress-time-remaining">
             {estimatedRemainingMinutes < 1 ? '< 1' : Math.round(estimatedRemainingMinutes)} min left
           </span>
@@ -5911,7 +6254,8 @@
     padding: 0.75rem;
     border-bottom: 1px solid var(--background-modifier-border);
     align-items: center;
-    /* Redesigned bar never wraps to a second row — overflow goes to ⋯ More. */
+    /* Redesigned bar never wraps to a second row — overflow goes to ⋯ More.
+       The clock is no longer in here at all: it has its own strip below (.tp-readout-row). */
     flex-wrap: nowrap;
     background: var(--background-primary);
     position: relative;
@@ -5944,6 +6288,20 @@
 
   .tp-readout-zone {
     flex: 0 0 auto;
+  }
+
+  /* Its own strip under the buttons: the clock stays fully visible however many icons are
+     pinned, and the button bar keeps its original no-wrap layout. */
+  .tp-readout-row {
+    display: flex;
+    justify-content: flex-end;
+    align-items: center;
+    padding: 0.35rem 0.75rem;
+    border-bottom: 1px solid var(--background-modifier-border);
+    background: var(--background-primary);
+    flex-shrink: 0;
+    position: relative;
+    z-index: 9;
   }
 
   .tp-more {
@@ -6295,6 +6653,162 @@
     color: var(--text-muted);
   }
 
+  /* ===== Target mode: elapsed / remaining against the script's budgeted duration ===== */
+  .time-display-target {
+    gap: 0.35rem;
+    border-color: var(--background-modifier-border);
+  }
+
+  /* Readable from presenting distance without taking the toolbar over. */
+  .time-display-target.large {
+    font-size: 1.45rem;
+    padding: 0.45rem 0.9rem;
+  }
+
+  .time-display-target .time-value.elapsed {
+    color: var(--text-normal);
+  }
+
+  .time-display-target .time-value.remaining {
+    color: var(--interactive-accent);
+  }
+
+  /* Amber inside the warning band, red once the target is passed. Colour is a background
+     wash rather than a flashing animation — this sits in frame while he is presenting. */
+  .time-display-target.warning {
+    background: rgba(224, 168, 0, 0.18);
+    border-color: rgba(224, 168, 0, 0.55);
+  }
+
+  .time-display-target.warning .time-value.remaining {
+    color: #e0a800;
+  }
+
+  .time-display-target.overtime {
+    background: rgba(220, 70, 70, 0.2);
+    border-color: rgba(220, 70, 70, 0.6);
+  }
+
+  .time-display-target.overtime .time-value.remaining {
+    color: #dc4646;
+  }
+
+  .pace-badge {
+    font-size: 0.65em;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    padding: 0.1em 0.4em;
+    border-radius: 6px;
+    background: var(--background-modifier-border);
+    color: var(--text-muted);
+  }
+
+  .time-display-target.behind .pace-badge {
+    background: rgba(220, 70, 70, 0.22);
+    color: #dc4646;
+  }
+
+  .time-display-target.ahead .pace-badge {
+    background: rgba(70, 160, 220, 0.22);
+    color: #46a0dc;
+  }
+
+  /* Clock over the reading area: big enough to read at distance, translucent so it never
+     hides a line of script, and out of the way of pointer events. */
+  .rehearsal-overlay {
+    position: absolute;
+    /* top / left / right and the mirror transform come from the style attribute: they depend on
+       the section panel's live width and on the prompter flip. */
+    z-index: 40;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 0.1rem;
+    padding: 0.4rem 0.8rem;
+    border-radius: 12px;
+    background: rgba(0, 0, 0, 0.55);
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    backdrop-filter: blur(4px);
+    pointer-events: none;
+    font-variant-numeric: tabular-nums;
+    font-family: 'SF Mono', 'Monaco', 'Consolas', monospace;
+  }
+
+  .rehearsal-remaining {
+    font-size: 2rem;
+    font-weight: 700;
+    line-height: 1;
+    color: #ffffff;
+  }
+
+  .rehearsal-meta {
+    font-size: 0.75rem;
+    color: rgba(255, 255, 255, 0.68);
+  }
+
+  .rehearsal-overlay.warning .rehearsal-remaining {
+    color: #ffc233;
+  }
+
+  .rehearsal-overlay.overtime {
+    background: rgba(120, 20, 20, 0.6);
+    border-color: rgba(255, 90, 90, 0.5);
+  }
+
+  .rehearsal-overlay.overtime .rehearsal-remaining {
+    color: #ff6b6b;
+  }
+
+  .rehearsal-overlay.paused {
+    opacity: 0.6;
+  }
+
+  .btn-set-target {
+    font-size: 0.85rem;
+    letter-spacing: -0.05em;
+  }
+
+  .popup-target {
+    min-width: 220px;
+    text-align: center;
+  }
+
+  .target-value {
+    font-size: 1.6rem;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    margin: 0.35rem 0 0.5rem;
+    color: var(--interactive-accent);
+  }
+
+  .target-steps {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 0.25rem;
+    margin-bottom: 0.5rem;
+  }
+
+  .target-steps button {
+    padding: 0.3rem 0.2rem;
+    border-radius: 6px;
+    border: 1px solid var(--background-modifier-border);
+    background: var(--background-secondary);
+    color: var(--text-normal);
+    font-size: 0.8rem;
+    cursor: pointer;
+  }
+
+  .target-steps button:hover {
+    background: var(--background-modifier-hover);
+  }
+
+  .target-source {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    margin-bottom: 0.4rem;
+  }
+
   .time-separator {
     color: var(--text-muted);
     opacity: 0.5;
@@ -6305,6 +6819,8 @@
     flex: 1 1 0;
     min-height: 0;
     overflow: hidden;
+    /* Anchor for the rehearsal clock overlay. */
+    position: relative;
   }
 
   .navigation-panel {
