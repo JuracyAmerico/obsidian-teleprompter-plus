@@ -204,6 +204,12 @@ export interface TeleprompterState {
 	// Voice tracking state
 	voiceTrackingActive?: boolean
 	voiceTrackingStatus?: 'off' | 'initializing' | 'listening' | 'error'
+	// Rehearsal clock. All optional, so older remotes keep parsing state they don't know about.
+	targetSeconds?: number | null
+	elapsedSeconds?: number
+	remainingSeconds?: number // Signed: negative once the target is passed
+	paceStatus?: 'ahead' | 'on-track' | 'behind' | 'over' | 'unknown'
+	sessionState?: 'idle' | 'running' | 'paused' | 'finished'
 	timestamp: number // When this state was captured
 }
 

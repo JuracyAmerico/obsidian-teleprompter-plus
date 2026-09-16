@@ -5,6 +5,12 @@ import { ConfirmModal } from './confirm-modal'
 import { PromptModal } from './prompt-modal'
 import { resolveControlIcon, type IconStyle } from './icon-vocabulary'
 import { redactSecrets } from './settings-secrets'
+import { formatClock, parseTargetTime } from './timing/speech-timer'
+
+/** Settings-field text for a stored target: empty when there is no default. */
+function formatTargetSetting(seconds: number): string {
+	return seconds > 0 ? formatClock(seconds) : ''
+}
 
 // Hotkey action names
 export type HotkeyAction =
@@ -124,6 +130,11 @@ export interface TeleprompterSettings {
 	showTimeEstimation: boolean
 	showElapsedTime: boolean
 	timeDisplayStyle: 'compact' | 'full' // compact = toggle, full = both times
+	// Rehearsal target: fallback when a note has no `target-time:` in its frontmatter.
+	// 0 = no default target (the clock still counts up).
+	defaultTargetSeconds: number
+	largeTimeDisplay: boolean // Bigger clock, readable from presenting distance
+	showTimeOverlay: boolean // Clock over the script itself, not only in the toolbar
 	// Transparency settings
 	backgroundOpacity: number // 0-100 (0 = fully transparent, 100 = opaque)
 	enableBackgroundTransparency: boolean
@@ -263,6 +274,9 @@ export const DEFAULT_SETTINGS: TeleprompterSettings = {
 	showTimeEstimation: true,
 	showElapsedTime: true,
 	timeDisplayStyle: 'compact', // compact = toggle between elapsed/remaining, full = show both
+	defaultTargetSeconds: 0, // No target unless the note declares one
+	largeTimeDisplay: false,
+	showTimeOverlay: true,
 	// Transparency settings
 	backgroundOpacity: 100, // Fully opaque by default
 	enableBackgroundTransparency: false,
@@ -1272,6 +1286,39 @@ export class TeleprompterSettingTab extends PluginSettingTab {
 						onChange: (value) => {
 							this.plugin.settings.speakingPaceWPM = value as number
 							void this.plugin.saveSettings()
+						}
+					},
+					{
+						name: 'Default target duration',
+						desc: 'Fallback when a note has no target-time in its frontmatter. Accepts 2:00, 90s, 45m or 1:30:00. Leave empty for no target.',
+						type: 'text',
+						value: formatTargetSetting(this.plugin.settings.defaultTargetSeconds),
+						onChange: (value) => {
+							this.plugin.settings.defaultTargetSeconds = parseTargetTime(value as string) ?? 0
+							void this.plugin.saveSettings()
+							document.dispatchEvent(new CustomEvent('teleprompter:timing-changed'))
+						}
+					},
+					{
+						name: 'Clock over the script',
+						desc: 'Show the rehearsal clock on top of the text, where your eyes already are (only when a target is set)',
+						type: 'toggle',
+						value: this.plugin.settings.showTimeOverlay,
+						onChange: (value) => {
+							this.plugin.settings.showTimeOverlay = value as boolean
+							void this.plugin.saveSettings()
+							document.dispatchEvent(new CustomEvent('teleprompter:timing-changed'))
+						}
+					},
+					{
+						name: 'Large time display',
+						desc: 'Bigger clock in the toolbar, readable from presenting distance',
+						type: 'toggle',
+						value: this.plugin.settings.largeTimeDisplay,
+						onChange: (value) => {
+							this.plugin.settings.largeTimeDisplay = value as boolean
+							void this.plugin.saveSettings()
+							document.dispatchEvent(new CustomEvent('teleprompter:timing-changed'))
 						}
 					}
 				]
