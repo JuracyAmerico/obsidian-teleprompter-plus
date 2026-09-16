@@ -931,6 +931,7 @@
   let scriptProgress = $state(0)                           // 0..1, voice word index when available
   let progressValid = $state(false)
   let progressEpoch = 0                                    // bumped by jumps/resyncs: position is stale
+  let rehearsalStartWordIndex = 0                          // practising one section starts progress there
   let progressHighWater = 0                                // progress never walks backwards within an epoch
   let progressSettleUntil = 0                              // wall-clock ms; verdict suppressed until then
 
@@ -1342,7 +1343,13 @@
 
     if (voiceTrackingActive && voiceTrackingService) {
       const total = voiceTrackingService.getTotalWords()
-      if (total > 0) sampled = voiceTrackingService.getCurrentWordIndex() / total
+      // Measured over the stretch actually being rehearsed: from the section he started at to
+      // the end of the script.
+      const remainingWords = total - rehearsalStartWordIndex
+      if (remainingWords > 0) {
+        const spoken = voiceTrackingService.getCurrentWordIndex() - rehearsalStartWordIndex
+        sampled = spoken / remainingWords
+      }
     } else if (contentArea) {
       const scrollable = contentArea.scrollHeight - contentArea.clientHeight
       if (scrollable > 0) sampled = contentArea.scrollTop / scrollable
@@ -1366,6 +1373,18 @@
     targetSource = resolved.source
     updatePaceState()
     broadcastClockState()
+  }
+
+  /**
+   * Picking a section IS starting that section's rehearsal: the clock goes back to the full
+   * target and progress is measured from the chosen heading, not from the top of the note.
+   * Without this, practising section 4 of 6 would start at "60% done" against a clock already
+   * part-spent — neither number would mean anything.
+   */
+  function setRehearsalStart(wordIndex: number): void {
+    rehearsalStartWordIndex = Math.max(0, wordIndex)
+    resetSession()
+    debugLog('[Time] Rehearsal restarts at word', rehearsalStartWordIndex, '— clock back to', targetSeconds)
   }
 
   function toggleTargetPopup(): void {
@@ -1579,9 +1598,10 @@
 
         if (!isSameFile) {
           hasUsedCountdown = false
-          // A different script is a different rehearsal: drop the clock and any toolbar target
-          // override, so the new note's own target applies.
+          // A different script is a different rehearsal: drop the clock, the section scope and
+          // any toolbar target override, so the new note's own target applies.
           targetOverrideSeconds = null
+          rehearsalStartWordIndex = 0
           resetSession()
           bumpProgressEpoch()
           debugLog('[Document] New document loaded - countdown flag and rehearsal clock reset')
@@ -3687,8 +3707,9 @@
 
       // Reset countdown flag when explicitly resetting to top
       hasUsedCountdown = false
-      // Back to the top means a fresh rehearsal: the clock starts from zero, not from where
-      // the last run left it.
+      // Back to the top means a fresh rehearsal of the whole script: clock to zero and the
+      // section scope dropped.
+      rehearsalStartWordIndex = 0
       resetSession()
       bumpProgressEpoch()
       debugLog('[Reset] Reset to top - countdown flag and rehearsal clock reset')
@@ -4851,10 +4872,14 @@
       // If voice tracking is listening, move its attention to this section too, so it follows your
       // voice from here instead of staying locked on the section you left. We anchor on the heading's
       // first tracked word (a hair before the body, which is safe — matching is forward-only).
-      if (voiceTrackingActive && voiceTrackingService) {
-        const wordIndex = firstTrackedWordIndexAtOrAfter(element)
-        if (wordIndex >= 0) voiceTrackingService.seekToWord(wordIndex)
+      const jumpWordIndex = firstTrackedWordIndexAtOrAfter(element)
+      if (voiceTrackingActive && voiceTrackingService && jumpWordIndex >= 0) {
+        voiceTrackingService.seekToWord(jumpWordIndex)
       }
+      // Restart the rehearsal from this heading whether or not the mic is on — picking a
+      // section is how he starts practising it. Without word spans (voice off) the scope falls
+      // back to the top and progress comes from scroll position instead.
+      setRehearsalStart(jumpWordIndex >= 0 ? jumpWordIndex : 0)
 
       // Also jump to the heading in the note's editor pane, without taking focus.
       syncToEditor(headerId)
