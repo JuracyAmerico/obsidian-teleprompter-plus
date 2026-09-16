@@ -68,6 +68,30 @@ export function extractBibPath(text: string): string | null {
 	return null
 }
 
+/**
+ * Read the rehearsal target duration from a note's frontmatter.
+ *
+ * Accepts `target-time:` and the `teleprompter-target:` alias, anywhere in the frontmatter
+ * block. The value itself is parsed by `parseTargetTime` (src/timing/speech-timer.ts) — this
+ * function only locates the line and hands over the raw text.
+ *
+ * Unlike extractBibPath, a commented key (`# target-time: 5:00`) is ignored: a commented-out
+ * target that silently took effect would put a wrong number on screen mid-presentation.
+ */
+export function extractTargetTime(text: string): string | null {
+	const match = text.match(/^---\r?\n([\s\S]*?)\r?\n---/)
+	if (!match) return null
+
+	for (const line of match[1].split('\n')) {
+		const keyed = line.match(/^[ \t]*(target-time|teleprompter-target)[ \t]*:[ \t]*(.+?)[ \t]*$/i)
+		if (!keyed) continue
+		// Strip surrounding quotes; YAML allows "2:00" and '2:00' as well as bare 2:00.
+		const value = keyed[2].replace(/^["']|["']$/g, '').trim()
+		if (value) return value
+	}
+	return null
+}
+
 /** Strip raw format blocks ({=openxml}, {=latex}, {=html}) */
 function stripRawBlocks(text: string): string {
 	// Pandoc raw blocks: ```{=format}\n...\n```
