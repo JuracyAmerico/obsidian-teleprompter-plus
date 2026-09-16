@@ -13,6 +13,7 @@ import type {
   WordPosition
 } from './types'
 import { tokenize, cleanWord } from './word-tokenizer'
+import { normalizeForSpeech } from '../parser/speech-normalizer'
 import { findNextPosition, findGlobalPosition, type SpeechMatcherConfig } from './speech-matcher'
 import { VoskRecognizer } from './vosk-recognizer'
 import { AppleSpeechRecognizer } from './apple-speech-recognizer'
@@ -721,7 +722,14 @@ export class VoiceTrackingService {
    * Uses turn-based scrolling: accumulates matches during active speech,
    * only scrolls when we have consistent matches.
    */
-  private handleRecognitionResult(text: string, isFinal: boolean): void {
+  private handleRecognitionResult(rawText: string, isFinal: boolean): void {
+    // Speech recognizers return numbers as DIGITS ("$759", "2:24", "30%") while a teleprompter
+    // script spells them out ("seven hundred and fifty-nine dollars") — which is exactly what a
+    // script written to be READ ALOUD should do. Those two never match token-for-token, so a
+    // number-dense passage stalls the matcher while the mic keeps listening. Normalising the
+    // heard text into the script's spoken form puts both sides in the same alphabet.
+    // The DOM script is deliberately left untouched: word indices map to spans for highlighting.
+    const text = normalizeForSpeech(rawText)
     this.lastRecognizedText = text
     this.onRecognizedText?.(text, isFinal)
 
