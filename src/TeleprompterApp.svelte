@@ -928,6 +928,10 @@
   let showTargetPopup = $state(false)
   let largeTimeDisplay = $state(settings.largeTimeDisplay ?? false)
   let showTimeOverlay = $state(settings.showTimeOverlay !== false) // on by default when a target exists
+  // Voice diagnostics: writes every recognizer result and matcher decision to
+  // .obsidian/plugins/teleprompter-plus/voice-trace.jsonl. Off unless explicitly turned on.
+  const voiceTraceEnabled = settings.voiceTrace === true
+  const viewId = Math.random().toString(36).slice(2, 7)
   let scriptProgress = $state(0)                           // 0..1, voice word index when available
   let progressValid = $state(false)
   let progressEpoch = 0                                    // bumped by jumps/resyncs: position is stale
@@ -1796,6 +1800,25 @@
     debugLog('[Time] Total word count:', totalWordCount)
   }
 
+  /**
+   * Append one diagnostic line to a JSONL file in the plugin folder. Voice tracking failures
+   * are invisible from outside the app — this is how a stalled rehearsal gets traced after the
+   * fact instead of reasoned about.
+   */
+  function writeTraceLine(fileName: string, type: string, data: Record<string, unknown>) {
+    try {
+      const fs = require('fs') as FsModule
+      const path = require('path') as PathModule
+      const adapter = app.vault.adapter as { basePath?: string }
+      if (!adapter.basePath) return
+      const logFile = path.join(adapter.basePath, app.vault.configDir, 'plugins', 'teleprompter-plus', fileName)
+      // viewId distinguishes concurrent teleprompter views sharing one voice service.
+      fs.appendFileSync(logFile, JSON.stringify({ t: new Date().toISOString(), view: viewId, type, ...data }) + '\n', 'utf8')
+    } catch {
+      /* diagnostics must never break a rehearsal */
+    }
+  }
+
   // Write error log to file for debugging
   function writeErrorLog(errorType: string, errorData: Record<string, unknown>) {
     try {
@@ -2598,6 +2621,12 @@
         broadcastState({ voiceTrackingActive })
         debugLog('[Voice] Voice tracking stopped')
       } else {
+        // A view with no script must not take over the shared voice service — it would hand the
+        // recognizer an empty document and kill tracking in the view that does have the note.
+        if (!content || !content.trim()) {
+          debugLog('[Voice] No script in this view — ignoring voice start')
+          return
+        }
         // Start voice tracking
         voiceTrackingStatus = 'initializing'
 
@@ -2638,13 +2667,25 @@
 
         // Set up callbacks
         voiceTrackingService.onStatusChange = (status: string) => {
+          if (voiceTraceEnabled) writeTraceLine('voice-trace.jsonl', 'status', { status })
+          // The clock follows the microphone itself, not the code path that turned it on, so a
+          // stop/start cycle (or a pace-preset restart) resumes the rehearsal instead of leaving
+          // it frozen at "pausado".
+          if (status === 'listening') startSession()
+          else if (status === 'off' || status === 'error') pauseSession()
           voiceTrackingStatus = status as typeof voiceTrackingStatus
           debugLog(`[Voice] Status: ${status}`)
         }
 
         voiceTrackingService.onRecognizedText = (text: string, isFinal: boolean) => {
           lastRecognizedText = text
+          if (voiceTraceEnabled) writeTraceLine('voice-trace.jsonl', 'heard', { final: isFinal, text })
           debugLog(`[Voice] Recognized (${isFinal ? 'final' : 'partial'}): ${text}`)
+        }
+
+        // Matcher decisions, written to voice-trace.jsonl when tracing is on.
+        voiceTrackingService.onDiagnostic = (event: string, data: Record<string, unknown>) => {
+          if (voiceTraceEnabled) writeTraceLine('voice-trace.jsonl', event, data)
         }
 
         voiceTrackingService.onWordMatch = (wordIndex: number, scrollPosition: number) => {
@@ -4246,6 +4287,10 @@
       remainingSeconds,
       paceStatus,
       sessionState,
+      // Voice state travels with every broadcast, not only in reply to get-voice-status —
+      // otherwise a remote (or a diagnostic) cannot tell listening from stalled.
+      voiceTrackingActive,
+      voiceTrackingStatus,
       scrollPosition: contentArea?.scrollTop || 0,
       maxScroll: contentArea?.scrollHeight || 0,
       scrollPercentage: contentArea

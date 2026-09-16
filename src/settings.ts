@@ -135,6 +135,7 @@ export interface TeleprompterSettings {
 	defaultTargetSeconds: number
 	largeTimeDisplay: boolean // Bigger clock, readable from presenting distance
 	showTimeOverlay: boolean // Clock over the script itself, not only in the toolbar
+	voiceTrace?: boolean // Write voice recognition + matcher decisions to voice-trace.jsonl (diagnostics)
 	// Transparency settings
 	backgroundOpacity: number // 0-100 (0 = fully transparent, 100 = opaque)
 	enableBackgroundTransparency: boolean
