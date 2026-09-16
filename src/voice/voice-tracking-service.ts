@@ -190,6 +190,11 @@ export class VoiceTrackingService {
   private readonly MATCH_ACCUMULATOR_SIZE = 2   // consistent matches before scrolling (rejects single overshoots, stays responsive)
 
   // Callbacks
+  /**
+   * Diagnostic tap: every matcher decision, so a stalled rehearsal can be traced from a log
+   * file instead of guessed at. Off unless the host assigns a handler.
+   */
+  onDiagnostic?: (_event: string, _data: Record<string, unknown>) => void
   onPauseChange?: (_isPaused: boolean) => void
   onWordMatch?: (_wordIndex: number, _scrollPosition: number) => void
   onStatusChange?: (_status: VoiceTrackingStatus) => void
@@ -244,8 +249,27 @@ export class VoiceTrackingService {
    */
   initialize(content: string, contentArea: HTMLElement): void {
     // Tokenize the content
-    this.tokens = tokenize(content)
-    this.wordTokens = this.tokens.filter(t => t.type === 'TOKEN')
+    const nextTokens = tokenize(content)
+    const nextWords = nextTokens.filter(t => t.type === 'TOKEN')
+
+    // The service is a singleton shared by every open teleprompter view. A view with no note
+    // loaded would otherwise wipe a working script to zero words: the recognizer keeps hearing
+    // you, the matcher has nothing to match against, and tracking silently dies. Measured
+    // 2026-09-16: 1087 words on the first run, 0 after a second view re-initialized it.
+    this.onDiagnostic?.('init', {
+      incomingWords: nextWords.length,
+      hadWords: this.wordTokens.length,
+      contentChars: content.length,
+      domChars: contentArea?.textContent?.length ?? -1,
+    })
+
+    if (nextWords.length === 0 && this.wordTokens.length > 0) {
+      this.onDiagnostic?.('init-ignored', { reason: 'empty-content', keptWords: this.wordTokens.length })
+      return
+    }
+
+    this.tokens = nextTokens
+    this.wordTokens = nextWords
 
     // Build a grammar from the script vocabulary and keep the recognizer in sync
     // (handles switching documents without reloading the Vosk model).
@@ -282,10 +306,18 @@ export class VoiceTrackingService {
       return
     }
 
-    // Re-tokenize from DOM content for accurate matching
+    // Re-tokenize from DOM content for accurate matching. Same guard as initialize(): an empty
+    // content area belongs to a view with no script, and must never replace a working map.
     const domText = this.contentArea.textContent || ''
-    this.tokens = tokenize(domText)
-    this.wordTokens = this.tokens.filter(t => t.type === 'TOKEN')
+    const domTokens = tokenize(domText)
+    const domWords = domTokens.filter(t => t.type === 'TOKEN')
+    this.onDiagnostic?.('dom-map', { domWords: domWords.length, hadWords: this.wordTokens.length })
+    if (domWords.length === 0 && this.wordTokens.length > 0) {
+      this.onDiagnostic?.('dom-map-ignored', { reason: 'empty-content-area', keptWords: this.wordTokens.length })
+      return
+    }
+    this.tokens = domTokens
+    this.wordTokens = domWords
 
     // If karaoke is disabled, use simple position estimation
     if (!ENABLE_KARAOKE_HIGHLIGHTING) {
@@ -309,6 +341,19 @@ export class VoiceTrackingService {
     }
 
     // === KARAOKE MODE: Wrap words in spans ===
+    // A previous session leaves its .voice-word spans in the DOM — stop() keeps them so a
+    // restart is cheap. But the walker below REJECTS text already inside a .voice-word, so on
+    // the second start it would find zero text nodes, rebuild zero tokens, and (by the
+    // unconditional assignment further down) wipe the script the matcher needs. That is the
+    // "works the first time, dead after re-enabling the mic" failure: measured 2026-09-16,
+    // 1087 words at 22:39:27, 0 words three seconds later, recognizer still listening.
+    // Unwrap first so every start begins from clean text.
+    const staleSpans = this.contentArea.querySelectorAll('.voice-word')
+    if (staleSpans.length > 0) {
+      this.onDiagnostic?.('unwrap-before-rewrap', { staleSpans: staleSpans.length })
+      this.unwrapWords()
+    }
+
     // Skip elements that shouldn't be processed (code blocks, etc.)
     const skipSelectors = 'pre, code, .embedded-note, script, style'
 
@@ -403,6 +448,11 @@ export class VoiceTrackingService {
     // skipped selectors (one big code block / embedded note) legitimately has zero matchable words,
     // and keeping the stale code-inclusive list here would silently re-introduce the span↔token
     // drift this rebuild exists to kill (matcher would index words that have no spans).
+    if (rebuiltTokens.length === 0 && this.wordTokens.length > 0) {
+      // Legitimate only when the whole body sits inside skipped selectors. Anything else is the
+      // stale-span failure above, so it must be visible instead of silently killing tracking.
+      this.onDiagnostic?.('rebuild-empty', { lost: this.wordTokens.length, textNodes: textNodes.length })
+    }
     this.wordTokens = rebuiltTokens
 
     // Update offsetTop values after DOM is modified
@@ -415,6 +465,7 @@ export class VoiceTrackingService {
     })
 
     this.isInitialized = true
+    this.onDiagnostic?.('wrapped', { words: this.wordTokens.length, spans: this.wordSpans.size })
   }
 
   /**
@@ -809,6 +860,20 @@ export class VoiceTrackingService {
     // Calculate jump distance
     const jumpDistance = newIndex - this.currentWordIndex
 
+    this.onDiagnostic?.('match', {
+      final: isFinal,
+      heard: text.split(/\s+/).filter(Boolean).slice(-8).join(' '),
+      cur: this.currentWordIndex,
+      curWord: this.wordTokens[this.currentWordIndex]?.value ?? '?',
+      proposed: newIndex,
+      proposedWord: this.wordTokens[newIndex]?.value ?? '?',
+      jump: jumpDistance,
+      global: isGlobalMatch,
+      inTurn: this.isInSpeechTurn,
+      fails: this.consecutiveFailedMatches,
+      total: this.wordTokens.length,
+    })
+
     if (DEBUG_VOICE_MATCH) {
       const heardTail = text.split(/\s+/).filter(Boolean).slice(-6).join(' ')
       const matchedWord = this.wordTokens[newIndex]?.value ?? '?'
@@ -886,6 +951,7 @@ export class VoiceTrackingService {
     // === TURN-BASED SCROLLING ===
     // Only process if we're in an active speech turn
     if (!this.isInSpeechTurn) {
+      this.onDiagnostic?.('held', { reason: 'not-in-speech-turn', cur: this.currentWordIndex, proposed: newIndex })
       return
     }
 
