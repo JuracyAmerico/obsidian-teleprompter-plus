@@ -207,13 +207,16 @@ export class VoiceTrackingService {
    *
    * @param config - Configuration options
    */
-  constructor(config: Partial<VoiceTrackingConfig> = {}) {
+  constructor(
+    config: Partial<VoiceTrackingConfig> = {},
+    recognizer?: VoskRecognizer | AppleSpeechRecognizer,
+  ) {
     this.config = { ...DEFAULT_CONFIG, ...config }
     // Engine selection: Apple on-device Speech (macOS, far more accurate) when available,
     // else Vosk (offline model, cross-platform). 'auto' prefers Apple when supported.
     const wantApple = this.config.engine === 'apple' ||
       (this.config.engine !== 'vosk' && AppleSpeechRecognizer.isSupported())
-    this.recognizer = wantApple ? new AppleSpeechRecognizer() : new VoskRecognizer()
+    this.recognizer = recognizer ?? (wantApple ? new AppleSpeechRecognizer() : new VoskRecognizer())
 
     // Wire up recognizer events
     this.recognizer.onResult((text, isFinal) => {

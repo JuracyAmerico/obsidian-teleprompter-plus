@@ -31,6 +31,8 @@
   import { marked } from 'marked'
   import { VOICE_TRACKING_PRESETS, type VoiceTrackingPacePreset } from './settings'
   import type { VoiceTrackingService } from './voice'
+  import { applyPresetLive } from './voice/preset-apply'
+  import { isVoiceEngaged, nextVoiceUiState, voiceFailureText } from './voice/voice-ui-state'
   import { TTSService } from './tts'
   import type { TTSState, TTSPlaybackState, TTSVoice } from './tts'
   import { resolveCitations, loadBibliography } from './parser/citation-resolver'
@@ -2585,13 +2587,9 @@
     // Save settings
     plugin.saveSettings()
 
-    // If voice tracking is active, restart it with new settings
-    if (voiceTrackingActive && voiceTrackingService) {
-      voiceTrackingService.stop()
-      voiceTrackingActive = false
-      // Give it a moment then restart
-      setTimeout(() => toggleVoiceTracking(), 100)
-    }
+    // A live session picks the new tuning up in place. Restarting would respawn the speech helper
+    // and reset the reader to the top of the script.
+    applyPresetLive(voiceTrackingService, presetName)
 
     debugLog(`[Voice] Applied preset: ${presetName}`)
     showVoiceSettings = false
@@ -2599,6 +2597,33 @@
 
   function toggleVoiceSettings() {
     showVoiceSettings = !showVoiceSettings
+  }
+
+  // A voice start that fails must say so and say how to fix it: the state goes back to inactive and
+  // a notice stays on screen until the user dismisses it or tracking comes up.
+  let voiceErrorNotice: Notice | null = null
+  function reportVoiceFailure(message: string): void {
+    voiceTrackingStatus = 'error'
+    if (voiceTrackingActive) {
+      voiceTrackingActive = false
+      broadcastState({ voiceTrackingActive })
+    }
+    pauseSession()
+    voiceErrorNotice?.hide()
+    const fragment = document.createDocumentFragment()
+    const text = document.createElement('div')
+    text.textContent = voiceFailureText(message)
+    fragment.appendChild(text)
+    const retry = document.createElement('button')
+    retry.textContent = 'Retry'
+    fragment.appendChild(retry)
+    const notice = new Notice(fragment, 0)
+    retry.addEventListener('click', () => {
+      notice.hide()
+      voiceTrackingStatus = 'off'
+      void toggleVoiceTracking()
+    })
+    voiceErrorNotice = notice
   }
 
   // Voice tracking toggle
@@ -2609,8 +2634,8 @@
     }
 
     try {
-      if (voiceTrackingActive) {
-        // Stop voice tracking
+      if (isVoiceEngaged({ active: voiceTrackingActive, status: voiceTrackingStatus })) {
+        // Stop voice tracking (also cancels a start that has not reached 'listening' yet)
         if (voiceTrackingService) {
           voiceTrackingService.stop()
         }
@@ -2635,7 +2660,7 @@
 
         // Check if voice tracking is supported
         if (!VoiceTrackingService.isSupported()) {
-          voiceTrackingStatus = 'error'
+          reportVoiceFailure('Voice tracking is not supported in this environment.')
           debugLog('[Voice] Voice tracking not supported in this browser')
           return
         }
@@ -2673,7 +2698,13 @@
           // it frozen at "pausado".
           if (status === 'listening') startSession()
           else if (status === 'off' || status === 'error') pauseSession()
-          voiceTrackingStatus = status as typeof voiceTrackingStatus
+          // "Active" follows the engine: true only once it reports listening.
+          const next = nextVoiceUiState(status as typeof voiceTrackingStatus)
+          const wasActive = voiceTrackingActive
+          voiceTrackingStatus = next.status
+          voiceTrackingActive = next.active
+          if (wasActive !== next.active) broadcastState({ voiceTrackingActive })
+          if (next.status === 'listening') voiceErrorNotice?.hide()
           debugLog(`[Voice] Status: ${status}`)
         }
 
@@ -2698,7 +2729,7 @@
 
         voiceTrackingService.onError = (error: string, message: string) => {
           console.error(`[Voice] Error: ${error} - ${message}`)
-          voiceTrackingStatus = 'error'
+          reportVoiceFailure(message)
         }
 
         voiceTrackingService.onProgress = (loaded: number, total: number) => {
@@ -2723,18 +2754,18 @@
         }
 
         // Start listening
+        // Starting only spawns the speech helper. Whether tracking is active is decided by the
+        // engine's status callback ('listening'), never assumed here.
         await voiceTrackingService.start()
-        voiceTrackingActive = true
-        // The rehearsal clock runs on the SESSION, so it survives voice tracking stopping and
-        // restarting (which is what switching the pace preset does).
-        startSession()
-        broadcastState({ voiceTrackingActive })
-        debugLog('[Voice] Voice tracking started')
+        debugLog('[Voice] Voice tracking start requested')
       }
     } catch (error) {
       console.error('[Voice] Failed to toggle voice tracking:', error)
-      voiceTrackingStatus = 'error'
-      voiceTrackingActive = false
+      // The engine usually reported the detailed cause through onError already; don't replace it
+      // with the terse exception text.
+      if (voiceTrackingStatus !== 'error') {
+        reportVoiceFailure(error instanceof Error ? error.message : String(error))
+      }
     }
   }
 
@@ -4202,10 +4233,10 @@
         break
       // Voice tracking commands
       case 'teleprompter:voice-start':
-        if (!voiceTrackingActive) toggleVoiceTracking()
+        if (!isVoiceEngaged({ active: voiceTrackingActive, status: voiceTrackingStatus })) toggleVoiceTracking()
         break
       case 'teleprompter:voice-stop':
-        if (voiceTrackingActive) toggleVoiceTracking()
+        if (isVoiceEngaged({ active: voiceTrackingActive, status: voiceTrackingStatus })) toggleVoiceTracking()
         break
       case 'teleprompter:voice-toggle':
         toggleVoiceTracking()
@@ -4693,11 +4724,12 @@
       // Stop listening when the view goes away. Nothing did this before, so closing the
       // teleprompter left the speech sidecar running with the microphone open, and a stale
       // view kept answering voice events with an empty script.
-      if (voiceTrackingActive && voiceTrackingService) {
+      if (isVoiceEngaged({ active: voiceTrackingActive, status: voiceTrackingStatus }) && voiceTrackingService) {
         voiceTrackingService.stop()
         voiceTrackingActive = false
         pauseSession()
       }
+      voiceErrorNotice?.hide()
 
       // Cleanup TTS
       if (ttsService) {
@@ -5220,7 +5252,7 @@
   {/if}
 
   <!-- Voice tracking status indicator -->
-  {#if voiceTrackingActive && settings.voiceTrackingShowIndicator}
+  {#if (voiceTrackingActive || voiceTrackingStatus === 'initializing') && settings.voiceTrackingShowIndicator}
     <div class="voice-status-overlay">
       <div class="voice-status-indicator" class:listening={voiceTrackingStatus === 'listening'}>
         <span class="voice-icon">🎤</span>

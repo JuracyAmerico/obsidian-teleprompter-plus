@@ -45,6 +45,7 @@ export type VoiceTrackingError =
   | 'model-download-failed'
   | 'microphone-denied'
   | 'microphone-not-found'
+  | 'permission-timeout'
   | 'recognition-failed'
   | 'browser-not-supported'
 

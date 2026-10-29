@@ -106,7 +106,7 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for the full development setup.
 ## Quick start
 
 1. **Open** — click the teleprompter ribbon icon, or run *Open Teleprompter Plus* from the command palette (`Cmd/Ctrl + P`).
-2. **Pick a note** — the active note loads automatically and updates live as you edit.
+2. **Pick a note** — the active note loads when you open the view, and reloads when you switch notes or reopen the view. It does not follow your edits as you type.
 3. **Play** — click Play (or press your hotkey). Adjust speed with `+` / `−`, font size with `Aa+` / `Aa−`.
 4. **Navigate** — click any header in the side panel to jump there. Click the minimap on the right to scrub.
 5. **Reset** — Reset returns to the top.
@@ -191,7 +191,6 @@ Most common issues:
 | **Plugin doesn't appear after install** | Verify `<vault>/.obsidian/plugins/teleprompter-plus/` contains `main.js`, `styles.css`, `manifest.json`. Reload Obsidian (`Cmd/Ctrl + R`). |
 | **Content not updating when switching notes** | Close and reopen the teleprompter view. |
 | **Fullscreen looks wrong** | Plugin fullscreen is in-window. For true OS fullscreen, use Obsidian's *View → Toggle Fullscreen* first. |
-| **Pin window does nothing** | macOS and Windows only. Some Linux window managers override this. |
 
 Full troubleshooting guide: **[docs/troubleshooting.md](docs/troubleshooting.md)**.
 

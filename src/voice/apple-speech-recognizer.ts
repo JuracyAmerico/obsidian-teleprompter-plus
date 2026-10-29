@@ -38,6 +38,41 @@ export function appleLauncherPath(): string {
   return path.join(appleInstallDir(), 'disclaim-launcher')
 }
 
+/** How the recognizer reaches the OS: injectable so the failure paths can be tested without a Mac. */
+export interface AppleRecognizerDeps {
+  spawn: typeof childProcess.spawn
+  isMacOS: boolean
+  sidecarExists: () => boolean
+  /** Longest a helper that has shown it is current may stay silent before it is declared dead. */
+  startTimeoutMs: number
+  /** Longest to wait while macOS may be showing a permission dialog the user has to answer. Also the
+   *  limit from spawn until the helper proves it reports whether a dialog is pending: an older
+   *  helper never does, and must not be timed out while its dialog is still open. */
+  permissionDialogTimeoutMs: number
+  /** Recognition errors, with no transcript in between, that within recognitionErrorWindowMs fail the run. */
+  maxConsecutiveRecognitionErrors: number
+  /** The wall-clock window those errors must fall in. Apple raises the same error at its own silence
+   *  timeout while the user pauses to think, seconds apart; only a tight loop is a broken recognizer. */
+  recognitionErrorWindowMs: number
+  now: () => number
+}
+
+const STDERR_TAIL_BYTES = 2000
+
+function defaultDeps(): AppleRecognizerDeps {
+  return {
+    spawn: childProcess.spawn,
+    isMacOS: Platform.isMacOS,
+    sidecarExists: () => fs.existsSync(appleSidecarPath()),
+    startTimeoutMs: 15000,
+    permissionDialogTimeoutMs: 90000,
+    // The helper retries every ~150 ms, so 20 errors inside 10 s is a spin, not silence.
+    maxConsecutiveRecognitionErrors: 20,
+    recognitionErrorWindowMs: 10000,
+    now: () => Date.now(),
+  }
+}
+
 export class AppleSpeechRecognizer {
   private proc: ChildProcess | null = null
   private language = 'en-US'
@@ -46,9 +81,15 @@ export class AppleSpeechRecognizer {
   private stdoutBuffer = ''
   private contextFilePath: string | null = null
   private authTimer: ReturnType<typeof setTimeout> | null = null
-  // Generous: first run shows TWO macOS permission dialogs (Speech + Mic) that take time to
-  // read and approve. After granting once, startup is instant. This only guards a dead sidecar.
-  private readonly AUTH_TIMEOUT_MS = 90000
+  private stderrTail = ''
+  private failedRun = false
+  private helperReportsPrompt = false
+  private recognitionErrorTimes: number[] = []
+  private readonly deps: AppleRecognizerDeps
+
+  constructor(deps: Partial<AppleRecognizerDeps> = {}) {
+    this.deps = { ...defaultDeps(), ...deps }
+  }
 
   private resultSubscribers: ResultSubscriber[] = []
   private statusSubscribers: StatusSubscriber[] = []
@@ -62,11 +103,11 @@ export class AppleSpeechRecognizer {
 
   /** grammar is accepted for interface parity with VoskRecognizer but unused (open-vocab). */
   initialize(language = 'en-US', grammar?: string): Promise<void> {
-    if (!Platform.isMacOS) {
+    if (!this.deps.isMacOS) {
       this.emitError('browser-not-supported', 'Apple Speech recognition is only available on macOS')
       return Promise.reject(new Error('Apple Speech is macOS-only'))
     }
-    if (!fs.existsSync(appleSidecarPath())) {
+    if (!this.deps.sidecarExists()) {
       this.emitError('model-not-found', `Speech sidecar not found at ${appleSidecarPath()}. Build it with: swiftc -O teleprompter-stt.swift -o teleprompter-stt`)
       return Promise.reject(new Error('Apple Speech sidecar not installed'))
     }
@@ -122,44 +163,99 @@ export class AppleSpeechRecognizer {
     // Spawn THROUGH the disclaim launcher so the sidecar runs under its own TCC identity.
     const sidecarArgs = [appleSidecarPath(), this.language]
     if (this.contextFilePath) sidecarArgs.push(this.contextFilePath)
-    const proc = childProcess.spawn(appleLauncherPath(), sidecarArgs, {
+    const proc = this.deps.spawn(appleLauncherPath(), sidecarArgs, {
       stdio: ['ignore', 'pipe', 'pipe'],
     } as Record<string, unknown>)
     this.proc = proc
     this.stdoutBuffer = ''
+    this.stderrTail = ''
+    this.failedRun = false   // one error per helper run: its own error line, its exit, or the timeout
+    this.helperReportsPrompt = false
+    this.recognitionErrorTimes = []
+
+    // Every handler below belongs to THIS helper run. A killed helper keeps writing for a moment
+    // (the real one answers SIGTERM with a "stopped" line); none of that may touch a newer run.
+    proc.stderr?.on('data', (chunk: Buffer) => {
+      if (this.proc !== proc) return
+      this.stderrTail = (this.stderrTail + chunk.toString()).slice(-STDERR_TAIL_BYTES)
+    })
 
     proc.stdout?.on('data', (chunk: Buffer) => {
+      if (this.proc !== proc) return
       this.stdoutBuffer += chunk.toString()
       let nl: number
       while ((nl = this.stdoutBuffer.indexOf('\n')) >= 0) {
         const line = this.stdoutBuffer.slice(0, nl).trim()
         this.stdoutBuffer = this.stdoutBuffer.slice(nl + 1)
         if (line) this.handleLine(line)
+        // A line can end the run (fail() kills the helper); whatever else this chunk carried
+        // belongs to a helper that is gone.
+        if (this.proc !== proc) {
+          this.stdoutBuffer = ''
+          break
+        }
       }
     })
 
     proc.on('error', (err: Error) => {
+      if (this.proc !== proc) return
+      this.failedRun = true
+      this.clearAuthTimer()
       this.emitError('recognition-failed', `Failed to start speech sidecar: ${err.message}`)
       this.emitStatus('error')
     })
 
-    proc.on('close', () => {
+    // A helper that exits on its own (TCC kill, crash, bad exit code) used to vanish silently,
+    // leaving the UI on "initializing" until the timer fired. Report it with how it died.
+    proc.on('close', (code: number | null, signal: string | null) => {
+      if (this.proc !== proc) return
+      const wasListening = this.isListening
       this.isListening = false
-      if (this.proc === proc) {
-        this.proc = null
-      }
+      this.proc = null
+      this.clearAuthTimer()
+      if (this.failedRun) return   // the helper already reported its own error before exiting
+      this.failedRun = true
+      const how = signal ? `signal ${signal}` : `exit code ${code ?? 'unknown'}`
+      const tail = this.stderrTail.trim()
+      const when = wasListening ? 'stopped unexpectedly' : 'exited before it started listening'
+      this.emitError('recognition-failed', `The speech helper ${when} (${how}).${tail ? ` Helper output: ${tail}` : ''}`)
+      this.emitStatus('error')
     })
 
-    // Never hang on "initializing": if we don't reach 'listening' in time, the most likely
-    // cause is a denied/blocked permission for the spawned helper — surface it instead of freezing.
+    // Never hang on "initializing". Until the helper shows it reports whether a permission dialog
+    // is pending (an 'authorizing' status carrying a prompt field) it gets the long limit, because
+    // an older helper never says so; handleLine drops to the short limit once it does.
+    this.armTimer(this.deps.permissionDialogTimeoutMs, 'macOS is still waiting for a permission answer, or the speech helper is stuck.')
+  }
+
+  /** (Re)arm the start timeout. On expiry the helper is killed directly: going through stop()
+   *  would emit 'off' after 'error' and erase the error from the UI. */
+  private armTimer(ms: number, reason: string): void {
     this.clearAuthTimer()
     this.authTimer = setTimeout(() => {
-      if (!this.isListening) {
-        this.emitError('microphone-denied', 'Speech sidecar did not start listening — grant Obsidian Microphone + Speech Recognition in System Settings → Privacy & Security, then fully quit and reopen Obsidian.')
-        this.emitStatus('error')
-        this.stop()
-      }
-    }, this.AUTH_TIMEOUT_MS)
+      this.authTimer = null
+      if (this.isListening || this.failedRun) return
+      this.fail(
+        'permission-timeout',
+        `${reason} Open System Settings → Privacy & Security, allow Microphone and Speech Recognition for Teleprompter Plus (or Obsidian), then retry.`,
+      )
+    }, ms)
+  }
+
+  /** Kill the helper without announcing a state change. Its pipes are detached too: the real
+   *  helper still prints a "stopped" line on SIGTERM, which would otherwise arrive as an 'off'. */
+  private killHelper(): void {
+    this.isListening = false
+    this.stdoutBuffer = ''
+    const proc = this.proc
+    if (!proc) return
+    this.proc = null
+    try { proc.kill('SIGTERM') } catch { /* ignore */ }
+    proc.removeAllListeners()
+    proc.stdout?.removeAllListeners()
+    proc.stderr?.removeAllListeners()
+    // An 'error' with no listener throws; a failed kill can still raise one.
+    proc.on('error', () => {})
   }
 
   private clearAuthTimer(): void {
@@ -170,13 +266,8 @@ export class AppleSpeechRecognizer {
   }
 
   stop(): void {
-    this.isListening = false
     this.clearAuthTimer()
-    if (this.proc) {
-      try { this.proc.kill('SIGTERM') } catch { /* ignore */ }
-      this.proc.removeAllListeners()
-      this.proc = null
-    }
+    this.killHelper()
     this.emitStatus('off')
   }
 
@@ -208,7 +299,7 @@ export class AppleSpeechRecognizer {
   // ===== Private =====
 
   private handleLine(line: string): void {
-    let msg: { type?: string; value?: string; text?: string; code?: string; message?: string }
+    let msg: { type?: string; value?: string; text?: string; code?: string; message?: string; prompt?: boolean }
     try {
       msg = JSON.parse(line) as typeof msg
     } catch {
@@ -217,10 +308,16 @@ export class AppleSpeechRecognizer {
 
     switch (msg.type) {
       case 'partial':
-        if (msg.text) this.emitResult(msg.text, false)
+        if (msg.text) {
+          this.recognitionErrorTimes = []
+          this.emitResult(msg.text, false)
+        }
         break
       case 'final':
-        if (msg.text) this.emitResult(msg.text, true)
+        if (msg.text) {
+          this.recognitionErrorTimes = []
+          this.emitResult(msg.text, true)
+        }
         break
       case 'status':
         if (msg.value === 'listening') {
@@ -228,16 +325,49 @@ export class AppleSpeechRecognizer {
           this.clearAuthTimer()
           this.emitStatus('listening')
         } else if (msg.value === 'authorizing' || msg.value === 'ready') {
+          if (typeof msg.prompt === 'boolean') {
+            // A current helper says whether macOS is showing a dialog the user has to answer
+            // (which can take a while) or will answer at once (so silence means a hang).
+            this.helperReportsPrompt = true
+            this.armTimer(
+              msg.prompt ? this.deps.permissionDialogTimeoutMs : this.deps.startTimeoutMs,
+              msg.prompt
+                ? 'macOS is still waiting for you to answer the permission dialog.'
+                : 'The speech helper did not start listening in time.',
+            )
+          } else if (msg.value === 'ready' && this.helperReportsPrompt) {
+            // Speech is cleared; a microphone dialog, if any, announces itself with its own message.
+            this.armTimer(this.deps.startTimeoutMs, 'The speech helper did not start listening in time.')
+          }
           this.emitStatus('initializing')
         } else if (msg.value === 'stopped') {
           this.emitStatus('off')
         }
         break
       case 'error':
-        this.emitError(this.mapError(msg.code), msg.message || 'Speech recognition error')
-        this.emitStatus('error')
+        // The helper restarts its own recognition after a transient error ("no speech detected"
+        // and the like) and keeps listening; that is noise, not a failure, unless it never stops.
+        if (this.isListening && msg.code === 'recognition') {
+          const now = this.deps.now()
+          this.recognitionErrorTimes.push(now)
+          this.recognitionErrorTimes = this.recognitionErrorTimes.filter(t => now - t <= this.deps.recognitionErrorWindowMs)
+          if (this.recognitionErrorTimes.length < this.deps.maxConsecutiveRecognitionErrors) break
+          this.fail('recognition-failed', `Speech recognition keeps failing (${msg.message || 'no details'}). Check that Speech Recognition is allowed in System Settings → Privacy & Security and that the language is installed.`)
+          break
+        }
+        // Everything else is fatal for this run.
+        this.fail(this.mapError(msg.code), msg.message || 'Speech recognition error')
         break
     }
+  }
+
+  /** End the run with an error: report once, stop the helper, and leave the status at 'error'. */
+  private fail(code: VoiceTrackingError, message: string): void {
+    this.failedRun = true
+    this.clearAuthTimer()
+    this.emitError(code, message)
+    this.killHelper()
+    this.emitStatus('error')
   }
 
   private mapError(code?: string): VoiceTrackingError {
@@ -245,7 +375,11 @@ export class AppleSpeechRecognizer {
       case 'speech-denied':
       case 'speech-restricted':
       case 'speech-undetermined':
+      case 'mic-denied':
+      case 'mic-restricted':
         return 'microphone-denied'
+      case 'auth-timeout':
+        return 'permission-timeout'
       case 'no-recognizer':
         return 'model-not-found'
       default:
