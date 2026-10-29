@@ -15,6 +15,9 @@
 //   {"type":"partial","text":"..."}     // live, updates as you speak
 //   {"type":"final","text":"..."}       // committed segment
 //   {"type":"error","code":"...","message":"..."}
+//   authorizing carries "prompt":true when macOS will show a dialog the user must answer.
+//   error codes: no-recognizer, speech-denied|restricted|undetermined, mic-denied|restricted,
+//   auth-timeout (a permission request got no answer; the helper then exits 1), audio-start, recognition.
 //
 // Usage:  teleprompter-stt [locale]      e.g.  teleprompter-stt en-US   |   pt-BR
 // Stop:   SIGINT / SIGTERM (clean exit).
@@ -125,14 +128,72 @@ func scheduleRestart() {
 signal(SIGINT)  { _ in emit(["type": "status", "value": "stopped"]); exit(0) }
 signal(SIGTERM) { _ in emit(["type": "status", "value": "stopped"]); exit(0) }
 
-emit(["type": "status", "value": "authorizing"])
+// Permission requests can hang with no callback (observed 2026-07-12: an auth hang in the
+// disclaimed launcher context), and a hung request used to leave the plugin waiting forever. Every
+// request is therefore bounded by a watchdog that reports "auth-timeout" and exits non-zero.
+// When macOS will show a dialog the user has to answer (status .notDetermined) the bound is long;
+// otherwise the answer is immediate and a short bound catches the hang.
+let promptWatchdogSeconds = 90.0
+let silentWatchdogSeconds = 10.0
+var watchdog: DispatchWorkItem?
+
+func armWatchdog(prompt: Bool, what: String) {
+    watchdog?.cancel()
+    let item = DispatchWorkItem {
+        emit(["type": "error", "code": "auth-timeout",
+              "message": "\(what) permission request got no answer from macOS"])
+        exit(1)
+    }
+    watchdog = item
+    DispatchQueue.main.asyncAfter(deadline: .now() + (prompt ? promptWatchdogSeconds : silentWatchdogSeconds), execute: item)
+}
+
+func disarmWatchdog() {
+    watchdog?.cancel()
+    watchdog = nil
+}
+
+// Microphone access is requested explicitly. Leaving it to audioEngine.start() meant a denial
+// surfaced as silence (or a kill) instead of a message.
+func requestMicrophoneThenListen() {
+    switch AVCaptureDevice.authorizationStatus(for: .audio) {
+    case .authorized:
+        DispatchQueue.main.async { startRecognition() }
+    case .denied:
+        emit(["type": "error", "code": "mic-denied", "message": "Microphone permission denied (System Settings → Privacy & Security → Microphone)"])
+        exit(1)
+    case .restricted:
+        emit(["type": "error", "code": "mic-restricted", "message": "Microphone access is restricted on this device"])
+        exit(1)
+    case .notDetermined:
+        emit(["type": "status", "value": "authorizing", "prompt": true])
+        armWatchdog(prompt: true, what: "Microphone")
+        AVCaptureDevice.requestAccess(for: .audio) { granted in
+            disarmWatchdog()
+            if granted {
+                DispatchQueue.main.async { startRecognition() }
+            } else {
+                emit(["type": "error", "code": "mic-denied", "message": "Microphone permission denied (System Settings → Privacy & Security → Microphone)"])
+                exit(1)
+            }
+        }
+    @unknown default:
+        emit(["type": "error", "code": "mic-denied", "message": "Unknown microphone authorization status"])
+        exit(1)
+    }
+}
+
+let speechNeedsPrompt = SFSpeechRecognizer.authorizationStatus() == .notDetermined
+emit(["type": "status", "value": "authorizing", "prompt": speechNeedsPrompt])
+armWatchdog(prompt: speechNeedsPrompt, what: "Speech Recognition")
 SFSpeechRecognizer.requestAuthorization { status in
+    disarmWatchdog()
     switch status {
     case .authorized:
         emit(["type": "status", "value": "ready"])
-        DispatchQueue.main.async { startRecognition() }
+        requestMicrophoneThenListen()
     case .denied:
-        emit(["type": "error", "code": "speech-denied", "message": "Speech Recognition permission denied (System Settings → Privacy → Speech Recognition)"])
+        emit(["type": "error", "code": "speech-denied", "message": "Speech Recognition permission denied (System Settings → Privacy & Security → Speech Recognition)"])
         exit(1)
     case .restricted:
         emit(["type": "error", "code": "speech-restricted", "message": "Speech Recognition is restricted on this device"])
