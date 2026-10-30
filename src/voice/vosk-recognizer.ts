@@ -284,7 +284,7 @@ export class VoskRecognizer {
       // A mic blocked by macOS opens fine but delivers only exact zeros: report it, don't sit silent.
       this.silentWatch = new SilentMicWatch(() => {
         this.stop()
-        this.emitError('microphone-denied', 'The microphone is blocked: Obsidian is receiving no sound at all. Open System Settings → Privacy & Security → Microphone, allow Obsidian, then retry.')
+        this.emitError('microphone-denied', 'The microphone is blocked: Obsidian is receiving no sound at all. Open System Settings → Privacy & Security → Microphone and switch Obsidian on. If macOS offers "Quit & Reopen", you can choose "Later". Then press Retry.')
         this.emitStatus('error')
       })
 
