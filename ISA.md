@@ -137,3 +137,4 @@ acceptance: pass 2026-10-30 (all four runtime checks; mic-blocked Notice + Retry
 ## Changelog
 
 - 2026-10-29: ISA created for release 0.11.9.
+- 2026-10-30: ISC-25, ISC-26 added from the runtime test; ISC-17 and ISC-26 ticked on Américo's screenshots of the blocked-mic Notice with Retry. Blocked-mic text in `src/voice/vosk-recognizer.ts` now says choosing "Later" on the macOS dialog is enough before Retry (his finding). Acceptance pass, 26/26.
