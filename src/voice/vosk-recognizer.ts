@@ -9,6 +9,7 @@ import type { VoiceTrackingStatus, VoiceTrackingError } from './types'
 import { VOICE_LANGUAGES } from './types'
 import { requestUrl } from 'obsidian'
 import { StartTimeoutError, withTimeout } from './with-timeout'
+import { SilentMicWatch } from './silent-mic-watch'
 
 /** How long the microphone may take to open before the start is reported as failed. */
 export const MIC_OPEN_TIMEOUT_MS = 15000
@@ -52,6 +53,7 @@ export class VoskRecognizer {
   private workletNode: AudioWorkletNode | null = null
   private source: MediaStreamAudioSourceNode | null = null
   private workletBlobUrl: string | null = null
+  private silentWatch: SilentMicWatch | null = null
 
   private language: string = 'en-US'
   private isListening: boolean = false
@@ -267,6 +269,7 @@ export class VoskRecognizer {
       this.workletNode.port.onmessage = (event: MessageEvent) => {
         if (this.recognizer && this.isListening) {
           const audioData = event.data as Float32Array
+          this.silentWatch?.feed(audioData)
           this.recognizer.acceptWaveformFloat(audioData, this.audioContext!.sampleRate)
         }
       }
@@ -277,6 +280,13 @@ export class VoskRecognizer {
 
       this.isListening = true
       this.emitStatus('listening')
+
+      // A mic blocked by macOS opens fine but delivers only exact zeros: report it, don't sit silent.
+      this.silentWatch = new SilentMicWatch(() => {
+        this.stop()
+        this.emitError('microphone-denied', 'The microphone is blocked: Obsidian is receiving no sound at all. Open System Settings → Privacy & Security → Microphone, allow Obsidian, then retry.')
+        this.emitStatus('error')
+      })
 
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Microphone access failed'
@@ -301,6 +311,8 @@ export class VoskRecognizer {
    */
   stop(): void {
     this.isListening = false
+    this.silentWatch?.cancel()
+    this.silentWatch = null
 
     // Get final result before stopping
     if (this.recognizer) {

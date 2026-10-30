@@ -4,7 +4,7 @@ slug: teleprompter-plus
 project: Teleprompter Plus
 effort: E3
 phase: verify
-progress: 24/25
+progress: 24/26
 mode: algorithm
 started: 2026-10-29
 updated: 2026-10-30
@@ -58,6 +58,7 @@ Restate: L3/L2 drawn from the plan table Américo approved in chat 2026-10-29 18
 - [x] ISC-23: `bunx eslint src/voice` reports no errors.
 - [x] ISC-24: recognition errors spread wider than the error window (a reader pausing to think) never fail the run.
 - [x] ISC-25: on the Vosk fallback, a microphone request that never settles becomes a reported error within 15 s instead of "Initializing…" forever.
+- [ ] ISC-26: on the Vosk fallback, a stream of only exact-zero samples (mic blocked by macOS) becomes a reported microphone-denied error within ~4 s; real room noise never trips it.
 
 ## Test Strategy
 
@@ -92,6 +93,8 @@ Restate: L3/L2 drawn from the plan table Américo approved in chat 2026-10-29 18
 | ISC-23 | bash | lint clean on voice sources | exit 0 | bunx eslint src/voice |
 | ISC-25 | bun-test | hung mic request times out | pass | bun test src/voice/with-timeout.test.ts -t "hung mic request" |
 | ISC-25 | bash | Vosk start wraps getUserMedia in the timeout | exit 0 | rg -q "withTimeout\(" src/voice/vosk-recognizer.ts |
+| ISC-26 | bun-test | all-zero stream reported, room noise not | pass | bun test src/voice/silent-mic-watch.test.ts |
+| ISC-26 | bash | Vosk feeds every chunk to the watch | exit 0 | rg -q "silentWatch\?\.feed" src/voice/vosk-recognizer.ts |
 
 Runtime acceptance (real mic, real TCC prompt on macOS) needs Américo at the Mac: denied permission → message + Settings path; granted → tracking starts; preset switch mid-read keeps position.
 
@@ -123,6 +126,7 @@ Lane: Sol · high
 - 2026-10-29: Cherry-picked 0c09887 with `dist/` hunks dropped (main no longer tracks dist).
 - 2026-10-29: Uncommitted docs-site WIP stashed as "docs-site wip 2026-10-29" before the cherry-pick.
 - 2026-10-29: Fable review found ISC-14 false on the real helper (stdout listeners survive killHelper; the helper's SIGTERM "stopped" line flips error→off) with a test that could not see it; FakeProc now mimics the farewell. ISC-20..23 added from that review and Sol's compat finding.
+- 2026-10-30: ISC-25 aimed at the wrong cause. Voice trace run ymawb (21:25:53, Obsidian mic off): getUserMedia resolved, status reached listening at +17 s, 0 words heard in 24 s. macOS hands a blocked app a silent stream; it does not hang. ISC-25 stays as a cheap guard; ISC-26 fixes what was seen.
 - 2026-10-30: Corrects the entry below: the rebuilt helper did NOT re-prompt; its mic access survived the rebuild and is independent of Obsidian's switch.
 - 2026-10-29: The native helper ships by hand build (docs/voice-tracking.md §3.2), ad-hoc signed with a cdhash requirement: a rebuild is a new TCC client and re-prompts (inferred). Acceptance includes the rebuild and expects the prompts.
 
