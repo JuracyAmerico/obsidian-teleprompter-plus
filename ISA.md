@@ -4,10 +4,10 @@ slug: teleprompter-plus
 project: Teleprompter Plus
 effort: E3
 phase: verify
-progress: 23/24
+progress: 24/25
 mode: algorithm
 started: 2026-10-29
-updated: 2026-10-29
+updated: 2026-10-30
 ---
 
 ## Ideal State
@@ -57,6 +57,7 @@ Restate: L3/L2 drawn from the plan table Américo approved in chat 2026-10-29 18
 - [x] ISC-22: a recognizer that only ever returns `recognition` errors is reported as an error instead of showing "Listening…" forever.
 - [x] ISC-23: `bunx eslint src/voice` reports no errors.
 - [x] ISC-24: recognition errors spread wider than the error window (a reader pausing to think) never fail the run.
+- [x] ISC-25: on the Vosk fallback, a microphone request that never settles becomes a reported error within 15 s instead of "Initializing…" forever.
 
 ## Test Strategy
 
@@ -89,6 +90,8 @@ Restate: L3/L2 drawn from the plan table Américo approved in chat 2026-10-29 18
 | ISC-21 | bun-test | a line after a run-ending line in the same chunk is dropped | pass | bun test src/voice/apple-speech-recognizer.test.ts -t "same chunk" |
 | ISC-24 | bun-test | slow recognition errors never fail the run | pass | bun test src/voice/apple-speech-recognizer.test.ts -t "slow errors" |
 | ISC-23 | bash | lint clean on voice sources | exit 0 | bunx eslint src/voice |
+| ISC-25 | bun-test | hung mic request times out | pass | bun test src/voice/with-timeout.test.ts -t "hung mic request" |
+| ISC-25 | bash | Vosk start wraps getUserMedia in the timeout | exit 0 | rg -q "withTimeout\(" src/voice/vosk-recognizer.ts |
 
 Runtime acceptance (real mic, real TCC prompt on macOS) needs Américo at the Mac: denied permission → message + Settings path; granted → tracking starts; preset switch mid-read keeps position.
 
@@ -120,11 +123,12 @@ Lane: Sol · high
 - 2026-10-29: Cherry-picked 0c09887 with `dist/` hunks dropped (main no longer tracks dist).
 - 2026-10-29: Uncommitted docs-site WIP stashed as "docs-site wip 2026-10-29" before the cherry-pick.
 - 2026-10-29: Fable review found ISC-14 false on the real helper (stdout listeners survive killHelper; the helper's SIGTERM "stopped" line flips error→off) with a test that could not see it; FakeProc now mimics the farewell. ISC-20..23 added from that review and Sol's compat finding.
+- 2026-10-30: Corrects the entry below: the rebuilt helper did NOT re-prompt; its mic access survived the rebuild and is independent of Obsidian's switch.
 - 2026-10-29: The native helper ships by hand build (docs/voice-tracking.md §3.2), ad-hoc signed with a cdhash requirement: a rebuild is a new TCC client and re-prompts (inferred). Acceptance includes the rebuild and expects the prompts.
 
 ## Status
 
-acceptance: pending — runtime mic test needs Américo at the Mac.
+acceptance: partial 2026-10-30 — Américo at the Mac, rebuilt helper (Oct 30 build) + new main.js: granted start → "Listening…" and tracking followed his reading to the end of the GeoSentinel 2-min script ("the track is almost perfect now"); ~3 min silence held position and kept listening (screenshots /tmp/clipboard_image_1793394059.png, /tmp/clipboard_image_1793394287.png). Preset switch mid-read (Voice Pace Presets menu → Rehearsal) kept listening and position ("working great", /tmp/clipboard_image_1793394390.png). Still owed: mic-denied Notice (ISC-17). Deny test 2026-10-30: the Apple helper kept listening with Obsidian's mic switch OFF (it holds its own TCC grant, not listed in Settings; `tccutil reset Microphone com.teleprompterplus.stt` refused, -10814), so a denial could not be forced on the Apple path. With the helper hidden, the plugin fell back to Vosk; with Obsidian's mic OFF, Vosk sat on "Initializing…" with no message (/tmp/clipboard_image_1793394981.png). Cause not yet known (model load vs a getUserMedia that never settles). The Vosk start path has no start timeout: new gap.
 
 ## Changelog
 

@@ -8,6 +8,10 @@
 import type { VoiceTrackingStatus, VoiceTrackingError } from './types'
 import { VOICE_LANGUAGES } from './types'
 import { requestUrl } from 'obsidian'
+import { StartTimeoutError, withTimeout } from './with-timeout'
+
+/** How long the microphone may take to open before the start is reported as failed. */
+export const MIC_OPEN_TIMEOUT_MS = 15000
 
 // Import types from vosk-browser
 import type { Model, KaldiRecognizer } from 'vosk-browser'
@@ -233,13 +237,17 @@ export class VoskRecognizer {
 
     try {
       // Request microphone access
-      this.mediaStream = await navigator.mediaDevices.getUserMedia({
-        audio: {
-          echoCancellation: true,
-          noiseSuppression: true,
-          autoGainControl: true
-        }
-      })
+      this.mediaStream = await withTimeout(
+        navigator.mediaDevices.getUserMedia({
+          audio: {
+            echoCancellation: true,
+            noiseSuppression: true,
+            autoGainControl: true
+          }
+        }),
+        MIC_OPEN_TIMEOUT_MS,
+        (late) => late.getTracks().forEach((track) => track.stop()),
+      )
 
       // Create audio context with 48kHz sample rate
       this.audioContext = new AudioContext({ sampleRate: 48000 })
@@ -273,7 +281,9 @@ export class VoskRecognizer {
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Microphone access failed'
 
-      if (message.includes('Permission denied') || message.includes('NotAllowedError')) {
+      if (error instanceof StartTimeoutError) {
+        this.emitError('microphone-denied', 'The microphone did not open within 15 seconds; macOS may be blocking it for Obsidian. Open System Settings → Privacy & Security → Microphone, allow Obsidian, then retry.')
+      } else if (message.includes('Permission denied') || message.includes('NotAllowedError')) {
         this.emitError('microphone-denied', 'Microphone access was denied')
       } else if (message.includes('NotFoundError')) {
         this.emitError('microphone-not-found', 'No microphone found')
