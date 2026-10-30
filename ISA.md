@@ -4,7 +4,7 @@ slug: teleprompter-plus
 project: Teleprompter Plus
 effort: E3
 phase: verify
-progress: 24/26
+progress: 26/26
 mode: algorithm
 started: 2026-10-29
 updated: 2026-10-30
@@ -47,7 +47,7 @@ Restate: L3/L2 drawn from the plan table Américo approved in chat 2026-10-29 18
 - [x] ISC-9: the native helper requests microphone access explicitly via `AVCaptureDevice.requestAccess(for: .audio)`.
 - [x] ISC-16: the native helper reports a denied microphone as a `mic-denied` error.
 - [x] ISC-10: the UI marks voice tracking active only after the service reports `listening`.
-- [ ] ISC-17: a voice error shows an Obsidian Notice naming the System Settings privacy path.
+- [x] ISC-17: a voice error shows an Obsidian Notice naming the System Settings privacy path.
 - [x] ISC-11: README.md makes no claim that the note updates live while being edited.
 - [x] ISC-18: README.md makes no "Pin window" claim.
 - [x] ISC-12: `bun run check` reports 0 errors.
@@ -58,7 +58,7 @@ Restate: L3/L2 drawn from the plan table Américo approved in chat 2026-10-29 18
 - [x] ISC-23: `bunx eslint src/voice` reports no errors.
 - [x] ISC-24: recognition errors spread wider than the error window (a reader pausing to think) never fail the run.
 - [x] ISC-25: on the Vosk fallback, a microphone request that never settles becomes a reported error within 15 s instead of "Initializing…" forever.
-- [ ] ISC-26: on the Vosk fallback, a stream of only exact-zero samples (mic blocked by macOS) becomes a reported microphone-denied error within ~4 s; real room noise never trips it.
+- [x] ISC-26: on the Vosk fallback, a stream of only exact-zero samples (mic blocked by macOS) becomes a reported microphone-denied error within ~4 s; real room noise never trips it.
 
 ## Test Strategy
 
@@ -132,7 +132,7 @@ Lane: Sol · high
 
 ## Status
 
-acceptance: partial 2026-10-30 — Américo at the Mac, rebuilt helper (Oct 30 build) + new main.js: granted start → "Listening…" and tracking followed his reading to the end of the GeoSentinel 2-min script ("the track is almost perfect now"); ~3 min silence held position and kept listening (screenshots /tmp/clipboard_image_1793394059.png, /tmp/clipboard_image_1793394287.png). Preset switch mid-read (Voice Pace Presets menu → Rehearsal) kept listening and position ("working great", /tmp/clipboard_image_1793394390.png). Still owed: mic-denied Notice (ISC-17). Deny test 2026-10-30: the Apple helper kept listening with Obsidian's mic switch OFF (it holds its own TCC grant, not listed in Settings; `tccutil reset Microphone com.teleprompterplus.stt` refused, -10814), so a denial could not be forced on the Apple path. With the helper hidden, the plugin fell back to Vosk; with Obsidian's mic OFF, Vosk sat on "Initializing…" with no message (/tmp/clipboard_image_1793394981.png). Cause not yet known (model load vs a getUserMedia that never settles). The Vosk start path has no start timeout: new gap.
+acceptance: pass 2026-10-30 (all four runtime checks; mic-blocked Notice + Retry seen on the Vosk path, /tmp/clipboard_image_1793396070.png, /tmp/clipboard_image_1793395959.png; Américo: "It work now". Apple-path denial could not be forced on this Mac, see Decisions) — earlier notes: — Américo at the Mac, rebuilt helper (Oct 30 build) + new main.js: granted start → "Listening…" and tracking followed his reading to the end of the GeoSentinel 2-min script ("the track is almost perfect now"); ~3 min silence held position and kept listening (screenshots /tmp/clipboard_image_1793394059.png, /tmp/clipboard_image_1793394287.png). Preset switch mid-read (Voice Pace Presets menu → Rehearsal) kept listening and position ("working great", /tmp/clipboard_image_1793394390.png). Still owed: mic-denied Notice (ISC-17). Deny test 2026-10-30: the Apple helper kept listening with Obsidian's mic switch OFF (it holds its own TCC grant, not listed in Settings; `tccutil reset Microphone com.teleprompterplus.stt` refused, -10814), so a denial could not be forced on the Apple path. With the helper hidden, the plugin fell back to Vosk; with Obsidian's mic OFF, Vosk sat on "Initializing…" with no message (/tmp/clipboard_image_1793394981.png). Cause not yet known (model load vs a getUserMedia that never settles). The Vosk start path has no start timeout: new gap.
 
 ## Changelog
 
