@@ -21,7 +21,7 @@ updated: 2026-10-30
 - The interview-practice "rehearsal" preset and the two anti-wrong-jump guards (stranded on `rehearsal-on-0.11.6` since 2026-07-11) are on main.
 - The README states only features the code implements.
 
-**L1:** Source of the scope: Sol code audit and Fable competitor gap analysis, 2026-10-29 (vault `01-projects/obsidian-teleprompter-plus/2026-10-29-17-55-auditoria-bugs-e-lacunas-vs-concorrentes.md`), and Américo's go-ahead for release 0.11.9 ("How about start now?", 2026-10-29). Releases 0.12.0 (skip stage cues, fit-to-time, auto wake lock, pedal keys) and 0.13.0 (voice commands, Portuguese voice, take log) come after and are not in this ISA yet.
+**L1:** Source of the scope: Sol code audit and Fable competitor gap analysis, 2026-10-29 (vault `01-projects/obsidian-teleprompter-plus/2026-10-29-17-55-auditoria-bugs-e-lacunas-vs-concorrentes.md`), and Américo's go-ahead for release 0.11.9 ("How about start now?", 2026-10-29). Releases 0.12.0 (skip stage cues, fit-to-time, auto wake lock, pedal keys, and a floating always-on-top click-through window for reading over a video call: Américo's "yes", 2026-10-30, after the Glimpse review) and 0.13.0 (voice commands, Portuguese voice, take log) come after and are not in this ISA yet.
 
 Restate: L3/L2 drawn from the plan table Américo approved in chat 2026-10-29 18:04 ("How about start now?"). `inferred` until he confirms the wording.
 
@@ -138,3 +138,4 @@ acceptance: pass 2026-10-30 (all four runtime checks; mic-blocked Notice + Retry
 
 - 2026-10-29: ISA created for release 0.11.9.
 - 2026-10-30: ISC-25, ISC-26 added from the runtime test; ISC-17 and ISC-26 ticked on Américo's screenshots of the blocked-mic Notice with Retry. Blocked-mic text in `src/voice/vosk-recognizer.ts` now says choosing "Later" on the macOS dialog is enough before Retry (his finding). Acceptance pass, 26/26.
+- 2026-10-30: Release 0.11.9 cut on Américo's "yes for boths": version bump (manifest, package, versions.json), CHANGELOG entry, tag pushed to trigger the release workflow.

@@ -5,6 +5,22 @@ All notable changes to Obsidian Teleprompter Plus will be documented in this fil
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.11.9] - 2026-10-30
+
+### Added
+- **Rehearsal pace preset** for interview practice and ad-libbing. Two guards stop wrong jumps: tracking holds its place when a far-away passage matches about as well as the nearby one, and a few recognized words can no longer move the highlight more than 50 words.
+- **Rehearsal clock on screen**: target, elapsed and remaining time; picking a section restarts that section's clock.
+
+### Fixed
+- **Voice tracking never fails silently.** A start that cannot listen (permission dialog left open, microphone denied, helper crash, recognizer stuck) now shows a notice with the System Settings → Privacy & Security path and a Retry button. The mic button shows active only once the engine is really listening.
+- **Microphone blocked by macOS is detected.** When Obsidian's microphone switch is off, macOS hands over pure silence instead of refusing; the fallback engine now spots that within a few seconds and says so. Switching Obsidian back on and choosing "Later" on the macOS dialog is enough before Retry.
+- **Changing the pace preset while reading keeps your place** and no longer restarts the speech engine.
+- Re-enabling the mic no longer wipes the script from the matcher; listening stops when the teleprompter view closes; spelled-out numbers now track.
+- The macOS speech helper bounds its permission request and asks for the microphone explicitly. Rebuild it from `native/` to get these (see docs/voice-tracking.md).
+
+### Changed
+- README no longer claims the note updates live while edited or a "Pin window"; neither exists yet.
+
 ## [0.11.8] - 2026-09-14
 
 ### Fixed
