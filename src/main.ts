@@ -11,7 +11,7 @@ import { withMissingDefaultHotkeys } from './pedal-keys'
 import { OBSService, type OBSState } from './obs-service'
 import { WhatsNewModal } from './whats-new-modal'
 import { describeRemoteServerStartFailure } from './remote-server-errors'
-import { canRunDesktopMachinery } from './platform/device'
+import { canRunDesktopMachinery, showsMobileInterface } from './platform/device'
 import './styles.css'
 
 // Extended state type for broadcast updates that include additional properties
@@ -576,12 +576,17 @@ export default class TeleprompterPlusPlugin extends Plugin {
 		let leaf: WorkspaceLeaf | null = null
 		const leaves = workspace.getLeavesOfType(VIEW_TYPE_TELEPROMPTER)
 
-		if (leaves.length > 0) {
+		// A phone sidebar is a narrow drawer: there the teleprompter gets the main page instead
+		const mobile = showsMobileInterface()
+		const usable = mobile ? leaves.filter(l => l.getRoot() === workspace.rootSplit) : leaves
+		if (mobile) leaves.filter(l => !usable.includes(l)).forEach(l => l.detach())
+
+		if (usable.length > 0) {
 			// A leaf with our view already exists, use that
-			leaf = leaves[0]
+			leaf = usable[0]
 		} else {
-			// Our view doesn't exist yet, create a new leaf in the right sidebar
-			leaf = workspace.getRightLeaf(false)
+			// Our view doesn't exist yet: the right sidebar on desktop, a page of its own on the phone
+			leaf = mobile ? workspace.getLeaf('tab') : workspace.getRightLeaf(false)
 			if (leaf) {
 				await leaf.setViewState({ type: VIEW_TYPE_TELEPROMPTER, active: true })
 			}
