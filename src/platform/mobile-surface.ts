@@ -7,16 +7,16 @@
 /** Settings tabs that only configure desktop machinery (the remote server and OBS). */
 export const DESKTOP_ONLY_SETTINGS_TABS: readonly string[] = ['connection', 'obs']
 
-/** Toolbar controls that open desktop windows or start desktop-only features. */
-export const DESKTOP_ONLY_TOOLBAR_CONTROLS: readonly string[] = ['detach', 'float', 'voice-tracking']
+/** Toolbar controls that open desktop windows. Voice tracking runs on the phone through the offline Vosk model. */
+export const DESKTOP_ONLY_TOOLBAR_CONTROLS: readonly string[] = ['detach', 'float']
 
 /**
  * A phone is about 390 points wide: the desktop bar of twenty-odd controls piles on top of itself.
  * The phone bar carries what a reader needs mid-read; one-tap toggles go to More (panel controls
  * cannot, their popups get clipped there); the rest is for the desktop.
  */
-export const PHONE_BAR_CONTROLS: readonly string[] = ['play-pause', 'speed', 'reset', 'font-size', 'tts', 'time-display']
-export const PHONE_MORE_CONTROLS: readonly string[] = ['navigation', 'eyeline', 'focus-mode', 'flip-h', 'flip-v', 'keep-awake', 'pin', 'alignment', 'progress-indicator']
+export const PHONE_BAR_CONTROLS: readonly string[] = ['play-pause', 'speed', 'font-size', 'tts', 'voice-tracking', 'time-display']
+export const PHONE_MORE_CONTROLS: readonly string[] = ['reset', 'navigation', 'eyeline', 'focus-mode', 'flip-h', 'flip-v', 'keep-awake', 'pin', 'alignment', 'progress-indicator']
 
 /** Read-aloud engines that run a process on the Mac. */
 export const DESKTOP_ONLY_ENGINES: readonly string[] = ['kokoro', 'mac-say']

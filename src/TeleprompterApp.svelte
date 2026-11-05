@@ -2692,12 +2692,15 @@
 
   // Voice tracking toggle
   async function toggleVoiceTracking() {
+    phoneLog(`toggleVoice enabled=${settings.voiceTrackingEnabled} active=${voiceTrackingActive} status=${voiceTrackingStatus}`)
     if (!isFloating && plugin.floatingSession.active) {
       plugin.floatingSession.forward('teleprompter:voice-toggle')
       return
     }
     if (!settings.voiceTrackingEnabled) {
       debugLog('[Voice] Voice tracking is disabled in settings')
+      // A tap that does nothing reads as broken, above all on a phone
+      new Notice('Voice tracking is off. Turn it on in Teleprompter Plus settings, under Features.', 6000)
       return
     }
 
@@ -2777,10 +2780,12 @@
             floatingVoiceError = null
           }
           debugLog(`[Voice] Status: ${status}`)
+          phoneLog(`voice status ${status}`)
         }
 
         voiceTrackingService.onRecognizedText = (text: string, isFinal: boolean) => {
           lastRecognizedText = text
+          if (isFinal) phoneLog(`voice heard final (${text.split(' ').length} words)`)
           if (voiceTraceEnabled) writeTraceLine('voice-trace.jsonl', 'heard', { final: isFinal, text })
           debugLog(`[Voice] Recognized (${isFinal ? 'final' : 'partial'}): ${text}`)
         }
@@ -2799,12 +2804,14 @@
         }
 
         voiceTrackingService.onError = (error: string, message: string) => {
+          phoneLog(`voice error ${error}: ${message}`)
           console.error(`[Voice] Error: ${error} - ${message}`)
           reportVoiceFailure(message)
         }
 
         voiceTrackingService.onProgress = (loaded: number, total: number) => {
           voiceDownloadProgress = Math.round((loaded / total) * 100)
+          if (voiceDownloadProgress % 25 === 0) phoneLog(`voice model download ${voiceDownloadProgress}%`)
           debugLog(`[Voice] Download progress: ${voiceDownloadProgress}%`)
         }
 
