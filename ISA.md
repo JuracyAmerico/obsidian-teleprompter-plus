@@ -197,6 +197,7 @@ Found in Américo's own test run, 2026-11-05 (steps 2, 3, 7, 8):
 ### Mobile phase 2: voice tracking on the phone (Américo: "yes it moved, now voice tracking", 2026-11-05)
 
 - [ ] ISC-128: runtime: on Américo's iPhone, with voice tracking turned on, the microphone button starts the offline Vosk model (downloaded once, then kept on the device), reaches listening, and the text follows his speech; no audio leaves the phone.
+- [x] ISC-130: the voice-follow glide lasts the same time at any screen refresh rate (60 Hz, 120 Hz), and a stalled frame cannot leap the whole way. Phone7 log 21:25: model downloaded in 11.3 s, listening 2.3 s later, six final phrases heard; Américo: "it is jumping". The per-frame easing finished twice as fast on the 120 Hz iPhone. Test: bun test src/voice/follow-easing.test.ts. Phone8 logs each follow step to measure what remains.
 - [x] ISC-129: tapping the microphone button while voice tracking is off in settings says how to turn it on, instead of doing nothing.
 - [x] ISC-124: on a phone the teleprompter opens in the main page rather than the side drawer, shows no keyboard hints, starts with the section panel closed, fits its toolbar in 390 points, and sizes headings to the reading column.
 - [ ] ISC-125: on a phone the controls sit at the bottom within thumb reach, above Obsidian's navigation bar, and nothing sits under the status bar (Américo, 2026-11-05: "the controls on the top are hard to reach"). Source test passes; his iPhone showed it at 16:04 (phone3): controls at the bottom, text clear of the status bar.
