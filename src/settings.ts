@@ -6,7 +6,7 @@ import { PromptModal } from './prompt-modal'
 import { resolveControlIcon, type IconStyle } from './icon-vocabulary'
 import { redactSecrets } from './settings-secrets'
 import { showsMobileInterface } from './platform/device'
-import { DESKTOP_ONLY_ENGINES, DESKTOP_ONLY_SETTINGS_TABS, forPhone } from './platform/mobile-surface'
+import { DESKTOP_ONLY_ENGINES, DESKTOP_ONLY_SETTINGS_TABS, PHONE_OPTIONAL_CONTROLS, forPhone } from './platform/mobile-surface'
 import type { NotePositions } from './position-memory'
 import { formatClock, parseTargetTime } from './timing/speech-timer'
 
@@ -212,6 +212,8 @@ export interface TeleprompterSettings {
 	floatingPreferPrompter: boolean    // Open on an Elgato Prompter when one is connected
 	// Progress indicator style
 	progressIndicatorStyle: 'progress-bar' | 'scrollbar' | 'none'
+	/** Phone bar buttons the reader turned off; separate from the desktop toolbar */
+	phoneToolbarHidden: string[]
 	// NEW: Toolbar configuration
 	toolbarLayout: {
 		primary: string[]    // Button IDs in order
@@ -388,6 +390,7 @@ export const DEFAULT_SETTINGS: TeleprompterSettings = {
 	elevenLabsSimilarity: 0.75,
 	// Progress indicator style
 	progressIndicatorStyle: 'progress-bar' as const,
+	phoneToolbarHidden: [] as string[],
 	// NEW: Toolbar configuration
 	toolbarLayout: {
 		primary: ['play-pause', 'speed', 'countdown', 'reset', 'font-size', 'line-height', 'letter-spacing', 'font-family', 'opacity', 'padding', 'text-color', 'bg-color'],
@@ -876,6 +879,25 @@ export class TeleprompterSettingTab extends PluginSettingTab {
 			text: 'Configure which controls appear in the teleprompter toolbar',
 			cls: 'setting-item-description',
 		})
+
+		// The phone has its own short bar; these choices never touch the desktop toolbar
+		new Setting(containerEl).setName('Phone toolbar').setHeading()
+		containerEl.createEl('p', {
+			text: 'Buttons on the bar at the bottom of the screen on a phone or tablet. Play/pause and the clock always stay. These choices do not change the desktop toolbar.',
+			cls: 'setting-item-description',
+		})
+		for (const control of PHONE_OPTIONAL_CONTROLS) {
+			new Setting(containerEl)
+				.setName(control.name)
+				.addToggle(toggle => toggle
+					.setValue(!this.plugin.settings.phoneToolbarHidden.includes(control.id))
+					.onChange(async (shown) => {
+						const others = this.plugin.settings.phoneToolbarHidden.filter(id => id !== control.id)
+						this.plugin.settings.phoneToolbarHidden = shown ? others : [...others, control.id]
+						await this.plugin.saveSettings()
+						activeDocument.dispatchEvent(new CustomEvent('teleprompter:toolbar-changed'))
+					}))
+		}
 
 		// ── Toolbar options: density, zone labels, recommended layout ──────────
 		this.createFeatureGroup(containerEl, 'toolbar-options', 'Toolbar options', 'sliders-horizontal', [

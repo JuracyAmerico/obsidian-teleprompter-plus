@@ -24,3 +24,18 @@ export const DESKTOP_ONLY_ENGINES: readonly string[] = ['kokoro', 'mac-say']
 export function forPhone<T>(items: readonly T[], idOf: (item: T) => string, desktopOnly: readonly string[], mobile: boolean): T[] {
 	return mobile ? items.filter(item => !desktopOnly.includes(idOf(item))) : [...items]
 }
+
+/** Phone bar buttons a reader may turn off (Américo, 2026-11-05: "read aloud does not suit to everybody").
+ *  Play/pause and the clock always stay. */
+export const PHONE_OPTIONAL_CONTROLS: readonly { id: string; name: string }[] = [
+	{ id: 'voice-tracking', name: 'Voice tracking' },
+	{ id: 'speed', name: 'Speed' },
+	{ id: 'font-size', name: 'Font size' },
+	{ id: 'tts', name: 'Read aloud' },
+]
+
+/** The phone bar after the reader's choices; a turned-off button is gone, not moved to More. */
+export function phoneBarControls(hidden: readonly string[] | undefined): string[] {
+	const optional = new Set(PHONE_OPTIONAL_CONTROLS.map(control => control.id))
+	return PHONE_BAR_CONTROLS.filter(id => !(optional.has(id) && (hidden ?? []).includes(id)))
+}
