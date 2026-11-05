@@ -10,12 +10,10 @@
 import type { TTSEngine, TTSVoice, SpeakOptions } from './tts-types'
 import { resolveVoiceId, clampSpeed } from './kokoro-safety'
 import type { ChildProcess } from 'child_process'
+import type * as ChildProcessTypes from "child_process"
+import * as native from "../platform/native"
 import { Platform } from 'obsidian'
 // Node.js modules — externalized by Vite, available in Obsidian's CJS environment
-import * as childProcess from 'child_process'
-import * as fs from 'fs'
-import * as os from 'os'
-import * as path from 'path'
 
 const VENV_PATH = '~/.local/share/mlx-tts-venv'
 const MODEL = 'mlx-community/Kokoro-82M-bf16'
@@ -71,14 +69,14 @@ export class KokoroEngine implements TTSEngine {
 		}
 
 		// Check if venv exists with mlx-audio
-		const venvPython = path.join(
-			os.homedir(), '.local', 'share', 'mlx-tts-venv', 'bin', 'python3'
+		const venvPython = native.path().join(
+			native.os().homedir(), '.local', 'share', 'mlx-tts-venv', 'bin', 'python3'
 		)
 		try {
-			if (fs.existsSync(venvPython)) {
+			if (native.fs().existsSync(venvPython)) {
 				// Quick check: can we import mlx_audio? execFileSync (array args, no shell) so a
 				// venv path containing shell metacharacters cannot inject — see ATTACKSURFACE.md SURF-06.
-				childProcess.execFileSync(
+				native.childProcess().execFileSync(
 					venvPython,
 					['-c', 'import mlx_audio'],
 					{ encoding: 'utf-8', timeout: 5000 } as Record<string, unknown>
@@ -100,9 +98,9 @@ export class KokoroEngine implements TTSEngine {
 		}
 
 		// Create temp cache directory for WAV files
-		this.cacheDir = path.join(os.tmpdir(), `teleprompter-tts-kokoro-${Date.now()}`)
-		if (!fs.existsSync(this.cacheDir)) {
-			fs.mkdirSync(this.cacheDir, { recursive: true })
+		this.cacheDir = native.path().join(native.os().tmpdir(), `teleprompter-tts-kokoro-${Date.now()}`)
+		if (!native.fs().existsSync(this.cacheDir)) {
+			native.fs().mkdirSync(this.cacheDir, { recursive: true })
 		}
 		return Promise.resolve()
 	}
@@ -152,7 +150,7 @@ print("DONE:" + "${outputPrefix}_000.wav")
 `
 
 		return new Promise<string>((resolve, reject) => {
-			const proc = childProcess.spawn(
+			const proc = native.childProcess().spawn(
 				this.pythonPath,
 				['-c', script],
 				{ cwd: outputPath } as Record<string, unknown>
@@ -183,7 +181,7 @@ print("DONE:" + "${outputPrefix}_000.wav")
 					return
 				}
 
-				resolve(path.join(outputPath, doneMatch[1]))
+				resolve(native.path().join(outputPath, doneMatch[1]))
 			})
 
 			proc.on('error', (err: Error) => {
@@ -234,7 +232,7 @@ generate_audio(
 print("DONE:" + "${outputPrefix}_000.wav")
 `
 
-		const proc = childProcess.spawn(
+		const proc = native.childProcess().spawn(
 			this.pythonPath,
 			['-c', script],
 			{ cwd: outputPath } as Record<string, unknown>
@@ -253,7 +251,7 @@ print("DONE:" + "${outputPrefix}_000.wav")
 			if (code === 0) {
 				const doneMatch = stdout.match(/DONE:(.+\.wav)/)
 				if (doneMatch && this.pregenText === text) {
-					this.pregenWavPath = path.join(outputPath, doneMatch[1])
+					this.pregenWavPath = native.path().join(outputPath, doneMatch[1])
 				}
 			}
 		})
@@ -273,7 +271,7 @@ print("DONE:" + "${outputPrefix}_000.wav")
 	private playWav(wavPath: string): Promise<void> {
 		return new Promise<void>((resolve, reject) => {
 			try {
-				const proc = childProcess.spawn('afplay', [wavPath])
+				const proc = native.childProcess().spawn('afplay', [wavPath])
 				this.playbackProcess = proc
 				this.playbackPaused = false
 
@@ -371,11 +369,11 @@ print("DONE:" + "${outputPrefix}_000.wav")
 		// Clean up cache directory
 		if (this.cacheDir) {
 			try {
-				const files = fs.readdirSync(this.cacheDir)
+				const files = native.fs().readdirSync(this.cacheDir)
 				for (const file of files) {
-					fs.unlinkSync(path.join(this.cacheDir, file))
+					native.fs().unlinkSync(native.path().join(this.cacheDir, file))
 				}
-				fs.rmdirSync(this.cacheDir)
+				native.fs().rmdirSync(this.cacheDir)
 			} catch {
 				// Best effort cleanup
 			}

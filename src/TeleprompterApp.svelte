@@ -54,6 +54,9 @@
   import { applyPresetLive } from './voice/preset-apply'
   import { isVoiceEngaged, nextVoiceUiState, voiceFailureText } from './voice/voice-ui-state'
   import { resolveReadAloudLanguage, resolveVoiceLanguage } from './voice/voice-language'
+  import { showsMobileInterface } from './platform/device'
+  import { ScreenHold } from './platform/screen-hold'
+  import { DESKTOP_ONLY_TOOLBAR_CONTROLS, forPhone } from './platform/mobile-surface'
   import { engineSignature } from './tts/elevenlabs-request'
   import { TTSService } from './tts'
   import type { TTSState, TTSPlaybackState, TTSVoice } from './tts'
@@ -742,7 +745,10 @@
       }
     }
 
-    return ordered
+    // The phone layout drops controls that open desktop windows or need a helper process
+    const shown = forPhone(ordered, def => def.id, DESKTOP_ONLY_TOOLBAR_CONTROLS, showsMobileInterface())
+    // A device with no way to hold the screen on gets no button that pretends to
+    return screenHold.supported ? shown : shown.filter(def => def.id !== 'keep-awake')
   }
 
   // Get the ordered controls (reactive - re-computes when toolbarLayoutVersion changes)
@@ -895,7 +901,8 @@
   let notePositionTimer: ReturnType<typeof setTimeout> | null = null
   let placeAfterRender: (() => void) | null = null // A remembered position waiting for its note to render
   let lastSyncedHeaderId: string | null = null // The section scroll sync last moved the editor to
-  let powerSaveBlockerId: number | null = null // ID returned by powerSaveBlocker.start()
+  // Electron on the desktop, the browser wake lock on the phone
+  const screenHold = new ScreenHold()
   let isFullScreen = $state(false) // Whether full-screen mode is active (hides controls)
   let showControlsTemporarily = $state(false) // Show controls temporarily when holding key
   let lineHeight = $state(1.8) // Line height multiplier (1.0 - 3.0)
@@ -3329,51 +3336,21 @@
 
   function toggleKeepAwake() {
     wakeHoldIsAutomatic = false
-    try {
-      // Access Electron's powerSaveBlocker API
-      const electron = require('electron') as ElectronModule
-      const powerSaveBlocker = electron.remote?.powerSaveBlocker || electron.powerSaveBlocker
-
-      if (!powerSaveBlocker) {
-        console.error('[KeepAwake] powerSaveBlocker API not available')
-        return
-      }
-
-      if (isKeepAwake) {
-        // Stop preventing sleep
-        if (powerSaveBlockerId !== null) {
-          powerSaveBlocker.stop(powerSaveBlockerId)
-          powerSaveBlockerId = null
-          debugLog('[KeepAwake] Screen sleep prevention stopped')
-        }
-        isKeepAwake = false
-      } else {
-        // Start preventing sleep
-        powerSaveBlockerId = powerSaveBlocker.start('prevent-display-sleep')
-        isKeepAwake = true
-        debugLog('[KeepAwake] Screen sleep prevention started')
-      }
-      broadcastState({ isKeepAwake })
-    } catch (error) {
-      console.error('[KeepAwake] Failed to toggle keep awake:', error)
+    if (isKeepAwake) {
+      screenHold.stop()
       isKeepAwake = false
-      powerSaveBlockerId = null
+      debugLog("[KeepAwake] Screen sleep prevention stopped")
+    } else {
+      isKeepAwake = screenHold.start()
+      if (!isKeepAwake) console.error("[KeepAwake] This device cannot hold the screen on")
+      else debugLog("[KeepAwake] Screen sleep prevention started")
     }
+    broadcastState({ isKeepAwake })
   }
 
   function stopKeepAwake() {
-    if (isKeepAwake && powerSaveBlockerId !== null) {
-      try {
-        const electron = require('electron') as ElectronModule
-        const powerSaveBlocker = electron.remote?.powerSaveBlocker || electron.powerSaveBlocker
-        if (powerSaveBlocker) {
-          powerSaveBlocker.stop(powerSaveBlockerId)
-          debugLog('[KeepAwake] Cleanup: Stopped screen sleep prevention')
-        }
-      } catch (error) {
-        console.error('[KeepAwake] Cleanup error:', error)
-      }
-      powerSaveBlockerId = null
+    if (isKeepAwake) {
+      screenHold.stop()
       isKeepAwake = false
     }
   }

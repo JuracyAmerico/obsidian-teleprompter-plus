@@ -12,10 +12,8 @@
  */
 
 import type { ChildProcess } from 'child_process'
-import * as childProcess from 'child_process'
-import * as fs from 'fs'
-import * as os from 'os'
-import * as path from 'path'
+import type * as ChildProcessTypes from "child_process"
+import * as native from "../platform/native"
 import { Platform } from 'obsidian'
 import type { VoiceTrackingStatus, VoiceTrackingError } from './types'
 
@@ -26,21 +24,21 @@ type ProgressSubscriber = (_loaded: number, _total: number) => void
 
 /** Stable install dir for the sidecar + disclaim launcher (mirrors Kokoro's ~/.local/share). */
 function appleInstallDir(): string {
-  return path.join(os.homedir(), '.local', 'share', 'teleprompter-plus')
+  return native.path().join(native.os().homedir(), '.local', 'share', 'teleprompter-plus')
 }
 /** The on-device STT binary. */
 export function appleSidecarPath(): string {
-  return path.join(appleInstallDir(), 'teleprompter-stt')
+  return native.path().join(appleInstallDir(), 'teleprompter-stt')
 }
 /** The disclaim launcher — runs the sidecar as its OWN TCC-responsible process so macOS reads
  *  the sidecar's Info.plist (Speech/Mic usage), not Obsidian's. Without it the helper is killed. */
 export function appleLauncherPath(): string {
-  return path.join(appleInstallDir(), 'disclaim-launcher')
+  return native.path().join(appleInstallDir(), 'disclaim-launcher')
 }
 
 /** How the recognizer reaches the OS: injectable so the failure paths can be tested without a Mac. */
 export interface AppleRecognizerDeps {
-  spawn: typeof childProcess.spawn
+  spawn: typeof ChildProcessTypes.spawn
   isMacOS: boolean
   sidecarExists: () => boolean
   /** Longest a helper that has shown it is current may stay silent before it is declared dead. */
@@ -61,9 +59,9 @@ const STDERR_TAIL_BYTES = 2000
 
 function defaultDeps(): AppleRecognizerDeps {
   return {
-    spawn: childProcess.spawn,
+    spawn: ((...args: Parameters<typeof ChildProcessTypes.spawn>) => native.childProcess().spawn(...args)) as typeof ChildProcessTypes.spawn,
     isMacOS: Platform.isMacOS,
-    sidecarExists: () => fs.existsSync(appleSidecarPath()),
+    sidecarExists: () => native.fs().existsSync(appleSidecarPath()),
     startTimeoutMs: 15000,
     permissionDialogTimeoutMs: 90000,
     // The helper retries every ~150 ms, so 20 errors inside 10 s is a spin, not silence.
@@ -98,7 +96,7 @@ export class AppleSpeechRecognizer {
 
   /** Apple on-device speech is macOS-only and needs the compiled sidecar present. */
   static isSupported(): boolean {
-    return Platform.isMacOS && fs.existsSync(appleSidecarPath()) && fs.existsSync(appleLauncherPath())
+    return Platform.isMacOS && native.fs().existsSync(appleSidecarPath()) && native.fs().existsSync(appleLauncherPath())
   }
 
   /** grammar is accepted for interface parity with VoskRecognizer but unused (open-vocab). */
@@ -144,8 +142,8 @@ export class AppleSpeechRecognizer {
       }
       const capped = salient.slice(0, 100)
       if (capped.length === 0) return
-      const p = path.join(os.tmpdir(), 'teleprompter-stt-context.txt')
-      fs.writeFileSync(p, capped.join('\n'), 'utf8')
+      const p = native.path().join(native.os().tmpdir(), 'teleprompter-stt-context.txt')
+      native.fs().writeFileSync(p, capped.join('\n'), 'utf8')
       this.contextFilePath = p
     } catch {
       this.contextFilePath = null

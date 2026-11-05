@@ -11,6 +11,7 @@ import { withMissingDefaultHotkeys } from './pedal-keys'
 import { OBSService, type OBSState } from './obs-service'
 import { WhatsNewModal } from './whats-new-modal'
 import { describeRemoteServerStartFailure } from './remote-server-errors'
+import { canRunDesktopMachinery } from './platform/device'
 import './styles.css'
 
 // Extended state type for broadcast updates that include additional properties
@@ -159,7 +160,8 @@ export default class TeleprompterPlusPlugin extends Plugin {
 		)
 
 		// Start WebSocket server if enabled (settings now guaranteed to be loaded)
-		if (this.settings.autoStartWebSocket) {
+		// The phone has no Node to run a server on, so it never tries or shows a failure notice
+		if (this.settings.autoStartWebSocket && canRunDesktopMachinery()) {
 			void this.startWebSocketServer().then(() => {
 				this.registerWebSocketCommands()
 			})
@@ -169,7 +171,7 @@ export default class TeleprompterPlusPlugin extends Plugin {
 		this.obsService = new OBSService(this.settings)
 
 		// Auto-connect to OBS if enabled
-		if (this.settings.obsEnabled && this.settings.obsAutoConnect) {
+		if (this.settings.obsEnabled && this.settings.obsAutoConnect && canRunDesktopMachinery()) {
 			// Delay connection slightly to ensure everything is ready
 			setTimeout(() => void this.connectOBS(), 2000)
 		}
@@ -595,8 +597,8 @@ export default class TeleprompterPlusPlugin extends Plugin {
 	 * Start WebSocket server for external control (e.g., Stream Deck)
 	 */
 	private async startWebSocketServer(): Promise<void> {
-		// Don't start if already running
-		if (this.wsServer) {
+		// Don't start if already running, and never where there is no Node to run it
+		if (this.wsServer || !canRunDesktopMachinery()) {
 			return
 		}
 

@@ -32,6 +32,7 @@ export default defineConfig({
     },
     outDir: 'dist',
     emptyOutDir: false,
-    sourcemap: 'inline',
+    // An inline map doubles main.js (about 8 MB) and every phone downloads it; set TP_SOURCEMAP=1 to debug.
+    sourcemap: process.env.TP_SOURCEMAP ? 'inline' : false,
   },
 })

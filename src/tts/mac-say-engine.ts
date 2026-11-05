@@ -9,8 +9,9 @@
 
 import type { TTSEngine, TTSVoice, SpeakOptions } from './tts-types'
 import type { ChildProcess } from 'child_process'
+import type * as ChildProcessTypes from "child_process"
+import * as native from "../platform/native"
 import { Platform } from 'obsidian'
-import * as childProcess from 'child_process'
 
 export class MacSayEngine implements TTSEngine {
 	readonly name = 'macOS Say'
@@ -33,7 +34,7 @@ export class MacSayEngine implements TTSEngine {
 
 	private async loadVoices(): Promise<void> {
 		try {
-			const output = childProcess.execSync('say -v "?"', { encoding: 'utf-8' })
+			const output = native.childProcess().execSync('say -v "?"', { encoding: 'utf-8' })
 			const lines = output.split('\n').filter(Boolean)
 
 			this.voices = lines.map(line => {
@@ -115,7 +116,7 @@ export class MacSayEngine implements TTSEngine {
 			const args = ['-v', voiceName, '--rate', String(wpm), '--', text]
 
 			try {
-				const proc = childProcess.spawn('say', args)
+				const proc = native.childProcess().spawn('say', args)
 				this.currentProcess = proc
 				this.isPaused = false
 

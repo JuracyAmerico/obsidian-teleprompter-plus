@@ -5,6 +5,8 @@ import { ConfirmModal } from './confirm-modal'
 import { PromptModal } from './prompt-modal'
 import { resolveControlIcon, type IconStyle } from './icon-vocabulary'
 import { redactSecrets } from './settings-secrets'
+import { showsMobileInterface } from './platform/device'
+import { DESKTOP_ONLY_ENGINES, DESKTOP_ONLY_SETTINGS_TABS, forPhone } from './platform/mobile-surface'
 import type { NotePositions } from './position-memory'
 import { formatClock, parseTargetTime } from './timing/speech-timer'
 
@@ -624,7 +626,8 @@ export class TeleprompterSettingTab extends PluginSettingTab {
 			{ id: 'about', name: 'About', icon: 'info' },
 		]
 
-		tabs.forEach((tab) => {
+		if (DESKTOP_ONLY_SETTINGS_TABS.includes(this.activeTab) && showsMobileInterface()) this.activeTab = 'dashboard'
+		forPhone(tabs, tab => tab.id, DESKTOP_ONLY_SETTINGS_TABS, showsMobileInterface()).forEach((tab) => {
 			const tabButton = tabContainer.createEl('button', {
 				cls: this.activeTab === tab.id ? 'tp-tab active' : 'tp-tab',
 			})
@@ -1801,13 +1804,13 @@ export class TeleprompterSettingTab extends PluginSettingTab {
 						name: 'Engine',
 						desc: 'Speech engine to use (auto-detect recommended)',
 						type: 'dropdown',
-						options: [
-							{ value: 'auto', label: 'Auto-detect (Kokoro > macOS Say > Web Speech)' },
+						options: forPhone([
+							{ value: 'auto', label: showsMobileInterface() ? 'Auto-detect (system voices)' : 'Auto-detect (Kokoro > macOS Say > Web Speech)' },
 							{ value: 'kokoro', label: 'Kokoro (neural, best quality)' },
 							{ value: 'mac-say', label: 'macOS Say (native, good quality)' },
 							{ value: 'web-speech', label: 'Web Speech API (basic fallback)' },
 							{ value: 'elevenlabs', label: 'ElevenLabs (cloud, paid — needs API key)' },
-						],
+						], option => option.value, DESKTOP_ONLY_ENGINES, showsMobileInterface()),
 						value: this.plugin.settings.ttsEngine,
 						onChange: (value) => {
 							this.plugin.settings.ttsEngine = value as 'auto' | 'mac-say' | 'web-speech' | 'kokoro' | 'elevenlabs'
