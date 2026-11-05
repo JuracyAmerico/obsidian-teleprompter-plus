@@ -44,6 +44,8 @@ The sidecar is a tiny long-running CLI. Source: `native/teleprompter-stt.swift`.
 
 Input: `teleprompter-stt [locale]` (e.g. `en-US`, `pt-BR`). Stop: SIGINT/SIGTERM → clean exit.
 
+The helper runs on-device only. For a locale macOS cannot recognize locally it emits a `no-on-device` error and exits, and the plugin falls back to the offline Vosk model.
+
 ## Permissions (the main risk, macOS TCC)
 
 The binary needs **two** grants:

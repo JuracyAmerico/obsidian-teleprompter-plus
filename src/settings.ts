@@ -5,6 +5,7 @@ import { ConfirmModal } from './confirm-modal'
 import { PromptModal } from './prompt-modal'
 import { resolveControlIcon, type IconStyle } from './icon-vocabulary'
 import { redactSecrets } from './settings-secrets'
+import type { NotePositions } from './position-memory'
 import { formatClock, parseTargetTime } from './timing/speech-timer'
 
 /** Settings-field text for a stored target: empty when there is no default. */
@@ -19,6 +20,8 @@ export type HotkeyAction =
 	| 'speedDown'
 	| 'scrollUp'
 	| 'scrollDown'
+	| 'pageDown'
+	| 'pageUp'
 	| 'resetToTop'
 	| 'toggleNavigation'
 	| 'nextSection'
@@ -116,7 +119,11 @@ export interface TeleprompterSettings {
 	flipVertical: boolean
 	scrollSyncEnabled: boolean
 	showMinimap: boolean
-	keepAwake: boolean
+	keepAwake: boolean // Hold the screen awake while reading
+	keepAwakeAutoMigrated: boolean // The setting did nothing before 0.12.0, so a saved "off" was never a choice
+	notePositions: NotePositions // Where each note was left
+	stageCueDisplay: 'hide' | 'dim' | 'show' // How cues such as [pause] show on screen
+	pedalArrowKeys: boolean // Arrow keys turn pages, for pedals in arrow mode
 	defaultCountdown: number
 	showEyeline: boolean
 	eyelinePosition: number
@@ -159,6 +166,7 @@ export interface TeleprompterSettings {
 	// Voice tracking settings
 	voiceTrackingEnabled: boolean
 	voiceTrackingLanguage: string
+	voiceLanguageAutoMigrated: boolean // en-US was the only choice before 0.12.0, so nobody chose it
 	voiceTrackingShowIndicator: boolean
 	voiceTrackingScrollBehavior: 'instant' | 'smooth'
 	voiceTrackingPacePreset: VoiceTrackingPacePreset  // Preset for speaking pace
@@ -191,6 +199,11 @@ export interface TeleprompterSettings {
 	elevenLabsApiKey: string           // User's own ElevenLabs API key
 	elevenLabsVoiceId: string          // ElevenLabs voice ID
 	elevenLabsModelId: string          // ElevenLabs model (flash/turbo/multilingual)
+	// Floating window: how opaque it is, and where it was last
+	floatingSeeThrough: number         // 30-100 percent
+	floatingHideFromShare: boolean     // Ask macOS to keep the floating window out of screen capture
+	floatingBounds: { x: number; y: number; width: number; height: number } | null
+	floatingPreferPrompter: boolean    // Open on an Elgato Prompter when one is connected
 	// Progress indicator style
 	progressIndicatorStyle: 'progress-bar' | 'scrollbar' | 'none'
 	// NEW: Toolbar configuration
@@ -237,6 +250,11 @@ export const DEFAULT_SETTINGS: TeleprompterSettings = {
 	wsHost: '127.0.0.1',
 	autoStartWebSocket: true,
 	showConnectionNotifications: true,
+	// Floating window defaults
+	floatingSeeThrough: 85,
+	floatingHideFromShare: false,
+	floatingBounds: null,
+	floatingPreferPrompter: true,
 	// Network Broadcast defaults
 	networkBroadcastEnabled: false,
 	networkBroadcastInterval: 100, // 100ms = 10 updates per second
@@ -261,7 +279,11 @@ export const DEFAULT_SETTINGS: TeleprompterSettings = {
 	flipVertical: false,
 	scrollSyncEnabled: false,
 	showMinimap: false,
-	keepAwake: false,
+	keepAwake: true,
+	keepAwakeAutoMigrated: false,
+	notePositions: {},
+	stageCueDisplay: 'hide',
+	pedalArrowKeys: false,
 	defaultCountdown: 5,
 	showEyeline: true,
 	eyelinePosition: 50,
@@ -297,6 +319,8 @@ export const DEFAULT_SETTINGS: TeleprompterSettings = {
 		'ArrowDown': 'speedDown',
 		'ArrowLeft': 'scrollUp',
 		'ArrowRight': 'scrollDown',
+		'PageDown': 'pageDown',       // Pedals and presenter clickers
+		'PageUp': 'pageUp',
 		'Home': 'resetToTop',
 		'n': 'toggleNavigation',
 		'N': 'toggleNavigation',
@@ -318,7 +342,8 @@ export const DEFAULT_SETTINGS: TeleprompterSettings = {
 	debugMode: false,
 	// Voice tracking settings
 	voiceTrackingEnabled: false,
-	voiceTrackingLanguage: 'en-US',
+	voiceTrackingLanguage: 'auto',
+	voiceLanguageAutoMigrated: false,
 	voiceTrackingShowIndicator: true,
 	voiceTrackingScrollBehavior: 'smooth',
 	voiceTrackingPacePreset: 'balanced',    // Default to balanced preset
@@ -356,7 +381,7 @@ export const DEFAULT_SETTINGS: TeleprompterSettings = {
 	// NEW: Toolbar configuration
 	toolbarLayout: {
 		primary: ['play-pause', 'speed', 'countdown', 'reset', 'font-size', 'line-height', 'letter-spacing', 'font-family', 'opacity', 'padding', 'text-color', 'bg-color'],
-		secondary: ['eyeline', 'focus-mode', 'navigation', 'fullscreen', 'flip-h', 'flip-v', 'minimap', 'auto-pause', 'progress-indicator', 'alignment', 'keep-awake', 'pin', 'detach', 'quick-presets', 'time-display', 'tts'],
+		secondary: ['eyeline', 'focus-mode', 'navigation', 'fullscreen', 'flip-h', 'flip-v', 'minimap', 'auto-pause', 'progress-indicator', 'alignment', 'keep-awake', 'pin', 'detach', 'float', 'quick-presets', 'time-display', 'tts'],
 		hidden: []
 	},
 	// NEW: Toolbar density (default compact — labels off)
@@ -533,6 +558,7 @@ const TOOLBAR_CONTROLS: ToolbarControlMeta[] = [
 	{ id: 'keep-awake', name: 'Keep awake', icon: 'tp-keep-awake', defaultMore: true },
 	{ id: 'pin', name: 'Pin note', icon: 'tp-pin', defaultMore: true },
 	{ id: 'detach', name: 'Open in window', icon: 'tp-detach', defaultMore: true },
+	{ id: 'float', name: 'Float over other apps', icon: 'tp-float', defaultMore: true },
 	{ id: 'quick-presets', name: 'Quick presets', icon: 'tp-quick-presets' },
 	// Info displays
 	{ id: 'time-display', name: 'Time display', icon: 'clock' },
@@ -1532,7 +1558,7 @@ export class TeleprompterSettingTab extends PluginSettingTab {
 		this.createFeatureGroup(containerEl, 'advanced', 'Advanced', 'settings', [
 			{
 				id: 'keep-awake',
-				name: 'Keep awake',
+				name: 'Keep screen awake while reading',
 				icon: 'sun',
 				hasToggle: true,
 				toggleValue: this.plugin.settings.keepAwake,
@@ -1550,6 +1576,42 @@ export class TeleprompterSettingTab extends PluginSettingTab {
 				toggleValue: this.plugin.settings.doubleClickToEdit,
 				onToggle: (value: boolean) => {
 					this.plugin.settings.doubleClickToEdit = value
+					void this.plugin.saveSettings()
+				},
+				settings: []
+			},
+			{
+				id: 'stage-cues',
+				name: 'Stage cues',
+				icon: 'eye-off',
+				hasToggle: false,
+				settings: [
+					{
+						name: 'Cues such as [pause]',
+						desc: 'Notes to yourself in square brackets. They are never read aloud or tracked by voice.',
+						type: 'dropdown',
+						options: [
+							{ value: 'hide', label: 'Hide' },
+							{ value: 'dim', label: 'Show dimmed' },
+							{ value: 'show', label: 'Show normally' }
+						],
+						value: this.plugin.settings.stageCueDisplay,
+						onChange: (value) => {
+							this.plugin.settings.stageCueDisplay = value as 'hide' | 'dim' | 'show'
+							void this.plugin.saveSettings()
+							document.dispatchEvent(new CustomEvent('teleprompter:stage-cues-changed', { detail: { display: value } }))
+						}
+					}
+				]
+			},
+			{
+				id: 'pedal-arrows',
+				name: 'Arrow keys turn pages',
+				icon: 'footprints',
+				hasToggle: true,
+				toggleValue: this.plugin.settings.pedalArrowKeys,
+				onToggle: (value: boolean) => {
+					this.plugin.settings.pedalArrowKeys = value
 					void this.plugin.saveSettings()
 				},
 				settings: []
@@ -1609,28 +1671,16 @@ export class TeleprompterSettingTab extends PluginSettingTab {
 				settings: [
 					{
 						name: 'Language',
-						desc: 'Speech recognition language',
+						desc: 'Automatic follows each script. A note can also set voice-language in its properties.',
 						type: 'dropdown',
 						options: [
-							{ value: 'en-US', label: 'English (US)' }
+							{ value: 'auto', label: 'Automatic' },
+							{ value: 'en-US', label: 'English (US)' },
+							{ value: 'pt-BR', label: 'Portuguese (Brazil)' }
 						],
 						value: this.plugin.settings.voiceTrackingLanguage,
 						onChange: (value) => {
 							this.plugin.settings.voiceTrackingLanguage = value as string
-							void this.plugin.saveSettings()
-						}
-					},
-					{
-						name: 'Scroll behavior',
-						desc: 'How the teleprompter scrolls to match speech',
-						type: 'dropdown',
-						options: [
-							{ value: 'smooth', label: 'Smooth' },
-							{ value: 'instant', label: 'Instant' }
-						],
-						value: this.plugin.settings.voiceTrackingScrollBehavior,
-						onChange: (value) => {
-							this.plugin.settings.voiceTrackingScrollBehavior = value as 'smooth' | 'instant'
 							void this.plugin.saveSettings()
 						}
 					},
@@ -1662,29 +1712,9 @@ export class TeleprompterSettingTab extends PluginSettingTab {
 				name: 'Scroll tuning',
 				icon: 'sliders-horizontal',
 				hasToggle: false,
+				// Max/min jump distance, animation times, smooth/instant, pause detection and scroll trail
+				// were removed in 0.12.0: the voice follower never read them, so the sliders did nothing.
 				settings: [
-					{
-						name: 'Max jump distance',
-						desc: 'Maximum words to scroll at once (smaller = smoother, 2-30)',
-						type: 'slider',
-						min: 2, max: 30, step: 1,
-						value: this.plugin.settings.voiceTrackingMaxJumpDistance,
-						onChange: (value) => {
-							this.plugin.settings.voiceTrackingMaxJumpDistance = value as number
-							void this.plugin.saveSettings()
-						}
-					},
-					{
-						name: 'Min jump distance',
-						desc: 'Minimum words before scrolling (smaller = more frequent, 1-10)',
-						type: 'slider',
-						min: 1, max: 10, step: 1,
-						value: this.plugin.settings.voiceTrackingMinJumpDistance,
-						onChange: (value) => {
-							this.plugin.settings.voiceTrackingMinJumpDistance = value as number
-							void this.plugin.saveSettings()
-						}
-					},
 					{
 						name: 'Update frequency',
 						desc: 'How often to match speech (lower = more responsive, 100-1000ms)',
@@ -1693,52 +1723,6 @@ export class TeleprompterSettingTab extends PluginSettingTab {
 						value: this.plugin.settings.voiceTrackingUpdateFrequencyMs,
 						onChange: (value) => {
 							this.plugin.settings.voiceTrackingUpdateFrequencyMs = value as number
-							void this.plugin.saveSettings()
-						}
-					},
-					{
-						name: 'Animation base time',
-						desc: 'Base scroll animation duration (higher = smoother, 100-1500ms)',
-						type: 'slider',
-						min: 100, max: 1500, step: 50,
-						value: this.plugin.settings.voiceTrackingAnimationBaseMs,
-						onChange: (value) => {
-							this.plugin.settings.voiceTrackingAnimationBaseMs = value as number
-							void this.plugin.saveSettings()
-						}
-					},
-					{
-						name: 'Animation per word',
-						desc: 'Extra time per word jumped (higher = smoother for big jumps, 10-200ms)',
-						type: 'slider',
-						min: 10, max: 200, step: 10,
-						value: this.plugin.settings.voiceTrackingAnimationPerWordMs,
-						onChange: (value) => {
-							this.plugin.settings.voiceTrackingAnimationPerWordMs = value as number
-							void this.plugin.saveSettings()
-						}
-					}
-				]
-			},
-			{
-				id: 'voice-pause',
-				name: 'Pause detection',
-				icon: 'pause-circle',
-				hasToggle: true,
-				toggleValue: this.plugin.settings.voiceTrackingPauseDetection,
-				onToggle: (value: boolean) => {
-					this.plugin.settings.voiceTrackingPauseDetection = value
-					void this.plugin.saveSettings()
-				},
-				settings: [
-					{
-						name: 'Pause threshold',
-						desc: 'Time without speech before pausing scroll (500-3000ms)',
-						type: 'slider',
-						min: 500, max: 3000, step: 100,
-						value: this.plugin.settings.voiceTrackingPauseThresholdMs,
-						onChange: (value) => {
-							this.plugin.settings.voiceTrackingPauseThresholdMs = value as number
 							void this.plugin.saveSettings()
 						}
 					}
@@ -1758,17 +1742,6 @@ export class TeleprompterSettingTab extends PluginSettingTab {
 						value: this.plugin.settings.voiceTrackingScrollPosition,
 						onChange: (value) => {
 							this.plugin.settings.voiceTrackingScrollPosition = value as number
-							void this.plugin.saveSettings()
-						}
-					},
-					{
-						name: 'Scroll trail (words behind your voice)',
-						desc: 'If the prompter runs AHEAD of you, raise this. Anchors the scroll this many words behind the word you just spoke. Re-toggle voice tracking (V) to apply.',
-						type: 'slider',
-						min: 0, max: 25, step: 1,
-						value: this.plugin.settings.voiceTrackingReadTrail,
-						onChange: (value) => {
-							this.plugin.settings.voiceTrackingReadTrail = value as number
 							void this.plugin.saveSettings()
 						}
 					},
@@ -2874,7 +2847,7 @@ export class TeleprompterSettingTab extends PluginSettingTab {
 		docsLink.createSpan({ text: 'Docs' })
 		docsLink.addEventListener('click', (e) => {
 			e.preventDefault()
-			window.open('https://github.com/yourusername/obsidian-teleprompter-plus#readme')
+			window.open('https://github.com/JuracyAmerico/obsidian-teleprompter-plus#readme')
 		})
 
 		const issuesLink = linksRow.createEl('a', { cls: 'tp-about-link', href: '#' })
@@ -2883,8 +2856,20 @@ export class TeleprompterSettingTab extends PluginSettingTab {
 		issuesLink.createSpan({ text: 'Support' })
 		issuesLink.addEventListener('click', (e) => {
 			e.preventDefault()
-			window.open('https://github.com/yourusername/obsidian-teleprompter-plus/issues')
+			window.open('https://github.com/JuracyAmerico/obsidian-teleprompter-plus/issues')
 		})
+
+		// The What's New dialog's "Don't show on updates" points here to turn it back on
+		new Setting(containerEl)
+			.setName("Show what's new after updates")
+			.setDesc('Open the release notes dialog the first time a new version runs.')
+			.addToggle(toggle => toggle
+				.setValue(this.plugin.settings.showReleaseNotes)
+				.onChange(async (value) => {
+					this.plugin.settings.showReleaseNotes = value
+					await this.plugin.saveSettings()
+				})
+			)
 
 		// Features Section
 		const featuresSection = containerEl.createDiv('tp-section-header')

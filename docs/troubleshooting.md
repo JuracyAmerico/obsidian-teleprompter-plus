@@ -65,6 +65,26 @@ The TTS engine resolves `[@key]` citations to spoken form like *"(Author, Year)"
 
 ---
 
+## Voice tracking
+
+### The script stops following when I read a line again
+
+Say at least about six words of the line, clearly. Voice moves back only on strong evidence, so a phrase that appears twice nearby will not move it. You can also scroll back by hand or press **R** to re-find your place.
+
+### "The speech helper stopped unexpectedly"
+
+The helper process ended while listening. Press **Retry**. If it keeps happening, check System Settings → Privacy & Security → Microphone and Speech Recognition.
+
+## Floating window
+
+### The script shows in my screen share
+
+Tick **Hide from capture** on the floating bar. It asks macOS to leave the window out of capture, and it was measured on entire-screen shares in Zoom, Google Meet in Chrome and Microsoft Teams on macOS 26.5. Other versions and apps may differ, so test before you rely on it. To be sure, share another app's window, or keep the script on a Prompter. With the box on, the window is also blank in your own screenshots and recordings.
+
+### Pedal or clicker keys do nothing
+
+Keys work only while the prompter has focus, so click the script first. On a MacBook, PageDown and PageUp are **fn + ↓** and **fn + ↑**. Over a video call, use the Stream Deck or the phone remote.
+
 ## Performance
 
 ### Laggy scrolling with large documents

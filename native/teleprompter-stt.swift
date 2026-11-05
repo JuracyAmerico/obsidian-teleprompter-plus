@@ -59,6 +59,13 @@ guard let recognizer = SFSpeechRecognizer(locale: Locale(identifier: localeId)) 
     exit(1)
 }
 
+// Scripts and rehearsals stay on this machine. Without on-device support the Speech framework
+// would send the audio to Apple's servers, so refuse and let the plugin use its offline engine.
+guard recognizer.supportsOnDeviceRecognition else {
+    emit(["type": "error", "code": "no-on-device", "message": "On-device recognition is not available for \(localeId)"])
+    exit(1)
+}
+
 let audioEngine = AVAudioEngine()
 var request: SFSpeechAudioBufferRecognitionRequest?
 var task: SFSpeechRecognitionTask?
@@ -70,9 +77,7 @@ func startRecognition() {
 
     let req = SFSpeechAudioBufferRecognitionRequest()
     req.shouldReportPartialResults = true
-    if recognizer.supportsOnDeviceRecognition {
-        req.requiresOnDeviceRecognition = true   // offline + private; no audio leaves the machine
-    }
+    req.requiresOnDeviceRecognition = true   // offline + private; no audio leaves the machine
     if !contextWords.isEmpty {
         req.contextualStrings = contextWords   // bias toward the script's words
     }
@@ -93,7 +98,7 @@ func startRecognition() {
         exit(1)
     }
     restarting = false
-    emit(["type": "status", "value": "listening"])
+    emit(["type": "status", "value": "listening", "onDevice": true])
 
     task = recognizer.recognitionTask(with: req) { result, error in
         if let result = result {

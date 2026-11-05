@@ -3,11 +3,11 @@ task: Teleprompter Plus — voice tracking that never fails silently, and a plug
 slug: teleprompter-plus
 project: Teleprompter Plus
 effort: E3
-phase: verify
-progress: 26/26
+phase: climbing
+progress: 92/92
 mode: algorithm
 started: 2026-10-29
-updated: 2026-10-30
+updated: 2026-11-05
 ---
 
 ## Ideal State
@@ -21,14 +21,14 @@ updated: 2026-10-30
 - The interview-practice "rehearsal" preset and the two anti-wrong-jump guards (stranded on `rehearsal-on-0.11.6` since 2026-07-11) are on main.
 - The README states only features the code implements.
 
-**L1:** Source of the scope: Sol code audit and Fable competitor gap analysis, 2026-10-29 (vault `01-projects/obsidian-teleprompter-plus/2026-10-29-17-55-auditoria-bugs-e-lacunas-vs-concorrentes.md`), and Américo's go-ahead for release 0.11.9 ("How about start now?", 2026-10-29). Releases 0.12.0 (skip stage cues, fit-to-time, auto wake lock, pedal keys, and a floating always-on-top click-through window for reading over a video call: Américo's "yes", 2026-10-30, after the Glimpse review) and 0.13.0 (voice commands, Portuguese voice, take log) come after and are not in this ISA yet.
+**L1:** Source of the scope: Sol code audit and Fable competitor gap analysis, 2026-10-29 (vault `01-projects/obsidian-teleprompter-plus/2026-10-29-17-55-auditoria-bugs-e-lacunas-vs-concorrentes.md`), and Américo's go-ahead for release 0.11.9 ("How about start now?", 2026-10-29). Releases 0.12.0 (skip stage cues, fit-to-time, auto wake lock, pedal keys, and a floating always-on-top click-through window for reading over a video call: Américo's "yes", 2026-10-30, after the Glimpse review) and 0.13.0 (voice commands, take log) come after. Portuguese voice moved into 0.12.0 on Américo's word, 2026-11-04. Live refresh, jumping between prompter and note, remembered position and a screen-share test joined 0.12.0 on his word, 2026-11-05 ("Yes is approved"), after the competitor evaluation. Fit-to-time and the cursor-to-prompter jump moved to 0.13.0 on his "yes" to the plan, 2026-11-05.
 
 Restate: L3/L2 drawn from the plan table Américo approved in chat 2026-10-29 18:04 ("How about start now?"). `inferred` until he confirms the wording.
 
 ## Out of Scope
 
 - Publishing to the Obsidian store (needs Américo's OK per release).
-- Live note refresh, pin/always-on-top, mobile — later releases.
+- Mobile: a later release, with its own speech path.
 - Full-repo seed of every surface into criteria (fog, below).
 
 ## Criteria
@@ -48,7 +48,7 @@ Restate: L3/L2 drawn from the plan table Américo approved in chat 2026-10-29 18
 - [x] ISC-16: the native helper reports a denied microphone as a `mic-denied` error.
 - [x] ISC-10: the UI marks voice tracking active only after the service reports `listening`.
 - [x] ISC-17: a voice error shows an Obsidian Notice naming the System Settings privacy path.
-- [x] ISC-11: README.md makes no claim that the note updates live while being edited.
+- [x] ISC-11: README.md makes no claim that the note updates live while being edited. Retired 2026-11-05 when ISC-68 made the claim true.
 - [x] ISC-18: README.md makes no "Pin window" claim.
 - [x] ISC-12: `bun run check` reports 0 errors.
 - [x] ISC-19: `bun test` reports 0 failures.
@@ -59,6 +59,106 @@ Restate: L3/L2 drawn from the plan table Américo approved in chat 2026-10-29 18
 - [x] ISC-24: recognition errors spread wider than the error window (a reader pausing to think) never fail the run.
 - [x] ISC-25: on the Vosk fallback, a microphone request that never settles becomes a reported error within 15 s instead of "Initializing…" forever.
 - [x] ISC-26: on the Vosk fallback, a stream of only exact-zero samples (mic blocked by macOS) becomes a reported microphone-denied error within ~4 s; real room noise never trips it.
+- [x] ISC-27: the What's New dialog lists the `## [version]` entries of CHANGELOG.md for the installed version, never a hand-written list.
+- [x] ISC-28: a release whose CHANGELOG.md has no entry for manifest.json's version fails `bun test`, so the release workflow stops before publishing.
+
+### 0.12.0 audit fixes (Sol's announced-vs-code audit, Américo's "yes" 2026-10-30)
+
+- [x] ISC-44: every play start emits `teleprompter:play-started` and reset-to-top emits `teleprompter:reset-complete`, so the OBS recording sync main.ts listens for can fire.
+- [x] ISC-45: the About settings tab has a toggle that turns the What's New dialog back on, and the dialog's hint names that tab.
+- [x] ISC-46: the About tab's Docs and Support links open the JuracyAmerico repository, never a `yourusername` placeholder.
+- [x] ISC-47: the voice settings show no control the follower never reads (scroll behavior, max/min jump, animation times, pause detection and threshold, scroll trail).
+
+### 0.12.0 floating window (criteria from Fable's design review, 2026-10-30)
+
+- [x] ISC-29: `FloatingWindowController.enter()` calls `setAlwaysOnTop(true, …)` and on macOS `setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true })`; `exit()` calls both with false.
+- [x] ISC-30: `lock()` calls `setIgnoreMouseEvents(true, { forward: true })`, `unlock()` calls `setIgnoreMouseEvents(false)`, and `exit()` always unlocks first.
+- [x] ISC-31: window see-through is clamped to 30–100% before it reaches the window.
+- [x] ISC-32: a saved locked state is never restored: `enter()` never starts locked.
+- [x] ISC-33: the float button renders only on desktop and not on Linux, and manifest.json keeps `isDesktopOnly: true`.
+- [x] ISC-34: voice follow-scroll and auto-scroll schedule their frames and timers from the content's own window, never the main window's, so a minimized main window cannot freeze the floating prompter.
+- [x] ISC-35: runtime (Américo): main window minimized, Zoom test meeting in full screen, floating + voice on: the script stays visible and follows a 60-second read with no stall over 2 s.
+- [x] ISC-36: runtime: locked, a click on the script reaches Zoom underneath; hovering the corner handle shows Unlock within 1 s, and after unlocking the next click lands on the prompter.
+- [x] ISC-37: runtime then docs: whether the floating window shows when sharing "Entire screen" and when sharing a single window is measured, and README states those results, never "hidden from screen share".
+- [x] ISC-38: closing the floating window mid-voice leaves no `teleprompter-stt` process within 2 s, and the main window shows voice off.
+- [x] ISC-39: saved position and size are restored only when they overlap a connected display; otherwise the window opens at the default place.
+- [x] ISC-40: entering floating pins the current note, so clicking another note during the call does not swap the script.
+- [x] ISC-41: without the Electron window controls, entering floating shows one Notice and falls back to a plain pop-out; nothing throws.
+- [x] ISC-42: a voice error while floating shows inside the floating window, not only as an Obsidian Notice behind Zoom.
+- [x] ISC-43: there are three ways to unlock (corner handle, a button in the main window, a Stream Deck/remote `floating-unlock` command).
+- [x] ISC-48: floating while voice runs in the main window stops it there and starts it in the floating window, so only the floating script follows the voice.
+- [x] ISC-49: `enter()` turns background throttling off on the floating and main windows, and `exit()` turns it back on for both.
+- [x] ISC-50: the script text carries an outline only while floating.
+- [x] ISC-51: a connected display whose name matches "Elgato Prom" is identified as the Prompter; no such display gives none, whatever its size.
+- [x] ISC-52: with the Prompter connected and preferred, floating opens filling that display at 100% opacity; otherwise it opens at the restored bounds and saved see-through.
+- [x] ISC-54: while a floating window exists, Stream Deck and remote commands and the main window's voice button act on the floating view, never on the main one.
+- [x] ISC-55: on the Prompter the toolbar, clock row, section panel and status bar are hidden, so the script fills what the small display has.
+- [x] ISC-56: floating opens as a floating window on every attempt, and a request nobody picked up is cleared with a Notice instead of surviving to hijack the next pop-out.
+- [x] ISC-57: closing the main teleprompter view leaves the floating window's voice running.
+- [x] ISC-58: unplugging the Prompter while floating moves the window to the main screen with its controls, and connecting one shows the move button without reopening.
+- [x] ISC-87: the "Float over other apps" command, from any source, closes an open floating window and leaves it closed.
+- [x] ISC-53: one button moves the floating window between the Prompter and the main screen, the choice is remembered, and bounds on the Prompter never overwrite the saved main-screen position.
+
+### 0.12.0 Portuguese voice (Américo: "add portuguese voice to 0.12.0", 2026-11-04)
+
+- [x] ISC-59: a Portuguese script is detected as pt-BR, an English script as en-US, and a script with no telling words stays en-US.
+- [x] ISC-60: a note's frontmatter language beats the setting, and the setting beats detection.
+- [x] ISC-61: the settings menu offers Automatic, English and Portuguese, and a saved en-US from before this release becomes Automatic once.
+- [x] ISC-62: recognition never leaves the Mac: the helper refuses to run without on-device support, and an older helper that does not promise it is not trusted with another language.
+- [x] ISC-63: when Apple cannot run on-device, Vosk takes over in the same language with no error shown, and later starts go straight to Vosk.
+- [x] ISC-64: changing script language between runs gets a recognizer in the new language.
+- [x] ISC-65: Portuguese heard without accents still matches, and English number words are never applied to other languages.
+- [x] ISC-66: runtime: a spoken Portuguese script moves the prompter on this Mac.
+- [x] ISC-67: runtime: English voice reaches Listening on the rebuilt helper, once macOS has its permission.
+
+### 0.12.0 additions from the competitor evaluation (Américo: "Yes is approved", 2026-11-05)
+
+Live refresh:
+
+- [x] ISC-68: saving an edit to the prompted note changes the prompter's text within 3 s, with no reload or reopen.
+- [x] ISC-69: a refresh leaves the same passage in the reading position and never changes playback: playing stays playing, paused stays paused.
+- [x] ISC-70: a refresh during voice tracking keeps the same speech helper running, and the next spoken words of the edited passage move the prompter; on the Vosk engine, words new to the script are heard only after the next voice start.
+- [x] ISC-71: an edit to any other note never changes the script, and a pinned note's own edits still refresh it.
+
+Jump between prompter and note:
+
+- [x] ISC-72: double-clicking a word in the prompter opens its note in the editor with the cursor on that word's source line, including when the note is pinned and not the active file, and a pane is opened when none shows the note.
+- [x] ISC-74: after a double-click during voice tracking, the next spoken words continue from the clicked passage.
+
+Remembered position:
+
+- [x] ISC-75: a note reopens at the passage where it was left after an Obsidian restart, and one read to its end starts from the top.
+- [x] ISC-76: the saved record holds a word index and its surrounding words, never a pixel value, and a renamed or moved note keeps it.
+- [x] ISC-77: a position past the end of a shortened note lands at the end without an error, and saved positions are capped at 200 and dropped for deleted notes.
+
+Hiding the script from screen share:
+
+- [x] ISC-78: runtime: with the floating window's content protection on, a real Zoom local recording of an entire-screen share and of an Obsidian window share is viewed frame by frame, and the result is recorded with the macOS and Zoom versions.
+- [x] ISC-91: runtime: "Hide from capture" is measured on an entire-screen share in Google Meet and Microsoft Teams, with a control frame taken with protection off.
+- [x] ISC-92: the plugin's interface has no emoji icons, and a test fails the build if one returns.
+- [x] ISC-93: a command received while floating runs once on the floating script, however many views are open.
+- [x] ISC-79: a setting ships only if ISC-78 shows the script absent from both shares and the window still readable to Américo; otherwise no setting ships. Either way README states only the measured result. Built, off by default; Américo read the protected window on his monitor ("yes I can", 2026-11-05).
+
+Stage cues, wake lock, pedal keys (Fable's plan, Américo's "yes" 2026-11-05):
+
+- [x] ISC-80: a bracket cue such as `[pause]` is hidden on screen by default and dimmed when a setting asks; citations, footnotes, wiki links, links and task boxes are left alone.
+- [x] ISC-81: read-aloud never speaks a stage cue.
+- [x] ISC-82: voice tracking counts no word inside a stage cue, so word indexes match what is on screen.
+- [x] ISC-83: with the keep-awake setting on, play, voice listening and read-aloud each hold the screen awake, and when all three stop an automatic hold ends while a manual one stays.
+- [x] ISC-84: PageDown and PageUp turn 80% of a screen, reach existing users whose saved hotkeys predate them, and during voice tracking the voice follows the turn.
+- [x] ISC-86: a Stream Deck or Elgato pedal scroll during voice tracking moves the voice with the page, so it does not pull the page back.
+- [x] ISC-85: a setting makes the arrow keys turn pages for pedals in arrow mode, and README states that keys work only with the prompter focused.
+
+Found in Américo's own test run, 2026-11-05 (steps 2, 3, 7, 8):
+
+- [x] ISC-88: reading aloud a line already passed moves voice back to it within about six words, and the script then follows from there.
+- [x] ISC-89: a phrase that occurs twice in range, a stale repeat from the recognizer, and ordinary lag behind a forward reader never move voice back.
+- [x] ISC-90: read-aloud with Américo's ElevenLabs engine does not speak a stage cue, confirmed by his ear.
+
+## Anti-criteria
+
+- ANTI-1: a floating window that cannot be unlocked: no path may start locked or leave the window click-through after `exit()`.
+- ANTI-2: README or UI text that promises the window is hidden from screen share.
 
 ## Test Strategy
 
@@ -79,7 +179,6 @@ Restate: L3/L2 drawn from the plan table Américo approved in chat 2026-10-29 18
 | ISC-16 | bash | mic denial reported as its own error | exit 0 | rg -q "mic-denied" native/teleprompter-stt.swift |
 | ISC-10 | bun-test | active flag set only on listening | pass | bun test src/voice/voice-ui-state.test.ts -t "active on listening" |
 | ISC-17 | manual | voice error shows a Notice with the Settings path | Américo sees the message with mic denied | real mic on macOS |
-| ISC-11 | bash | README has no live-edit claim | exit 1 | rg -q -i "updates live as you edit" README.md |
 | ISC-18 | bash | README has no pin-window claim | exit 1 | rg -q -i "pin window" README.md |
 | ISC-12 | bash | type check clean | exit 0 | bun run check |
 | ISC-19 | bash | test suite clean | exit 0 | bun test |
@@ -94,7 +193,89 @@ Restate: L3/L2 drawn from the plan table Américo approved in chat 2026-10-29 18
 | ISC-25 | bun-test | hung mic request times out | pass | bun test src/voice/with-timeout.test.ts -t "hung mic request" |
 | ISC-25 | bash | Vosk start wraps getUserMedia in the timeout | exit 0 | rg -q "withTimeout\(" src/voice/vosk-recognizer.ts |
 | ISC-26 | bun-test | all-zero stream reported, room noise not | pass | bun test src/voice/silent-mic-watch.test.ts |
+| ISC-27 | bash | modal builds its list from the changelog | exit 0 | rg -q "parseReleaseNotes\(changelog" src/whats-new-modal.ts |
+| ISC-27 | bun-test | changelog bullets parsed per version | pass | bun test src/release-notes.test.ts -t "bold lead" |
+| ISC-28 | bun-test | current version has release notes | pass | bun test src/release-notes.test.ts -t "current version has release notes" |
 | ISC-26 | bash | Vosk feeds every chunk to the watch | exit 0 | rg -q "silentWatch\?\.feed" src/voice/vosk-recognizer.ts |
+| ISC-44 | bun-test | play and reset emit the OBS sync events | pass | bun test src/audit-fixes.test.ts -t "obs sync" |
+| ISC-45 | bun-test | release-notes toggle exists and the hint names it | pass | bun test src/audit-fixes.test.ts -t "release notes toggle" |
+| ISC-46 | bun-test | no placeholder owner in About links | pass | bun test src/audit-fixes.test.ts -t "about links" |
+| ISC-47 | bun-test | dead voice controls are gone | pass | bun test src/audit-fixes.test.ts -t "dead voice settings" |
+| ISC-29 | bun-test | enter and exit set on-top and all-workspaces | pass | bun test src/floating/floating-window.test.ts -t "on top" |
+| ISC-30 | bun-test | lock, unlock, exit unlocks first | pass | bun test src/floating/floating-window.test.ts -t "click-through" |
+| ISC-31 | bun-test | see-through clamped | pass | bun test src/floating/floating-window.test.ts -t "clamped" |
+| ISC-32 | bun-test | enter never starts locked | pass | bun test src/floating/floating-window.test.ts -t "never starts locked" |
+| ISC-33 | bun-test | button gated by platform, manifest desktop-only | pass | bun test src/floating/floating-wiring.test.ts -t "platform gate" |
+| ISC-34 | bun-test | frames and timers come from the content's window | pass | bun test src/floating/floating-wiring.test.ts -t "own window" |
+| ISC-35 | manual | minimized main, Zoom full screen, 60 s read, no stall over 2 s | Américo at the Mac | real Zoom test call |
+| ISC-36 | manual | locked click reaches Zoom; handle unlocks | Américo at the Mac | real Zoom test call |
+| ISC-37 | bash | README states the measured share results | exit 0 | rg -q "did not show when sharing another app" README.md |
+| ISC-38 | bun-test | closing while voice runs stops it and tells the main window | pass | bun test src/floating/floating-wiring.test.ts -t "close stops voice" |
+| ISC-39 | bun-test | off-screen bounds rejected | pass | bun test src/floating/floating-window.test.ts -t "bounds" |
+| ISC-40 | bun-test | floating pins the requested note | pass | bun test src/floating/floating-wiring.test.ts -t "pins note" |
+| ISC-41 | bun-test | missing window controls give null, no throw | pass | bun test src/floating/floating-window.test.ts -t "no electron window" |
+| ISC-41 | bun-test | wiring shows the Notice | pass | bun test src/floating/floating-wiring.test.ts -t "fallback notice" |
+| ISC-42 | bun-test | voice failure sets the in-window banner | pass | bun test src/floating/floating-wiring.test.ts -t "error banner" |
+| ISC-43 | bun-test | session unlock, main button, remote command | pass | bun test src/floating/floating-wiring.test.ts -t "three unlock" |
+| ISC-48 | bun-test | hand-off stops here and starts there | pass | bun test src/floating/floating-wiring.test.ts -t "voice hand-off" |
+| ISC-49 | bun-test | throttling off on enter, on at exit, both windows | pass | bun test src/floating/floating-window.test.ts -t "throttling" |
+| ISC-50 | bun-test | outline CSS only under the floating class | pass | bun test src/floating/floating-wiring.test.ts -t "outline" |
+| ISC-51 | bun-test | Prompter found by name only | pass | bun test src/floating/floating-window.test.ts -t "prompter display" |
+| ISC-52 | bun-test | placement picks Prompter or saved bounds | pass | bun test src/floating/floating-window.test.ts -t "placement" |
+| ISC-53 | bun-test | move button, remembered choice, bounds kept | pass | bun test src/floating/floating-wiring.test.ts -t "prompter button" |
+| ISC-54 | bun-test | events and the voice button forward to the floating view | pass | bun test src/floating/floating-wiring.test.ts -t "routes commands" |
+| ISC-54 | bun-test | session delivers to the attached view | pass | bun test src/floating/floating-window.test.ts -t "forward" |
+| ISC-55 | bun-test | chrome hidden only under the Prompter class | pass | bun test src/floating/floating-wiring.test.ts -t "prompter chrome" |
+| ISC-56 | bun-test | the view mounts only inside its real window; an unclaimed request is cleared | pass | bun test src/floating/floating-wiring.test.ts -t "real window" |
+| ISC-57 | bun-test | a view that does not own the voice never stops or seeks it | pass | bun test src/floating/floating-wiring.test.ts -t "voice owner" |
+| ISC-58 | bun-test | losing the Prompter gives a main-screen placement | pass | bun test src/floating/floating-window.test.ts -t "prompter lost" |
+| ISC-58 | bun-test | the floating tick rechecks displays | pass | bun test src/floating/floating-wiring.test.ts -t "display change" |
+| ISC-87 | bun-test | one command acts once | pass | bun test src/floating/floating-window.test.ts -t "one command" |
+| ISC-87 | manual | command opens, command closes, stays closed | one main view left | Obsidian CLI on the live plugin |
+| ISC-91 | manual | floating absent on, visible off | frames viewed | Meet outgoing stream; Teams guest in Chrome |
+| ISC-92 | bun-test | no emoji in source | pass | bun test src/no-emoji.test.ts |
+| ISC-93 | bun-test | forward is claimed once | pass | bun test src/floating/floating-wiring.test.ts -t "floating script receives it once" |
+| ISC-59 | bun-test | language detection | pass | bun test src/voice/voice-language.test.ts -t "detect" |
+| ISC-60 | bun-test | note, setting, script order | pass | bun test src/voice/voice-language.test.ts -t "order" |
+| ISC-61 | bun-test | menu options offered | pass | bun test src/floating/floating-wiring.test.ts -t "language menu" |
+| ISC-61 | bun-test | saved en-US migrates once, through the real defaults | pass | bun test src/voice/voice-language.test.ts -t "migration" |
+| ISC-62 | bun-test | helper refuses, older helper not trusted | pass | bun test src/voice/voice-language.test.ts -t "on-device only" |
+| ISC-63 | bun-test | fallback to Vosk, remembered | pass | bun test src/voice/voice-language.test.ts -t "offline fallback" |
+| ISC-64 | bun-test | new language gets a new recognizer | pass | bun test src/voice/voice-language.test.ts -t "switching script language" |
+| ISC-65 | bun-test | accents and numbers | pass | bun test src/voice/voice-language.test.ts -t "Portuguese tracking" |
+| ISC-66 | manual | spoken Portuguese moves the prompter | scroll position rises | /usr/bin/say with a Portuguese voice, real mic |
+| ISC-67 | manual | English voice reaches Listening | status shows Listening | rebuilt helper on this Mac |
+| ISC-68 | bun-test | a modify event on the prompted note re-renders the script | pass | bun test src/live-refresh.test.ts -t "refreshes" |
+| ISC-68 | manual | edit in the editor shows up in the prompter | under 3 s | Obsidian CLI on the live plugin |
+| ISC-69 | bun-test | reading position maps to the same passage after an edit above it | pass | bun test src/live-refresh.test.ts -t "keeps passage" |
+| ISC-69 | manual | scrolling script keeps playing through an edit | passage unchanged, still playing | Obsidian CLI on the live plugin |
+| ISC-70 | manual | helper pid unchanged, edited words move the prompter | same pid, scroll rises | /usr/bin/say, real mic |
+| ISC-71 | bun-test | other notes ignored, pinned note refreshes | pass | bun test src/live-refresh.test.ts -t "only the prompted note" |
+| ISC-72 | bun-test | clicked word resolves to its source line through the source map | pass | bun test src/note-jump.test.ts -t "source line" |
+| ISC-72 | manual | real double-click lands the cursor on the line, note pinned | line matches | interceptor macos click on a test note |
+| ISC-74 | manual | voice continues from the clicked passage | scroll rises from there | /usr/bin/say, real mic |
+| ISC-75 | bun-test | a saved position loads from settings data, not memory | pass | bun test src/position-memory.test.ts -t "restart" |
+| ISC-75 | manual | position restored after a plugin reload | same passage | Obsidian CLI on the live plugin |
+| ISC-76 | bun-test | record has no pixels, rename carries it | pass | bun test src/position-memory.test.ts -t "record" |
+| ISC-77 | bun-test | past-end clamps, cap holds, deleted notes dropped | pass | bun test src/position-memory.test.ts -t "bounds" |
+| ISC-78 | manual | frames viewed for both shares | result recorded in Decisions | real Zoom meeting, nobody else in it, local recording |
+| ISC-79 | bash | no hidden-from-share promise beyond the measured result | exit 1 | rg -q -i "hidden from screen" README.md |
+| ISC-80 | bun-test | cues wrapped; lookalikes left alone | pass | bun test src/parser/stage-cues.test.ts -t "render" |
+| ISC-80 | manual | `[pause]` gone from the screen, dimmed under the setting | capture viewed | live plugin |
+| ISC-81 | bun-test | cleaner strips cues | pass | bun test src/parser/stage-cues.test.ts -t "read-aloud" |
+| ISC-82 | bun-test | tokenizer and DOM word walk skip cues | pass | bun test src/parser/stage-cues.test.ts -t "voice" |
+| ISC-83 | bun-test | hold decision, auto against manual | pass | bun test src/wake-hold.test.ts |
+| ISC-83 | manual | a display-sleep assertion exists while playing and is gone after | seen in pmset | pmset -g assertions |
+| ISC-84 | bun-test | page keys defined, merged through the real validator | pass | bun test src/pedal-keys.test.ts -t "page keys" |
+| ISC-86 | bun-test | remote scroll moves voice | pass | bun test src/pedal-keys.test.ts -t "stream deck" |
+| ISC-86 | manual | remote scroll holds and voice follows from there | no pull-back, scroll rises | scroll event on the live plugin, /usr/bin/say |
+| ISC-85 | bun-test | arrow mode routes to pages, README says focused | pass | bun test src/pedal-keys.test.ts -t "arrow mode" |
+| ISC-88 | bun-test | a re-read tail resolves behind the place, one misheard word allowed | pass | bun test src/voice/reread.test.ts -t "goes back" |
+| ISC-88 | manual | a passed line spoken aloud moves the script back | scroll falls, then follows | natural test voice, real mic |
+| ISC-89 | bun-test | twins, forward lag and short tails answer -1; one reading never commits | pass | bun test src/voice/reread.test.ts -t "stays" |
+| ISC-90 | manual | cue not heard | Américo's ear | T on a note with a cue |
+| ANTI-1 | bun-test | exit leaves the window clickable | pass | bun test src/floating/floating-window.test.ts -t "click-through" |
+| ANTI-2 | bash | no hidden-from-share promise | exit 1 | rg -q -i "hidden from screen" README.md |
 
 Runtime acceptance (real mic, real TCC prompt on macOS) needs Américo at the Mac: denied permission → message + Settings path; granted → tracking starts; preset switch mid-read keeps position.
 
@@ -116,16 +297,77 @@ Lane: Sol · high
 Criteria: ISC-11, ISC-18, ISC-12, ISC-19, ISC-23
 Lane: Sol · high
 
+### F5: Live refresh
+Criteria: ISC-68, ISC-69, ISC-70, ISC-71
+Lane: inline
+
+### F6: Jump between prompter and note
+Criteria: ISC-72, ISC-74
+Lane: inline
+
+### F7: Remembered position
+Criteria: ISC-75, ISC-76, ISC-77
+Lane: inline
+
+### F8: Screen-share test
+Criteria: ISC-78, ISC-79
+Lane: inline
+
+### F9: Stage cues
+Criteria: ISC-80, ISC-81, ISC-82
+Lane: inline
+
+### F10: Auto wake lock
+Criteria: ISC-83
+Lane: inline
+
+### F11: Pedal keys
+Criteria: ISC-84, ISC-85, ISC-86
+Lane: inline
+
 ## Fog
 
+- A speech helper once kept running after voice stopped, seen 2026-11-05 during Américo's test run, not reproduced. Exact trigger unknown; check `pgrep -f teleprompter-stt` after any voice test.
 - Every other surface of the plugin (Stream Deck actions, TTS, remote, OBS, timer) has no criteria yet; a `Skill("ISA", "seed")` pass later.
 
 ## Decisions
 
+- 2026-11-05: Américo: "I don't wanna see those emoji icons again on t+". All interface emoji replaced by Lucide icons, held by src/no-emoji.test.ts and a rule in CLAUDE.md. Pre-release review blockers fixed: commands forwarded once per view (ISC-93); stage-cue stripping now reads the whole note, so a reference link keeps its words when spoken.
+- 2026-11-05: Release 0.12.0 on Américo's "yes. let's ship". What's New tested through a simulated update from 0.11.9: right version, top 8 highlights with a link to the rest, Lucide icons in place of emoji on his word, no raw backticks. docs/RELEASING.md corrected, since it still said the window was hand-written. The docs-site work stayed out of this release. Local commits were squashed into one, because some carried private paths and names.
+- 2026-11-05: ISC-91 on Américo's "yes test teams and meet". macOS 26.5.1, entire-screen share of the EI491CR display, floating at 1000,-950, nobody else in either meeting. Google Meet in Chrome 156: frames from the page's own 3840x1080 stream, on: absent, off: present. Microsoft Teams 26289: a guest joined from Chrome as a real second participant; its view, on: absent, off: present, both the same second apart. Window shares were not retested on Meet or Teams. Mic and camera were never granted to the guest. Frames deleted. The Teams link replaced his clipboard.
+- 2026-11-05: Elgato pedal tested on the hardware by Américo: "we already test and is working".
+- 2026-11-05: ISC-90 closed on Américo's ear: "8 also is working". The earlier report was not reproduced, and no code changed between his two tries except the re-read work, so the first cause stays unknown.
+- 2026-11-05: Américo tried reading a line again with his own voice on the rehearsal notes: "now is working".
+- 2026-11-05: ISC-88 live, ElevenLabs voice through the speakers into the MacBook mic. English: read forward to 799 px, a passed line spoken again moved it to 290, continuing moved it to 535. Portuguese on Vosk first failed: the recognizer drops "o" and "a", so the heard words did not line up and it went forward (745 to 877). The match now allows short gaps; retest: 667, back to 349, then 481. ISC-89 has tests; a forward read in both runs did not jump back.
+- 2026-11-05: Américo's screenshot of "The speech helper stopped unexpectedly (exit code 0)". Mine: I killed a leftover helper by hand during the test. Proven: killing a running helper gives that exact Notice, and the next start clears it. That leftover helper is the open question. It had run since about 10:29 while he tested, with no floating window open, and survived his voice being stopped. A plugin reload with voice on left 0 helpers, so its cause is not reproduced. Into Fog.
+- 2026-11-05: Américo's test run. Steps 2 and 3: voice is lost when he reads back a line above. Not a bug in the build: forward-only was chosen on purpose after backward global matches flung the highlight to earlier copies of a repeated phrase. ISC-88/89 add a narrow way back: six words, one miss allowed, unique in range, a second reading that moved on. Step 7: my instruction was wrong, the card is under the Features tab, in the collapsed Advanced group. Step 8: not reproduced: on the live plugin the sentences prepared for speech were "Cue test.", "First sentence here for reading.", "Second sentence goes after the cue.", "We shipped it.", from a note holding [pause] and [STAR: Situation]. His engine is ElevenLabs. ISC-90 stays open until he hears it. Step 12: a MacBook has no PageDown key: fn + down arrow.
+- 2026-11-05: ISC-79 closed on Américo's word, "yes I can", with the protected window on his wide monitor: every capture tool is blind to it by design, so his eyes were the only check. The Elgato pedal press itself remains untested on hardware.
+- 2026-11-05: ISC-78 measured, against the 2026-10-30 expectation. Real Zoom 7.1.9 meeting on macOS 26.5.1, nobody else in it, content protection on, floating window on EI491CR at 1000,-950. Local recording frames viewed: entire-screen share of that display: the floating window absent while the terminal under it and the main Obsidian window showed. Sharing the main Obsidian window: its own contents, floating absent. screencapture went blind the same way. Zoom's share picker thumbnail also lacked it. ANTI-2 still holds: UI and README name the measured versions and say to test. The recording went to the Trash and its frames were deleted.
+- 2026-11-05: Sonnet's audit of 3847370, dispositioned. Fixed: a view behind a floating window overwrote the note's position; anchor lookup landed 1 to 4 words early on scripts over 2000 words (exact lookup goes first now); cues right after "!" or another cue were missed; a defined reference link could be hidden, now decided by the note's own link definitions; a bracketed word a reader needs, such as [Smith], gets a third "Show normally" choice; a whole-note rewrite cost about 1 s of alignment on the UI thread, now budgeted; floating placed the script by scroll ratio across a different width, now by its words. Left: the hotkey merge restores a key removed by hand, since no UI can remove one. Keep-awake migration is the intended one-time flip.
+- 2026-11-05: Live evidence for the build, Obsidian on his Mac, on a throwaway note. ISC-68: an edit appeared in 301 ms. ISC-69: an insert above the reader moved scrollTop 4893 to 5290 with the same sentence at the eyeline; during auto-scroll the button stayed Pause and scrolling continued. ISC-70: English: helper pids 36505/36506 unchanged across the edit, spans 1483 to 1532, new "giraffe" words moved scrollTop 6039 to 6260. Vosk Portuguese: no helper, spans 142 to 160, 298 to 799 px. ISC-71: another note's edit left the script unchanged; a pinned note refreshed. ISC-72: dispatched double-clicks with real coordinates: "the" in paragraph 30 landed on line 77, and with the note pinned and no pane open a pane opened on line 35. A hardware mouse double-click was not used. ISC-74: after a double-click during voice, speech of that paragraph was heard; the marker is off, so landing was not separately measured. ISC-75: reload restored paragraph 26 at 7301 px; a note scrolled to its end kept no position. ISC-76: rename carried the record. ISC-80: captures viewed: "[pausa longa]" absent by default and dimmed under the setting, the sentence after it intact. ISC-83: pmset showed Obsidian's NoDisplaySleepAssertion while playing, gone after pause. ISC-84/85: dispatched keys moved 1000 to 1628 to 2256 px at clientHeight 785. ISC-86: a remote scroll of 5000 px held under voice with no pull-back, and speech moved on from there to 5203. Not tested on hardware: an Elgato pedal press. ISC-78/79 wait for a real Zoom call.
+- 2026-11-05: ISC-87's second cause: Obsidian's pop-outs ignore window.close(), on the previous build too (control run: closed stayed false), so the toolbar's float button and command never closed the window. Now closes by detaching its own leaf. Voice tests moved to ElevenLabs on Américo's word ("please use my api key"); test text only.
+- 2026-11-05: Live test found the float command reopening the window it just closed: every view hears it, one closed the window and the next started a new one. Earlier cycles were tested through the button, which calls one view. ISC-87.
+- 2026-11-05: Américo has an Elgato pedal ("yes I so have elgato pedal ok"). It is a Stream Deck device, so its route is the existing Scroll Up, Scroll Down and Next Section actions, which need no focus and work over Zoom; ISC-86 makes those move voice too. Assigning it is done in the Stream Deck app. Its press has not been tested on the hardware.
+- 2026-11-05: Plan approved ("yes"), from Fable's read-only review, its main code claims rechecked by me. ISC-69, 70, 72, 74, 75, 76, 77 reworded because some could not be tested as written and ISC-69 clashed with auto-pause on edit. ISC-73 and fit-to-time moved to 0.13.0: voice ignores scroll speed, and editing while reading is not his loop. The keep-awake setting turned out to be read by nothing, so ISC-83 gives it its first job.
+- 2026-11-05: ISC-67 closed. After Américo allowed the microphone, the rebuilt helper reached Listening in English, and a spoken read of the GeoSentinel script through the MacBook mic moved the prompter 0 to 616 px; the badge showed the words it heard. The Zoom test recordings were already in the Trash, and the frames I had extracted from them are deleted.
+- 2026-11-05: Américo approved the competitor evaluation ("Yes is approved"): live refresh, prompter-note jump and remembered position join 0.12.0, and hiding from screen share gets a test before any promise. Criteria only so far. Live refresh leaves Out of Scope. When ISC-68 closes, README may state it and ISC-11's "no live-edit claim" row is retired. Screen share: the 2026-10-30 design review expected ScreenCaptureKit to capture protected windows, and web reports agree but are secondary, so ISC-78 is a measurement that may well end in no setting. ANTI-2 still holds. Evidence for demand is thin (top request 9 reactions), so these were chosen for rehearsal value, not votes. Source: vault audit note of 2026-10-29 and GitHub issues and Discussions read 2026-11-05.
+- 2026-11-04: Portuguese live: Automatic picked pt-BR for a Portuguese test script, the helper refused, Vosk took over with no error and no helper running, and Luciana's voice on the MacBook mic moved the prompter 0 to 1254 px; the badge showed the Portuguese it heard. Live testing caught two bugs source-text tests had passed: the migration never ran because the default marked it done, and validateSettings reset "auto" to en-US on every load. Both now have tests that run the real functions. The rebuilt helper is a new TCC client: macOS asks for the microphone again, corrects the earlier note that access survives a rebuild. English is blocked on that dialog (ISC-67). Rollback: teleprompter-stt.bak-pre-pt next to the helper. Limit: Portuguese numbers spoken as digits do not get converted to words.
+- 2026-11-04: Portuguese design. SFSpeechRecognizer on this Mac reports pt-BR available but supportsOnDeviceRecognition false (probed), and the helper's old behaviour would have sent that audio to Apple's servers silently. Interview scripts and rehearsals stay on the machine: the helper now refuses, and the plugin uses Vosk's offline Portuguese model. If macOS gains on-device pt-BR, Apple is used automatically.
+- 2026-11-04: Prompter glass read by Américo: "it reads normally, not mirrored". No automatic flip needed, flipHorizontal stays false. The rest of 0.12.0 (skip stage cues, fit-to-time, auto wake lock, pedal keys) still has no criteria.
+- 2026-11-04: ISC-37 measured with Zoom local recordings, frames viewed. Entire screen the script is on: shows. Entire screen it is not on: does not show. Obsidian window: shows, clipped to that window. Chrome window with the script overlapping it: does not show. Criterion reworded from "Window: Zoom" to a single window, because the realistic interview share is another app and Zoom's picker offered no Zoom window. Américo allowed Zoom's screen access for this test ("yes", 2026-11-04). Only macOS 26 with this Zoom version was measured.
+- 2026-11-04: Real Zoom meeting, nobody else in it, full screen on the EI491CR display, main Obsidian window minimized, floating locked, voice on the DJI mic. ISC-35: the script stayed visible and followed a spoken read, longest frame gap 18 ms over 15 s (916 frames). The scroll itself moves line by line, so it holds for several seconds on a long line; that is not a stall. ISC-36: a double-click under the locked window took Zoom out of full screen and the floating window saw no mouse event; the corner handle unlocked it; the next click landed on the prompter. ISC-37 is waiting on the macOS prompt that lets Zoom capture the screen, which is Américo's to answer.
+- 2026-11-04: Fable's read of the diff, all dispositioned. Adopted: closing the main view stopped the floating voice (reproduced live, helpers 2 to 0, now ISC-57); Prompter presence read only once (ISC-58); forward loop guard; tests that passed with `window.requestAnimationFrame` tightened. Rebutted: menu bar pushing the last line off the Prompter. Live bounds are y -1650, height 570, ending exactly at the display's bottom edge of -1080, and the capture shows the last line. ISC-57 proven live after the fix: main tab closed, helpers stayed 2, floating script moved 0 to 559 px on spoken text. ISC-58 has tests only, because unplugging the Prompter needs a hand on the cable.
+- 2026-11-04: Live evidence, Obsidian 1.12.7 on his Mac. ISC-34/48: with the main window minimized and the input on the MacBook mic, spoken script moved the floating view 0 to 2039 px while the main view stayed at 0, one helper running. Repeated on the DJI mic on the Prompter: 0 to 1346 px, capture viewed. ISC-38: with voice confirmed running, 0 helpers 2 s after closing and the main button back to "Start voice tracking". ISC-30/43: real clicks: locked click reached the test window beneath, the unlocked click stayed on the floating window, the handle unlocked with the pointer resting on it, and the main-window button and command both unlocked. ISC-52/55: Prompter capture viewed. Still owed: ISC-35, 36, 37 need a real Zoom call; ISC-42: killing the helper while floating showed the banner in the window, and Retry brought voice back and cleared it. ISC-56: six open and close cycles without a reload, each floating, none pending. ISC-41 has unit and source-text tests only, because a window without controls could not be forced live. An orphaned helper seen once during the stale-request bug did not recur; plugin reload with voice on left 0 helpers.
+- 2026-11-04: Review.ts not run: it refuses a dirty tree and the uncommitted docs-site work is not this run's to commit or stash. Fable read the diff instead, on Américo's offer. absence_review skipped for this slice: Fable's design review and this read cover it.
+- 2026-11-04: Live test found a pop-out opening plain, with the float request left pending and consumed by the next pop-out. Cause: Obsidian can run a view's onOpen before its container reaches the pop-out document, so isInPopoutWindow() read false at mount. A source-text test could not have seen it. Fixed by mounting only once the view is in the document its leaf's container reports.
+- 2026-11-04: Américo asked that the floating window identify his Elgato Prompter and go there. Electron reports it as label "Elgato Prom." 1024x600 (read live), so detection is by name, never by size. Prompter is the default when connected; the button keeps the over-Zoom mode one click away. Mirroring is unchanged: his saved flipHorizontal is false and he already reads T+ on this display, but no tool here can see the glass, so the reading check is his.
+- 2026-11-04: Américo's "yes" to adding the three uncovered design points (ISC-48..50) and building. Runtime probe through the Obsidian CLI: pop-out `window.electronWindow` id 3, main id 1, all needed methods present, so the design holds on Obsidian 1.12.7. All plugin code runs in the main window's realm, so throttling goes off on both windows.
 - 2026-10-29: Bug 1 (preset switch kills tracking) judged fixed by f86cc00 per Sol audit (inferred, not reproduced); ISC-4/5 remove the restart that still loses position and re-enters bug 2's window.
 - 2026-10-29: Cherry-picked 0c09887 with `dist/` hunks dropped (main no longer tracks dist).
 - 2026-10-29: Uncommitted docs-site WIP stashed as "docs-site wip 2026-10-29" before the cherry-pick.
 - 2026-10-29: Fable review found ISC-14 false on the real helper (stdout listeners survive killHelper; the helper's SIGTERM "stopped" line flips error→off) with a test that could not see it; FakeProc now mimics the farewell. ISC-20..23 added from that review and Sol's compat finding.
+- 2026-10-30: 0.12.0 direction confirmed by Américo ("yes, also use fable and sol"): L3 "during a real Zoom/Teams interview the script floats over the call, the voice keeps following him, and the window never gets in the way of his clicks"; L2 = one button floats the pop-out (always on top, adjustable see-through, outlined text), a lock makes clicks pass through with a corner handle to unlock, voice/presets/clock keep working, position and size restored, hidden on mobile. Criteria come from Fable's design review; Sol audits announced-vs-implemented features. Also found: `src/whats-new-modal.ts` shows a hardcoded old feature list labelled with the current version, so 0.11.9 users see stale "what's new".
+- 2026-10-30: Fable design review (vault `01-projects/obsidian-teleprompter-plus/2026-10-30-18-10-fable-janela-flutuante-design.md`): build on Obsidian's pop-out; whole-window opacity only (pop-outs are not created transparent); the bare `requestAnimationFrame` in voice-tracking-service.ts:1163/1165 belongs to the main window's realm and stalls when it is hidden (confirmed by Boy reading the lines); macOS ScreenCaptureKit captures even content-protected windows, so screen-share invisibility is never promised. First runtime probe before building: in the pop-out's DevTools, `window.electronWindow.id` differs from the main window's.
 - 2026-10-30: ISC-25 aimed at the wrong cause. Voice trace run ymawb (21:25:53, Obsidian mic off): getUserMedia resolved, status reached listening at +17 s, 0 words heard in 24 s. macOS hands a blocked app a silent stream; it does not hang. ISC-25 stays as a cheap guard; ISC-26 fixes what was seen.
 - 2026-10-30: Corrects the entry below: the rebuilt helper did NOT re-prompt; its mic access survived the rebuild and is independent of Obsidian's switch.
 - 2026-10-29: The native helper ships by hand build (docs/voice-tracking.md §3.2), ad-hoc signed with a cdhash requirement: a rebuild is a new TCC client and re-prompts (inferred). Acceptance includes the rebuild and expects the prompts.
@@ -138,4 +380,8 @@ acceptance: pass 2026-10-30 (all four runtime checks; mic-blocked Notice + Retry
 
 - 2026-10-29: ISA created for release 0.11.9.
 - 2026-10-30: ISC-25, ISC-26 added from the runtime test; ISC-17 and ISC-26 ticked on Américo's screenshots of the blocked-mic Notice with Retry. Blocked-mic text in `src/voice/vosk-recognizer.ts` now says choosing "Later" on the macOS dialog is enough before Retry (his finding). Acceptance pass, 26/26.
+- 2026-11-05: Release 0.12.0 cut on Américo's yes.
 - 2026-10-30: Release 0.11.9 cut on Américo's "yes for boths": version bump (manifest, package, versions.json), CHANGELOG entry, tag pushed to trigger the release workflow.
+- 2026-11-05: ISC-80..85 added, ISC-73 moved to 0.13.0, plan approved.
+- 2026-11-05: ISC-68..79 added, unbuilt (competitor evaluation, Américo's yes).
+- 2026-10-30: ISC-44..47 added and ticked (audit quick fixes, Américo's "yes"). Dead voice controls were removed rather than wired: wiring them would change a follower Américo just called "almost perfect". Config fields stay, so saved settings still load.

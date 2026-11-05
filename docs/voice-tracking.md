@@ -119,6 +119,23 @@ From Textream's `matchCharacters` idea:
 
 ---
 
+### 3.6 Languages, re-reading and live edits (0.12.0)
+
+- **Language.** Each script listens in its own language: the note's `voice-language` property wins, then
+  the setting, then detection from the script's words (`src/voice/voice-language.ts`). English and
+  Brazilian Portuguese are offered.
+- **Audio stays on the Mac.** The helper refuses to run a language macOS cannot recognize on the device,
+  because Apple would otherwise send that audio to its servers without saying so. The plugin then uses
+  the offline Vosk model in that language, with no error shown.
+- **Reading a line again.** Matching is forward-only on purpose: backward searches used to fling the
+  highlight to an earlier copy of a repeated phrase. `findRereadPosition` adds one narrow way back: six
+  heard words in order, at most one misheard, appearing once in range, confirmed by a second reading that
+  moved on. It allows short gaps because Vosk drops words like "o" and "a". The reader can always scroll
+  back by hand or press R.
+- **Live edits.** Saving the note re-renders the script, which destroys every word span. `rebind()` wraps
+  the new words and carries on from the mapped word, without touching the microphone. On Vosk, words new
+  to the script are heard only after the next voice start, because its grammar is fixed while listening.
+
 ## 4. Decision log (chronological)
 
 The thread, with the commit that landed each step. Read top-to-bottom to see *why* the current

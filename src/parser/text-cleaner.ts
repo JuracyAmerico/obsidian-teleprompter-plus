@@ -4,6 +4,7 @@
  */
 
 import type { TTSSection, TTSDocument } from '../tts/tts-types'
+import { stripStageCues } from './stage-cues'
 
 /** Common abbreviations that shouldn't trigger sentence splits */
 const ABBREVIATIONS = new Set([
@@ -176,6 +177,8 @@ function stripPandocAttributes(text: string): string {
 function stripLinks(text: string): string {
 	// [text](url) -> text
 	return text.replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
+		// [text][label] -> text
+		.replace(/\[([^\]\n]+)\]\[[^\]\n]+\]/g, '$1')
 		// [[wikilink|display]] -> display
 		.replace(/\[\[([^|\]]+)\|([^\]]+)\]\]/g, '$2')
 		// [[wikilink]] -> wikilink
@@ -376,6 +379,11 @@ export function splitSentences(text: string): string[] {
  */
 export function cleanDocument(rawContent: string, options: Partial<CleanerOptions> = {}): TTSDocument {
 	const opts = { ...DEFAULT_OPTIONS, ...options }
+
+	// Cues go first and from the whole note, the only place link definitions can be seen
+	rawContent = stripStageCues(rawContent)
+	// A link's definition line is not something to say
+	rawContent = rawContent.replace(/^ {0,3}\[(?!\^)[^\]\n]+\]:.*$/gm, '')
 
 	// Extract frontmatter before stripping
 	let text = rawContent

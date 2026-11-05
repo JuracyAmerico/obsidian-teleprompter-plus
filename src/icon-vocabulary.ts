@@ -53,6 +53,7 @@ export const CUSTOM_TO_LUCIDE: Record<string, string> = {
   // System / utility
   'tp-pin': 'pin',
   'tp-detach': 'picture-in-picture-2',
+  'tp-float': 'layers-2',
   'tp-keep-awake': 'coffee',
   'tp-auto-pause': 'circle-pause',
   'tp-quick-presets': 'layout-grid',

@@ -28,15 +28,16 @@ the community store. **No re-submission, no PR to `obsidianmd/obsidian-releases`
    ⚠️ **Never reuse a published version number.** Check the
    [Releases page](https://github.com/JuracyAmerico/obsidian-teleprompter-plus/releases)
    and `versions.json` first.
-3. **Bump three files** so they all agree:
+3. **Bump four files** so they all agree:
    - `manifest.json` → `"version": "X.Y.Z"`
+   - `package.json` → `"version": "X.Y.Z"`
    - `versions.json` → add `"X.Y.Z": "<minAppVersion>"` at the top
    - `CHANGELOG.md` → promote `## [Unreleased]` to `## [X.Y.Z] - YYYY-MM-DD`
-4. **Update the in-app "What's new" modal** — `src/whats-new-modal.ts`. The post-update
-   dialog (shown to every user when the version changes) has a **hardcoded `features` array**;
-   refresh it to the new version's actual highlights, or users see stale notes. It does **not**
-   read the CHANGELOG. Also confirm the brand-mark icon block still matches `docs/logo.png`.
-   *(Missed once — 0.11.0 shipped with the pre-redesign feature list still showing.)*
+4. **Write the release notes for people, because they are the "What's new" window.** The dialog
+   shown after an update is built from this version's section of `CHANGELOG.md` at build time
+   (`src/release-notes.ts`), so write each bullet as `- **Title.** What it does`, most useful
+   first: the window shows the first 8 and links to the rest. `bun test` fails when the version has no notes. Check the
+   window on a real update before tagging: deploy to the vault with the new `manifest.json`.
 5. **Refresh public-facing surfaces if they changed this release** — `README.md` (feature
    bullets, screenshots in `docs/screenshots/`, credits), `docs/logo.png`. The community store
    re-renders the README live; the version/downloads stats lag behind on Obsidian's bot.
@@ -46,7 +47,7 @@ the community store. **No re-submission, no PR to `obsidianmd/obsidian-releases`
    ```
 7. **Commit + push `main`:**
    ```
-   git add manifest.json versions.json CHANGELOG.md src/whats-new-modal.ts README.md docs/
+   git add manifest.json package.json versions.json CHANGELOG.md README.md docs/
    git commit -m "release: X.Y.Z — <summary>"
    git push origin main
    ```
