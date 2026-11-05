@@ -2,7 +2,7 @@ import { describe, expect, test } from 'bun:test'
 import { readFileSync, readdirSync, statSync } from 'fs'
 import { join, relative } from 'path'
 import viteConfig from '../../vite.config'
-import { DESKTOP_ONLY_ENGINES, DESKTOP_ONLY_SETTINGS_TABS, DESKTOP_ONLY_TOOLBAR_CONTROLS, forPhone } from './mobile-surface'
+import { DESKTOP_ONLY_ENGINES, DESKTOP_ONLY_SETTINGS_TABS, DESKTOP_ONLY_TOOLBAR_CONTROLS, PHONE_BAR_CONTROLS, PHONE_MORE_CONTROLS, forPhone } from './mobile-surface'
 import { ScreenHold, type ScreenHoldDeps, type WakeLockApi } from './screen-hold'
 
 const SRC = join(import.meta.dir, '..')
@@ -44,7 +44,21 @@ describe('mobile phase 1', () => {
 		expect(forPhone(engines, e => e, DESKTOP_ONLY_ENGINES, true)).toEqual(['auto', 'web-speech', 'elevenlabs'])
 		expect(forPhone(engines, e => e, DESKTOP_ONLY_ENGINES, false)).toEqual(engines)
 		const app = readFileSync(join(SRC, 'TeleprompterApp.svelte'), 'utf8')
-		expect(app).toContain('forPhone(ordered, def => def.id, DESKTOP_ONLY_TOOLBAR_CONTROLS, showsMobileInterface())')
+		expect(app).toContain('ordered.filter(def => PHONE_BAR_CONTROLS.includes(def.id) || PHONE_MORE_CONTROLS.includes(def.id))')
+		expect(app).toContain('if (showsMobileInterface()) return PHONE_MORE_CONTROLS.includes(def.id)')
+		const phone = [...PHONE_BAR_CONTROLS, ...PHONE_MORE_CONTROLS]
+		for (const desktopOnly of DESKTOP_ONLY_TOOLBAR_CONTROLS) expect(phone).not.toContain(desktopOnly)
+		// Six on the bar plus More fit a 390-point phone; measured at 390 px under emulateMobile
+		expect(PHONE_BAR_CONTROLS.filter(id => id !== 'time-display').length).toBeLessThanOrEqual(6)
+	})
+
+	test('ISC-124 phone page: opens in the main page, no keyboard hints, section panel starts closed', () => {
+		const main = readFileSync(join(SRC, 'main.ts'), 'utf8')
+		expect(main).toContain("mobile ? workspace.getLeaf('tab') : workspace.getRightLeaf(false)")
+		const app = readFileSync(join(SRC, 'TeleprompterApp.svelte'), 'utf8')
+		expect(app).toContain('{#if !isTeleprompterFocused && !showsMobileInterface()}')
+		expect(app).toContain('let showNavigation = $state(!showsMobileInterface() &&')
+		expect(app).toMatch(/font-size: min\(calc\(var\(--base-font-size\) \* 1\.8\), 9cqw\)/)
 	})
 
 	test('ISC-121 no inline map: a default build carries no source map', () => {

@@ -56,7 +56,7 @@
   import { resolveReadAloudLanguage, resolveVoiceLanguage } from './voice/voice-language'
   import { showsMobileInterface } from './platform/device'
   import { ScreenHold } from './platform/screen-hold'
-  import { DESKTOP_ONLY_TOOLBAR_CONTROLS, forPhone } from './platform/mobile-surface'
+  import { DESKTOP_ONLY_TOOLBAR_CONTROLS, PHONE_BAR_CONTROLS, PHONE_MORE_CONTROLS, forPhone } from './platform/mobile-surface'
   import { engineSignature } from './tts/elevenlabs-request'
   import { TTSService } from './tts'
   import type { TTSState, TTSPlaybackState, TTSVoice } from './tts'
@@ -746,7 +746,9 @@
     }
 
     // The phone layout drops controls that open desktop windows or need a helper process
-    const shown = forPhone(ordered, def => def.id, DESKTOP_ONLY_TOOLBAR_CONTROLS, showsMobileInterface())
+    const shown = showsMobileInterface()
+      ? ordered.filter(def => PHONE_BAR_CONTROLS.includes(def.id) || PHONE_MORE_CONTROLS.includes(def.id))
+      : forPhone(ordered, def => def.id, DESKTOP_ONLY_TOOLBAR_CONTROLS, false)
     // A device with no way to hold the screen on gets no button that pretends to
     return screenHold.supported ? shown : shown.filter(def => def.id !== 'keep-awake')
   }
@@ -799,6 +801,7 @@
 
   function isMoreControl(def: ToolbarControlDef): boolean {
     if (def.zone === 'readout') return false
+    if (showsMobileInterface()) return PHONE_MORE_CONTROLS.includes(def.id)
     if (PANEL_CONTROL_TYPES.has(def.type)) return false
     if (!def.defaultMore) return false
     const primary = plugin?.settings?.toolbarLayout?.primary || []
@@ -862,7 +865,8 @@
   let currentPresetIndex = $state(SPEED_PRESETS.indexOf(2)) // Default to 2x
   let fontSize = $state(24) // Font size in pixels
   let contentArea: HTMLElement | undefined = $state()
-  let showNavigation = $state(settings.rememberNavigationState ? (app.loadLocalStorage('teleprompter-navigation-open') === 'true') : false)
+  // On a phone the panel would take half the width, so it starts closed there (More opens it)
+  let showNavigation = $state(!showsMobileInterface() && settings.rememberNavigationState ? (app.loadLocalStorage('teleprompter-navigation-open') === 'true') : false)
   let headerElements = $state<Map<string, HTMLElement>>(new Map())
   let currentFileName = $state('')
   let collapsedHeaders = $state<Set<string>>(new Set())
@@ -5801,14 +5805,14 @@
   {/if}
 
   <!-- Focus indicator hint -->
-  {#if !isTeleprompterFocused}
+  {#if !isTeleprompterFocused && !showsMobileInterface()}
     <div class="focus-hint">
       Click here to enable keyboard shortcuts
     </div>
   {/if}
 
   <!-- Shortcuts active badge -->
-  {#if isTeleprompterFocused}
+  {#if isTeleprompterFocused && !showsMobileInterface()}
     <div class="shortcuts-active-badge">
       <span class="tp-inline-icon" use:lucideIcon={'keyboard'}></span> Shortcuts Active
     </div>
@@ -7843,6 +7847,8 @@
   }
 
   .content-area {
+    /* Lets headings size against the reading column, so a phone gets a heading that fits */
+    container-type: inline-size;
     flex: 1 1 0;
     min-height: 0;
     overflow-y: auto;
@@ -7881,6 +7887,8 @@
   .markdown-content {
     max-width: 100%;
     margin: 0 auto;
+    /* A word wider than a phone screen breaks instead of running off the edge */
+    overflow-wrap: break-word;
     padding-top: var(--padding-vertical, 20px);
     padding-bottom: calc(var(--padding-vertical, 20px) + 100vh); /* Extra bottom for scrolling */
     padding-left: var(--padding-horizontal, 40px);
@@ -7903,7 +7911,7 @@
   }
 
   .markdown-content :global(h1) {
-    font-size: calc(var(--base-font-size) * 1.8);
+    font-size: min(calc(var(--base-font-size) * 1.8), 9cqw);
     font-weight: bold;
     margin: 1.2em 0 0.4em 0;
     line-height: 1.3;
@@ -7911,7 +7919,7 @@
   }
 
   .markdown-content :global(h2) {
-    font-size: calc(var(--base-font-size) * 1.4);
+    font-size: min(calc(var(--base-font-size) * 1.4), 8cqw);
     font-weight: bold;
     margin: 1.0em 0 0.35em 0;
     line-height: 1.3;
