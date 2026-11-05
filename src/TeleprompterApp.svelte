@@ -7013,6 +7013,23 @@
     box-sizing: border-box;
   }
 
+  /* Below Obsidian's own floating header buttons, not just the status bar: on a phone Obsidian
+     publishes that height as --view-top-spacing. */
+  .teleprompter-plus.tp-phone {
+    padding-top: var(--view-top-spacing, var(--safe-area-inset-top, env(safe-area-inset-top, 0px)));
+  }
+
+  /* A phone column is narrow: the desktop margins (2rem plus 40px each side) left a strip of text
+     in the middle of empty black. Keep only room for the reading arrow on the left. */
+  .teleprompter-plus.tp-phone .content-area {
+    padding: 0.5rem 0.5rem 0.5rem 0;
+  }
+
+  .teleprompter-plus.tp-phone .markdown-content {
+    padding-left: min(var(--padding-horizontal, 40px), 2.5rem);
+    padding-right: min(var(--padding-horizontal, 40px), 0.75rem);
+  }
+
   .teleprompter-plus.tp-phone > .controls {
     order: 10;
     border-bottom: none;
