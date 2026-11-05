@@ -56,6 +56,7 @@
   import { resolveReadAloudLanguage, resolveVoiceLanguage } from './voice/voice-language'
   import { showsMobileInterface } from './platform/device'
   import { ScreenHold } from './platform/screen-hold'
+  import { phoneLog } from './platform/phone-log'
   import { DESKTOP_ONLY_TOOLBAR_CONTROLS, PHONE_BAR_CONTROLS, PHONE_MORE_CONTROLS, forPhone } from './platform/mobile-surface'
   import { engineSignature } from './tts/elevenlabs-request'
   import { TTSService } from './tts'
@@ -2873,6 +2874,7 @@
     // Subscribe to TTS events
     ttsService.onSentenceStartEvent(({ index }) => {
       ttsCurrentSentence = index
+      phoneLog(`sentence start ${index}`)
       highlightTTSSentence(index)
       scrollToTTSSentence(index)
     })
@@ -2886,6 +2888,7 @@
     })
 
     ttsService.onError(({ message }) => {
+      phoneLog(`TTS error ${message}`)
       console.error('[TTS] Error:', message)
     })
 
@@ -3070,16 +3073,19 @@
   }
 
   async function toggleTTS(): Promise<void> {
+    phoneLog(`toggleTTS state=${ttsPlaybackState} initialized=${ttsInitialized} engine=${settings.ttsEngine}`)
     // Starting from idle also picks up a voice, model or engine changed in settings
     if (!ttsInitialized || ttsPlaybackState === 'idle') {
       await initTTS()
+      phoneLog(`initTTS done engine=${ttsService?.getState().engineName ?? 'none'}`)
     }
 
-    if (!ttsService) return
+    if (!ttsService) { phoneLog('no ttsService'); return }
 
     if (ttsPlaybackState === 'idle') {
       // Prepare document and start
       prepareTTSDocument()
+      phoneLog(`document prepared sentences=${ttsService.getState().totalSentences}`)
 
       // Stop auto-scroll if playing
       if (isPlaying) {
@@ -3088,6 +3094,7 @@
       }
 
       await ttsService.play()
+      phoneLog(`play returned state=${ttsPlaybackState}`)
       startSession()
     } else {
       await ttsService.togglePlayPause()

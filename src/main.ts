@@ -12,6 +12,7 @@ import { OBSService, type OBSState } from './obs-service'
 import { WhatsNewModal } from './whats-new-modal'
 import { describeRemoteServerStartFailure } from './remote-server-errors'
 import { canRunDesktopMachinery, showsMobileInterface } from './platform/device'
+import { installPhoneLog } from './platform/phone-log'
 import './styles.css'
 
 // Extended state type for broadcast updates that include additional properties
@@ -32,6 +33,7 @@ export default class TeleprompterPlusPlugin extends Plugin {
 	private obsService: OBSService | null = null
 
 	async onload(): Promise<void> {
+		installPhoneLog(this.app)
 		// Teleprompter icon - CORRECT FORMAT per Obsidian docs
 		// NO <svg> wrapper, coordinates for 100x100 viewBox
 		// Brand mark: screen + active reading line + left eyeline caret (echoes the app's voice-tracked

@@ -10,6 +10,10 @@ export default defineConfig({
       '@': path.resolve(__dirname, './src'),
     },
   },
+  // Test-only phone diagnostics (src/platform/phone-log.ts); off in every normal build
+  define: {
+    __TP_PHONE_LOG__: JSON.stringify(process.env.TP_PHONE_LOG === '1'),
+  },
   esbuild: {
     pure: ['console.log'],
   },
