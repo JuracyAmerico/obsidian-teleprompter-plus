@@ -78,6 +78,18 @@ describe('mobile phase 1', () => {
 		expect(rule![2]).toContain('bottom: calc(100% + 0.5rem);')
 	})
 
+	test('ISC-126 iPhone is not a Mac: every isMacOS check in the engines also requires Node', () => {
+		// Obsidian on iOS reports Platform.isMacOS true; trusting it alone sent read-aloud into Kokoro,
+		// which threw "path is not available on this device" (phone log, 2026-11-05 21:14)
+		const files = ['tts/mac-say-engine.ts', 'tts/kokoro-engine.ts', 'voice/apple-speech-recognizer.ts']
+		for (const file of files) {
+			const source = readFileSync(join(SRC, file), 'utf8')
+			const uses = source.split('\n').filter(line => line.includes('Platform.isMacOS') && !line.trim().startsWith('//'))
+			expect(uses.length).toBeGreaterThan(0)
+			for (const line of uses) expect(`${file}: ${line.trim()}`).toMatch(/hasNode\(\)/)
+		}
+	})
+
 	test('ISC-121 no inline map: a default build carries no source map', () => {
 		expect(viteConfig.build?.sourcemap).toBe(false)
 	})
