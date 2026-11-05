@@ -4,7 +4,7 @@ slug: teleprompter-plus
 project: Teleprompter Plus
 effort: E3
 phase: climbing
-progress: 106/106
+progress: 112/113
 mode: algorithm
 started: 2026-10-29
 updated: 2026-11-05
@@ -172,6 +172,16 @@ Found in Américo's own test run, 2026-11-05 (steps 2, 3, 7, 8):
 - [x] ISC-106: a line break inside a block is a pause in speech, so the words on either side of it never run together.
 - [x] ISC-107: runtime: the open cover letter read by the real plugin in Américo's clone voice has its address, phone, posting number and money read back correctly by a transcription of the captured audio.
 
+### Mobile phase 0: iPhone probe (Américo: "Yes" to Fable's plan, 2026-11-05)
+
+- [x] ISC-108: the probe bundle evaluates under a require that knows only obsidian.
+- [x] ISC-109: the probe bundle makes no network call and uses no speech recognition API.
+- [x] ISC-110: the probe's microphone test keeps no audio, only a peak level.
+- [x] ISC-111: the probe writes its report to a vault note after every step, so a hang leaves what was measured.
+- [x] ISC-112: a probe step that never settles is recorded as a timeout and the next step runs.
+- [x] ISC-113: runtime: the probe runs in real Obsidian on the Mac and writes a complete report.
+- [ ] ISC-114: runtime: the report comes back from Américo's iPhone through iCloud, with no Obsidian Sync.
+
 ## Anti-criteria
 
 - ANTI-1: a floating window that cannot be unlocked: no path may start locked or leave the window click-through after `exit()`.
@@ -305,6 +315,13 @@ Found in Américo's own test run, 2026-11-05 (steps 2, 3, 7, 8):
 | ISC-105 | bun-test | link URL survives the strip, bare URL does not | pass | bun test src/tts/read-aloud.test.ts -t "markdown link" |
 | ISC-106 | bun-test | spoken text walks line breaks | pass | bun test src/tts/read-aloud.test.ts -t "line break" |
 | ISC-107 | manual | captured plugin audio transcribed | words match | live plugin, mlx_whisper |
+| ISC-108 | bun-test | bundle evaluates with obsidian only | pass | bun test scripts/mobile-probe/probe.test.ts -t "require" |
+| ISC-109 | bun-test | no network or recognition call in source | pass | bun test scripts/mobile-probe/probe.test.ts -t "network" |
+| ISC-110 | bun-test | no recorder or audio write in source | pass | bun test scripts/mobile-probe/probe.test.ts -t "no audio" |
+| ISC-111 | bun-test | report saved after each step | pass | bun test scripts/mobile-probe/probe.test.ts -t "after every step" |
+| ISC-112 | bun-test | hung step times out, next runs | pass | bun test scripts/mobile-probe/probe.test.ts -t "timeout" |
+| ISC-113 | manual | report read back | every section present | Obsidian CLI on the Mac |
+| ISC-114 | manual | report note appears on the Mac | note present | iCloud, Américo's iPhone |
 | ANTI-1 | bun-test | exit leaves the window clickable | pass | bun test src/floating/floating-window.test.ts -t "click-through" |
 | ANTI-2 | bash | no hidden-from-share promise | exit 1 | rg -q -i "hidden from screen" README.md |
 
@@ -360,6 +377,10 @@ Lane: inline
 Criteria: ISC-94, ISC-95, ISC-96, ISC-97, ISC-98, ISC-99, ISC-100, ISC-101, ISC-102, ISC-103, ISC-104, ISC-105, ISC-106, ISC-107
 Lane: inline
 
+### F13: Mobile phase 0 probe
+Criteria: ISC-108, ISC-109, ISC-110, ISC-111, ISC-112, ISC-113, ISC-114
+Lane: inline
+
 ## Fog
 
 - A Pandoc line block (`| Name` lines in a cover letter) still shows its pipes on screen, seen 2026-11-05. Speech is clean. Not fixed: not asked.
@@ -368,6 +389,8 @@ Lane: inline
 
 ## Decisions
 
+- 2026-11-05: ISC-113: probe run in real Obsidian on the Mac, every step reported, microphone peak 0.0549, three tones played, then the plugin and its note were removed from his vault. That first run found voices reading 0 because the list loads late; fixed and tested in the suite, not rerun live. Probe source: scripts/mobile-probe/. Installed in the iCloud vault "TP Probe"; all four files report uploaded. Whether Obsidian iOS shows that vault and carries its plugin is ISC-114, open until a report comes back.
+- 2026-11-05: Mobile evaluation by Fable (vault Sync was assumed in my brief): same plugin, reading first, voice tracking after a probe. Américo's "Yes" covers phase 0 only; mobile stays Out of Scope for T+ code until the probe has run. Correction: core-plugins.json showing sync on only means the plugin is enabled. Live, Sync reads vaultId null, status Uninitialized, no account signed in, so Fable's U8 and "syncs back" do not hold. Delivery moved to a throwaway vault in the iCloud Obsidian container, which exists and is syncing on this Mac: the phone opens it, and the report note returns the same way. It stays off his real vault and needs no public repo.
 - 2026-11-05: F12 live on his Mac, build in the vault, plugin reloaded. ISC-107: the full cover letter read by the plugin in his clone voice, 20 clips captured at the audio element, no console error; Whisper read back "Ontario", "555$1012$23456", "number three two two five zero", "US$1 billion", "jane.doe at example.com". Whisper autocorrects and cannot judge accent, so this proves words, not sound. "RE:" did not appear in the transcript: unknown whether it was spoken. ISC-95: voice ID changed live with no reload, the next start spoke a clip of 10.2 s against the clone's 13.5 s. ISC-94: the real panel listed 29 voices, choosing Daniel saved elevenLabsVoiceId and left ttsVoice alone, and the next clip was 14.7 s. Clip hashes prove nothing here: the same voice and text gave a different hash. ISC-100: a throwaway Portuguese note was detected as pt with no English number words in the transcript; "arroba" was not transcribed, so that word is unproven. ISC-105: the résumé header on screen now reads "LinkedIn | GitHub | Tableau Public" with 4 links. His saved voice stayed the clone; his list holds "FICO = Fye-co", after which Whisper heard FICO where it had heard "Faisal". Américo's purpose, 2026-11-05: a professional voice to listen to and learn the pronunciation, so the normalizer's spoken forms are also what he learns from. Review.ts not run: the plugin has no CfEnv deploy, and foreign docs work keeps the tree dirty.
 - 2026-11-05: Read-aloud test on Américo's word, résumé and cover letter open. Contract probes through his key with his clone voice: previous_text and next_text are accepted and gave "Brazil" where the plain request gave "Brasil" (one sample, Whisper-read, so a hint and not a proof); language_code is accepted on Multilingual v2 and did not help, so it is not sent. "FICO" came back as "Faisal", the case for a pronunciation list.
 - 2026-11-05: Américo: "I don't wanna see those emoji icons again on t+". All interface emoji replaced by Lucide icons, held by src/no-emoji.test.ts and a rule in CLAUDE.md. Pre-release review blockers fixed: commands forwarded once per view (ISC-93); stage-cue stripping now reads the whole note, so a reference link keeps its words when spoken.
@@ -416,6 +439,7 @@ acceptance: pass 2026-10-30 (all four runtime checks; mic-blocked Notice + Retry
 
 ## Changelog
 
+- 2026-11-05: ISC-108..114 added, 108..113 ticked (iPhone probe, Américo's "Yes").
 - 2026-11-05: ISC-94..107 added and ticked (read-aloud fixes, Américo's "favor corrigir os issues acima").
 - 2026-10-29: ISA created for release 0.11.9.
 - 2026-10-30: ISC-25, ISC-26 added from the runtime test; ISC-17 and ISC-26 ticked on Américo's screenshots of the blocked-mic Notice with Retry. Blocked-mic text in `src/voice/vosk-recognizer.ts` now says choosing "Later" on the macOS dialog is enough before Retry (his finding). Acceptance pass, 26/26.

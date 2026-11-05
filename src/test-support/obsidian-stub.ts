@@ -7,6 +7,7 @@
 class Stub {}
 
 export const obsidianStub = {
+	apiVersion: '1.0.0',
 	Platform: { isMacOS: true },
 	requestUrl: async () => ({}),
 	addIcon: () => {},
