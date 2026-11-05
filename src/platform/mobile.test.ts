@@ -82,6 +82,12 @@ describe('mobile phase 1', () => {
 		expect(app).toMatch(/padding-bottom: calc\(var\(--navbar-height/)
 	})
 
+	test('ISC-133 phone reading column: text clears Obsidian header buttons and uses the width', () => {
+		const app = readFileSync(join(SRC, 'TeleprompterApp.svelte'), 'utf8')
+		expect(app).toMatch(/\.teleprompter-plus\.tp-phone \{\s*padding-top: var\(--view-top-spacing/)
+		expect(app).toMatch(/\.teleprompter-plus\.tp-phone \.markdown-content \{\s*padding-left: min\(var\(--padding-horizontal, 40px\), 2\.5rem\);\s*padding-right: min\(var\(--padding-horizontal, 40px\), 0\.75rem\);/)
+	})
+
 	test('ISC-127 menus open upward: on a phone every toolbar menu opens above the bar, never under the navigation bar', () => {
 		const app = readFileSync(join(SRC, 'TeleprompterApp.svelte'), 'utf8')
 		const rule = app.match(/\.teleprompter-plus\.tp-phone > \.controls :is\(([^)]*)\) \{([^}]*)\}/)
