@@ -5745,6 +5745,7 @@
   class="teleprompter-plus"
   class:teleprompter-focused={isTeleprompterFocused}
   class:tp-floating={isFloating}
+  class:tp-phone={showsMobileInterface()}
   class:tp-floating-locked={floatingLocked}
   class:tp-floating-prompter={floatingOnPrompter}
   bind:this={teleprompterContainer}
@@ -6985,6 +6986,25 @@
   .tp-floating-main-unlock {
     flex-shrink: 0;
     margin: 0.25rem;
+  }
+
+  /* Phone: clear the status bar at the top, and put the controls at the bottom where a thumb
+     reaches them, above Obsidian's own navigation bar. The variables are Obsidian's; each falls
+     back to the system safe area, then to nothing. */
+  .teleprompter-plus.tp-phone {
+    padding-top: var(--safe-area-inset-top, env(safe-area-inset-top, 0px));
+    padding-bottom: calc(var(--navbar-height, 0px) + var(--navbar-bottom-offset, env(safe-area-inset-bottom, 0px)) + 8px);
+    box-sizing: border-box;
+  }
+
+  .teleprompter-plus.tp-phone > .controls {
+    order: 10;
+    border-bottom: none;
+    border-top: 1px solid var(--background-modifier-border);
+  }
+
+  .teleprompter-plus.tp-phone > .tp-readout-row {
+    order: 9;
   }
 
   .teleprompter-plus {

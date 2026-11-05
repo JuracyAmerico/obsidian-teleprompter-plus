@@ -61,6 +61,14 @@ describe('mobile phase 1', () => {
 		expect(app).toMatch(/font-size: min\(calc\(var\(--base-font-size\) \* 1\.8\), 9cqw\)/)
 	})
 
+	test('ISC-125 thumb reach: on a phone the controls sit at the bottom, clear of the status bar and the navigation bar', () => {
+		const app = readFileSync(join(SRC, 'TeleprompterApp.svelte'), 'utf8')
+		expect(app).toContain('class:tp-phone={showsMobileInterface()}')
+		expect(app).toMatch(/\.teleprompter-plus\.tp-phone > \.controls \{\s*order: 10;/)
+		expect(app).toMatch(/padding-top: var\(--safe-area-inset-top/)
+		expect(app).toMatch(/padding-bottom: calc\(var\(--navbar-height/)
+	})
+
 	test('ISC-121 no inline map: a default build carries no source map', () => {
 		expect(viteConfig.build?.sourcemap).toBe(false)
 	})

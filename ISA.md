@@ -194,6 +194,7 @@ Found in Américo's own test run, 2026-11-05 (steps 2, 3, 7, 8):
 - [ ] ISC-122: runtime: on Américo's iPhone, T+ loads in the TP Probe vault, opens a note, and ElevenLabs reads three sentences in a row with no tap between them.
 - [ ] ISC-123: runtime: on the Mac after this change, the teleprompter opens, read-aloud speaks, and voice tracking starts.
 - [x] ISC-124: on a phone the teleprompter opens in the main page rather than the side drawer, shows no keyboard hints, starts with the section panel closed, fits its toolbar in 390 points, and sizes headings to the reading column.
+- [ ] ISC-125: on a phone the controls sit at the bottom within thumb reach, above Obsidian's navigation bar, and nothing sits under the status bar (Américo, 2026-11-05: "the controls on the top are hard to reach"). Source test passes; open until his iPhone shows it.
 
 ## Anti-criteria
 
@@ -344,6 +345,7 @@ Found in Américo's own test run, 2026-11-05 (steps 2, 3, 7, 8):
 | ISC-121 | bun-test | no inline map | pass | bun test src/platform/mobile.test.ts -t "ISC-121" |
 | ISC-122 | manual | three sentences, no tap | heard | Américo's iPhone, TP Probe vault |
 | ISC-124 | bun-test | phone page layout | pass | bun test src/platform/mobile.test.ts -t "ISC-124" |
+| ISC-125 | bun-test | phone controls at the bottom, clear of status bar and navbar | pass | bun test src/platform/mobile.test.ts -t "ISC-125" |
 | ISC-123 | manual | Mac still works | opens, speaks, voice starts | Obsidian CLI on the Mac |
 | ANTI-1 | bun-test | exit leaves the window clickable | pass | bun test src/floating/floating-window.test.ts -t "click-through" |
 | ANTI-2 | bash | no hidden-from-share promise | exit 1 | rg -q -i "hidden from screen" README.md |
