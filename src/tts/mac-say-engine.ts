@@ -22,7 +22,8 @@ export class MacSayEngine implements TTSEngine {
 	private isPaused = false
 
 	get isAvailable(): boolean {
-		return Platform.isMacOS
+		// Obsidian reports iPhones and iPads as macOS too; only a desktop with Node can run `say`
+		return Platform.isMacOS && native.hasNode()
 	}
 
 	async initialize(): Promise<void> {

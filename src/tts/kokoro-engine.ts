@@ -63,7 +63,8 @@ export class KokoroEngine implements TTSEngine {
 	get isAvailable(): boolean {
 		if (this.available !== null) return this.available
 
-		if (!Platform.isMacOS) {
+		// Obsidian reports iPhones and iPads as macOS too; only a desktop with Node can run Kokoro
+		if (!Platform.isMacOS || !native.hasNode()) {
 			this.available = false
 			return false
 		}

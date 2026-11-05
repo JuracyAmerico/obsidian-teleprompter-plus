@@ -60,7 +60,8 @@ const STDERR_TAIL_BYTES = 2000
 function defaultDeps(): AppleRecognizerDeps {
   return {
     spawn: ((...args: Parameters<typeof ChildProcessTypes.spawn>) => native.childProcess().spawn(...args)) as typeof ChildProcessTypes.spawn,
-    isMacOS: Platform.isMacOS,
+    // Obsidian reports iPhones and iPads as macOS too; the helper needs a desktop with Node
+    isMacOS: Platform.isMacOS && native.hasNode(),
     sidecarExists: () => native.fs().existsSync(appleSidecarPath()),
     startTimeoutMs: 15000,
     permissionDialogTimeoutMs: 90000,
@@ -96,7 +97,7 @@ export class AppleSpeechRecognizer {
 
   /** Apple on-device speech is macOS-only and needs the compiled sidecar present. */
   static isSupported(): boolean {
-    return Platform.isMacOS && native.fs().existsSync(appleSidecarPath()) && native.fs().existsSync(appleLauncherPath())
+    return Platform.isMacOS && native.hasNode() && native.fs().existsSync(appleSidecarPath()) && native.fs().existsSync(appleLauncherPath())
   }
 
   /** grammar is accepted for interface parity with VoskRecognizer but unused (open-vocab). */
