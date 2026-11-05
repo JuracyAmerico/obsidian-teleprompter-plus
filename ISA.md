@@ -339,7 +339,7 @@ Found in Américo's own test run, 2026-11-05 (steps 2, 3, 7, 8):
 | ISC-116 | script | bundle loads under phone require | PASS both modes | bun run build && bun scripts/mobile-load-check.ts |
 | ISC-117 | bun-test | no static Node import | pass | bun test src/platform/mobile.test.ts -t "ISC-117" |
 | ISC-118 | bun-test | server gated on device | pass | bun test src/platform/mobile.test.ts -t "ISC-118" |
-| ISC-119 | bun-test | phone surface filters | pass | bun test src/platform/mobile.test.ts -t "ISC-119" |
+| ISC-119 | bun-test | phone surface filters, phone bar and More sets exclude every desktop-only control | pass (348/348, 2026-11-05) | bun test src/platform/mobile.test.ts -t "ISC-119" |
 | ISC-120 | bun-test | wake lock held and released | pass | bun test src/platform/mobile.test.ts -t "ISC-120" |
 | ISC-121 | bun-test | no inline map | pass | bun test src/platform/mobile.test.ts -t "ISC-121" |
 | ISC-122 | manual | three sentences, no tap | heard | Américo's iPhone, TP Probe vault |
