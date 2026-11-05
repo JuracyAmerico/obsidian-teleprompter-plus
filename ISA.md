@@ -180,7 +180,8 @@ Found in Américo's own test run, 2026-11-05 (steps 2, 3, 7, 8):
 - [x] ISC-111: the probe writes its report to a vault note after every step, so a hang leaves what was measured.
 - [x] ISC-112: a probe step that never settles is recorded as a timeout and the next step runs.
 - [x] ISC-113: runtime: the probe runs in real Obsidian on the Mac and writes a complete report.
-- [ ] ISC-114: runtime: the report comes back from Américo's iPhone through iCloud, with no Obsidian Sync.
+- [x] ISC-114: runtime: the report comes back from Américo's iPhone through iCloud, with no Obsidian Sync.
+- [ ] ISC-115: runtime: on the iPhone, a microphone test started straight from its own tap reads a nonzero peak from at least one of two readers (analyser, AudioWorklet), or names the reason it cannot.
 
 ## Anti-criteria
 
@@ -322,6 +323,7 @@ Found in Américo's own test run, 2026-11-05 (steps 2, 3, 7, 8):
 | ISC-112 | bun-test | hung step times out, next runs | pass | bun test scripts/mobile-probe/probe.test.ts -t "timeout" |
 | ISC-113 | manual | report read back | every section present | Obsidian CLI on the Mac |
 | ISC-114 | manual | report note appears on the Mac | note present | iCloud, Américo's iPhone |
+| ISC-115 | manual | Microphone only row from the iPhone | a peak above 0 | iCloud report, Américo's iPhone |
 | ANTI-1 | bun-test | exit leaves the window clickable | pass | bun test src/floating/floating-window.test.ts -t "click-through" |
 | ANTI-2 | bash | no hidden-from-share promise | exit 1 | rg -q -i "hidden from screen" README.md |
 
@@ -378,7 +380,7 @@ Criteria: ISC-94, ISC-95, ISC-96, ISC-97, ISC-98, ISC-99, ISC-100, ISC-101, ISC-
 Lane: inline
 
 ### F13: Mobile phase 0 probe
-Criteria: ISC-108, ISC-109, ISC-110, ISC-111, ISC-112, ISC-113, ISC-114
+Criteria: ISC-108, ISC-109, ISC-110, ISC-111, ISC-112, ISC-113, ISC-114, ISC-115
 Lane: inline
 
 ## Fog
@@ -390,6 +392,7 @@ Lane: inline
 ## Decisions
 
 - 2026-11-05: ISC-113: probe run in real Obsidian on the Mac, every step reported, microphone peak 0.0549, three tones played, then the plugin and its note were removed from his vault. That first run found voices reading 0 because the list loads late; fixed and tested in the suite, not rerun live. Probe source: scripts/mobile-probe/. Installed in the iCloud vault "TP Probe"; all four files report uploaded. Whether Obsidian iOS shows that vault and carries its plugin is ISC-114, open until a report comes back.
+- 2026-11-05: ISC-114 closed: three reports came back from the iPhone (iOS 18.7, Obsidian 1.15.0) through iCloud. Node modules return undefined instead of throwing; lookbehind, WebAssembly, Blob workers, AudioWorklet at 48 kHz, wake lock and 40 MB of IndexedDB all work; 68 voices (25 English, 2 Portuguese); tones play with no tap after the first, and speech synthesis speaks. The microphone was granted but read exactly 0.0000 over 1.5 s after the tones and speech, a silent stream rather than a quiet room. ISC-115 added: a microphone-only button that runs from its own tap for 5 s, read by an analyser and an AudioWorklet (no recorder or script processor, ISC-110). Proven on the Mac (peaks 0.034 and 0.054), then sent to the iCloud vault.
 - 2026-11-05: Mobile evaluation by Fable (vault Sync was assumed in my brief): same plugin, reading first, voice tracking after a probe. Américo's "Yes" covers phase 0 only; mobile stays Out of Scope for T+ code until the probe has run. Correction: core-plugins.json showing sync on only means the plugin is enabled. Live, Sync reads vaultId null, status Uninitialized, no account signed in, so Fable's U8 and "syncs back" do not hold. Delivery moved to a throwaway vault in the iCloud Obsidian container, which exists and is syncing on this Mac: the phone opens it, and the report note returns the same way. It stays off his real vault and needs no public repo.
 - 2026-11-05: F12 live on his Mac, build in the vault, plugin reloaded. ISC-107: the full cover letter read by the plugin in his clone voice, 20 clips captured at the audio element, no console error; Whisper read back "Ontario", "289-783-4743", "number three two two five zero", "US$1 billion", "americo.restart at gmail.com". Whisper autocorrects and cannot judge accent, so this proves words, not sound. "RE:" did not appear in the transcript: unknown whether it was spoken. ISC-95: voice ID changed live with no reload, the next start spoke a clip of 10.2 s against the clone's 13.5 s. ISC-94: the real panel listed 29 voices, choosing Daniel saved elevenLabsVoiceId and left ttsVoice alone, and the next clip was 14.7 s. Clip hashes prove nothing here: the same voice and text gave a different hash. ISC-100: a throwaway Portuguese note was detected as pt with no English number words in the transcript; "arroba" was not transcribed, so that word is unproven. ISC-105: the résumé header on screen now reads "LinkedIn | GitHub | Tableau Public" with 4 links. His saved voice stayed the clone; his list holds "FICO = Fye-co", after which Whisper heard FICO where it had heard "Faisal". Américo's purpose, 2026-11-05: a professional voice to listen to and learn the pronunciation, so the normalizer's spoken forms are also what he learns from. Review.ts not run: the plugin has no CfEnv deploy, and foreign docs work keeps the tree dirty.
 - 2026-11-05: Read-aloud test on Américo's word, résumé and cover letter open. Contract probes through his key with his clone voice: previous_text and next_text are accepted and gave "Brazil" where the plain request gave "Brasil" (one sample, Whisper-read, so a hint and not a proof); language_code is accepted on Multilingual v2 and did not help, so it is not sent. "FICO" came back as "Faisal", the case for a pronunciation list.

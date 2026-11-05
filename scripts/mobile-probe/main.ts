@@ -159,29 +159,70 @@ async function workletTest(): Promise<string> {
 	}
 }
 
-/** The audio stops here: only the loudest moment is kept, as a number. */
-async function microphoneTest(): Promise<string> {
+/**
+ * The audio stops here: only the loudest moment is kept, as a number. Two independent readers of the
+ * same stream, so a zero from one is not mistaken for a dead mic: an analyser, and an AudioWorklet
+ * (the path a recognizer would use) that posts back nothing but its peak.
+ */
+async function microphoneTest(listenMs = 1500): Promise<string> {
 	const stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true } })
+	const track = stream.getAudioTracks()[0]
 	const context = new AudioContext()
+	const stateAtStart = context.state
+	const peakSource = `class P extends AudioWorkletProcessor { constructor() { super(); this.peak = 0; this.blocks = 0 }
+		process(inputs) { const ch = inputs[0] && inputs[0][0]; if (ch) { this.blocks++; for (const v of ch) this.peak = Math.max(this.peak, Math.abs(v)) }
+		if (this.blocks % 50 === 0) this.port.postMessage([this.peak, this.blocks]); return true } }
+		registerProcessor('tp-peak', P)`
+	const peakUrl = URL.createObjectURL(new Blob([peakSource], { type: 'application/javascript' }))
 	try {
+		const source = context.createMediaStreamSource(stream)
 		const analyser = context.createAnalyser()
 		analyser.fftSize = 2048
-		context.createMediaStreamSource(stream).connect(analyser)
+		source.connect(analyser)
+		let workletPeak = 0
+		let workletBlocks = 0
+		let workletNote = ''
+		try {
+			await context.audioWorklet.addModule(peakUrl)
+			const node = new AudioWorkletNode(context, 'tp-peak')
+			node.port.onmessage = event => { [workletPeak, workletBlocks] = event.data as [number, number] }
+			source.connect(node)
+			const mute = context.createGain()
+			mute.gain.value = 0
+			node.connect(mute)
+			mute.connect(context.destination)
+		} catch (err) {
+			workletNote = ` (worklet failed: ${(err as Error)?.message ?? err})`
+		}
 		if (context.state === 'suspended') await context.resume()
 		const samples = new Float32Array(analyser.fftSize)
-		let peak = 0
-		const until = performance.now() + 1500
+		let analyserPeak = 0
+		const until = performance.now() + listenMs
 		while (performance.now() < until) {
 			analyser.getFloatTimeDomainData(samples)
-			for (const value of samples) peak = Math.max(peak, Math.abs(value))
+			for (const value of samples) analyserPeak = Math.max(analyserPeak, Math.abs(value))
 			await wait(50)
 		}
-		const track = stream.getAudioTracks()[0]
-		return `granted; track rate ${track?.getSettings().sampleRate ?? 'unknown'} Hz, context rate ${context.sampleRate} Hz, peak ${peak.toFixed(4)}${peak === 0 ? ' (silent stream)' : ''}`
+		await wait(300)
+		return [
+			'granted',
+			`listened ${listenMs} ms`,
+			`context ${stateAtStart} then ${context.state}`,
+			`track ${track?.readyState ?? 'none'}, muted ${track?.muted}, enabled ${track?.enabled}`,
+			`rates track ${track?.getSettings().sampleRate ?? 'unknown'} / context ${context.sampleRate} Hz`,
+			`analyser peak ${analyserPeak.toFixed(4)}`,
+			`worklet peak ${workletPeak.toFixed(4)} over ${workletBlocks} blocks${workletNote}`,
+		].join('; ')
 	} finally {
 		stream.getTracks().forEach(track => track.stop())
+		URL.revokeObjectURL(peakUrl)
 		await context.close()
 	}
+}
+
+/** Straight from its own tap, before any tone or speech touches the audio session. */
+export async function runMicrophoneOnly(report: ProbeReport): Promise<void> {
+	await report.add('Microphone alone, 5 s, talking', await bounded(() => microphoneTest(5000), 60000))
 }
 
 async function wakeLockTest(): Promise<string> {
@@ -265,16 +306,26 @@ class ProbeModal extends Modal {
 			text: 'Tap once. You will hear three short tones and one spoken word, and iOS may ask for the microphone. No audio is kept.',
 		})
 		const run = contentEl.createEl('button', { text: 'Run the test', cls: 'mod-cta' })
+		const mic = contentEl.createEl('button', { text: 'Microphone only' })
+		const finish = () => {
+			status.setText('Done. The result is saved in a note in this vault and returns through iCloud. Keep the app open for a minute so it can upload.')
+			if (contentEl.querySelector('.tp-probe-copy')) return
+			const copy = contentEl.createEl('button', { text: 'Copy the result', cls: 'tp-probe-copy' })
+			copy.addEventListener('click', () => {
+				void navigator.clipboard.writeText(this.report.markdown()).then(() => new Notice('Copied'))
+			})
+		}
 		run.addEventListener('click', () => {
 			run.disabled = true
+			mic.disabled = true
 			status.setText('Running. This takes under a minute...')
-			void runAfterTap(this.report).then(() => {
-				status.setText('Done. The result is saved in a note in this vault and returns through iCloud. Keep the app open for a minute so it can upload.')
-				const copy = contentEl.createEl('button', { text: 'Copy the result' })
-				copy.addEventListener('click', () => {
-					void navigator.clipboard.writeText(this.report.markdown()).then(() => new Notice('Copied'))
-				})
-			})
+			void runAfterTap(this.report).then(finish)
+		})
+		mic.addEventListener('click', () => {
+			run.disabled = true
+			mic.disabled = true
+			status.setText('Listening for 5 seconds. Talk out loud now.')
+			void runMicrophoneOnly(this.report).then(finish)
 		})
 	}
 }
