@@ -4,7 +4,7 @@ slug: teleprompter-plus
 project: Teleprompter Plus
 effort: E3
 phase: climbing
-progress: 92/92
+progress: 106/106
 mode: algorithm
 started: 2026-10-29
 updated: 2026-11-05
@@ -155,6 +155,23 @@ Found in Américo's own test run, 2026-11-05 (steps 2, 3, 7, 8):
 - [x] ISC-89: a phrase that occurs twice in range, a stale repeat from the recognizer, and ordinary lag behind a forward reader never move voice back.
 - [x] ISC-90: read-aloud with Américo's ElevenLabs engine does not speak a stage cue, confirmed by his ear.
 
+### Read-aloud fixes (Américo: "favor corrigir os issues acima", 2026-11-05)
+
+- [x] ISC-94: choosing a voice in the read-aloud panel changes the voice of the next ElevenLabs sentence and is saved as the ElevenLabs voice, never as the Kokoro one.
+- [x] ISC-95: a changed engine, ElevenLabs key, voice, model, stability or similarity takes effect at the next read-aloud start with no reopen.
+- [x] ISC-96: spoken English says money with a currency prefix or a K, M, B or T suffix as a full amount (US$1B is "one billion US dollars").
+- [x] ISC-97: spoken English says a Canadian province code after a comma as its name, and a month abbreviation before a number as the month.
+- [x] ISC-98: spoken text says an e-mail address with its at and dots, a phone number digit by digit, and a job-style #123 as "number one two three".
+- [x] ISC-99: spoken text never carries a pipe, and "8+" is said as "eight plus".
+- [x] ISC-100: read-aloud language comes from the note's frontmatter, then a language picked in settings, then the script itself, and English number words reach only English notes.
+- [x] ISC-101: a saved ttsLanguage of en becomes Automatic once, and English picked afterwards stays.
+- [x] ISC-102: a pronunciation list in settings replaces whole words before anything is spoken, in every engine, and never changes the text on screen.
+- [x] ISC-103: ElevenLabs stability and similarity are settings, and their defaults keep today's 0.5 and 0.75.
+- [x] ISC-104: each ElevenLabs sentence is sent with the sentences around it as context, and audio cached for one context is not reused for another.
+- [x] ISC-105: a Markdown link keeps its text on screen and in speech: its URL is never stripped into a leftover "[Text](".
+- [x] ISC-106: a line break inside a block is a pause in speech, so the words on either side of it never run together.
+- [x] ISC-107: runtime: the open cover letter read by the real plugin in Américo's clone voice has its address, phone, posting number and money read back correctly by a transcription of the captured audio.
+
 ## Anti-criteria
 
 - ANTI-1: a floating window that cannot be unlocked: no path may start locked or leave the window click-through after `exit()`.
@@ -274,6 +291,20 @@ Found in Américo's own test run, 2026-11-05 (steps 2, 3, 7, 8):
 | ISC-88 | manual | a passed line spoken aloud moves the script back | scroll falls, then follows | natural test voice, real mic |
 | ISC-89 | bun-test | twins, forward lag and short tails answer -1; one reading never commits | pass | bun test src/voice/reread.test.ts -t "stays" |
 | ISC-90 | manual | cue not heard | Américo's ear | T on a note with a cue |
+| ISC-94 | bun-test | engine takes a new voice; panel saves to the ElevenLabs field | pass | bun test src/tts/read-aloud.test.ts -t "voice selector" |
+| ISC-95 | bun-test | signature differs on each field and init compares it | pass | bun test src/tts/read-aloud.test.ts -t "takes effect" |
+| ISC-96 | bun-test | money forms | pass | bun test src/parser/speech-normalizer.test.ts -t "money suffix" |
+| ISC-97 | bun-test | province and month | pass | bun test src/parser/speech-normalizer.test.ts -t "province and month" |
+| ISC-98 | bun-test | e-mail, phone, number sign | pass | bun test src/parser/speech-normalizer.test.ts -t "contact details" |
+| ISC-99 | bun-test | pipes and plus | pass | bun test src/parser/speech-normalizer.test.ts -t "separators" |
+| ISC-100 | bun-test | language order | pass | bun test src/tts/read-aloud.test.ts -t "language order" |
+| ISC-101 | bun-test | migration through the real defaults | pass | bun test src/tts/read-aloud.test.ts -t "language migration" |
+| ISC-102 | bun-test | list parsed, whole words only | pass | bun test src/parser/speech-normalizer.test.ts -t "pronunciation" |
+| ISC-103 | bun-test | request carries the settings; defaults unchanged | pass | bun test src/tts/read-aloud.test.ts -t "voice settings" |
+| ISC-104 | bun-test | request and cache key carry the context | pass | bun test src/tts/read-aloud.test.ts -t "context" |
+| ISC-105 | bun-test | link URL survives the strip, bare URL does not | pass | bun test src/tts/read-aloud.test.ts -t "markdown link" |
+| ISC-106 | bun-test | spoken text walks line breaks | pass | bun test src/tts/read-aloud.test.ts -t "line break" |
+| ISC-107 | manual | captured plugin audio transcribed | words match | live plugin, mlx_whisper |
 | ANTI-1 | bun-test | exit leaves the window clickable | pass | bun test src/floating/floating-window.test.ts -t "click-through" |
 | ANTI-2 | bash | no hidden-from-share promise | exit 1 | rg -q -i "hidden from screen" README.md |
 
@@ -325,13 +356,20 @@ Lane: inline
 Criteria: ISC-84, ISC-85, ISC-86
 Lane: inline
 
+### F12: Read-aloud fixes
+Criteria: ISC-94, ISC-95, ISC-96, ISC-97, ISC-98, ISC-99, ISC-100, ISC-101, ISC-102, ISC-103, ISC-104, ISC-105, ISC-106, ISC-107
+Lane: inline
+
 ## Fog
 
+- A Pandoc line block (`| Name` lines in a cover letter) still shows its pipes on screen, seen 2026-11-05. Speech is clean. Not fixed: not asked.
 - A speech helper once kept running after voice stopped, seen 2026-11-05 during Américo's test run, not reproduced. Exact trigger unknown; check `pgrep -f teleprompter-stt` after any voice test.
 - Every other surface of the plugin (Stream Deck actions, TTS, remote, OBS, timer) has no criteria yet; a `Skill("ISA", "seed")` pass later.
 
 ## Decisions
 
+- 2026-11-05: F12 live on his Mac, build in the vault, plugin reloaded. ISC-107: the full cover letter read by the plugin in his clone voice, 20 clips captured at the audio element, no console error; Whisper read back "Ontario", "289-783-4743", "number three two two five zero", "US$1 billion", "americo.restart at gmail.com". Whisper autocorrects and cannot judge accent, so this proves words, not sound. "RE:" did not appear in the transcript: unknown whether it was spoken. ISC-95: voice ID changed live with no reload, the next start spoke a clip of 10.2 s against the clone's 13.5 s. ISC-94: the real panel listed 29 voices, choosing Daniel saved elevenLabsVoiceId and left ttsVoice alone, and the next clip was 14.7 s. Clip hashes prove nothing here: the same voice and text gave a different hash. ISC-100: a throwaway Portuguese note was detected as pt with no English number words in the transcript; "arroba" was not transcribed, so that word is unproven. ISC-105: the résumé header on screen now reads "LinkedIn | GitHub | Tableau Public" with 4 links. His saved voice stayed the clone; his list holds "FICO = Fye-co", after which Whisper heard FICO where it had heard "Faisal". Américo's purpose, 2026-11-05: a professional voice to listen to and learn the pronunciation, so the normalizer's spoken forms are also what he learns from. Review.ts not run: the plugin has no CfEnv deploy, and foreign docs work keeps the tree dirty.
+- 2026-11-05: Read-aloud test on Américo's word, résumé and cover letter open. Contract probes through his key with his clone voice: previous_text and next_text are accepted and gave "Brazil" where the plain request gave "Brasil" (one sample, Whisper-read, so a hint and not a proof); language_code is accepted on Multilingual v2 and did not help, so it is not sent. "FICO" came back as "Faisal", the case for a pronunciation list.
 - 2026-11-05: Américo: "I don't wanna see those emoji icons again on t+". All interface emoji replaced by Lucide icons, held by src/no-emoji.test.ts and a rule in CLAUDE.md. Pre-release review blockers fixed: commands forwarded once per view (ISC-93); stage-cue stripping now reads the whole note, so a reference link keeps its words when spoken.
 - 2026-11-05: Release 0.12.0 on Américo's "yes. let's ship". What's New tested through a simulated update from 0.11.9: right version, top 8 highlights with a link to the rest, Lucide icons in place of emoji on his word, no raw backticks. docs/RELEASING.md corrected, since it still said the window was hand-written. The docs-site work stayed out of this release. Local commits were squashed into one, because some carried private paths and names.
 - 2026-11-05: ISC-91 on Américo's "yes test teams and meet". macOS 26.5.1, entire-screen share of the EI491CR display, floating at 1000,-950, nobody else in either meeting. Google Meet in Chrome 156: frames from the page's own 3840x1080 stream, on: absent, off: present. Microsoft Teams 26289: a guest joined from Chrome as a real second participant; its view, on: absent, off: present, both the same second apart. Window shares were not retested on Meet or Teams. Mic and camera were never granted to the guest. Frames deleted. The Teams link replaced his clipboard.
@@ -378,6 +416,7 @@ acceptance: pass 2026-10-30 (all four runtime checks; mic-blocked Notice + Retry
 
 ## Changelog
 
+- 2026-11-05: ISC-94..107 added and ticked (read-aloud fixes, Américo's "favor corrigir os issues acima").
 - 2026-10-29: ISA created for release 0.11.9.
 - 2026-10-30: ISC-25, ISC-26 added from the runtime test; ISC-17 and ISC-26 ticked on Américo's screenshots of the blocked-mic Notice with Retry. Blocked-mic text in `src/voice/vosk-recognizer.ts` now says choosing "Later" on the macOS dialog is enough before Retry (his finding). Acceptance pass, 26/26.
 - 2026-11-05: Release 0.12.0 cut on Américo's yes.

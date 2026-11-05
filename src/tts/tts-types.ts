@@ -22,6 +22,8 @@ export interface SpeakOptions {
 	rate: number     // 0.5 - 2.0
 	voice?: string   // Voice ID
 	language?: string
+	previousText?: string  // The sentences around this one, for engines that shape speech with them
+	nextText?: string
 }
 
 /** Represents a prepared audio segment (for Kokoro cache) */
@@ -58,6 +60,8 @@ export interface TTSEngine {
 	readonly isAvailable: boolean
 	initialize(): Promise<void>
 	speak(text: string, options: SpeakOptions): Promise<void>
+	/** For an engine that holds its voice itself rather than reading options.voice */
+	setVoice?(voiceId: string): void
 	pause(): void
 	resume(): void
 	stop(): void

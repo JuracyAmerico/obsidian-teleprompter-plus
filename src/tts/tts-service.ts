@@ -10,7 +10,8 @@ import type {
 import { createTTSEngine } from './engine-factory'
 import { cleanDocument, extractBibPath } from '../parser/text-cleaner'
 import { resolveCitations, loadBibliography, clearBibCache } from '../parser/citation-resolver'
-import { normalizeForSpeech } from '../parser/speech-normalizer'
+import { applyPronunciations, normalizeForSpeech, parsePronunciations, spokenSeparators } from '../parser/speech-normalizer'
+import { contextAround } from './elevenlabs-request'
 import type { CleanerOptions } from '../parser/text-cleaner'
 
 /** Listener callback type */
@@ -29,6 +30,8 @@ export interface TTSServiceConfig {
 	elevenLabsApiKey: string
 	elevenLabsVoiceId: string
 	elevenLabsModelId: string
+	elevenLabsStability?: number
+	elevenLabsSimilarity?: number
 }
 
 const DEFAULT_CONFIG: TTSServiceConfig = {
@@ -51,6 +54,7 @@ export class TTSService {
 	private currentIndex = 0
 	private playbackState: TTSPlaybackState = 'idle'
 	private isDestroyed = false
+	private pronunciations: Array<[string, string]> = []
 
 	// Event listeners
 	private sentenceStartListeners: TTSListener<{ index: number; text: string }>[] = []
@@ -73,6 +77,8 @@ export class TTSService {
 			elevenLabsApiKey: this.config.elevenLabsApiKey,
 			elevenLabsVoiceId: this.config.elevenLabsVoiceId,
 			elevenLabsModelId: this.config.elevenLabsModelId,
+			elevenLabsStability: this.config.elevenLabsStability,
+			elevenLabsSimilarity: this.config.elevenLabsSimilarity,
 		})
 		if (!this.engine) {
 			this.emitError('No TTS engine available')
@@ -295,7 +301,13 @@ export class TTSService {
 	/** Update voice selection */
 	setVoice(voiceId: string): void {
 		this.config.voice = voiceId
+		this.engine?.setVoice?.(voiceId)
 		this.emitStateChange()
+	}
+
+	/** The "word = how to say it" list from settings */
+	setPronunciations(list: string): void {
+		this.pronunciations = parsePronunciations(list)
 	}
 
 	/** Update language */
@@ -391,10 +403,20 @@ export class TTSService {
 
 	// ===== Private methods =====
 
-	/** Numbers and formulas spelled out for the engine. English-only; the displayed sentence is untouched. */
+	/** What the engine is given. The sentence on screen is untouched. English number words reach only English. */
 	private spokenForm(sentence: string): string {
 		const lang = (this.config.language || 'en').toLowerCase()
-		return lang.startsWith('en') ? normalizeForSpeech(sentence) : sentence
+		const words = spokenSeparators(applyPronunciations(sentence, this.pronunciations), lang)
+		return lang.startsWith('en') ? normalizeForSpeech(words) : words
+	}
+
+	private optionsFor(index: number): SpeakOptions {
+		return {
+			rate: this.config.rate,
+			voice: this.config.voice || undefined,
+			language: this.config.language,
+			...contextAround(this.document?.allSentences ?? [], index, s => this.spokenForm(s)),
+		}
 	}
 
 	private async speakCurrentSentence(): Promise<void> {
@@ -409,17 +431,13 @@ export class TTSService {
 		const text = this.spokenForm(this.document.allSentences[this.currentIndex])
 		this.emitSentenceStart()
 
-		const options: SpeakOptions = {
-			rate: this.config.rate,
-			voice: this.config.voice || undefined,
-			language: this.config.language,
-		}
+		const options = this.optionsFor(this.currentIndex)
 
 		// Hint the engine about the next sentence for pregeneration
 		const nextIndex = this.currentIndex + 1
 		if (nextIndex < this.document.allSentences.length && this.engine.hintNext) {
 			// Same spoken form as speak(), or the engine's pregenerated cache key never hits.
-			this.engine.hintNext(this.spokenForm(this.document.allSentences[nextIndex]), options)
+			this.engine.hintNext(this.spokenForm(this.document.allSentences[nextIndex]), this.optionsFor(nextIndex))
 		}
 
 		try {

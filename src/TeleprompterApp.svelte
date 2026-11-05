@@ -53,7 +53,8 @@
   import type { VoiceTrackingService } from './voice'
   import { applyPresetLive } from './voice/preset-apply'
   import { isVoiceEngaged, nextVoiceUiState, voiceFailureText } from './voice/voice-ui-state'
-  import { resolveVoiceLanguage } from './voice/voice-language'
+  import { resolveReadAloudLanguage, resolveVoiceLanguage } from './voice/voice-language'
+  import { engineSignature } from './tts/elevenlabs-request'
   import { TTSService } from './tts'
   import type { TTSState, TTSPlaybackState, TTSVoice } from './tts'
   import { resolveCitations, loadBibliography } from './parser/citation-resolver'
@@ -2663,6 +2664,13 @@
     voiceErrorNotice = notice
   }
 
+  /** The language to read the script on the prompter aloud in. */
+  function scriptReadAloudLanguage(): string {
+    const file = currentSourceFile()
+    const properties = file ? app.metadataCache.getFileCache(file)?.frontmatter : undefined
+    return resolveReadAloudLanguage(settings.ttsLanguage, properties?.['voice-language'] ?? properties?.lang, content)
+  }
+
   /** The language to listen in for the script on the prompter, which may not be the focused note. */
   function scriptVoiceLanguage(): string {
     const file = currentSourceFile()
@@ -2826,7 +2834,7 @@
 
   async function initTTS(): Promise<void> {
     // Reinitialize if engine setting changed since last init
-    const engineChanged = ttsInitialized && ttsInitializedEngine !== settings.ttsEngine
+    const engineChanged = ttsInitialized && ttsInitializedEngine !== engineSignature(settings)
     if (ttsInitialized && ttsService && !engineChanged) return
 
     // Destroy previous engine if reinitializing
@@ -2847,6 +2855,8 @@
       elevenLabsApiKey: settings.elevenLabsApiKey,
       elevenLabsVoiceId: settings.elevenLabsVoiceId,
       elevenLabsModelId: settings.elevenLabsModelId,
+      elevenLabsStability: settings.elevenLabsStability,
+      elevenLabsSimilarity: settings.elevenLabsSimilarity,
     })
 
     // Subscribe to TTS events
@@ -2870,7 +2880,8 @@
 
     await ttsService.initialize()
     ttsInitialized = true
-    ttsInitializedEngine = settings.ttsEngine
+    ttsInitializedEngine = engineSignature(settings)
+    ttsCurrentVoice = (settings.ttsEngine === 'elevenlabs' ? settings.elevenLabsVoiceId : settings.ttsVoice) || ''
     ttsRate = settings.ttsRate
 
     // Log which engine was actually selected
@@ -2902,7 +2913,12 @@
 
   function setTTSVoice(voiceId: string): void {
     ttsCurrentVoice = voiceId
-    settings.ttsVoice = voiceId
+    if (settings.ttsEngine === 'elevenlabs') {
+      settings.elevenLabsVoiceId = voiceId
+      ttsInitializedEngine = engineSignature(settings)
+    } else {
+      settings.ttsVoice = voiceId
+    }
     plugin?.saveSettings()
     ttsService?.setVoice(voiceId)
   }
@@ -2928,11 +2944,16 @@
   function spokenTextOf(el: HTMLElement): string {
     const copy = el.cloneNode(true) as HTMLElement
     copy.querySelectorAll('.tp-stage-cue').forEach(cue => cue.remove())
+    // A line break is a pause; without this the words on either side run together
+    copy.querySelectorAll('br').forEach(br => br.replaceWith(', '))
     return copy.textContent?.trim() || ''
   }
 
   function prepareTTSDocument(): void {
     if (!ttsService || !contentArea) return
+
+    ttsService.setLanguage(scriptReadAloudLanguage())
+    ttsService.setPronunciations(settings.ttsPronunciations)
 
     const sections: TTSSection[] = []
     const allSentences: string[] = []
@@ -3038,7 +3059,8 @@
   }
 
   async function toggleTTS(): Promise<void> {
-    if (!ttsInitialized) {
+    // Starting from idle also picks up a voice, model or engine changed in settings
+    if (!ttsInitialized || ttsPlaybackState === 'idle') {
       await initTTS()
     }
 
