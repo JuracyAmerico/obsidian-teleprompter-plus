@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import { integerToWords, normalizeForSpeech } from './speech-normalizer'
+import { applyPronunciations, integerToWords, normalizeForSpeech, parsePronunciations, spokenSeparators } from './speech-normalizer'
 
 describe('integerToWords', () => {
 	test('scales', () => {
@@ -72,5 +72,47 @@ describe('normalizeForSpeech — other forms', () => {
 	test('plain prose is unchanged', () => {
 		const s = 'The client approved that change in writing, and nothing in the table is a forecast.'
 		expect(normalizeForSpeech(s)).toBe(s)
+	})
+})
+
+describe('normalizeForSpeech: found reading a real resume aloud', () => {
+	test('money suffix', () => {
+		expect(normalizeForSpeech('supports more than US$1B in daily trades')).toBe('supports more than one billion US dollars in daily trades')
+		expect(normalizeForSpeech('raised $1.5M last year')).toBe('raised one point five million dollars last year')
+		expect(normalizeForSpeech('paid $25K.')).toBe('paid twenty-five thousand dollars.')
+		expect(normalizeForSpeech('costs C$40 today')).toBe('costs forty Canadian dollars today')
+		expect(normalizeForSpeech('costs $40 today')).toBe('costs forty dollars today')
+	})
+	test('province and month', () => {
+		expect(normalizeForSpeech('Niagara Falls, ON')).toBe('Niagara Falls, Ontario')
+		expect(normalizeForSpeech('Vancouver, BC, Canada')).toBe('Vancouver, British Columbia, Canada')
+		expect(normalizeForSpeech('turn it, ON or off')).toBe('turn it, ON or off')
+		expect(normalizeForSpeech('ON AIR')).toBe('ON AIR')
+		expect(normalizeForSpeech('Apr 2020 to Sep 2022')).toBe('April twenty twenty to September twenty twenty-two')
+		expect(normalizeForSpeech('Sept 3')).toBe('September third')
+		expect(normalizeForSpeech('the Sep team')).toBe('the Sep team')
+		expect(normalizeForSpeech('May 2020')).toBe('May twenty twenty')
+	})
+	test('contact details', () => {
+		expect(spokenSeparators('jane.doe@example.com', 'en')).toBe('jane dot doe at example dot com')
+		expect(spokenSeparators('jane.doe@example.com', 'pt')).toBe('jane ponto doe arroba example ponto com')
+		expect(normalizeForSpeech('555$1012$23456')).toBe('five five five, zero one two, three four five six')
+		expect(normalizeForSpeech('+1 555$1012$23456')).toBe('five five five, zero one two, three four five six')
+		expect(normalizeForSpeech('Job Posting #32250, role')).toBe('Job Posting number three two two five zero, role')
+		expect(normalizeForSpeech('code 32-10-0231')).toBe('code 32-10-0231')
+	})
+	test('separators', () => {
+		expect(spokenSeparators('| Juracy| Niagara Falls | Canada', 'en')).toBe('Juracy, Niagara Falls, Canada')
+		expect(spokenSeparators('Lead | Apr 2020 |', 'en')).toBe('Lead, Apr 2020')
+		expect(normalizeForSpeech('worked with 8+ executives across 150+ accounts.')).toBe('worked with eight plus executives across one hundred fifty plus accounts.')
+		expect(normalizeForSpeech('r = +0.19')).toBe('r equals plus zero point one nine')
+	})
+	test('pronunciation list', () => {
+		const list = parsePronunciations('FICO = Fye-co\n\nnot a rule\nSão Paulo = Sao Paulo\n = empty\nbad =')
+		expect(list).toEqual([['São Paulo', 'Sao Paulo'], ['FICO', 'Fye-co']])
+		expect(applyPronunciations('At FICO, in São Paulo.', list)).toBe('At Fye-co, in Sao Paulo.')
+		expect(applyPronunciations('FICOS and fico stay', list)).toBe('FICOS and fico stay')
+		expect(parsePronunciations('a.b = x').length).toBe(1)
+		expect(applyPronunciations('axb', parsePronunciations('a.b = x'))).toBe('axb')
 	})
 })

@@ -81,6 +81,19 @@ function readNumber(intPart: string, fraction: string | undefined): string {
 	return fraction ? `${words} point ${spellDigits(fraction)}` : words
 }
 
+const SHORT_MONTHS: Record<string, string> = {
+	Jan: 'January', Feb: 'February', Mar: 'March', Apr: 'April', Jun: 'June', Jul: 'July', Aug: 'August',
+	Sep: 'September', Sept: 'September', Oct: 'October', Nov: 'November', Dec: 'December',
+}
+
+const PROVINCES: Record<string, string> = {
+	ON: 'Ontario', BC: 'British Columbia', QC: 'Quebec', AB: 'Alberta', MB: 'Manitoba', SK: 'Saskatchewan',
+	NS: 'Nova Scotia', NB: 'New Brunswick', NL: 'Newfoundland and Labrador', PE: 'Prince Edward Island',
+}
+
+const DOLLAR_PREFIX: Record<string, string> = { US: 'US dollar', CA: 'Canadian dollar', C: 'Canadian dollar', A: 'Australian dollar' }
+const SUFFIX_SCALE: Record<string, string> = { K: 'thousand', M: 'million', B: 'billion', T: 'trillion' }
+
 const MONTHS = 'January|February|March|April|May|June|July|August|September|October|November|December'
 
 const CURRENCY: Record<string, [string, string]> = { '$': ['dollar', 'dollars'], '€': ['euro', 'euros'], '£': ['pound', 'pounds'] }
@@ -90,8 +103,77 @@ const CURRENCY: Record<string, [string, string]> = { '$': ['dollar', 'dollars'],
 const NUMBER = /(?<![\w\-/:.,])(\d{1,3}(?:,\d{3})+|\d+)(?:\.(\d+))?(?![\w\-/:]|[.,]\d)/g
 const LEADING_DECIMAL = /(?<![\w\-/:.,])\.(\d+)(?![\w\-/:]|[.,]\d)/g
 
+/**
+ * What no voice should guess at, in any language: a pipe is a pause, and an e-mail address is words.
+ */
+export function spokenSeparators(text: string, language: string): string {
+	const portuguese = language.toLowerCase().startsWith('pt')
+	const at = portuguese ? 'arroba' : 'at'
+	const dot = portuguese ? 'ponto' : 'dot'
+	return text
+		.replace(/([\w+-]+(?:\.[\w+-]+)*)@([\w-]+(?:\.[\w-]+)+)/g, (_m, local: string, domain: string) =>
+			`${local.split('.').join(` ${dot} `)} ${at} ${domain.split('.').join(` ${dot} `)}`)
+		.replace(/\s*\|\s*/g, ', ')
+		.replace(/^(?:,\s*)+/, '')
+		.replace(/(?:,\s*)+$/, '')
+}
+
+/** "Word = how to say it", one a line. Longest first, so a phrase wins over a word inside it. */
+export function parsePronunciations(list: string): Array<[string, string]> {
+	const pairs: Array<[string, string]> = []
+	for (const line of (list || '').split('\n')) {
+		const split = line.indexOf('=')
+		if (split < 0) continue
+		const word = line.slice(0, split).trim()
+		const spoken = line.slice(split + 1).trim()
+		if (word && spoken) pairs.push([word, spoken])
+	}
+	return pairs.sort((a, b) => b[0].length - a[0].length)
+}
+
+/** Whole words only and case-sensitive: FICO is a name, and fico in Portuguese is a verb. */
+export function applyPronunciations(text: string, pairs: Array<[string, string]>): string {
+	let out = text
+	for (const [word, spoken] of pairs) {
+		const escaped = word.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+		out = out.replace(new RegExp(`(?<![\\p{L}\\p{N}])${escaped}(?![\\p{L}\\p{N}])`, 'gu'), () => spoken)
+	}
+	return out
+}
+
 export function normalizeForSpeech(text: string): string {
 	let out = text
+
+	// 555$1012$23456 is read digit by digit, in its groups
+	out = out.replace(/(?<![\w\-/:.,])(?:\+?1[\s.-])?\(?(\d{3})\)?[\s.-](\d{3})[\s.-](\d{4})(?![\w\-/:]|[.,]\d)/g,
+		(_m, area: string, first: string, last: string) => `${spellDigits(area)}, ${spellDigits(first)}, ${spellDigits(last)}`)
+
+	// #32250 is an identifier
+	out = out.replace(/(?<![\w&#])#(\d+)\b/g, (_m, digits: string) => `number ${spellDigits(digits)}`)
+
+	// US$1B, $1.5M, $25K, C$40. A plain $40 is left to the rule below
+	out = out.replace(
+		/(?<![\w.])(US|CA|C|A)?\$\s?(\d{1,3}(?:,\d{3})+|\d+)(?:\.(\d+))?(?:\s?([KMBT]))?(?![\w\-/:]|[.,]\d)/g,
+		(match, prefix: string | undefined, int: string, frac: string | undefined, suffix: string | undefined) => {
+			if (!prefix && !suffix) return match
+			const unit = prefix ? DOLLAR_PREFIX[prefix] : 'dollar'
+			if (suffix) return `${readNumber(int, frac)} ${SUFFIX_SCALE[suffix]} ${unit}s`
+			if (frac && frac.length === 2) {
+				const cents = Number(frac)
+				return cents ? `${readNumber(int, undefined)} ${unit}s and ${integerToWords(String(cents))} cents` : `${readNumber(int, undefined)} ${unit}s`
+			}
+			return `${readNumber(int, frac)} ${unit}${int === '1' && !frac ? '' : 's'}`
+		},
+	)
+
+	// ", ON" names a place only where a place can end
+	out = out.replace(/,\s(ON|BC|QC|AB|MB|SK|NS|NB|NL|PE)(?=\s*$|[,.;)])/g, (_m, code: string) => `, ${PROVINCES[code]}`)
+
+	// "Sep 2022"; only before a number, so "the Sep team" and "Mar" as a word are left alone
+	out = out.replace(/\b(Jan|Feb|Mar|Apr|Jun|Jul|Aug|Sept?|Oct|Nov|Dec)\.?\s(?=\d)/g, (_m, month: string) => `${SHORT_MONTHS[month]} `)
+
+	// "150+ accounts"
+	out = out.replace(/(\d)\+(?=[\s.,;:)]|$)/g, '$1 plus')
 
 	// $1,250.50 / $1.5 million
 	out = out.replace(

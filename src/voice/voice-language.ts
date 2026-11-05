@@ -63,6 +63,22 @@ export function migrateVoiceLanguageSetting(settings: {
 	return true
 }
 
+/** Read-aloud has its own setting: 'auto', or a short code such as en, pt or fr. */
+export function resolveReadAloudLanguage(setting: string | undefined, frontmatterValue: unknown, script: string): string {
+	const fromNote = parseLanguageValue(frontmatterValue)
+	if (fromNote) return fromNote.slice(0, 2)
+	if (setting && setting !== 'auto') return setting
+	return detectScriptLanguage(script).slice(0, 2)
+}
+
+/** en was the read-aloud default before there was a choice, so a saved en was never picked. Runs once. */
+export function migrateReadAloudLanguage(settings: { ttsLanguage: string; ttsLanguageAutoMigrated: boolean }): boolean {
+	if (settings.ttsLanguageAutoMigrated) return false
+	if (settings.ttsLanguage === 'en') settings.ttsLanguage = 'auto'
+	settings.ttsLanguageAutoMigrated = true
+	return true
+}
+
 export function resolveVoiceLanguage(
 	setting: string | undefined,
 	frontmatterValue: unknown,

@@ -188,7 +188,9 @@ export interface TeleprompterSettings {
 	// TTS (Text-to-Speech) settings
 	ttsEngine: 'auto' | 'mac-say' | 'web-speech' | 'kokoro' | 'elevenlabs'
 	ttsVoice: string                   // Voice ID (engine-specific)
-	ttsLanguage: string                // Language code (e.g., 'en', 'pt', 'fr')
+	ttsLanguage: string                // 'auto', or a language code (e.g., 'en', 'pt', 'fr')
+	ttsLanguageAutoMigrated: boolean   // en was the default before there was a choice, so nobody chose it
+	ttsPronunciations: string          // "Word = how to say it", one a line
 	ttsRate: number                    // Speech rate (0.5 - 2.0)
 	ttsBibPath: string                 // Default bibliography file path
 	ttsResolveCitations: boolean       // Convert [@key] to APA format
@@ -199,6 +201,8 @@ export interface TeleprompterSettings {
 	elevenLabsApiKey: string           // User's own ElevenLabs API key
 	elevenLabsVoiceId: string          // ElevenLabs voice ID
 	elevenLabsModelId: string          // ElevenLabs model (flash/turbo/multilingual)
+	elevenLabsStability: number        // 0 = more expressive, 1 = steadier
+	elevenLabsSimilarity: number       // How closely to hold to the original voice
 	// Floating window: how opaque it is, and where it was last
 	floatingSeeThrough: number         // 30-100 percent
 	floatingHideFromShare: boolean     // Ask macOS to keep the floating window out of screen capture
@@ -365,7 +369,9 @@ export const DEFAULT_SETTINGS: TeleprompterSettings = {
 	// TTS (Text-to-Speech) defaults
 	ttsEngine: 'auto' as const,
 	ttsVoice: '',
-	ttsLanguage: 'en',
+	ttsLanguage: 'auto',
+	ttsLanguageAutoMigrated: false,
+	ttsPronunciations: '',
 	ttsRate: 1.0,
 	ttsBibPath: '',
 	ttsResolveCitations: true,
@@ -376,6 +382,8 @@ export const DEFAULT_SETTINGS: TeleprompterSettings = {
 	elevenLabsApiKey: '',
 	elevenLabsVoiceId: '21m00Tcm4TlvDq8ikWAM', // Rachel (ElevenLabs default public voice)
 	elevenLabsModelId: 'eleven_flash_v2_5',
+	elevenLabsStability: 0.5,
+	elevenLabsSimilarity: 0.75,
 	// Progress indicator style
 	progressIndicatorStyle: 'progress-bar' as const,
 	// NEW: Toolbar configuration
@@ -1811,7 +1819,7 @@ export class TeleprompterSettingTab extends PluginSettingTab {
 					},
 					{
 						name: 'Voice',
-						desc: 'Select a voice preset (22 neural voices available with Kokoro)',
+						desc: 'Kokoro voices only. ElevenLabs uses its own voice ID below, or the voice picked in the read-aloud panel.',
 						type: 'dropdown',
 						options: [
 							{ value: '', label: 'Default' },
@@ -1846,11 +1854,29 @@ export class TeleprompterSettingTab extends PluginSettingTab {
 					},
 					{
 						name: 'Language',
-						desc: 'Language code for speech (e.g., en, pt, fr)',
-						type: 'text',
+						desc: 'Automatic follows each note. A note can also say it in its frontmatter, as lang: pt.',
+						type: 'dropdown',
+						options: [
+							{ value: 'auto', label: 'Automatic' },
+							{ value: 'en', label: 'English' },
+							{ value: 'pt', label: 'Portuguese' },
+							...(['auto', 'en', 'pt'].includes(this.plugin.settings.ttsLanguage)
+								? []
+								: [{ value: this.plugin.settings.ttsLanguage, label: this.plugin.settings.ttsLanguage }]),
+						],
 						value: this.plugin.settings.ttsLanguage,
 						onChange: (value) => {
 							this.plugin.settings.ttsLanguage = value as string
+							void this.plugin.saveSettings()
+						}
+					},
+					{
+						name: 'Pronunciations',
+						desc: 'One a line, as: FICO = Fye-co. Whole words, case-sensitive. Changes what is spoken, never what is on screen.',
+						type: 'textarea',
+						value: this.plugin.settings.ttsPronunciations,
+						onChange: (value) => {
+							this.plugin.settings.ttsPronunciations = value as string
 							void this.plugin.saveSettings()
 						}
 					},
@@ -1900,11 +1926,33 @@ export class TeleprompterSettingTab extends PluginSettingTab {
 					},
 					{
 						name: 'Voice ID',
-						desc: 'ElevenLabs voice ID. Default is Rachel (21m00Tcm4TlvDq8ikWAM). Find more in your ElevenLabs Voice Library; paste a cloned-voice ID here too.',
+						desc: 'ElevenLabs voice ID. Default is Rachel (21m00Tcm4TlvDq8ikWAM). Find more in your ElevenLabs Voice Library; paste a cloned-voice ID here too. The read-aloud panel lists your voices and sets this for you.',
 						type: 'text',
 						value: this.plugin.settings.elevenLabsVoiceId,
 						onChange: (value) => {
 							this.plugin.settings.elevenLabsVoiceId = value as string
+							void this.plugin.saveSettings()
+						}
+					},
+					{
+						name: 'Stability',
+						desc: 'Lower is more expressive and varied, higher is steadier.',
+						type: 'slider',
+						min: 0, max: 1, step: 0.05,
+						value: this.plugin.settings.elevenLabsStability,
+						onChange: (value) => {
+							this.plugin.settings.elevenLabsStability = value as number
+							void this.plugin.saveSettings()
+						}
+					},
+					{
+						name: 'Similarity',
+						desc: 'How closely the speech holds to the original voice.',
+						type: 'slider',
+						min: 0, max: 1, step: 0.05,
+						value: this.plugin.settings.elevenLabsSimilarity,
+						onChange: (value) => {
+							this.plugin.settings.elevenLabsSimilarity = value as number
 							void this.plugin.saveSettings()
 						}
 					}
@@ -1980,7 +2028,7 @@ export class TeleprompterSettingTab extends PluginSettingTab {
 			settings: Array<{
 				name: string
 				desc: string
-				type: 'slider' | 'toggle' | 'text' | 'password' | 'color' | 'dropdown'
+				type: 'slider' | 'toggle' | 'text' | 'textarea' | 'password' | 'color' | 'dropdown'
 				min?: number
 				max?: number
 				step?: number
@@ -2113,6 +2161,15 @@ export class TeleprompterSettingTab extends PluginSettingTab {
 								})
 								.settingEl.addClass('tp-setting-no-border')
 							break
+						case 'textarea': {
+							const textArea = settingControl.createEl('textarea', { cls: 'tp-text-input' })
+							textArea.rows = 4
+							textArea.value = setting.value as string
+							textArea.addEventListener('change', (e) => {
+								setting.onChange((e.target as HTMLTextAreaElement).value)
+							})
+							break
+						}
 						case 'text':
 						case 'password': {
 							const textInput = settingControl.createEl('input', {

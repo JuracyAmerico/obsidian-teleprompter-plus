@@ -13,6 +13,8 @@ import { ElevenLabsEngine } from './elevenlabs-engine'
 export interface TTSEngineConfig {
 	elevenLabsApiKey?: string
 	elevenLabsVoiceId?: string
+	elevenLabsStability?: number
+	elevenLabsSimilarity?: number
 	elevenLabsModelId?: string
 }
 
@@ -34,6 +36,8 @@ export function createTTSEngine(preferred: TTSEngineType, config?: TTSEngineConf
 			apiKey: config?.elevenLabsApiKey ?? '',
 			voiceId: config?.elevenLabsVoiceId ?? '',
 			modelId: config?.elevenLabsModelId ?? 'eleven_flash_v2_5',
+			stability: config?.elevenLabsStability,
+			similarity: config?.elevenLabsSimilarity,
 		})
 		if (elevenLabs.isAvailable) return elevenLabs
 		// No key configured — fall back to the offline chain rather than failing hard.

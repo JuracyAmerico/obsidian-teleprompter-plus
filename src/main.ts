@@ -3,7 +3,7 @@ import { TeleprompterView, VIEW_TYPE_TELEPROMPTER } from './view'
 import { TeleprompterWebSocketServer, type TeleprompterState } from './websocket-server'
 import { TeleprompterSettingTab, DEFAULT_SETTINGS } from './settings'
 import { FloatingSession } from './floating/floating-window'
-import { isValidVoiceLanguageSetting, migrateVoiceLanguageSetting } from './voice/voice-language'
+import { isValidVoiceLanguageSetting, migrateReadAloudLanguage, migrateVoiceLanguageSetting } from './voice/voice-language'
 import type { TeleprompterSettings } from './settings'
 import { forgetPosition, renamePosition, validPositions } from './position-memory'
 import { migrateKeepAwakeSetting } from './wake-hold'
@@ -1394,6 +1394,7 @@ Use this address to connect from external devices.`
 
 		// en-US was the only language before 0.12.0, so a saved en-US was never a choice
 		if (migrateVoiceLanguageSetting(this.settings)) void this.saveSettings()
+		if (migrateReadAloudLanguage(this.settings)) void this.saveSettings()
 		if (migrateKeepAwakeSetting(this.settings)) void this.saveSettings()
 
 		// Add 'tts' if not in any toolbar section

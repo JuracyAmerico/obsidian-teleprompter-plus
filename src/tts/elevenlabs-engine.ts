@@ -17,6 +17,8 @@
 
 import { requestUrl } from 'obsidian'
 import type { TTSEngine, TTSVoice, SpeakOptions } from './tts-types'
+import { buildSpeechBody, speechCacheKey } from './elevenlabs-request'
+import type { SpeechContext } from './elevenlabs-request'
 
 const API_BASE = 'https://api.elevenlabs.io/v1'
 const OUTPUT_FORMAT = 'mp3_44100_128'
@@ -26,6 +28,8 @@ export interface ElevenLabsConfig {
 	apiKey: string
 	voiceId: string
 	modelId: string
+	stability?: number
+	similarity?: number
 }
 
 export class ElevenLabsEngine implements TTSEngine {
@@ -34,6 +38,8 @@ export class ElevenLabsEngine implements TTSEngine {
 	private apiKey: string
 	private voiceId: string
 	private modelId: string
+	private stability: number
+	private similarity: number
 
 	private endCallback: (() => void) | null = null
 	private currentAudio: HTMLAudioElement | null = null
@@ -48,6 +54,18 @@ export class ElevenLabsEngine implements TTSEngine {
 		this.apiKey = (config.apiKey || '').trim()
 		this.voiceId = (config.voiceId || '').trim()
 		this.modelId = config.modelId || 'eleven_flash_v2_5'
+		this.stability = config.stability ?? 0.5
+		this.similarity = config.similarity ?? 0.75
+	}
+
+	get currentVoiceId(): string {
+		return this.voiceId
+	}
+
+	/** The next sentence is spoken in this voice. An empty id is ignored, it would fail the request. */
+	setVoice(voiceId: string): void {
+		const next = (voiceId || '').trim()
+		if (next) this.voiceId = next
 	}
 
 	/** Available only when the user has supplied an API key. Never auto-selected. */
@@ -71,16 +89,16 @@ export class ElevenLabsEngine implements TTSEngine {
 
 	async speak(text: string, options: SpeakOptions): Promise<void> {
 		this.stopPlayback()
-		const audio = await this.synthesize(text)
+		const audio = await this.synthesize(text, options)
 		return this.playBytes(audio, options)
 	}
 
 	/** Pre-warm the cache for the next sentence so the following speak() is instant. */
-	hintNext(text: string, _options: SpeakOptions): void {
-		const key = this.cacheKey(text)
+	hintNext(text: string, options: SpeakOptions): void {
+		const key = this.cacheKey(text, options)
 		if (this.cache.has(key)) return
 		// Fire-and-forget — failures here are non-fatal; speak() will retry/surface them.
-		void this.synthesize(text).catch(() => { /* ignore pregen errors */ })
+		void this.synthesize(text, options).catch(() => { /* ignore pregen errors */ })
 	}
 
 	pause(): void {
@@ -149,13 +167,13 @@ export class ElevenLabsEngine implements TTSEngine {
 
 	// ===== Private =====
 
-	private cacheKey(text: string): string {
-		return `${this.modelId}::${this.voiceId}::${text}`
+	private cacheKey(text: string, context: SpeechContext): string {
+		return speechCacheKey(this.modelId, this.voiceId, text, context, this.stability, this.similarity)
 	}
 
 	/** Fetch MP3 bytes for a sentence, using the per-sentence cache when possible. */
-	private async synthesize(text: string): Promise<ArrayBuffer> {
-		const key = this.cacheKey(text)
+	private async synthesize(text: string, context: SpeechContext): Promise<ArrayBuffer> {
+		const key = this.cacheKey(text, context)
 		const cached = this.cache.get(key)
 		if (cached) return cached
 
@@ -167,11 +185,14 @@ export class ElevenLabsEngine implements TTSEngine {
 				'Content-Type': 'application/json',
 				'Accept': 'audio/mpeg',
 			},
-			body: JSON.stringify({
+			body: JSON.stringify(buildSpeechBody({
 				text,
-				model_id: this.modelId,
-				voice_settings: { stability: 0.5, similarity_boost: 0.75 },
-			}),
+				modelId: this.modelId,
+				stability: this.stability,
+				similarity: this.similarity,
+				previousText: context.previousText,
+				nextText: context.nextText,
+			})),
 			throw: false,
 		})
 
