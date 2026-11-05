@@ -2,7 +2,7 @@ import { describe, expect, test } from 'bun:test'
 import { readFileSync, readdirSync, statSync } from 'fs'
 import { join, relative } from 'path'
 import viteConfig from '../../vite.config'
-import { DESKTOP_ONLY_ENGINES, DESKTOP_ONLY_SETTINGS_TABS, DESKTOP_ONLY_TOOLBAR_CONTROLS, PHONE_BAR_CONTROLS, PHONE_MORE_CONTROLS, forPhone } from './mobile-surface'
+import { DESKTOP_ONLY_ENGINES, DESKTOP_ONLY_SETTINGS_TABS, DESKTOP_ONLY_TOOLBAR_CONTROLS, PHONE_BAR_CONTROLS, PHONE_MORE_CONTROLS, PHONE_OPTIONAL_CONTROLS, forPhone, phoneBarControls } from './mobile-surface'
 import { ScreenHold, type ScreenHoldDeps, type WakeLockApi } from './screen-hold'
 
 const SRC = join(import.meta.dir, '..')
@@ -19,6 +19,18 @@ function sourceFiles(dir: string): string[] {
 const BUILD_TIME_ONLY = ['plugin-package.ts']
 
 describe('mobile phase 1', () => {
+	test('ISC-131 phone toolbar choice: a reader can turn optional phone buttons off, play/pause stays, desktop untouched', async () => {
+		expect(phoneBarControls([])).toEqual([...PHONE_BAR_CONTROLS])
+		expect(phoneBarControls(['tts'])).not.toContain('tts')
+		expect(phoneBarControls(['tts'])).toContain('voice-tracking')
+		expect(phoneBarControls(['play-pause', 'time-display'])).toEqual(expect.arrayContaining(['play-pause', 'time-display']))
+		expect(PHONE_OPTIONAL_CONTROLS.map(c => c.id)).not.toContain('play-pause')
+		const { DEFAULT_SETTINGS } = await import('../settings')
+		expect(DEFAULT_SETTINGS.phoneToolbarHidden).toEqual([])
+		const app = readFileSync(join(SRC, 'TeleprompterApp.svelte'), 'utf8')
+		expect(app).not.toMatch(/phoneToolbarHidden[^\n]*toolbarLayout|toolbarLayout[^\n]*phoneToolbarHidden/)
+	})
+
 	test('ISC-117 no static import: plugin source imports no Node or Electron module except as a type', () => {
 		const native = /^\s*import\s+(?!type\b)[^;'"]*?from\s+['"](node:[\w/]+|fs|path|os|child_process|electron|ws|http|https|crypto|net)['"]/m
 		const offenders = sourceFiles(SRC)
@@ -45,7 +57,7 @@ describe('mobile phase 1', () => {
 		expect(forPhone(engines, e => e, DESKTOP_ONLY_ENGINES, true)).toEqual(['auto', 'web-speech', 'elevenlabs'])
 		expect(forPhone(engines, e => e, DESKTOP_ONLY_ENGINES, false)).toEqual(engines)
 		const app = readFileSync(join(SRC, 'TeleprompterApp.svelte'), 'utf8')
-		expect(app).toContain('ordered.filter(def => PHONE_BAR_CONTROLS.includes(def.id) || PHONE_MORE_CONTROLS.includes(def.id))')
+		expect(app).toContain('ordered.filter(def => phoneBarControls(plugin?.settings?.phoneToolbarHidden).includes(def.id) || PHONE_MORE_CONTROLS.includes(def.id))')
 		expect(app).toContain('if (showsMobileInterface()) return PHONE_MORE_CONTROLS.includes(def.id)')
 		const phone = [...PHONE_BAR_CONTROLS, ...PHONE_MORE_CONTROLS]
 		for (const desktopOnly of DESKTOP_ONLY_TOOLBAR_CONTROLS) expect(phone).not.toContain(desktopOnly)

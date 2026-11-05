@@ -57,7 +57,7 @@
   import { showsMobileInterface } from './platform/device'
   import { ScreenHold } from './platform/screen-hold'
   import { phoneLog } from './platform/phone-log'
-  import { DESKTOP_ONLY_TOOLBAR_CONTROLS, PHONE_BAR_CONTROLS, PHONE_MORE_CONTROLS, forPhone } from './platform/mobile-surface'
+  import { DESKTOP_ONLY_TOOLBAR_CONTROLS, PHONE_MORE_CONTROLS, forPhone, phoneBarControls } from './platform/mobile-surface'
   import { engineSignature } from './tts/elevenlabs-request'
   import { TTSService } from './tts'
   import type { TTSState, TTSPlaybackState, TTSVoice } from './tts'
@@ -748,7 +748,7 @@
 
     // The phone layout drops controls that open desktop windows or need a helper process
     const shown = showsMobileInterface()
-      ? ordered.filter(def => PHONE_BAR_CONTROLS.includes(def.id) || PHONE_MORE_CONTROLS.includes(def.id))
+      ? ordered.filter(def => phoneBarControls(plugin?.settings?.phoneToolbarHidden).includes(def.id) || PHONE_MORE_CONTROLS.includes(def.id))
       : forPhone(ordered, def => def.id, DESKTOP_ONLY_TOOLBAR_CONTROLS, false)
     // A device with no way to hold the screen on gets no button that pretends to
     return screenHold.supported ? shown : shown.filter(def => def.id !== 'keep-awake')
@@ -2785,7 +2785,7 @@
 
         voiceTrackingService.onRecognizedText = (text: string, isFinal: boolean) => {
           lastRecognizedText = text
-          if (isFinal) phoneLog(`voice heard final (${text.split(' ').length} words)`)
+          phoneLog(`voice heard ${isFinal ? 'final' : 'partial'} (${text.split(' ').length} words)`)
           if (voiceTraceEnabled) writeTraceLine('voice-trace.jsonl', 'heard', { final: isFinal, text })
           debugLog(`[Voice] Recognized (${isFinal ? 'final' : 'partial'}): ${text}`)
         }
@@ -2793,6 +2793,8 @@
         // Matcher decisions, written to voice-trace.jsonl when tracing is on.
         voiceTrackingService.onDiagnostic = (event: string, data: Record<string, unknown>) => {
           if (voiceTraceEnabled) writeTraceLine('voice-trace.jsonl', event, data)
+          if (event === 'match') phoneLog(`voice ${data.final ? 'FINAL' : 'part'} cur ${data.cur} -> ${data.proposed} (jump ${data.jump})`)
+          else phoneLog(`voice ${event}`)
         }
 
         voiceTrackingService.onWordMatch = (wordIndex: number, scrollPosition: number) => {
