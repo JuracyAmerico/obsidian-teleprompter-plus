@@ -1,0 +1,9 @@
+{
+  "id": "tp-mobile-probe",
+  "name": "T+ Mobile Probe",
+  "version": "0.1.0",
+  "minAppVersion": "1.5.0",
+  "description": "Measures what Obsidian on this device allows, for Teleprompter Plus. Keeps no audio and makes no network calls.",
+  "author": "Americo",
+  "isDesktopOnly": false
+}
