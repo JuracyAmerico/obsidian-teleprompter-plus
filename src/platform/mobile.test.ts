@@ -69,6 +69,15 @@ describe('mobile phase 1', () => {
 		expect(app).toMatch(/padding-bottom: calc\(var\(--navbar-height/)
 	})
 
+	test('ISC-127 menus open upward: on a phone every toolbar menu opens above the bar, never under the navigation bar', () => {
+		const app = readFileSync(join(SRC, 'TeleprompterApp.svelte'), 'utf8')
+		const rule = app.match(/\.teleprompter-plus\.tp-phone > \.controls :is\(([^)]*)\) \{([^}]*)\}/)
+		expect(rule).not.toBeNull()
+		for (const popup of ['.popup-slider', '.popup-panel']) expect(rule![1]).toContain(popup)
+		expect(rule![2]).toContain('top: auto;')
+		expect(rule![2]).toContain('bottom: calc(100% + 0.5rem);')
+	})
+
 	test('ISC-121 no inline map: a default build carries no source map', () => {
 		expect(viteConfig.build?.sourcemap).toBe(false)
 	})

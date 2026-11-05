@@ -7014,6 +7014,25 @@
     order: 9;
   }
 
+  /* With the bar at the bottom, a menu that drops down lands under Obsidian's navigation bar.
+     On the phone every menu opens upward instead, as a sheet across the screen above the bar,
+     anchored to the bar rather than its button so none is cut off at the screen edge. */
+  .teleprompter-plus.tp-phone > .controls .control-with-popup {
+    position: static;
+  }
+
+  .teleprompter-plus.tp-phone > .controls :is(.popup-slider, .popup-panel, .popup-padding, .popup-font-list, .popup-color-picker, .popup-preset-menu) {
+    top: auto;
+    bottom: calc(100% + 0.5rem);
+    left: 0.5rem;
+    right: 0.5rem;
+    transform: none;
+    min-width: 0;
+    max-height: 60vh;
+    overflow-y: auto;
+    animation: none;
+  }
+
   .teleprompter-plus {
     display: flex;
     flex-direction: column;
