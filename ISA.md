@@ -188,11 +188,16 @@ Found in Américo's own test run, 2026-11-05 (steps 2, 3, 7, 8):
 - [x] ISC-116: dist/main.js evaluates under a require that throws for every name but obsidian.
 - [x] ISC-117: no non-test file under src/ statically imports a Node or Electron module; native access goes through src/platform/native.ts.
 - [x] ISC-118: on a platform that is not the desktop app, the plugin starts no remote server and shows no server notice.
-- [x] ISC-119: on a platform that is not the desktop app, the toolbar offers no floating window, voice tracking or remote control, and read-aloud offers only engines that run there (ElevenLabs, system voices).
+- [x] ISC-119: on a platform that is not the desktop app, the toolbar offers no floating window or remote control, and read-aloud offers only engines that run there (ElevenLabs, system voices). Voice tracking stays, through the offline Vosk model (Américo, 2026-11-05: "now voice tracking").
 - [x] ISC-120: where Electron is absent and navigator.wakeLock exists, keep-awake holds a screen wake lock while playing and releases it on pause.
 - [x] ISC-121: the release main.js carries no inline source map.
 - [ ] ISC-122: runtime: on Américo's iPhone, T+ loads in the TP Probe vault, opens a note, and ElevenLabs reads three sentences in a row with no tap between them.
-- [ ] ISC-123: runtime: on the Mac after this change, the teleprompter opens, read-aloud speaks, and voice tracking starts.
+- [x] ISC-123: runtime: on the Mac after this change, the teleprompter opens, read-aloud speaks, and voice tracking starts. Evidence 2026-11-05: view opened, ElevenLabs read-aloud playing (Pause title and stop button after the iOS guard fix), voice button active with "Listening..." 6 s after a click, then stopped.
+
+### Mobile phase 2: voice tracking on the phone (Américo: "yes it moved, now voice tracking", 2026-11-05)
+
+- [ ] ISC-128: runtime: on Américo's iPhone, with voice tracking turned on, the microphone button starts the offline Vosk model (downloaded once, then kept on the device), reaches listening, and the text follows his speech; no audio leaves the phone.
+- [x] ISC-129: tapping the microphone button while voice tracking is off in settings says how to turn it on, instead of doing nothing.
 - [x] ISC-124: on a phone the teleprompter opens in the main page rather than the side drawer, shows no keyboard hints, starts with the section panel closed, fits its toolbar in 390 points, and sizes headings to the reading column.
 - [ ] ISC-125: on a phone the controls sit at the bottom within thumb reach, above Obsidian's navigation bar, and nothing sits under the status bar (Américo, 2026-11-05: "the controls on the top are hard to reach"). Source test passes; his iPhone showed it at 16:04 (phone3): controls at the bottom, text clear of the status bar.
 - [ ] ISC-127: on a phone every toolbar menu opens upward, above the bar and across the screen, never under Obsidian's navigation bar (Américo, 2026-11-05: "it open below obsidian mobile tool bar"). Source test passes; seen opening upward on the Mac with the phone class at 390 px; open until his iPhone shows it (phone5).

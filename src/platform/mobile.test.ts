@@ -38,7 +38,8 @@ describe('mobile phase 1', () => {
 
 	test('ISC-119 phone surface: desktop-only tabs, controls and engines drop out only on the phone', () => {
 		expect(DESKTOP_ONLY_SETTINGS_TABS).toEqual(expect.arrayContaining(['connection', 'obs']))
-		expect(DESKTOP_ONLY_TOOLBAR_CONTROLS).toEqual(expect.arrayContaining(['float', 'detach', 'voice-tracking']))
+		expect(DESKTOP_ONLY_TOOLBAR_CONTROLS).toEqual(expect.arrayContaining(['float', 'detach']))
+		expect(PHONE_BAR_CONTROLS).toContain('voice-tracking')
 		expect(DESKTOP_ONLY_ENGINES).toEqual(expect.arrayContaining(['kokoro', 'mac-say']))
 		const engines = ['auto', 'kokoro', 'mac-say', 'web-speech', 'elevenlabs']
 		expect(forPhone(engines, e => e, DESKTOP_ONLY_ENGINES, true)).toEqual(['auto', 'web-speech', 'elevenlabs'])
