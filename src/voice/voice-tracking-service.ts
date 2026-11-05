@@ -5,6 +5,8 @@
  * and scroll control. This is the primary interface for voice tracking.
  */
 
+import { phoneLog } from '../platform/phone-log'
+import { REFERENCE_FRAME_MS, followShare } from './follow-easing'
 import type {
   TextElement,
   VoiceTrackingStatus,
@@ -1183,6 +1185,7 @@ export class VoiceTrackingService {
     if (Math.abs(desired - this.targetScrollPos) > 1) {
       this.targetScrollPos = desired
       this.onWordMatch?.(wordIndex, this.targetScrollPos)
+      phoneLog(`voice follow word ${wordIndex} target ${Math.round(desired)} from ${Math.round(this.contentArea.scrollTop)}`)
       this.startScrollFollow()
       if (DEBUG_VOICE_MATCH) console.warn(`[VT]   scroll follow → #${wordIndex}, target=${Math.round(desired)} (anchor ${Math.round(h * anchorFrac)} of ${h})`)
     } else if (DEBUG_VOICE_MATCH) {
@@ -1246,7 +1249,8 @@ export class VoiceTrackingService {
    *  stop() cancels it. Settles exactly on target and idles until the next word moves it. */
   private startScrollFollow(): void {
     if (this.scrollAnimationId !== null) return  // loop already running — it reads the new target
-    const step = (): void => {
+    let lastFrameAt: number | null = null
+    const step = (now: number): void => {
       if (!this.contentArea) { this.scrollAnimationId = null; return }
       const cur = this.contentArea.scrollTop
       const diff = this.targetScrollPos - cur
@@ -1255,7 +1259,10 @@ export class VoiceTrackingService {
         this.scrollAnimationId = null
         return
       }
-      this.contentArea.scrollTop = cur + diff * this.FOLLOW_FACTOR
+      // Time-based, so a 120 Hz phone glides as long as a 60 Hz screen does
+      const elapsed = lastFrameAt === null ? REFERENCE_FRAME_MS : now - lastFrameAt
+      lastFrameAt = now
+      this.contentArea.scrollTop = cur + diff * followShare(this.FOLLOW_FACTOR, elapsed)
       this.scrollAnimationId = this.requestScrollFrame(step)
     }
     this.scrollAnimationId = this.requestScrollFrame(step)
