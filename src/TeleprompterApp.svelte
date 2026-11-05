@@ -25,14 +25,35 @@
 
 <script lang="ts">
   import type { App as ObsidianApp, TFile } from 'obsidian'
-  import { MarkdownView, Notice, setIcon, sanitizeHTMLToDom } from 'obsidian'
+  import { MarkdownView, Notice, Platform, setIcon, sanitizeHTMLToDom } from 'obsidian'
+  import {
+    canFloat,
+    clampSeeThrough,
+    connectedDisplays,
+    electronWindowOf,
+    findPrompterDisplay,
+    floatingPlacement,
+    FloatingWindowController,
+    MAX_SEE_THROUGH_PERCENT,
+    MIN_SEE_THROUGH_PERCENT,
+    DEFAULT_FLOATING_BOUNDS,
+    placementAfterPrompterLost,
+    type FloatRequest,
+  } from './floating/floating-window'
   import { resolveControlIcon } from './icon-vocabulary'
-  import { onMount } from 'svelte'
+  import { onMount, tick, untrack } from 'svelte'
+  import { alignWords, makeAnchor, mapWordIndex, resolveAnchor, sourceLineOfWord } from './passage-anchor'
+  import { renderedWords, scrollTopForWord, wordAtPoint, wordAtViewportOffset } from './passage-dom'
+  import { rememberPosition } from './position-memory'
+  import { markStageCues } from './parser/stage-cues'
+  import { wakeHoldAction } from './wake-hold'
+  import { PAGE_TURN_SHARE, hotkeyAction } from './pedal-keys'
   import { marked } from 'marked'
   import { VOICE_TRACKING_PRESETS, type VoiceTrackingPacePreset } from './settings'
   import type { VoiceTrackingService } from './voice'
   import { applyPresetLive } from './voice/preset-apply'
   import { isVoiceEngaged, nextVoiceUiState, voiceFailureText } from './voice/voice-ui-state'
+  import { resolveVoiceLanguage } from './voice/voice-language'
   import { TTSService } from './tts'
   import type { TTSState, TTSPlaybackState, TTSVoice } from './tts'
   import { resolveCitations, loadBibliography } from './parser/citation-resolver'
@@ -104,34 +125,34 @@
 
   // Callout type configuration with icons and default titles
   const calloutConfig: Record<string, { icon: string; defaultTitle: string }> = {
-    'info': { icon: 'ℹ️', defaultTitle: 'Info' },
-    'tip': { icon: '💡', defaultTitle: 'Tip' },
-    'hint': { icon: '💡', defaultTitle: 'Hint' },
-    'important': { icon: '🔥', defaultTitle: 'Important' },
-    'warning': { icon: '⚠️', defaultTitle: 'Warning' },
-    'caution': { icon: '⚠️', defaultTitle: 'Caution' },
-    'attention': { icon: '⚠️', defaultTitle: 'Attention' },
-    'note': { icon: '📝', defaultTitle: 'Note' },
-    'success': { icon: '✅', defaultTitle: 'Success' },
-    'check': { icon: '✅', defaultTitle: 'Check' },
-    'done': { icon: '✅', defaultTitle: 'Done' },
-    'question': { icon: '❓', defaultTitle: 'Question' },
-    'help': { icon: '❓', defaultTitle: 'Help' },
-    'faq': { icon: '❓', defaultTitle: 'FAQ' },
-    'danger': { icon: '🔴', defaultTitle: 'Danger' },
-    'error': { icon: '❌', defaultTitle: 'Error' },
-    'bug': { icon: '🐛', defaultTitle: 'Bug' },
-    'example': { icon: '📋', defaultTitle: 'Example' },
-    'quote': { icon: '💬', defaultTitle: 'Quote' },
-    'cite': { icon: '💬', defaultTitle: 'Cite' },
-    'abstract': { icon: '📄', defaultTitle: 'Abstract' },
-    'summary': { icon: '📄', defaultTitle: 'Summary' },
-    'tldr': { icon: '📄', defaultTitle: 'TL;DR' },
-    'todo': { icon: '☑️', defaultTitle: 'Todo' },
-    'failure': { icon: '❌', defaultTitle: 'Failure' },
-    'fail': { icon: '❌', defaultTitle: 'Fail' },
-    'missing': { icon: '❌', defaultTitle: 'Missing' },
-    'video': { icon: '🎬', defaultTitle: 'Video' },
+    'info': { icon: 'info', defaultTitle: 'Info' },
+    'tip': { icon: 'lightbulb', defaultTitle: 'Tip' },
+    'hint': { icon: 'lightbulb', defaultTitle: 'Hint' },
+    'important': { icon: 'flame', defaultTitle: 'Important' },
+    'warning': { icon: 'alert-triangle', defaultTitle: 'Warning' },
+    'caution': { icon: 'alert-triangle', defaultTitle: 'Caution' },
+    'attention': { icon: 'alert-triangle', defaultTitle: 'Attention' },
+    'note': { icon: 'pencil', defaultTitle: 'Note' },
+    'success': { icon: 'check-circle-2', defaultTitle: 'Success' },
+    'check': { icon: 'check-circle-2', defaultTitle: 'Check' },
+    'done': { icon: 'check-circle-2', defaultTitle: 'Done' },
+    'question': { icon: 'help-circle', defaultTitle: 'Question' },
+    'help': { icon: 'help-circle', defaultTitle: 'Help' },
+    'faq': { icon: 'help-circle', defaultTitle: 'FAQ' },
+    'danger': { icon: 'zap', defaultTitle: 'Danger' },
+    'error': { icon: 'x-circle', defaultTitle: 'Error' },
+    'bug': { icon: 'bug', defaultTitle: 'Bug' },
+    'example': { icon: 'list', defaultTitle: 'Example' },
+    'quote': { icon: 'quote', defaultTitle: 'Quote' },
+    'cite': { icon: 'quote', defaultTitle: 'Cite' },
+    'abstract': { icon: 'file-text', defaultTitle: 'Abstract' },
+    'summary': { icon: 'file-text', defaultTitle: 'Summary' },
+    'tldr': { icon: 'file-text', defaultTitle: 'TL;DR' },
+    'todo': { icon: 'check-square', defaultTitle: 'Todo' },
+    'failure': { icon: 'x-circle', defaultTitle: 'Failure' },
+    'fail': { icon: 'x-circle', defaultTitle: 'Fail' },
+    'missing': { icon: 'x-circle', defaultTitle: 'Missing' },
+    'video': { icon: 'film', defaultTitle: 'Video' },
   }
 
   // Override blockquote renderer to support Obsidian callouts
@@ -150,7 +171,7 @@
       content = content.split('\n').map(line => `<p>${marked.parseInline(line)}</p>`).join('\n')
 
       // Get config for this callout type, default to 'note' style
-      const config = calloutConfig[calloutType] || { icon: '📌', defaultTitle: calloutType.charAt(0).toUpperCase() + calloutType.slice(1) }
+      const config = calloutConfig[calloutType] || { icon: 'pin', defaultTitle: calloutType.charAt(0).toUpperCase() + calloutType.slice(1) }
       const title = customTitle || config.defaultTitle
       const icon = config.icon
 
@@ -171,7 +192,7 @@
 
       return `<div class="callout ${colorClass}" data-callout="${calloutType}">
         <div class="callout-title">
-          <span class="callout-icon">${icon}</span>
+          <span class="callout-icon" data-tp-icon="${icon}"></span>
           <span class="callout-title-text">${title}</span>
         </div>
         <div class="callout-content">${content}</div>
@@ -347,7 +368,7 @@
       }
 
       // Return a styled placeholder
-      return `<div class="diagram-placeholder">📊 <span class="diagram-type">${diagramType}</span></div>`
+      return `<div class="diagram-placeholder"><span class="diagram-type">${diagramType}</span></div>`
     })
   }
 
@@ -445,7 +466,7 @@
         // Check for circular references
         if (processedPaths.has(file.path)) {
           console.warn(`[WikiLink] Circular reference detected: ${file.path}`)
-          return `<blockquote class="embed-error">⚠️ Circular embed: ${cleanFilename}</blockquote>`
+          return `<blockquote class="embed-error">Circular embed: ${cleanFilename}</blockquote>`
         }
 
         // Read the note content synchronously from cache
@@ -481,10 +502,10 @@
           const noteName = file.basename
           const heading = modifier ? `#${modifier}` : ''
 
-          return `\n\n<div class="embedded-note" data-note-path="${file.path}"><div class="embedded-note-title">📄 ${noteName}${heading ? ` › ${modifier}` : ''}</div><div class="embedded-note-content"><!-- Embedded content loaded --></div></div>\n\n`
+          return `\n\n<div class="embedded-note" data-note-path="${file.path}"><div class="embedded-note-title">${noteName}${heading ? ` › ${modifier}` : ''}</div><div class="embedded-note-content"><!-- Embedded content loaded --></div></div>\n\n`
         } catch (readErr) {
           console.error(`[WikiLink] Error reading embedded note: ${cleanFilename}`, readErr)
-          return `<blockquote class="embed-error">⚠️ Could not embed: ${cleanFilename}</blockquote>`
+          return `<blockquote class="embed-error">Could not embed: ${cleanFilename}</blockquote>`
         }
       } catch (err) {
         console.error(`[WikiLink] Error converting: ${match}`, err)
@@ -510,7 +531,7 @@
       if (processedPaths.has(notePath)) {
         const contentDiv = embed.querySelector('.embedded-note-content')
         if (contentDiv) {
-          contentDiv.replaceChildren(sanitizeHTMLToDom('<p class="embed-error">⚠️ Circular reference</p>'))
+          contentDiv.replaceChildren(sanitizeHTMLToDom('<p class="embed-error">Circular reference</p>'))
         }
         continue
       }
@@ -549,13 +570,13 @@
         console.error(`[WikiLink] Error loading embedded note: ${notePath}`, err)
         const contentDiv = embed.querySelector('.embedded-note-content')
         if (contentDiv) {
-          contentDiv.replaceChildren(sanitizeHTMLToDom('<p class="embed-error">⚠️ Failed to load</p>'))
+          contentDiv.replaceChildren(sanitizeHTMLToDom('<p class="embed-error">Failed to load</p>'))
         }
       }
     }
   }
 
-  let content = $state('# Welcome to Teleprompter Plus! 🎬\n\nOpen a note in Obsidian to see it here!')
+  let content = $state('# Welcome to Teleprompter Plus!\n\nOpen a note in Obsidian to see it here!')
   let renderedHTML = $state('') // Rendered markdown HTML
   let isPlaying = $state(false)
   // Get plugin settings (plugin is now passed as a prop for reliable access)
@@ -674,6 +695,7 @@
     { id: 'keep-awake', type: 'icon-button', name: 'Keep awake', zone: 'system', defaultMore: true },
     { id: 'pin', type: 'icon-button', name: 'Pin note', zone: 'system', defaultMore: true },
     { id: 'detach', type: 'icon-button', name: 'Open in Window', zone: 'system', defaultMore: true },
+    { id: 'float', type: 'icon-button', name: 'Float over other apps', zone: 'system', defaultMore: true },
     { id: 'quick-presets', type: 'popup-list', name: 'Quick presets', zone: 'system' },
     // Readout zone - the timer is a status readout, not a button.
     { id: 'time-display', type: 'info-display', name: 'Time display', zone: 'readout' },
@@ -852,8 +874,26 @@
   let eyelinePixelTop = $state(0) // Calculated pixel position for fixed positioning
   let isProgrammaticJump = $state(false) // Flag to prevent scroll handler from overriding navigation index
   let isPinned = $state(false) // Whether the current note is pinned (prevents auto-update)
+  // Floating window: this view is the floating one / a floating window exists somewhere
+  const floatSupported = canFloat({ isDesktopApp: Platform.isDesktopApp, isLinux: Platform.isLinux })
+  let isFloating = $state(false)
+  let floatingLocked = $state(false)
+  let floatingOnPrompter = $state(false)
+  let floatingHasPrompter = $state(false)
+  let floatingSeeThrough = $state(clampSeeThrough(plugin?.settings?.floatingSeeThrough ?? 85))
+  let floatingHideFromShare = $state(plugin?.settings?.floatingHideFromShare === true)
+  let floatingVoiceError = $state<string | null>(null)
+  let floatingSessionActive = $state(false)
+  let floatingSessionLocked = $state(false)
+  let floatingController: FloatingWindowController | null = null
+  let floatingBoundsTimer: { win: Window; id: number } | null = null
   let pinnedNotePath = $state<string | null>(null) // Path of the pinned note
   let isKeepAwake = $state(false) // Whether screen sleep prevention is active
+  let wakeHoldIsAutomatic = false // Started by reading, so it ends with reading; a button press owns it
+  let refreshAfterReadAloud = false // The note was edited while read-aloud was walking the old text
+  let notePositionTimer: ReturnType<typeof setTimeout> | null = null
+  let placeAfterRender: (() => void) | null = null // A remembered position waiting for its note to render
+  let lastSyncedHeaderId: string | null = null // The section scroll sync last moved the editor to
   let powerSaveBlockerId: number | null = null // ID returned by powerSaveBlocker.start()
   let isFullScreen = $state(false) // Whether full-screen mode is active (hides controls)
   let showControlsTemporarily = $state(false) // Show controls temporarily when holding key
@@ -876,7 +916,7 @@
   let scrollPosition = $state(0) // Track scroll position for minimap viewport indicator
   let scrollPercentage = $state(0) // Scroll percentage (0-100) for progress display
   // Per-note scroll position preservation (stores scrollTop per file path)
-  let scrollPositionPerNote = $state<Map<string, number>>(new Map())
+  let stageCueDisplay = $state<'hide' | 'dim' | 'show'>(settings.stageCueDisplay ?? 'hide')
   let currentNotePath = $state<string | null>(null) // Track current note path for scroll position saving
   // Focus mode state
   let focusMode = $state(false) // Dim text outside eyeline area
@@ -1099,7 +1139,7 @@
   $effect(() => {
     if (contentArea) {
       // Use requestAnimationFrame to ensure layout is complete
-      requestAnimationFrame(() => {
+      getActualWindow().requestAnimationFrame(() => {
         calculateEyelinePixelPosition()
       })
     }
@@ -1266,7 +1306,8 @@
   // dependencies: an effect that re-subscribed on play/pause would tear down and rebuild the
   // interval each time, resetting the tick phase so the displayed second stalls or skips.
   $effect(() => {
-    const interval = setInterval(() => {
+    const clockWindow = getActualWindow()
+    const interval = clockWindow.setInterval(() => {
       if (sessionState === 'running') {
         elapsedSeconds = rehearsalClock.elapsedSeconds
         sampleProgress()
@@ -1280,7 +1321,7 @@
       }
     }, 1000)
 
-    return () => clearInterval(interval)
+    return () => clockWindow.clearInterval(interval)
   })
 
   // ===== Rehearsal session =====
@@ -1298,6 +1339,8 @@
     elapsedSeconds = rehearsalClock.elapsedSeconds
     updatePaceState()
     broadcastClockState()
+    // Every play start (button, countdown end, remote, auto-start) passes here; OBS recording sync listens for it
+    window.dispatchEvent(new CustomEvent('teleprompter:play-started'))
   }
 
   /** Stop counting but keep the time — pause, blur, manual scrub, voice/TTS stop. */
@@ -1347,7 +1390,7 @@
   function sampleProgress(): void {
     let sampled: number | null = null
 
-    if (voiceTrackingActive && voiceTrackingService) {
+    if (ownsVoice() && voiceTrackingActive && voiceTrackingService) {
       const total = voiceTrackingService.getTotalWords()
       // Measured over the stretch actually being rehearsed: from the section he started at to
       // the end of the script.
@@ -1498,6 +1541,8 @@
         processedContent = resolveCitations(processedContent, cachedBibEntries)
       }
 
+      processedContent = markStageCues(processedContent)
+
       try {
         // Sanitize before rendering with {@html}: marked preserves raw inline HTML, so a
         // synced/shared note could carry `<img onerror=…>` / `<svg onload=…>` into the DOM.
@@ -1520,7 +1565,7 @@
 
       // After rendering, update headerElements Map and headersList by querying DOM
       // Use requestAnimationFrame for better performance instead of setTimeout
-      requestAnimationFrame(() => {
+      getActualWindow().requestAnimationFrame(() => {
         if (contentArea) {
           // Clear existing header elements
           headerElements.clear()
@@ -1545,11 +1590,14 @@
         }
 
         // Recalculate eyeline position after content renders
-        requestAnimationFrame(() => {
+        getActualWindow().requestAnimationFrame(() => {
           calculateEyelinePixelPosition()
+          placeAfterRender?.()
+          placeAfterRender = null
 
           // Process embedded notes asynchronously (load their content)
-          processEmbeddedNotes(sourcePath, new Set([sourcePath]))
+          renderCalloutIcons()
+          void Promise.resolve(processEmbeddedNotes(sourcePath, new Set([sourcePath]))).then(renderCalloutIcons)
         })
       })
     } catch (err) {
@@ -1568,15 +1616,12 @@
 
     const activeFile = app.workspace.getActiveFile()
     if (activeFile) {
-      // Save scroll position for the current note BEFORE switching
-      if (currentNotePath && contentArea) {
-        scrollPositionPerNote.set(currentNotePath, contentArea.scrollTop)
-        debugLog(`[Scroll] Saved position ${contentArea.scrollTop}px for ${currentNotePath}`)
-      }
-
       // Check if this is actually a different file
       const newPath = activeFile.path
       const isSameFile = currentNotePath === newPath
+
+      // Remember where the current note was left BEFORE switching
+      if (!isSameFile) saveNotePosition()
 
       const isPDF = activeFile.extension === 'pdf'
 
@@ -1595,7 +1640,13 @@
         } else {
           const fileContent = await app.vault.read(activeFile)
           const result = removeYAMLFrontmatter(fileContent)
-          content = removeReferencesSection(result.content)
+          const nextContent = removeReferencesSection(result.content)
+          // Coming back to the same note must not lose the reader's place if it was edited meanwhile
+          if (isSameFile) {
+            await applyContentKeepingPlace(nextContent, result.linesRemoved)
+            return
+          }
+          content = nextContent
           yamlLineOffset = result.linesRemoved
         }
 
@@ -1613,22 +1664,7 @@
           debugLog('[Document] New document loaded - countdown flag and rehearsal clock reset')
         }
 
-        const savedPosition = scrollPositionPerNote.get(newPath)
-        if (savedPosition !== undefined && savedPosition > 0) {
-          requestAnimationFrame(() => {
-            if (contentArea) {
-              contentArea.scrollTop = savedPosition
-              debugLog(`[Scroll] Restored position ${savedPosition}px for ${newPath}`)
-            }
-          })
-        } else if (!isSameFile) {
-          requestAnimationFrame(() => {
-            if (contentArea) {
-              contentArea.scrollTop = 0
-              debugLog(`[Scroll] Reset to top for new document ${newPath}`)
-            }
-          })
-        }
+        if (!isSameFile) await restoreNotePosition(newPath)
       }
 
       void loadContent()
@@ -2609,6 +2645,7 @@
       broadcastState({ voiceTrackingActive })
     }
     pauseSession()
+    if (isFloating) floatingVoiceError = voiceFailureText(message)
     voiceErrorNotice?.hide()
     const fragment = document.createDocumentFragment()
     const text = document.createElement('div')
@@ -2626,8 +2663,19 @@
     voiceErrorNotice = notice
   }
 
+  /** The language to listen in for the script on the prompter, which may not be the focused note. */
+  function scriptVoiceLanguage(): string {
+    const file = currentSourceFile()
+    const properties = file ? app.metadataCache.getFileCache(file)?.frontmatter : undefined
+    return resolveVoiceLanguage(settings.voiceTrackingLanguage, properties?.['voice-language'] ?? properties?.lang, content)
+  }
+
   // Voice tracking toggle
   async function toggleVoiceTracking() {
+    if (!isFloating && plugin.floatingSession.active) {
+      plugin.floatingSession.forward('teleprompter:voice-toggle')
+      return
+    }
     if (!settings.voiceTrackingEnabled) {
       debugLog('[Voice] Voice tracking is disabled in settings')
       return
@@ -2668,7 +2716,7 @@
         // Get or create service with tuning parameters from settings
         voiceTrackingService = getVoiceTrackingService({
           engine: 'auto',  // prefer Apple on-device Speech (macOS) when available, else Vosk
-          language: settings.voiceTrackingLanguage || 'en-US',
+          language: scriptVoiceLanguage(),
           scrollBehavior: settings.voiceTrackingScrollBehavior || 'smooth',
           showIndicator: settings.voiceTrackingShowIndicator ?? true,
           // Speech matching tuning - from preset or custom settings
@@ -2704,7 +2752,10 @@
           voiceTrackingStatus = next.status
           voiceTrackingActive = next.active
           if (wasActive !== next.active) broadcastState({ voiceTrackingActive })
-          if (next.status === 'listening') voiceErrorNotice?.hide()
+          if (next.status === 'listening') {
+            voiceErrorNotice?.hide()
+            floatingVoiceError = null
+          }
           debugLog(`[Voice] Status: ${status}`)
         }
 
@@ -2860,6 +2911,26 @@
    * Build TTS document directly from the rendered DOM.
    * This ensures TTS reads exactly what's on screen — no dual-pipeline mismatch.
    */
+  /** Interface icons are Obsidian's own, never emoji. */
+  function lucideIcon(node: HTMLElement, name: string) {
+    setIcon(node, name)
+    return { update: (next: string) => setIcon(node, next) }
+  }
+
+  /** Callouts render from a Markdown string, so their icons are filled in once they are on screen. */
+  function renderCalloutIcons(): void {
+    contentArea?.querySelectorAll<HTMLElement>('[data-tp-icon]:empty').forEach((node) => {
+      setIcon(node, node.dataset.tpIcon ?? 'pin')
+    })
+  }
+
+  /** A block's words as they should be spoken: stage cues are for the reader's eyes only. */
+  function spokenTextOf(el: HTMLElement): string {
+    const copy = el.cloneNode(true) as HTMLElement
+    copy.querySelectorAll('.tp-stage-cue').forEach(cue => cue.remove())
+    return copy.textContent?.trim() || ''
+  }
+
   function prepareTTSDocument(): void {
     if (!ttsService || !contentArea) return
 
@@ -2889,7 +2960,7 @@
           currentSectionSentences = []
         }
 
-        currentHeading = el.textContent?.trim() || ''
+        currentHeading = spokenTextOf(el)
         currentHeadingId = el.getAttribute('data-header-id') || `header-${sectionIndex}`
 
         // Add heading as a sentence so TTS reads it aloud
@@ -2942,7 +3013,7 @@
       }
 
       // Paragraphs, list items, blockquotes: extract text and split sentences
-      const text = el.textContent?.trim() || ''
+      const text = spokenTextOf(el)
       if (!text) continue
 
       const sentences = splitSentences(text)
@@ -2961,6 +3032,7 @@
     }
 
     const doc: TTSDocument = { sections, allSentences, sectionMap }
+    debugLog('[TTS] Sentences to speak', allSentences)
     ttsService.setDocument(doc)
     ttsTotalSentences = allSentences.length
   }
@@ -3077,22 +3149,164 @@
     broadcastState({ isPinned })
   }
 
-  function refreshPinnedNote() {
-    if (!isPinned || !pinnedNotePath) return
-
-    // Manually reload the pinned note
-    const file = app.vault.getAbstractFileByPath(pinnedNotePath)
-    if (file && 'extension' in file) {
-      void app.vault.read(file as TFile).then((fileContent) => {
-        const result = removeYAMLFrontmatter(fileContent)
-        content = removeReferencesSection(result.content)
-        yamlLineOffset = result.linesRemoved
-        debugLog('[Pin] Manually refreshed pinned note')
-      })
-    }
+  /** Pixels below the top of the visible area where the reader's eye is. */
+  function readingOffset(): number {
+    return contentArea ? contentArea.clientHeight * eyelinePosition / 100 : 0
   }
 
+  /** The word the reader is on. The very top and very bottom are exact, whatever the eyeline says. */
+  function readingWordIndex(words: ReturnType<typeof renderedWords>): number {
+    if (!contentArea || contentArea.scrollTop <= 1) return 0
+    if (contentArea.scrollTop + contentArea.clientHeight >= contentArea.scrollHeight - 2) return words.length - 1
+    return wordAtViewportOffset(contentArea, words, readingOffset())
+  }
+
+  function currentPassageAnchor(): ReturnType<typeof makeAnchor> | null {
+    if (!contentArea) return null
+    const words = renderedWords(contentArea)
+    return words.length > 0 ? makeAnchor(words.map(w => w.value), readingWordIndex(words)) : null
+  }
+
+  function saveNotePosition(): void {
+    if (notePositionTimer) clearTimeout(notePositionTimer)
+    notePositionTimer = null
+    const path = isPinned && pinnedNotePath ? pinnedNotePath : currentNotePath
+    const positions = plugin?.settings?.notePositions
+    if (!contentArea || !path || !positions) return
+    // A view being closed, or a tab in the background, reads as scrolled to the top: that is not a place
+    if (!contentArea.isConnected || contentArea.clientHeight === 0) return
+    // While a floating window is open the reader is there; this view's scroll says nothing
+    if (!isFloating && plugin.floatingSession.active) return
+    const words = renderedWords(contentArea)
+    if (words.length === 0) return
+    const before = positions[path]?.wordIndex ?? 0
+    const index = readingWordIndex(words)
+    if (index === before) return
+    rememberPosition(positions, path, makeAnchor(words.map(w => w.value), index), Date.now())
+    void plugin.saveSettings()
+  }
+
+  /** Images and embedded notes load after the text and push it down, so the place is set again once. */
+  function placeAgainAfterLateContent(place: () => void): void {
+    if (!contentArea?.querySelector('img, .embedded-note') && !content.includes('![[')) return
+    const scheduledFor = currentSourcePath()
+    setTimeout(() => {
+      // The reader may have moved to another note, and this place belongs to the one it was set for
+      if (currentSourcePath() !== scheduledFor) return
+      if (!isPlaying && !voiceTrackingActive) place()
+    }, 400)
+  }
+
+  async function restoreNotePosition(path: string): Promise<void> {
+    placeAfterRender = null
+    await tick()
+    if (!contentArea) return
+    const saved = plugin?.settings?.notePositions?.[path]
+    if (!saved) {
+      contentArea.scrollTop = 0
+      return
+    }
+    const place = (): void => {
+      if (!contentArea) return
+      const words = renderedWords(contentArea)
+      const index = resolveAnchor(saved, words.map(w => w.value))
+      contentArea.scrollTop = scrollTopForWord(contentArea, words, index, readingOffset())
+    }
+    // A view that has just opened may not be laid out yet, and its first render may still be coming,
+    // so the render below runs this too once the new words are on screen.
+    placeAfterRender = place
+    place()
+    placeAgainAfterLateContent(place)
+    debugLog(`[Scroll] Restored position for ${path}: ${contentArea?.scrollTop}px`)
+  }
+
+  async function reloadPromptedNote(): Promise<void> {
+    // Read-aloud is walking the old text; it picks up the edit when it stops
+    if (ttsPlaybackState !== 'idle') {
+      refreshAfterReadAloud = true
+      return
+    }
+    const file = currentSourceFile()
+    if (!file || file.extension === 'pdf') return
+    const path = file.path
+    const fileContent = await app.vault.cachedRead(file)
+    if (path !== currentSourcePath()) return
+    const result = removeYAMLFrontmatter(fileContent)
+    await applyContentKeepingPlace(removeReferencesSection(result.content), result.linesRemoved)
+  }
+
+  /**
+   * Swap the script's text with the reader staying on the same passage. Rendering replaces every
+   * word on screen, spans included, so a running voice session is pointed at the new ones.
+   */
+  async function applyContentKeepingPlace(nextContent: string, linesRemoved: number): Promise<void> {
+    yamlLineOffset = linesRemoved
+    if (nextContent === content) return
+    if (!contentArea) {
+      content = nextContent
+      return
+    }
+    const oldWords = renderedWords(contentArea)
+    const oldValues = oldWords.map(w => w.value)
+    const readingIndex = readingWordIndex(oldWords)
+    const voice = ownsVoice() && voiceTrackingActive ? voiceTrackingService : null
+    const voiceIndex = voice ? voice.getCurrentWordIndex() : 0
+
+    isProgrammaticJump = true
+    content = nextContent
+    await tick()
+    if (!contentArea) return
+
+    const newWords = renderedWords(contentArea)
+    const newValues = newWords.map(w => w.value)
+    const map = alignWords(oldValues, newValues)
+    const place = (): void => {
+      if (!contentArea) return
+      const words = renderedWords(contentArea)
+      contentArea.scrollTop = scrollTopForWord(contentArea, words, mapWordIndex(map, readingIndex, words.length), readingOffset())
+    }
+    place()
+    placeAgainAfterLateContent(place)
+    rehearsalStartWordIndex = mapWordIndex(map, rehearsalStartWordIndex, newValues.length)
+    voice?.rebind(contentArea, mapWordIndex(map, voiceIndex, newValues.length))
+    setTimeout(() => { isProgrammaticJump = false }, 100)
+    debugLog(`[LiveRefresh] ${oldValues.length} -> ${newValues.length} words`)
+  }
+
+  function refreshPinnedNote() {
+    if (!isPinned || !pinnedNotePath) return
+    void reloadPromptedNote()
+  }
+
+  // An edit that arrived during read-aloud applies when it stops
+  $effect(() => {
+    if (ttsPlaybackState === 'idle' && refreshAfterReadAloud) {
+      refreshAfterReadAloud = false
+      void reloadPromptedNote()
+    }
+  })
+
+  // Hold the screen awake while reading, without touching a hold the reader asked for
+  $effect(() => {
+    const reading = isPlaying || (voiceTrackingActive && ownsVoice()) || ttsPlaybackState === 'playing'
+    untrack(() => {
+      const action = wakeHoldAction({
+        enabled: plugin?.settings?.keepAwake === true,
+        reading,
+        held: isKeepAwake,
+        heldAutomatically: wakeHoldIsAutomatic,
+      })
+      if (action === 'start') {
+        startKeepAwake()
+        wakeHoldIsAutomatic = isKeepAwake
+      } else if (action === 'stop') {
+        toggleKeepAwake()
+      }
+    })
+  })
+
   function toggleKeepAwake() {
+    wakeHoldIsAutomatic = false
     try {
       // Access Electron's powerSaveBlocker API
       const electron = require('electron') as ElectronModule
@@ -3413,12 +3627,208 @@
     }
   }
 
+  // ==========================================================================
+  // Floating window: the pop-out, on top of everything, optionally click-through
+  // ==========================================================================
+
+  /** The voice service is shared. While a script floats it belongs to that view, whatever this one mirrors. */
+  function ownsVoice(): boolean {
+    return isFloating || !plugin.floatingSession.active
+  }
+
+  /** Asked from any view. The script, its place and a running voice all move to the floating view. */
+  function toggleFloatingHideFromShare(): void {
+    floatingHideFromShare = !floatingHideFromShare
+    floatingController?.setHideFromShare(floatingHideFromShare)
+    plugin.settings.floatingHideFromShare = floatingHideFromShare
+    void plugin.saveSettings()
+  }
+
+  /**
+   * Closing a pop-out goes through its leaf. Obsidian's pop-outs ignore window.close() (measured
+   * 2026-11-05: the window stays open with closed === false); detaching the last leaf closes them.
+   */
+  function closeOwnLeaf(): void {
+    const own = teleprompterContainer
+    app.workspace.iterateAllLeaves((leaf) => {
+      if (own && leaf.view.containerEl.contains(own)) leaf.detach()
+    })
+  }
+
+  async function toggleFloating() {
+    if (isFloating) {
+      plugin.floatingSession.close()
+      return
+    }
+    if (plugin.floatingSession.active) {
+      plugin.floatingSession.close()
+      return
+    }
+    if (!floatSupported) return
+
+    const scrollable = contentArea ? contentArea.scrollHeight : 0
+    const request: FloatRequest = {
+      notePath: currentSourcePath(),
+      scrollRatio: contentArea && scrollable > 0 ? contentArea.scrollTop / scrollable : 0,
+      anchor: currentPassageAnchor(),
+      startVoice: isVoiceEngaged({ active: voiceTrackingActive, status: voiceTrackingStatus }),
+    }
+    // Only one view can follow the voice. Stop it here; the floating view starts it again.
+    if (request.startVoice) void toggleVoiceTracking()
+
+    if (isInPopoutWindow()) {
+      void beginFloating(request)
+      return
+    }
+    plugin.floatingSession.request(request)
+    const leaf = app.workspace.openPopoutLeaf()
+    await leaf.setViewState({ type: 'teleprompter-plus-view', active: true })
+    // The new view claims the request as it mounts. One left over must not hijack a later pop-out.
+    if (plugin.floatingSession.takeRequest()) {
+      new Notice('Could not open the floating window. Please try again.')
+    }
+  }
+
+  async function beginFloating(request: FloatRequest) {
+    const win = getActualWindow()
+    if (request.notePath) {
+      isPinned = true
+      pinnedNotePath = request.notePath
+      await openFile(request.notePath)
+    }
+
+    const electronWindow = electronWindowOf(win)
+    if (electronWindow) {
+      const displays = connectedDisplays()
+      const placement = floatingPlacement(displays, {
+        preferPrompter: plugin.settings.floatingPreferPrompter ?? true,
+        savedBounds: plugin.settings.floatingBounds,
+        seeThroughPercent: floatingSeeThrough,
+      })
+      floatingOnPrompter = placement.onPrompter
+      floatingHasPrompter = findPrompterDisplay(displays) !== null
+      const controller = new FloatingWindowController(electronWindow, {
+        isMac: Platform.isMacOS,
+        mainWindow: electronWindowOf(app.workspace.containerEl.ownerDocument.defaultView),
+        seeThroughPercent: placement.seeThroughPercent,
+        bounds: placement.bounds,
+        onLockChange: (locked) => {
+          floatingLocked = locked
+          plugin.floatingSession.notify()
+        },
+      })
+      controller.enter()
+      controller.setHideFromShare(floatingHideFromShare)
+      floatingController = controller
+      isFloating = true
+      plugin.floatingSession.attach(
+        controller,
+        closeOwnLeaf,
+        (type, detail) => win.dispatchEvent(new (win as Window & typeof globalThis).CustomEvent(type, { detail }))
+      )
+      floatingBoundsTimer = {
+        win,
+        id: win.setInterval(() => {
+          syncFloatingDisplay()
+          saveFloatingBounds()
+        }, 2000),
+      }
+    } else {
+      new Notice('Floating is not available on this Obsidian version. Opened as a plain window.')
+    }
+
+    await waitForScriptLayout(win)
+    if (contentArea) {
+      const words = renderedWords(contentArea)
+      contentArea.scrollTop = request.anchor && words.length > 0
+        ? scrollTopForWord(contentArea, words, resolveAnchor(request.anchor, words.map(w => w.value)), readingOffset())
+        : request.scrollRatio * contentArea.scrollHeight
+    }
+    if (request.startVoice) await toggleVoiceTracking()
+  }
+
+  /** The script renders after the note loads; its place can only be restored once it has height. */
+  async function waitForScriptLayout(win: Window) {
+    await tick()
+    for (let attempt = 0; attempt < 20; attempt++) {
+      if (contentArea && contentArea.scrollHeight > contentArea.clientHeight) return
+      await new Promise(resolve => win.setTimeout(resolve, 50))
+    }
+  }
+
+  /** One button between the Prompter and the main screen, for the times the script belongs over a call. */
+  function togglePrompterPlacement() {
+    if (!floatingController) return
+    plugin.settings.floatingPreferPrompter = !floatingOnPrompter
+    void plugin.saveSettings()
+    const placement = floatingPlacement(connectedDisplays(), {
+      preferPrompter: plugin.settings.floatingPreferPrompter,
+      savedBounds: plugin.settings.floatingBounds,
+      seeThroughPercent: floatingSeeThrough,
+    })
+    floatingOnPrompter = placement.onPrompter
+    floatingController.setSeeThrough(placement.seeThroughPercent)
+    floatingController.moveTo(placement.bounds ?? DEFAULT_FLOATING_BOUNDS)
+  }
+
+  /** A cable can move while floating. Without the Prompter the window must not stay stripped of controls. */
+  function syncFloatingDisplay() {
+    if (!floatingController) return
+    const displays = connectedDisplays()
+    floatingHasPrompter = findPrompterDisplay(displays) !== null
+    const placement = placementAfterPrompterLost(displays, floatingOnPrompter, {
+      savedBounds: plugin.settings.floatingBounds,
+      seeThroughPercent: floatingSeeThrough,
+    })
+    if (!placement) return
+    floatingOnPrompter = false
+    floatingController.setSeeThrough(placement.seeThroughPercent)
+    floatingController.moveTo(placement.bounds ?? DEFAULT_FLOATING_BOUNDS)
+  }
+
+  function saveFloatingBounds() {
+    // The Prompter is always filled, so being there says nothing about the main-screen position.
+    if (floatingOnPrompter) return
+    const bounds = floatingController?.currentBounds()
+    if (!bounds || JSON.stringify(bounds) === JSON.stringify(plugin.settings.floatingBounds)) return
+    plugin.settings.floatingBounds = bounds
+    void plugin.saveSettings()
+  }
+
+  function endFloating() {
+    if (!floatingController) return
+    saveFloatingBounds()
+    if (floatingBoundsTimer) floatingBoundsTimer.win.clearInterval(floatingBoundsTimer.id)
+    floatingBoundsTimer = null
+    const controller = floatingController
+    floatingController = null
+    controller.exit()
+    plugin.floatingSession.detach(controller)
+    isFloating = false
+    floatingLocked = false
+  }
+
+  function setFloatingSeeThrough(percent: number) {
+    floatingSeeThrough = clampSeeThrough(percent)
+    floatingController?.setSeeThrough(floatingOnPrompter ? MAX_SEE_THROUGH_PERCENT : floatingSeeThrough)
+    plugin.settings.floatingSeeThrough = floatingSeeThrough
+    void plugin.saveSettings()
+  }
+
+  function retryFloatingVoice() {
+    floatingVoiceError = null
+    voiceErrorNotice?.hide()
+    voiceTrackingStatus = 'off'
+    void toggleVoiceTracking()
+  }
+
   // Open file function (for Stream Deck)
   async function openFile(filePath: string) {
     debugLog(`[OpenFile] Opening file: ${filePath}`)
     const file = app.vault.getAbstractFileByPath(filePath)
     if (file && 'extension' in file && file.extension === 'md') {
       try {
+        if (currentNotePath !== filePath) saveNotePosition()
         const fileContent = await app.vault.read(file as TFile)
         const result = removeYAMLFrontmatter(fileContent)
         content = removeReferencesSection(result.content)
@@ -3426,6 +3836,7 @@
         currentFileName = file.name.replace('.md', '')
         currentNotePath = filePath
         hasUsedCountdown = false
+        await restoreNotePosition(filePath)
         debugLog(`[OpenFile] Loaded: ${currentFileName}`)
       } catch (err) {
         debugLog(`[OpenFile] Error loading file: ${err}`)
@@ -3671,6 +4082,19 @@
   }
 
   // Execute hotkey action
+  /** After the page was moved by a key, pedal or Stream Deck: voice listens from where it landed. */
+  function moveVoiceToReadingPosition(): void {
+    if (!contentArea || !ownsVoice() || !voiceTrackingActive || !voiceTrackingService) return
+    const words = renderedWords(contentArea)
+    voiceTrackingService.seekToWord(wordAtViewportOffset(contentArea, words, readingOffset()))
+  }
+
+  function turnPage(direction: 1 | -1): void {
+    if (!contentArea) return
+    contentArea.scrollTop += direction * PAGE_TURN_SHARE * contentArea.clientHeight
+    moveVoiceToReadingPosition()
+  }
+
   function executeHotkeyAction(action: string): boolean {
     switch (action) {
       case 'togglePlay':
@@ -3687,6 +4111,12 @@
         return true
       case 'scrollDown':
         if (contentArea) contentArea.scrollTop += 100
+        return true
+      case 'pageDown':
+        turnPage(1)
+        return true
+      case 'pageUp':
+        turnPage(-1)
         return true
       case 'resetToTop':
         resetToTop()
@@ -3742,7 +4172,7 @@
     }
 
     // Check custom hotkeys
-    const action = customHotkeys[e.key]
+    const action = hotkeyAction(e.key, customHotkeys, plugin?.settings?.pedalArrowKeys === true)
     if (action) {
       e.preventDefault()
       executeHotkeyAction(action)
@@ -3784,6 +4214,8 @@
       rehearsalStartWordIndex = 0
       resetSession()
       bumpProgressEpoch()
+      // OBS recording sync stops the recording on reset
+      window.dispatchEvent(new CustomEvent('teleprompter:reset-complete'))
       debugLog('[Reset] Reset to top - countdown flag and rehearsal clock reset')
     }
   }
@@ -3792,6 +4224,15 @@
   function handleWebSocketEvent(event: Event) {
     const customEvent = event as CustomEvent
     debugLog(`[Event] Received: ${customEvent.type}`)
+
+    // Commands arrive at the main window; while a script floats, they are meant for that script.
+    if (!isFloating && plugin.floatingSession.active && customEvent.type !== 'teleprompter:toggle-floating') {
+      // Every open view hears a command; the floating script must receive it once.
+      if (plugin.floatingSession.claim(customEvent)) {
+        plugin.floatingSession.forward(customEvent.type, customEvent.detail)
+      }
+      return
+    }
 
     switch (customEvent.type) {
       case 'teleprompter:toggle-play':
@@ -3857,6 +4298,7 @@
       case 'teleprompter:scroll':
         if (contentArea && customEvent.detail?.amount) {
           contentArea.scrollTop += customEvent.detail.amount
+          moveVoiceToReadingPosition()
         }
         break
       case 'teleprompter:set-scroll-position':
@@ -4222,6 +4664,9 @@
         setViewMode('plain')
         break
       // v0.8.0 Stream Deck commands - Detach window
+      case 'teleprompter:toggle-floating':
+        if (plugin.floatingSession.claim(customEvent)) void toggleFloating()
+        break
       case 'teleprompter:detach-window':
         detachWindow()
         break
@@ -4390,7 +4835,21 @@
 
   // Add global mouse and keyboard event listeners
   onMount(() => {
+    // A pop-out opened to float: pin its note before the active-note load can replace it.
+    const floatRequest = isInPopoutWindow() ? plugin.floatingSession.takeRequest() : null
+    if (floatRequest?.notePath) {
+      isPinned = true
+      pinnedNotePath = floatRequest.notePath
+    }
     loadActiveNote()
+    if (floatRequest) void beginFloating(floatRequest)
+
+    const syncFloatingSession = () => {
+      floatingSessionActive = plugin.floatingSession.active
+      floatingSessionLocked = plugin.floatingSession.locked
+    }
+    syncFloatingSession()
+    const stopFloatingSync = plugin.floatingSession.subscribe(syncFloatingSession)
 
     // Auto-start playing if setting is enabled
     if (settings.autoStartPlaying) {
@@ -4405,6 +4864,22 @@
     const eventRef = app.workspace.on('active-leaf-change', () => {
       loadActiveNote()
     })
+
+    // Live refresh: a save to the note on screen, pinned or not, updates the script in place
+    let refreshTimer: ReturnType<typeof setTimeout> | null = null
+    const modifyRef = app.vault.on('modify', (file) => {
+      if (file.path !== currentSourcePath()) return
+      if (refreshTimer) clearTimeout(refreshTimer)
+      refreshTimer = setTimeout(() => void reloadPromptedNote(), 250)
+    })
+    const renameRef = app.vault.on('rename', (file, oldPath) => {
+      if (currentNotePath === oldPath) currentNotePath = file.path
+      if (pinnedNotePath === oldPath) pinnedNotePath = file.path
+    })
+    const handleStageCuesChanged = (event: Event): void => {
+      stageCueDisplay = (event as CustomEvent<{ display: 'hide' | 'dim' | 'show' }>).detail.display
+    }
+    document.addEventListener('teleprompter:stage-cues-changed', handleStageCuesChanged)
 
     // Get actual document/window from mounted element for popout window support
     // IMPORTANT: Must use getActualDocument() here, NOT activeDoc from props
@@ -4441,6 +4916,8 @@
       scrollTimeout = setTimeout(() => {
         updateCurrentVisibleHeader()
       }, 50) // Debounce scroll events by 50ms
+      if (notePositionTimer) clearTimeout(notePositionTimer)
+      notePositionTimer = setTimeout(saveNotePosition, 2000)
     }
     if (contentArea) {
       contentArea.addEventListener('scroll', handleScroll, { passive: true })
@@ -4542,6 +5019,7 @@
       'teleprompter:enable-focus-mode',
       'teleprompter:disable-focus-mode',
       'teleprompter:toggle-pin',
+      'teleprompter:toggle-floating',
       'teleprompter:pin-note',
       'teleprompter:unpin-note',
       'teleprompter:refresh-pinned',
@@ -4668,7 +5146,8 @@
         if (data.opacity !== undefined) opacity = data.opacity
         if (data.textAlignment !== undefined) textAlignment = data.textAlignment as 'left' | 'center' | 'right' | 'rtl'
         if (data.countdownSeconds !== undefined) countdownSeconds = data.countdownSeconds
-        if (data.isPinned !== undefined) isPinned = data.isPinned
+        // A floating script stays pinned to its own note whatever the main window does.
+        if (data.isPinned !== undefined && !isFloating) isPinned = data.isPinned
         if (data.isKeepAwake !== undefined) {
           isKeepAwake = data.isKeepAwake
           // Also start/stop keep awake based on received state
@@ -4699,7 +5178,12 @@
 
     // Cleanup (use actualDoc/actualWin captured above for popout window support)
     return () => {
+      saveNotePosition()
       app.workspace.offref(eventRef)
+      app.vault.offref(modifyRef)
+      app.vault.offref(renameRef)
+      if (refreshTimer) clearTimeout(refreshTimer)
+      document.removeEventListener('teleprompter:stage-cues-changed', handleStageCuesChanged)
       actualDoc.removeEventListener('mousemove', handleMouseMove)
       actualDoc.removeEventListener('mouseup', stopResize)
       actualDoc.removeEventListener('mousemove', handleEyelineDrag)
@@ -4724,12 +5208,16 @@
       // Stop listening when the view goes away. Nothing did this before, so closing the
       // teleprompter left the speech sidecar running with the microphone open, and a stale
       // view kept answering voice events with an empty script.
-      if (isVoiceEngaged({ active: voiceTrackingActive, status: voiceTrackingStatus }) && voiceTrackingService) {
+      if (ownsVoice() && isVoiceEngaged({ active: voiceTrackingActive, status: voiceTrackingStatus }) && voiceTrackingService) {
         voiceTrackingService.stop()
         voiceTrackingActive = false
         pauseSession()
+        // The main view shows what the other windows report, so it must hear this one stop.
+        stateChannel.postMessage({ type: 'state-update', data: { voiceTrackingActive: false } })
       }
       voiceErrorNotice?.hide()
+      endFloating()
+      stopFloatingSync()
 
       // Cleanup TTS
       if (ttsService) {
@@ -4786,8 +5274,11 @@
     if (!isProgrammaticJump) {
       currentHeaderIndex = headerList.findIndex(h => h.id === currentHeader.id)
 
-      // Scroll synchronization: Sync teleprompter position to editor
-      if (scrollSyncEnabled) {
+      // Scroll synchronization: follow the prompter into each new section. Only on a change of
+      // section: every scroll event used to pull the cursor back to the heading, which took it away
+      // from a double-click jump and from anyone editing the note while it scrolled.
+      if (scrollSyncEnabled && currentHeader.id !== lastSyncedHeaderId) {
+        lastSyncedHeaderId = currentHeader.id
         syncToEditor(currentHeader.id)
       }
     }
@@ -4959,7 +5450,7 @@
       // voice from here instead of staying locked on the section you left. We anchor on the heading's
       // first tracked word (a hair before the body, which is safe — matching is forward-only).
       const jumpWordIndex = firstTrackedWordIndexAtOrAfter(element)
-      if (voiceTrackingActive && voiceTrackingService && jumpWordIndex >= 0) {
+      if (ownsVoice() && voiceTrackingActive && voiceTrackingService && jumpWordIndex >= 0) {
         voiceTrackingService.seekToWord(jumpWordIndex)
       }
       // Restart the rehearsal from this heading whether or not the mic is on — picking a
@@ -5016,7 +5507,16 @@
   /**
    * Handle double-click on teleprompter content to jump to that location in the editor
    */
-  function handleDoubleClickToEdit(event: MouseEvent) {
+  /** Opens the prompted note in a new tab of the main area, never over the prompter or a pop-out. */
+  async function openPromptedNoteInPane(): Promise<void> {
+    const file = currentSourceFile()
+    if (!file) return
+    const recent = app.workspace.getMostRecentLeaf(app.workspace.rootSplit)
+    if (recent) app.workspace.setActiveLeaf(recent, { focus: false })
+    await app.workspace.getLeaf('tab').openFile(file)
+  }
+
+  async function handleDoubleClickToEdit(event: MouseEvent) {
     // Check if feature is enabled (default to true if setting not found)
     if (settings.doubleClickToEdit === false) {
       return
@@ -5028,6 +5528,35 @@
       return
     }
 
+    // The word under the pointer knows its own place; searching for its text finds the first copy
+    let foundLine = -1
+    if (contentArea) {
+      const words = renderedWords(contentArea)
+      const wordIndex = wordAtPoint(contentArea, words, event.clientX, event.clientY)
+      if (wordIndex >= 0) {
+        foundLine = sourceLineOfWord(words.map(w => w.value), wordIndex, content)
+        if (ownsVoice() && voiceTrackingActive && voiceTrackingService) voiceTrackingService.seekToWord(wordIndex)
+      }
+    }
+    if (foundLine === -1) foundLine = findLineOfClickedText(target)
+    if (foundLine === -1) {
+      debugLog('[DoubleClick] Text not found in source content')
+      return
+    }
+
+    // Account for YAML frontmatter offset
+    const actualLineNumber = foundLine + yamlLineOffset
+    debugLog(`[DoubleClick] Jumping to line ${actualLineNumber}`)
+
+    if (!resolveMarkdownViewForCurrentNote()) await openPromptedNoteInPane()
+
+    // Focus the editor so the user can start editing immediately — this is the one
+    // caller that should steal focus.
+    jumpEditorToSourceLine(actualLineNumber, { focus: true })
+  }
+
+  /** For text with no tracked words, such as a code block: the first line holding the selection. */
+  function findLineOfClickedText(target: HTMLElement): number {
     // Get the clicked text (use actual window for popout window support)
     const selection = getActualWindow().getSelection()
     let clickedText = ''
@@ -5042,7 +5571,7 @@
 
     if (!clickedText || clickedText.length < 2) {
       debugLog('[DoubleClick] No meaningful text to search for')
-      return
+      return -1
     }
 
     debugLog(`[DoubleClick] Searching for: "${clickedText.substring(0, 50)}..."`)
@@ -5083,18 +5612,7 @@
       }
     }
 
-    if (foundLine === -1) {
-      debugLog('[DoubleClick] Text not found in source content')
-      return
-    }
-
-    // Account for YAML frontmatter offset
-    const actualLineNumber = foundLine + yamlLineOffset
-    debugLog(`[DoubleClick] Jumping to line ${actualLineNumber}`)
-
-    // Focus the editor so the user can start editing immediately — this is the one
-    // caller that should steal focus.
-    jumpEditorToSourceLine(actualLineNumber, { focus: true })
+    return foundLine
   }
 
   function jumpToNextSection() {
@@ -5136,6 +5654,7 @@
     if (isPlaying && contentArea) {
       // Use requestAnimationFrame for smoother, more performant scrolling
       let animationFrameId: number
+      const frameWindow = getActualWindow()
       let lastTimestamp = 0
       let accumulatedScroll = 0 // Accumulate fractional pixels
 
@@ -5167,14 +5686,14 @@
         }
 
         if (isPlaying) {
-          animationFrameId = requestAnimationFrame(scroll)
+          animationFrameId = frameWindow.requestAnimationFrame(scroll)
         }
       }
 
-      animationFrameId = requestAnimationFrame(scroll)
+      animationFrameId = frameWindow.requestAnimationFrame(scroll)
 
       // Cleanup when this effect re-runs or component unmounts
-      return () => cancelAnimationFrame(animationFrameId)
+      return () => frameWindow.cancelAnimationFrame(animationFrameId)
     }
   })
 
@@ -5222,6 +5741,9 @@
 <div
   class="teleprompter-plus"
   class:teleprompter-focused={isTeleprompterFocused}
+  class:tp-floating={isFloating}
+  class:tp-floating-locked={floatingLocked}
+  class:tp-floating-prompter={floatingOnPrompter}
   bind:this={teleprompterContainer}
   tabindex="0"
   onfocus={handleTeleprompterFocus}
@@ -5229,6 +5751,56 @@
   role="application"
   aria-label="Teleprompter - Click to enable keyboard shortcuts"
 >
+  {#if isFloating}
+    {#if floatingLocked}
+      <button
+        class="tp-floating-handle"
+        title="Unlock floating window"
+        onmouseenter={() => floatingController?.setHandleHovered(true)}
+        onmouseleave={() => floatingController?.setHandleHovered(false)}
+        onclick={() => plugin.floatingSession.unlock()}
+      >
+        <span class="tp-floating-handle-label">Unlock</span>
+      </button>
+    {:else}
+      <div class="tp-floating-bar">
+        <button onclick={() => floatingController?.lock()} title="Clicks pass through to the app underneath">Lock</button>
+        <label class="tp-floating-see-through">
+          {#if !floatingOnPrompter}
+            See-through
+            <input
+              type="range"
+              min={MIN_SEE_THROUGH_PERCENT}
+              max={MAX_SEE_THROUGH_PERCENT}
+              value={floatingSeeThrough}
+              oninput={(event) => setFloatingSeeThrough(Number(event.currentTarget.value))}
+            />
+          {/if}
+        </label>
+        <label class="tp-floating-hide-share" title="Asks macOS to leave this window out of screen capture. Measured sharing an entire screen in Zoom, Google Meet in Chrome and Microsoft Teams on macOS 26.5; other versions and apps may differ, so test yours.">
+          <input type="checkbox" checked={floatingHideFromShare} onchange={toggleFloatingHideFromShare} />
+          Hide from capture
+        </label>
+        {#if floatingHasPrompter}
+          <button onclick={togglePrompterPlacement}>{floatingOnPrompter ? 'Move to main screen' : 'Move to Prompter'}</button>
+        {/if}
+        <button onclick={toggleFloating}>Close</button>
+      </div>
+    {/if}
+    {#if floatingVoiceError}
+      <div class="tp-floating-error" role="alert">
+        <span>{floatingVoiceError}</span>
+        {#if floatingLocked}
+          <span>Unlock to retry.</span>
+        {:else}
+          <button onclick={retryFloatingVoice}>Retry</button>
+        {/if}
+      </div>
+    {/if}
+  {:else if floatingSessionLocked}
+    <button class="tp-floating-main-unlock" onclick={() => plugin.floatingSession.unlock()}>Unlock floating window</button>
+  {/if}
+
   <!-- Focus indicator hint -->
   {#if !isTeleprompterFocused}
     <div class="focus-hint">
@@ -5239,7 +5811,7 @@
   <!-- Shortcuts active badge -->
   {#if isTeleprompterFocused}
     <div class="shortcuts-active-badge">
-      ⌨️ Shortcuts Active
+      <span class="tp-inline-icon" use:lucideIcon={'keyboard'}></span> Shortcuts Active
     </div>
   {/if}
 
@@ -5255,7 +5827,7 @@
   {#if (voiceTrackingActive || voiceTrackingStatus === 'initializing') && settings.voiceTrackingShowIndicator}
     <div class="voice-status-overlay">
       <div class="voice-status-indicator" class:listening={voiceTrackingStatus === 'listening'}>
-        <span class="voice-icon">🎤</span>
+        <span class="voice-icon" use:lucideIcon={'mic'}></span>
         <span class="voice-status-text">
           {#if voiceTrackingStatus === 'listening'}
             Listening...
@@ -5285,7 +5857,7 @@
   {#if ttsPlaybackState !== 'idle'}
     <div class="tts-status-overlay">
       <div class="tts-status-indicator" class:playing={ttsPlaybackState === 'playing'}>
-        <span class="tts-status-icon">{ttsPlaybackState === 'playing' ? '🔊' : '⏸'}</span>
+        <span class="tts-status-icon" use:lucideIcon={ttsPlaybackState === 'playing' ? 'volume-2' : 'pause'}></span>
         <span class="tts-status-text">
           {ttsPlaybackState === 'playing' ? 'Reading aloud' : 'TTS paused'}
         </span>
@@ -5679,6 +6251,17 @@
           title={showMinimap ? 'Minimap: ON' : 'Minimap: OFF'}
         >
         </button>
+      {:else if control.id === 'float'}
+        {#if floatSupported}
+          <button
+            use:setIconAction={'tp-float'}
+            onclick={toggleFloating}
+            class="btn-float icon-btn"
+            class:active={isFloating || floatingSessionActive}
+            title={isFloating || floatingSessionActive ? 'Stop floating' : 'Float over other apps'}
+          >
+          </button>
+        {/if}
       {:else if control.id === 'detach'}
         <button
           use:setIconAction={isInPopoutWindow() ? 'x' : 'tp-detach'}
@@ -6117,6 +6700,8 @@
     {/if}
     <div
       class="content-area"
+      class:tp-show-cues={stageCueDisplay === 'dim'}
+      class:tp-plain-cues={stageCueDisplay === 'show'}
       class:focus-mode-active={focusMode && showEyeline}
       style="--focus-eyeline-pos: {eyelinePosition}%; --focus-opacity: {focusModeOpacity}; --focus-range: {focusModeRange * 5}%;"
       bind:this={contentArea}>
@@ -6315,6 +6900,90 @@
 </div>
 
 <style>
+  /* Floating window. The whole window fades, so the text needs an edge to stay readable. */
+  .tp-floating .content-area {
+    text-shadow: -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000;
+  }
+
+  /* Below the floating bar, so the voice badge never covers its buttons. */
+  .tp-floating .voice-status-overlay {
+    top: 3rem;
+  }
+
+  .tp-floating .focus-hint,
+  .tp-floating-locked .controls {
+    display: none;
+  }
+
+  /* The Prompter has 600 pixels and is read from a distance: the script gets them. */
+  .tp-floating-prompter .controls,
+  .tp-floating-prompter .tp-readout-row,
+  .tp-floating-prompter .navigation-panel,
+  .tp-floating-prompter .status-bar {
+    display: none;
+  }
+
+  .tp-floating-bar {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.25rem 0.5rem;
+    flex-shrink: 0;
+    background: var(--background-secondary);
+    font-size: var(--font-ui-small);
+    /* Same stacking as .controls: the root starts under Obsidian's view header, which covers anything lower. */
+    position: relative;
+    z-index: 10;
+  }
+
+  .tp-floating-see-through {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    flex: 1;
+  }
+
+  .tp-floating-handle {
+    position: absolute;
+    top: 0.5rem;
+    left: 0.5rem;
+    z-index: 1000;
+    min-width: 28px;
+    height: 28px;
+    padding: 0 0.5rem;
+    border-radius: 14px;
+    background: var(--interactive-accent);
+    color: var(--text-on-accent);
+    opacity: 0.6;
+  }
+
+  .tp-floating-handle-label {
+    display: none;
+  }
+
+  .tp-floating-handle:hover {
+    opacity: 1;
+  }
+
+  .tp-floating-handle:hover .tp-floating-handle-label {
+    display: inline;
+  }
+
+  .tp-floating-error {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.5rem;
+    flex-shrink: 0;
+    background: var(--background-modifier-error);
+    color: var(--text-on-accent);
+  }
+
+  .tp-floating-main-unlock {
+    flex-shrink: 0;
+    margin: 0.25rem;
+  }
+
   .teleprompter-plus {
     display: flex;
     flex-direction: column;

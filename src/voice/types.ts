@@ -47,6 +47,7 @@ export type VoiceTrackingError =
   | 'microphone-not-found'
   | 'permission-timeout'
   | 'recognition-failed'
+  | 'no-on-device'
   | 'browser-not-supported'
 
 /**
@@ -142,8 +143,13 @@ export const VOICE_LANGUAGES: VoiceLanguage[] = [
     voskModel: 'vosk-model-small-en-us-0.15',
     modelSizeMB: 40
   },
+  {
+    code: 'pt-BR',
+    name: 'Portuguese (Brazil)',
+    voskModel: 'vosk-model-small-pt-0.3',
+    modelSizeMB: 31
+  },
   // Future languages (Phase 2)
-  // { code: 'pt-BR', name: 'Portuguese (Brazil)', voskModel: 'vosk-model-small-pt-0.3', modelSizeMB: 31 },
   // { code: 'es-ES', name: 'Spanish', voskModel: 'vosk-model-small-es-0.42', modelSizeMB: 39 },
   // { code: 'fr-FR', name: 'French', voskModel: 'vosk-model-small-fr-0.22', modelSizeMB: 41 },
   // { code: 'de-DE', name: 'German', voskModel: 'vosk-model-small-de-0.15', modelSizeMB: 45 },

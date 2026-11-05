@@ -299,7 +299,7 @@ export class AppleSpeechRecognizer {
   // ===== Private =====
 
   private handleLine(line: string): void {
-    let msg: { type?: string; value?: string; text?: string; code?: string; message?: string; prompt?: boolean }
+    let msg: { type?: string; value?: string; text?: string; code?: string; message?: string; onDevice?: boolean; prompt?: boolean }
     try {
       msg = JSON.parse(line) as typeof msg
     } catch {
@@ -320,7 +320,11 @@ export class AppleSpeechRecognizer {
         }
         break
       case 'status':
-        if (msg.value === 'listening') {
+        if (msg.value === 'listening' && this.language !== 'en-US' && msg.onDevice !== true) {
+          // A helper older than this rule may be sending the audio to Apple. English keeps working
+          // on it, because English has always had on-device recognition here.
+          this.fail('no-on-device', 'This speech helper does not promise on-device recognition.')
+        } else if (msg.value === 'listening') {
           this.isListening = true
           this.clearAuthTimer()
           this.emitStatus('listening')
@@ -372,6 +376,8 @@ export class AppleSpeechRecognizer {
 
   private mapError(code?: string): VoiceTrackingError {
     switch (code) {
+      case 'no-on-device':
+        return 'no-on-device'
       case 'speech-denied':
       case 'speech-restricted':
       case 'speech-undetermined':

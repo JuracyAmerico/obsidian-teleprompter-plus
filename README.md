@@ -29,6 +29,8 @@ Teleprompter Plus turns any Obsidian note into a professional teleprompter. Auto
 
 - **Smooth auto-scroll** — variable speed (0.5×–10×), countdown timer, manual scroll, horizontal/vertical flip for camera-rig mirrors
 - **Voice-tracked scrolling** — read aloud and the prompter follows your voice, scrolling and highlighting to keep your place, using on-device speech recognition (no cloud)
+- **English and Portuguese voice** — the prompter listens in the language of each script, or set `voice-language` in a note's properties. Recognition stays on your computer: Apple's on-device speech when macOS offers it for that language, otherwise an offline Vosk model, downloaded once.
+- **Floating window** — keep the script on top of a video call, with adjustable see-through and a lock that lets clicks pass to the app underneath. With an Elgato Prompter connected, it opens there and fills the screen with just the script. **Check what you share:** in a Zoom test on macOS, the script showed when sharing the entire screen it was on and when sharing an Obsidian window. It did not show when sharing another app's window, or a screen it was not on. Share another app's window, or keep the script on a Prompter or second display.
 - **Hierarchical navigation** — collapsible header tree, abstract-scrollbar minimap, click-to-jump, active-section highlighting
 - **Stream Deck integration** — 55+ actions across 8 categories with real-time bidirectional state sync ([catalog](docs/stream-deck-actions.md))
 - **Mobile remote control** — touch-friendly web interface, control from any device on your network
@@ -112,6 +114,12 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for the full development setup.
 5. **Reset** — Reset returns to the top.
 
 For 25+ keyboard commands, see Obsidian → Settings → Hotkeys → Teleprompter Plus.
+
+**Pedals and clickers:** PageDown and PageUp turn a page. If your pedal sends arrow keys, turn on "Arrow keys turn pages" in settings. Keys work only while the prompter has focus, so over a video call use the Stream Deck or the phone remote. An Elgato Stream Deck Pedal is a Stream Deck device: assign the Scroll Up, Scroll Down or Next Section actions to it in the Stream Deck app, and they work without focus.
+
+**Hiding the floating window from a screen share:** the bar's "Hide from capture" box asks macOS to leave that window out of screen capture. We measured entire-screen shares on macOS 26.5 in Zoom 7.1.9 (local recording), Google Meet in Chrome 156 (the outgoing stream) and Microsoft Teams 26289 (a second participant's view): with the box on the floating window was absent, while other windows on that screen still showed. That is one Mac on one day, so test your own setup before relying on it. It also blanks the window in your own screenshots and recordings.
+
+**While you work on a script:** saving the note updates the prompter in place, your place and voice tracking included. Double-click a word to jump to its line in the note. If you go back and read an earlier line again, voice tracking moves back to it after about six words. Each note reopens where you left it, and one you read to the end starts from the top. Notes to yourself in square brackets, such as `[pause]`, are hidden on screen, never read aloud and never tracked; a setting shows them dimmed instead. With "Keep screen awake while reading" on, the screen stays awake while the script plays, voice listens or it reads aloud.
 
 ---
 

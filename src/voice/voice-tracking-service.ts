@@ -13,8 +13,9 @@ import type {
   WordPosition
 } from './types'
 import { tokenize, cleanWord } from './word-tokenizer'
+import { UNTRACKED_TEXT_SELECTOR } from '../passage-dom'
 import { normalizeForSpeech } from '../parser/speech-normalizer'
-import { findNextPosition, findGlobalPosition, type SpeechMatcherConfig } from './speech-matcher'
+import { findNextPosition, findGlobalPosition, findRereadPosition, type SpeechMatcherConfig } from './speech-matcher'
 import { VoskRecognizer } from './vosk-recognizer'
 import { AppleSpeechRecognizer } from './apple-speech-recognizer'
 import { SpeechActivityDetector } from './speech-activity-detector'
@@ -67,6 +68,9 @@ const ENABLE_PACE_GOVERNOR = true
  */
 export class VoiceTrackingService {
   private recognizer: VoskRecognizer | AppleSpeechRecognizer
+  private readonly fixedRecognizer: boolean
+  private readonly createRecognizer: (kind: 'apple' | 'vosk') => VoskRecognizer | AppleSpeechRecognizer
+  private readonly languagesWithoutOnDevice = new Set<string>()
   private config: VoiceTrackingConfig
   private tokens: TextElement[] = []
   private wordTokens: TextElement[] = []  // Word-only tokens (no delimiters)
@@ -77,6 +81,8 @@ export class VoiceTrackingService {
   private status: VoiceTrackingStatus = 'off'
   private lastRecognizedText: string = ''
   private contentArea: HTMLElement | null = null
+  private scrollFrameWindow: Window | null = null
+  private silenceTimerWindow: Window | null = null
   private isInitialized: boolean = false  // Track if word spans are created
 
   // Pause detection state
@@ -210,31 +216,73 @@ export class VoiceTrackingService {
   constructor(
     config: Partial<VoiceTrackingConfig> = {},
     recognizer?: VoskRecognizer | AppleSpeechRecognizer,
+    createRecognizer?: (kind: 'apple' | 'vosk') => VoskRecognizer | AppleSpeechRecognizer,
   ) {
     this.config = { ...DEFAULT_CONFIG, ...config }
     // Engine selection: Apple on-device Speech (macOS, far more accurate) when available,
     // else Vosk (offline model, cross-platform). 'auto' prefers Apple when supported.
+    this.fixedRecognizer = recognizer !== undefined
+    this.createRecognizer = createRecognizer ?? (kind => kind === 'apple' ? new AppleSpeechRecognizer() : new VoskRecognizer())
+    this.recognizer = recognizer ?? this.createRecognizer(this.preferredEngine())
+    this.wireRecognizer(this.recognizer)
+  }
+
+  /** Apple when it can serve this language on this Mac, otherwise the offline Vosk model. */
+  private preferredEngine(): 'apple' | 'vosk' {
     const wantApple = this.config.engine === 'apple' ||
       (this.config.engine !== 'vosk' && AppleSpeechRecognizer.isSupported())
-    this.recognizer = recognizer ?? (wantApple ? new AppleSpeechRecognizer() : new VoskRecognizer())
+    return wantApple && !this.languagesWithoutOnDevice.has(this.config.language) ? 'apple' : 'vosk'
+  }
 
-    // Wire up recognizer events
-    this.recognizer.onResult((text, isFinal) => {
-      this.handleRecognitionResult(text, isFinal)
+  /** Each recognizer only speaks while it is the current one, so a replaced engine cannot confuse the app. */
+  private wireRecognizer(recognizer: VoskRecognizer | AppleSpeechRecognizer): void {
+    recognizer.onResult((text, isFinal) => {
+      if (recognizer === this.recognizer) this.handleRecognitionResult(text, isFinal)
     })
 
-    this.recognizer.onStatus((status) => {
+    recognizer.onStatus((status) => {
+      if (recognizer !== this.recognizer) return
       this.status = status
       this.onStatusChange?.(status)
     })
 
-    this.recognizer.onError((error, message) => {
+    recognizer.onError((error, message) => {
+      if (recognizer !== this.recognizer) return
+      if (error === 'no-on-device' && !this.fixedRecognizer) {
+        this.fallBackToOfflineEngine()
+        return
+      }
       this.onError?.(error, message)
     })
 
-    this.recognizer.onProgress((loaded, total) => {
-      this.onProgress?.(loaded, total)
+    recognizer.onProgress((loaded, total) => {
+      if (recognizer === this.recognizer) this.onProgress?.(loaded, total)
     })
+  }
+
+  private replaceRecognizer(kind: 'apple' | 'vosk'): void {
+    const previous = this.recognizer
+    this.recognizer = this.createRecognizer(kind)
+    this.wireRecognizer(this.recognizer)
+    // After this call stack, because a failing engine is still finishing its own shutdown.
+    void Promise.resolve().then(() => previous.dispose())
+  }
+
+  /** Apple said the audio would have to leave this Mac. Remember that and carry on offline. */
+  private fallBackToOfflineEngine(): void {
+    this.languagesWithoutOnDevice.add(this.config.language)
+    this.replaceRecognizer('vosk')
+    this.start().catch((error) => {
+      this.onError?.('recognition-failed', error instanceof Error ? error.message : String(error))
+    })
+  }
+
+  /** A script in another language needs a recognizer listening in that language. */
+  private ensureRecognizerForLanguage(): void {
+    if (this.fixedRecognizer) return
+    if (this.recognizer.getLanguage() !== this.config.language && this.recognizer.getIsInitialized()) {
+      this.replaceRecognizer(this.preferredEngine())
+    }
   }
 
   /**
@@ -358,7 +406,7 @@ export class VoiceTrackingService {
     }
 
     // Skip elements that shouldn't be processed (code blocks, etc.)
-    const skipSelectors = 'pre, code, .embedded-note, script, style'
+    const skipSelectors = UNTRACKED_TEXT_SELECTOR
 
     // Collect all text nodes first (walker gets invalidated when DOM changes)
     const textNodes: Text[] = []
@@ -551,6 +599,8 @@ export class VoiceTrackingService {
     }
 
     try {
+      this.ensureRecognizerForLanguage()
+
       // Initialize recognizer if not already done
       if (!this.recognizer.getIsInitialized()) {
         this.onStatusChange?.('initializing')
@@ -592,16 +642,10 @@ export class VoiceTrackingService {
     this.consecutiveFailedMatches = 0
 
     // Cancel any ongoing scroll animation
-    if (this.scrollAnimationId !== null) {
-      cancelAnimationFrame(this.scrollAnimationId)
-      this.scrollAnimationId = null
-    }
+    this.cancelScrollFrame()
 
     // Clear turn-based scrolling state
-    if (this.silenceCheckTimer !== null) {
-      window.clearTimeout(this.silenceCheckTimer)
-      this.silenceCheckTimer = null
-    }
+    this.clearSilenceTimer()
     this.isInSpeechTurn = false
     this.matchAccumulator = []
     this.pendingScrollTarget = -1
@@ -645,6 +689,16 @@ export class VoiceTrackingService {
    *
    * @param wordIndex - Target word index. Clamped to the valid range; no-op if there are no words yet.
    */
+  /**
+   * The script changed under a running session: wrap the new text and carry on from this word.
+   * The microphone is left alone, so nothing the reader says in the meantime is lost.
+   */
+  rebind(contentArea: HTMLElement, wordIndex: number): void {
+    this.contentArea = contentArea
+    this.buildWordPositionMap()
+    this.seekToWord(wordIndex)
+  }
+
   seekToWord(wordIndex: number): void {
     if (this.wordTokens.length === 0) return
     const clamped = Math.max(0, Math.min(this.wordTokens.length - 1, Math.floor(wordIndex)))
@@ -664,6 +718,7 @@ export class VoiceTrackingService {
     this.consecutiveFailedMatches = 0
     this.resyncRequested = false
     this.resyncToScrollPending = false   // setting the index directly, not via scroll estimate
+    this.pendingRereadIndex = -1
     this.resetPaceGovernor()             // discontinuity: don't clamp the next commit against old pace
 
     // CRITICAL — the "jumps then comes back" bug. If the reader was mid-reading, the auto-follow
@@ -673,10 +728,7 @@ export class VoiceTrackingService {
     // decayed 2465→195 with the FOLLOW_FACTOR signature while currentWordIndex held at the new
     // section). Stop the loop and point its target at where the page now sits, so nothing pulls it
     // back; the next real voice match re-arms the follow from the correct place.
-    if (this.scrollAnimationId !== null) {
-      cancelAnimationFrame(this.scrollAnimationId)
-      this.scrollAnimationId = null
-    }
+    this.cancelScrollFrame()
     if (this.contentArea) this.targetScrollPos = this.contentArea.scrollTop
 
     // Repaint the karaoke marker at the new anchor (when enabled). Clear stale read/active marks first
@@ -757,6 +809,7 @@ export class VoiceTrackingService {
 
   // Throttle partial results to avoid too many scroll operations
   private lastPartialProcessTime: number = 0
+  private pendingRereadIndex: number = -1 // A re-read seen once, waiting for speech to confirm it
 
   // Smooth scroll animation state
   private scrollAnimationId: number | null = null
@@ -783,7 +836,8 @@ export class VoiceTrackingService {
     // number-dense passage stalls the matcher while the mic keeps listening. Normalising the
     // heard text into the script's spoken form puts both sides in the same alphabet.
     // The DOM script is deliberately left untouched: word indices map to spans for highlighting.
-    const text = normalizeForSpeech(rawText)
+    // The spoken forms it writes are English, so other languages keep what the recognizer heard.
+    const text = this.config.language.startsWith('en') ? normalizeForSpeech(rawText) : rawText
     this.lastRecognizedText = text
     this.onRecognizedText?.(text, isFinal)
 
@@ -830,6 +884,23 @@ export class VoiceTrackingService {
         if (DEBUG_VOICE_MATCH) console.warn(`[VT]   SNAP → matcher re-anchored to scroll position #${snapTo} (manual scroll)`)
       }
     }
+
+    // Going back to say a line again. One reading is not enough: a second one that has moved on
+    // proves live speech, because a recognizer repeating itself in a pause never moves on.
+    const rereadEnd = findRereadPosition(text, this.wordTokens, this.currentWordIndex)
+    if (rereadEnd >= 0) {
+      const movedOn = this.pendingRereadIndex >= 0 && rereadEnd > this.pendingRereadIndex && rereadEnd - this.pendingRereadIndex <= 12
+      if (!movedOn) {
+        if (this.pendingRereadIndex < 0 || rereadEnd < this.pendingRereadIndex) this.pendingRereadIndex = rereadEnd
+        this.onDiagnostic?.('reread-held', { cur: this.currentWordIndex, reread: rereadEnd })
+        return
+      }
+      this.onDiagnostic?.('reread', { from: this.currentWordIndex, to: rereadEnd })
+      this.seekToWord(rereadEnd)
+      this.scrollToWord(rereadEnd)
+      return
+    }
+    this.pendingRereadIndex = -1
 
     let newIndex: number
     let isGlobalMatch = false  // Flag for global search result
@@ -1092,10 +1163,7 @@ export class VoiceTrackingService {
     // but don't fight their scroll. Cancel any in-flight follow and hold; auto-follow resumes
     // USER_SCROLL_GRACE_MS after they stop scrolling.
     if (Date.now() - this.userScrolledAt < this.USER_SCROLL_GRACE_MS) {
-      if (this.scrollAnimationId !== null) {
-        cancelAnimationFrame(this.scrollAnimationId)
-        this.scrollAnimationId = null
-      }
+      this.cancelScrollFrame()
       if (DEBUG_VOICE_MATCH) console.warn('[VT]   scroll YIELD → manual scroll active, auto-follow paused')
       return
     }
@@ -1146,6 +1214,34 @@ export class VoiceTrackingService {
     this.guardedScrollArea = null
   }
 
+  /**
+   * The window showing the script. A pop-out's frames keep firing when the main window is minimized
+   * or behind a full-screen app; the bare requestAnimationFrame belongs to the main window and stops.
+   */
+  private contentWindow(): Window {
+    return this.contentArea?.ownerDocument?.defaultView ?? window
+  }
+
+  private requestScrollFrame(callback: FrameRequestCallback): number {
+    this.scrollFrameWindow = this.contentWindow()
+    return this.scrollFrameWindow.requestAnimationFrame(callback)
+  }
+
+  /** A frame or timer can only be cancelled by the window that scheduled it. */
+  private cancelScrollFrame(): void {
+    if (this.scrollAnimationId === null) return
+    const owner = this.scrollFrameWindow ?? window
+    owner.cancelAnimationFrame(this.scrollAnimationId)
+    this.scrollAnimationId = null
+  }
+
+  private clearSilenceTimer(): void {
+    if (this.silenceCheckTimer === null) return
+    const owner = this.silenceTimerWindow ?? window
+    owner.clearTimeout(this.silenceCheckTimer)
+    this.silenceCheckTimer = null
+  }
+
   /** Per-frame critically-damped follow toward the latest target. Reuses scrollAnimationId so
    *  stop() cancels it. Settles exactly on target and idles until the next word moves it. */
   private startScrollFollow(): void {
@@ -1160,9 +1256,9 @@ export class VoiceTrackingService {
         return
       }
       this.contentArea.scrollTop = cur + diff * this.FOLLOW_FACTOR
-      this.scrollAnimationId = requestAnimationFrame(step)
+      this.scrollAnimationId = this.requestScrollFrame(step)
     }
-    this.scrollAnimationId = requestAnimationFrame(step)
+    this.scrollAnimationId = this.requestScrollFrame(step)
   }
 
   /**
@@ -1175,10 +1271,7 @@ export class VoiceTrackingService {
     if (!this.contentArea) return
 
     // Cancel any existing animation
-    if (this.scrollAnimationId !== null) {
-      cancelAnimationFrame(this.scrollAnimationId)
-      this.scrollAnimationId = null
-    }
+    this.cancelScrollFrame()
 
     const startScroll = this.contentArea.scrollTop
     const distance = targetScroll - startScroll
@@ -1214,13 +1307,13 @@ export class VoiceTrackingService {
 
       // Continue animation if not complete
       if (progress < 1) {
-        this.scrollAnimationId = requestAnimationFrame(animate)
+        this.scrollAnimationId = this.requestScrollFrame(animate)
       } else {
         this.scrollAnimationId = null
       }
     }
 
-    this.scrollAnimationId = requestAnimationFrame(animate)
+    this.scrollAnimationId = this.requestScrollFrame(animate)
   }
 
   /**
@@ -1275,12 +1368,11 @@ export class VoiceTrackingService {
    */
   private resetSilenceTimer(): void {
     // Clear existing timer
-    if (this.silenceCheckTimer !== null) {
-      window.clearTimeout(this.silenceCheckTimer)
-    }
+    this.clearSilenceTimer()
 
     // Set new timer - if no speech for PAUSE_THRESHOLD_MS, end the turn
-    this.silenceCheckTimer = window.setTimeout(() => {
+    this.silenceTimerWindow = this.contentWindow()
+    this.silenceCheckTimer = this.silenceTimerWindow.setTimeout(() => {
       this.endSpeechTurn()
     }, this.PAUSE_THRESHOLD_MS)
   }
@@ -1405,10 +1497,7 @@ export class VoiceTrackingService {
     this.contentArea = null
 
     // Clean up turn-based scrolling timer
-    if (this.silenceCheckTimer !== null) {
-      window.clearTimeout(this.silenceCheckTimer)
-      this.silenceCheckTimer = null
-    }
+    this.clearSilenceTimer()
   }
 }
 

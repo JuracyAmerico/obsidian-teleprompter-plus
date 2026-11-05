@@ -10,6 +10,11 @@ import type { TextElement, MatchResult } from './types'
 import { tokenize, tokensToString } from './word-tokenizer'
 import { levenshteinDistance } from './levenshtein'
 
+/** Recognizers often drop accents ("voce" for "você"), and that must not read as a different word. */
+function foldAccents(text: string): string {
+  return text.normalize('NFD').replace(/\p{M}/gu, '')
+}
+
 /**
  * Configuration for speech matching algorithm.
  * These values control how aggressively the matcher follows speech.
@@ -104,7 +109,7 @@ export function computeSpeechRecognitionTokenIndex(
       .trim()
 
     // Calculate distance
-    distances.push(levenshteinDistance(comparisonString, referenceSubstring))
+    distances.push(levenshteinDistance(foldAccents(comparisonString), foldAccents(referenceSubstring)))
   }
 
   // Prefer the NEAREST good alignment, not the raw global minimum. In repeat-heavy text the same
@@ -157,8 +162,8 @@ export function calculateMatchConfidence(
   if (!recognized || !reference) return 0
 
   const distance = levenshteinDistance(
-    recognized.toLowerCase(),
-    reference.toLowerCase()
+    foldAccents(recognized.toLowerCase()),
+    foldAccents(reference.toLowerCase())
   )
   const maxLength = Math.max(recognized.length, reference.length)
 
@@ -305,6 +310,61 @@ export function findGlobalPosition(
   // ────────────────────────────────────────────────────────────────────────────
 
   return bestMatch.index
+}
+
+/** Words that must agree before voice believes the reader went back. Under this, a repeat is a coincidence. */
+const REREAD_TAIL_WORDS = 6
+/** Closer than this is ordinary lag behind a reader moving forward, not going back. */
+const REREAD_MIN_BEHIND = 8
+/** How far back a re-read is looked for. Farther needs the reader's own hand: scroll or R. */
+const REREAD_MAX_BEHIND = 200
+const REREAD_LOOK_AHEAD = 40
+
+/**
+ * The reader went back to say something again: the last words heard sit behind the current place, and
+ * nowhere near it. Returns the index of the word just heard, or -1.
+ *
+ * Moving back on thin evidence is what used to fling the highlight to an earlier copy of a repeated
+ * phrase, so this asks for six words in order with at most one misheard, and answers -1 if they occur
+ * twice in range, ahead included. The caller also waits for a second reading that has moved on.
+ */
+export function findRereadPosition(recognized: string, reference: TextElement[], currentIndex: number): number {
+  const heard = tokenize(recognized).filter(t => t.type === 'TOKEN').map(t => foldAccents(t.value.toLowerCase()))
+  if (heard.length < REREAD_TAIL_WORDS) return -1
+  const tail = heard.slice(-REREAD_TAIL_WORDS)
+
+  const scriptWord = (i: number): string => foldAccents((reference[i]?.value ?? '').toLowerCase())
+
+  /** The last script word these heard words land on, or -1. Vosk often drops "o" and "a", so a gap is allowed. */
+  const endOfMatchAt = (start: number): number => {
+    if (scriptWord(start) !== tail[0]) return -1
+    let at = start
+    let misses = 0
+    for (let i = 1; i < tail.length; i++) {
+      const next = [1, 2, 3].find(step => scriptWord(at + step) === tail[i])
+      if (next !== undefined) {
+        at += next
+      } else {
+        if (++misses > 1) return -1
+        at += 1
+      }
+    }
+    return at
+  }
+
+  const first = Math.max(0, currentIndex - REREAD_MAX_BEHIND)
+  const last = Math.min(reference.length - tail.length, currentIndex + REREAD_LOOK_AHEAD)
+  let found = -1
+  for (let start = first; start <= last; start++) {
+    const end = endOfMatchAt(start)
+    if (end < 0) continue
+    // Words right at or ahead of the place mean the reader is simply moving forward
+    if (end > currentIndex - REREAD_MIN_BEHIND) return -1
+    // Two copies behind: the words do not say which one. Overlapping hits are the same place.
+    if (found >= 0 && end - found >= tail.length) return -1
+    found = end
+  }
+  return found
 }
 
 /**

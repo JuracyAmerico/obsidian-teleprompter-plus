@@ -1,6 +1,8 @@
-import { Modal, Setting } from 'obsidian'
+import { Modal, Setting, setIcon } from 'obsidian'
 import type { App } from 'obsidian'
 import type TeleprompterPlusPlugin from './main'
+import changelog from '../CHANGELOG.md?raw'
+import { MAX_HIGHLIGHTS, parseReleaseNotes } from './release-notes'
 
 /**
  * What's New Modal - Shows release notes on first install or after update
@@ -43,7 +45,7 @@ export class WhatsNewModal extends Modal {
 		// Welcome message
 		const isFirstInstall = !this.plugin.settings.lastSeenVersion
 		const welcomeText = isFirstInstall
-			? 'Thanks for installing! 🎉'
+			? 'Thanks for installing!'
 			: `Updated to v${this.version}! Here's what's new:`
 
 		contentEl.createEl('p', { text: welcomeText, cls: 'whats-new-welcome' })
@@ -54,40 +56,23 @@ export class WhatsNewModal extends Modal {
 
 		const featureList = highlights.createEl('ul', { cls: 'whats-new-features' })
 
-		const features = [
-			{
-				icon: '🗣️',
-				title: 'Neural text-to-speech',
-				description: 'Read your script aloud — ElevenLabs cloud voices, or offline Kokoro / macOS / Web Speech'
-			},
-			{
-				icon: '🎯',
-				title: 'Voice-tracked scrolling',
-				description: 'The prompter follows your voice and scrolls smoothly to keep your place'
-			},
-			{
-				icon: '🧰',
-				title: 'Redesigned toolbar',
-				description: 'Grouped zones, a hero Play, and a tidy More menu — fully theme-aware'
-			},
-			{
-				icon: '⚙️',
-				title: 'Native settings',
-				description: 'Cleaner Obsidian-native settings with a status dashboard and density options'
-			},
-			{
-				icon: '✨',
-				title: 'A fresh look',
-				description: 'Unified Lucide icon set, a new brand mark, and a re-skinned mobile remote'
-			}
-		]
+		// Read from CHANGELOG.md at build time, so the dialog always shows this version's real notes
+		const features = parseReleaseNotes(changelog, this.version)
 
-		features.forEach(feature => {
+		features.slice(0, MAX_HIGHLIGHTS).forEach(feature => {
 			const li = featureList.createEl('li', { cls: 'whats-new-feature' })
-			li.createSpan({ text: feature.icon, cls: 'feature-icon' })
+			setIcon(li.createSpan({ cls: 'feature-icon' }), feature.icon)
 			const textContainer = li.createDiv({ cls: 'feature-text' })
-			textContainer.createEl('strong', { text: feature.title })
-			textContainer.createEl('span', { text: ` - ${feature.description}` })
+			if (feature.title) textContainer.createEl('strong', { text: feature.title })
+			textContainer.createEl('span', { text: feature.title ? ` - ${feature.description}` : feature.description })
+		})
+
+		const more = features.length - MAX_HIGHLIGHTS
+		highlights.createEl('a', {
+			href: `https://github.com/JuracyAmerico/obsidian-teleprompter-plus/releases/tag/${this.version}`,
+			text: more > 0 ? `And ${more} more: full release notes →` : 'Full release notes →',
+			cls: 'whats-new-docs-link',
+			attr: { target: '_blank', rel: 'noopener noreferrer' }
 		})
 
 		// Ko-fi support section
@@ -122,7 +107,7 @@ export class WhatsNewModal extends Modal {
 		// Don't show again checkbox
 		new Setting(footer)
 			.setName("Don't show on updates")
-			.setDesc('You can re-enable this in settings')
+			.setDesc("You can turn it back on in this plugin's about settings tab")
 			.addToggle(toggle => toggle
 				.setValue(!this.plugin.settings.showReleaseNotes)
 				.onChange(async (value) => {

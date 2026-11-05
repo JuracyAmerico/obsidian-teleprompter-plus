@@ -29,7 +29,7 @@ If a button is unresponsive, run *Show WebSocket Server Info* from the Obsidian 
 | **Pause** | Stop auto-scroll |
 | **Reset to Top** | Jump to the beginning of the document |
 | **Scroll Up** | Manual scroll up by the configured amount |
-| **Scroll Down** | Manual scroll down by the configured amount |
+| **Scroll Down** | Manual scroll down by the configured amount. During voice tracking, voice follows the page. Works on an Elgato Stream Deck Pedal, with no need for the prompter to have focus |
 | **Set Scroll Amount** | Configure the manual-scroll step size |
 | **Get State** | Request a fresh state broadcast (useful for debugging) |
 
@@ -72,7 +72,7 @@ If a button is unresponsive, run *Show WebSocket Server Info* from the Obsidian 
 | **Toggle Fullscreen** | Enter or exit fullscreen |
 | **Enter Fullscreen** | Force fullscreen on |
 | **Exit Fullscreen** | Force fullscreen off |
-| **Toggle Keep Awake** | Prevent or allow display sleep |
+| **Toggle Keep Awake** | Prevent or allow display sleep. A hold set here stays until you end it; the "Keep screen awake while reading" setting holds it only while reading |
 | **Enable Keep Awake** | Force on |
 | **Disable Keep Awake** | Force off |
 | **Toggle Pin Window** | Toggle always-on-top (macOS, Windows) |

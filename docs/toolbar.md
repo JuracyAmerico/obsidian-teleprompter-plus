@@ -38,7 +38,7 @@ Order on the bar: **Playback → Display/Type → View → Capture → System �
 | **Display / type** | Font size, Line height, Font family | Letter spacing, Opacity, Padding, Text/Bg color, Alignment default into **More**. |
 | **View** | Fullscreen, Flip H, Flip V, Eyeline, Focus mode | Minimap, Navigation, Progress indicator default into **More**. |
 | **Capture** | Voice tracking, Text-to-speech | |
-| **System** | — | Auto-Pause, Keep awake, Pin, Open in Window, Quick presets default into **More**. |
+| **System** | — | Auto-Pause, Keep awake, Pin, Open in Window, Float over other apps, Quick presets default into **More**. |
 | **Readout** | Time display | Rendered separately, right-aligned; never a button. |
 
 ## How it interacts with show / hide / reorder

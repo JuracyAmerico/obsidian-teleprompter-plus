@@ -137,6 +137,8 @@ export type TeleprompterCommand =
 	| { command: 'set-countdown'; seconds: number }
 	| { command: 'start-countdown' }
 	| { command: 'toggle-pin' }
+	| { command: 'toggle-floating' }
+	| { command: 'floating-unlock' }
 	| { command: 'pin-note' }
 	| { command: 'unpin-note' }
 	| { command: 'refresh-pinned' }

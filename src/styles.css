@@ -1068,8 +1068,15 @@
 }
 
 .feature-icon {
-  font-size: 1.25rem;
+  display: flex;
   flex-shrink: 0;
+  margin-top: 0.1rem;
+  color: var(--interactive-accent);
+}
+
+.feature-icon svg {
+  width: 18px;
+  height: 18px;
 }
 
 .feature-text {
@@ -1275,4 +1282,28 @@
 /* Words already read — gently dimmed so focus stays forward */
 .voice-word.voice-past {
   opacity: 0.55;
+}
+
+/* Stage cues such as [pause]: notes to the speaker, hidden unless the setting asks to see them dimmed */
+.tp-stage-cue {
+  display: none;
+}
+
+.tp-show-cues .tp-stage-cue {
+  display: inline;
+  opacity: 0.45;
+}
+
+.tp-plain-cues .tp-stage-cue {
+  display: inline;
+}
+
+/* Interface icons are Lucide SVGs sized with the text around them */
+.callout-icon svg,
+.voice-icon svg,
+.tts-status-icon svg,
+.tp-inline-icon svg {
+  width: 1em;
+  height: 1em;
+  vertical-align: -0.125em;
 }

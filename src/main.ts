@@ -2,7 +2,12 @@ import { Plugin, Notice, addIcon, TFile, WorkspaceLeaf } from 'obsidian'
 import { TeleprompterView, VIEW_TYPE_TELEPROMPTER } from './view'
 import { TeleprompterWebSocketServer, type TeleprompterState } from './websocket-server'
 import { TeleprompterSettingTab, DEFAULT_SETTINGS } from './settings'
+import { FloatingSession } from './floating/floating-window'
+import { isValidVoiceLanguageSetting, migrateVoiceLanguageSetting } from './voice/voice-language'
 import type { TeleprompterSettings } from './settings'
+import { forgetPosition, renamePosition, validPositions } from './position-memory'
+import { migrateKeepAwakeSetting } from './wake-hold'
+import { withMissingDefaultHotkeys } from './pedal-keys'
 import { OBSService, type OBSState } from './obs-service'
 import { WhatsNewModal } from './whats-new-modal'
 import { describeRemoteServerStartFailure } from './remote-server-errors'
@@ -22,6 +27,7 @@ interface ExtendedBroadcastState extends Partial<TeleprompterState> {
 export default class TeleprompterPlusPlugin extends Plugin {
 	settings!: TeleprompterSettings
 	wsServer: TeleprompterWebSocketServer | null = null
+	readonly floatingSession = new FloatingSession()
 	private obsService: OBSService | null = null
 
 	async onload(): Promise<void> {
@@ -134,6 +140,14 @@ export default class TeleprompterPlusPlugin extends Plugin {
 		
 		// Load settings FIRST - must await before using this.settings
 		await this.loadSettings()
+
+		// A remembered position follows its note, and goes when the note goes
+		this.registerEvent(this.app.vault.on('rename', (file, oldPath) => {
+			if (renamePosition(this.settings.notePositions, oldPath, file.path)) void this.saveSettings()
+		}))
+		this.registerEvent(this.app.vault.on('delete', (file) => {
+			if (forgetPosition(this.settings.notePositions, file.path)) void this.saveSettings()
+		}))
 
 		// Register settings tab
 		this.addSettingTab(new TeleprompterSettingTab(this.app, this))
@@ -332,6 +346,23 @@ export default class TeleprompterPlusPlugin extends Plugin {
 			name: 'Show/hide minimap',
 			callback: () => {
 				window.dispatchEvent(new CustomEvent('teleprompter:toggle-minimap'))
+			},
+		})
+
+		// ===== Floating window =====
+		this.addCommand({
+			id: 'toggle-floating',
+			name: 'Float over other apps',
+			callback: () => {
+				window.dispatchEvent(new CustomEvent('teleprompter:toggle-floating'))
+			},
+		})
+
+		this.addCommand({
+			id: 'floating-unlock',
+			name: 'Unlock floating window',
+			callback: () => {
+				this.floatingSession.unlock()
 			},
 		})
 
@@ -798,6 +829,14 @@ export default class TeleprompterPlusPlugin extends Plugin {
 			window.dispatchEvent(new CustomEvent('teleprompter:toggle-pin'))
 		})
 
+		this.wsServer.registerCommand('toggle-floating', () => {
+			window.dispatchEvent(new CustomEvent('teleprompter:toggle-floating'))
+		})
+
+		this.wsServer.registerCommand('floating-unlock', () => {
+			this.floatingSession.unlock()
+		})
+
 		this.wsServer.registerCommand('pin-note', () => {
 			window.dispatchEvent(new CustomEvent('teleprompter:pin-note'))
 		})
@@ -1154,7 +1193,7 @@ export default class TeleprompterPlusPlugin extends Plugin {
 
 		const info = this.wsServer.getInfo()
 		const message = `Remote server
-Status: ${info.running ? '🟢 Running' : '🔴 Stopped'}
+Status: ${info.running ? 'Running' : 'Stopped'}
 Address: ${info.host}:${info.port}
 Clients: ${info.clientCount}
 
@@ -1353,9 +1392,19 @@ Use this address to connect from external devices.`
 		const layout = this.settings.toolbarLayout
 		const allControls = [...layout.primary, ...layout.secondary, ...layout.hidden]
 
+		// en-US was the only language before 0.12.0, so a saved en-US was never a choice
+		if (migrateVoiceLanguageSetting(this.settings)) void this.saveSettings()
+		if (migrateKeepAwakeSetting(this.settings)) void this.saveSettings()
+
 		// Add 'tts' if not in any toolbar section
 		if (!allControls.includes('tts')) {
 			layout.secondary.push('tts')
+			void this.saveSettings()
+		}
+
+		// Add the floating window button for layouts saved before 0.12.0
+		if (!allControls.includes('float')) {
+			layout.secondary.push('float')
 			void this.saveSettings()
 		}
 	}
@@ -1366,6 +1415,10 @@ Use this address to connect from external devices.`
 	private validateSettings(): void {
 		const s = this.settings
 		const d = DEFAULT_SETTINGS
+
+		s.notePositions = validPositions(s.notePositions)
+		s.customHotkeys = withMissingDefaultHotkeys(s.customHotkeys, d.customHotkeys)
+		if (!['hide', 'dim', 'show'].includes(s.stageCueDisplay)) s.stageCueDisplay = d.stageCueDisplay
 
 		// Validate numeric ranges
 		s.wsPort = this.clamp(s.wsPort, 1024, 65535)
@@ -1402,10 +1455,9 @@ Use this address to connect from external devices.`
 		}
 		s.fontFamily = s.fontFamily.replace(/[<>'"\\]/g, '')
 
-		// Validate voice tracking language (must be valid BCP 47 pattern)
-		const langPattern = /^[a-z]{2}(-[A-Z]{2})?$/
-		if (!langPattern.test(s.voiceTrackingLanguage)) {
-			s.voiceTrackingLanguage = 'en-US'
+		// Validate voice tracking language
+		if (!isValidVoiceLanguageSetting(s.voiceTrackingLanguage)) {
+			s.voiceTrackingLanguage = 'auto'
 		}
 
 		// Coerce booleans/enums that are read with strict comparisons, so a corrupt persisted value

@@ -5,6 +5,37 @@ All notable changes to Obsidian Teleprompter Plus will be documented in this fil
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+## [0.12.0] - 2026-11-05
+
+### Added
+- **Floating window.** One button keeps the script on top of other apps, including full-screen video calls. Adjust how see-through it is, and lock it so clicks pass through to the app underneath. Find it in the toolbar's More menu.
+- **Hide from capture.** A box on the floating bar asks macOS to leave the window out of screen capture. It worked on entire-screen shares in Zoom, Google Meet in Chrome and Microsoft Teams on macOS 26.5. Test your own setup before relying on it.
+- **Elgato Prompter support.** When a Prompter is connected, the floating window finds it and fills it, showing only the script. A button sends it back to your main screen.
+- **Portuguese voice tracking.** The prompter detects each script's language, or reads `voice-language` from the note's properties. Audio stays on your computer.
+- **Live refresh.** Saving the note updates the prompter in place, keeping your passage, playback and voice tracking.
+- **Reading a line again.** Go back and repeat a line, and voice tracking moves back to it after about six words.
+- **Remembered position.** Each note reopens where you left it, even after a font change or an edit. A note read to its end starts from the top.
+- **Stage cues.** `[pause]` and other bracket notes are hidden on screen and never read aloud or tracked. A setting shows them dimmed or normally.
+- **Pedal keys.** PageDown and PageUp turn a page, with an option for pedals that send arrow keys. Stream Deck scrolls, including from an Elgato pedal, now move voice tracking with the page.
+
+### Changed
+- **Cleaner icons.** Emoji in the interface are gone, replaced by Obsidian's own icons.
+- **Keep screen awake works.** The setting did nothing before. It now holds the screen awake while the script plays, voice listens or it reads aloud, and it is on by default.
+- **Double-click** jumps to the clicked word's own line, not the first line holding that word, and opens the note if no pane shows it.
+- **Voice moves with the script.** Floating while voice tracking runs moves tracking to the floating window, which keeps following with the main window minimized. Stream Deck and remote commands follow it there.
+
+### Fixed
+- **Float button and command** now close the floating window every time.
+- **Scroll sync** no longer pulls the editor's cursor back to the heading on every scroll, only when the section changes.
+- **OBS recording sync works.** Starting playback starts the OBS recording and resetting to the top stops it, when sync is on.
+- **What's New can be turned back on** with a new toggle in the About tab.
+- **About tab links** now open this plugin's GitHub page and issues instead of a placeholder address.
+
+### Removed
+- **Voice settings that did nothing:** scroll behavior, max and min jump distance, animation times, pause detection and its threshold, and scroll trail.
+
 ## [0.11.9] - 2026-10-30
 
 ### Added

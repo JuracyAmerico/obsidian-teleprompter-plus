@@ -82,6 +82,15 @@ The full command list mirrors the Stream Deck action catalog — see [stream-dec
 
 ---
 
+## Floating window commands
+
+| Command | What it does |
+|---|---|
+| `toggle-floating` | Opens the floating window, or closes it when open |
+| `floating-unlock` | Unlocks a locked floating window, so clicks land on it again |
+
+While a floating window is open, other commands act on it rather than the main view.
+
 ## Custom-control scripts
 
 ### TypeScript / Bun

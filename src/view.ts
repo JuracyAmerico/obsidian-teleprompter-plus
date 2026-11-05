@@ -27,6 +27,10 @@ export class TeleprompterView extends ItemView {
 	}
 
 	async onOpen(): Promise<void> {
+		// Obsidian can open a view before moving it into a pop-out, and the app reads its window once
+		// at mount for listeners, timers and whether it is the floating view.
+		await this.waitForOwnWindow()
+
 		const container = this.containerEl.children[1]
 		container.empty()
 
@@ -48,6 +52,13 @@ export class TeleprompterView extends ItemView {
 				ownerWindow: ownerWindow,
 			},
 		})
+	}
+
+	private async waitForOwnWindow(): Promise<void> {
+		const target = this.leaf.getContainer().doc
+		for (let attempt = 0; attempt < 40 && this.containerEl.ownerDocument !== target; attempt++) {
+			await new Promise(resolve => window.setTimeout(resolve, 25))
+		}
 	}
 
 	async onClose(): Promise<void> {
