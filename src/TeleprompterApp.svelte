@@ -2785,7 +2785,7 @@
 
         voiceTrackingService.onRecognizedText = (text: string, isFinal: boolean) => {
           lastRecognizedText = text
-          phoneLog(`voice heard ${isFinal ? 'final' : 'partial'} (${text.split(' ').length} words)`)
+          phoneLog(`voice heard ${isFinal ? 'final' : 'partial'} (${text.split(' ').length} words) "${text.split(' ').slice(-3).join(' ')}"`)
           if (voiceTraceEnabled) writeTraceLine('voice-trace.jsonl', 'heard', { final: isFinal, text })
           debugLog(`[Voice] Recognized (${isFinal ? 'final' : 'partial'}): ${text}`)
         }
