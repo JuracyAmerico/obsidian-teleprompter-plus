@@ -336,7 +336,7 @@ Found in Américo's own test run, 2026-11-05 (steps 2, 3, 7, 8):
 | ISC-113 | manual | report read back | every section present | Obsidian CLI on the Mac |
 | ISC-114 | manual | report note appears on the Mac | note present | iCloud, Américo's iPhone |
 | ISC-115 | manual | Microphone only row from the iPhone | a peak above 0 | iCloud report, Américo's iPhone |
-| ISC-116 | script | bundle loads under phone require | PASS both modes | bun run build && bun scripts/mobile-load-check.ts |
+| ISC-116 | bash | bundle loads under phone require | PASS both modes | bun run build && bun scripts/mobile-load-check.ts |
 | ISC-117 | bun-test | no static Node import | pass | bun test src/platform/mobile.test.ts -t "ISC-117" |
 | ISC-118 | bun-test | server gated on device | pass | bun test src/platform/mobile.test.ts -t "ISC-118" |
 | ISC-119 | bun-test | phone surface filters, phone bar and More sets exclude every desktop-only control | pass (348/348, 2026-11-05) | bun test src/platform/mobile.test.ts -t "ISC-119" |
