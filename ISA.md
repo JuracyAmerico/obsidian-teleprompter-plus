@@ -356,6 +356,11 @@ Found in Américo's own test run, 2026-11-05 (steps 2, 3, 7, 8):
 | ISC-122 | manual | three sentences, no tap | heard | Américo's iPhone, TP Probe vault |
 | ISC-124 | bun-test | phone page layout | pass | bun test src/platform/mobile.test.ts -t "ISC-124" |
 | ISC-125 | bun-test | phone controls at the bottom, clear of status bar and navbar | pass | bun test src/platform/mobile.test.ts -t "ISC-125" |
+| ISC-126 | bun-test | every isMacOS check in the engines also requires Node (red on old code, green on new) | pass | bun test src/platform/mobile.test.ts -t "ISC-126" |
+| ISC-129 | manual | notice when voice is off | the Notice call sits in toggleVoiceTracking's disabled branch; no test drives the Svelte component | read src/TeleprompterApp.svelte toggleVoiceTracking |
+| ISC-130 | bun-test | glide time equal at 60 and 120 Hz, stalled frame bounded | pass | bun test src/voice/follow-easing.test.ts |
+| ISC-131 | bun-test | phone toolbar choices, play/pause kept, desktop untouched | pass | bun test src/platform/mobile.test.ts -t "ISC-131" |
+| ISC-11 | manual | retired criterion, kept for history | superseded by ISC-68, which made the claim true; nothing left to assert | none |
 | ISC-123 | manual | Mac still works | opens, speaks, voice starts | Obsidian CLI on the Mac |
 | ANTI-1 | bun-test | exit leaves the window clickable | pass | bun test src/floating/floating-window.test.ts -t "click-through" |
 | ANTI-2 | bash | no hidden-from-share promise | exit 1 | rg -q -i "hidden from screen" README.md |
