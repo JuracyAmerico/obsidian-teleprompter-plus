@@ -7,6 +7,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.12.1] - 2026-11-25
+
+### Added
+- **Jump to Section follows you.** While you read, the list scrolls to the section you are in and keeps the next few titles in view. Scroll the list yourself and it waits a few seconds before following again.
+- **Pronunciations.** A list in settings replaces whole words before they are spoken, in every read-aloud engine. The text on screen never changes.
+- **ElevenLabs stability and similarity** are now settings. The defaults keep the old sound.
+
+### Changed
+- **Compact progress row.** Percent, time left and word count share one line, so the section list has room for more titles.
+- **Clearer current section.** The section you are in has a stronger fill and a marker, readable from teleprompter distance.
+- **The note follows to the top.** When the prompter enters a section, the note pane puts that heading at the top instead of the middle.
+- **Read-aloud language** comes from the note's properties, then your setting, then the script itself.
+- **Read-aloud says things the way people do:** money with currency and K/M/B suffixes, Canadian province codes, months, e-mail addresses, phone numbers and job numbers. Links keep their text, and a line break is a short pause.
+
+### Fixed
+- **Section clicks reach the floating window.** Clicking a title in the main window's list now moves the floating window (and the Elgato Prompter) too. Inside the floating window, every section jump used to be ignored.
+- **Choosing a read-aloud voice** changes the next ElevenLabs sentence and is saved as the ElevenLabs voice. Engine, key and voice changes apply at the next start, with no reopen.
+- **Voice tracking glides at the same speed** on 60 Hz and 120 Hz screens.
+
 ## [0.12.0] - 2026-11-05
 
 ### Added
