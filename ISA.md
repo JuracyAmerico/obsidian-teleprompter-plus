@@ -494,6 +494,7 @@ acceptance: pass 2026-10-30 (all four runtime checks; mic-blocked Notice + Retry
 
 ## Changelog
 
+- 2026-11-25: release 0.12.1 on Américo's word ("publish a new release of teleprompter plus"): ISC-134..138 plus the read-aloud work (ISC-94..107) and the 120 Hz glide fix. manifest stays isDesktopOnly true, so the mobile work ships dormant; flipping it remains its own release decision.
 - 2026-11-25: ISC-138 added and ticked. Two causes: the main view's list click never left the main view (now forwarded, with the title, since header ids are per-instance ordinals), and in a pop-out the header map stayed empty because `instanceof HTMLElement` rejects pop-out-realm headings (1 of 25 passed; Fable's diagnosis). Fixed by dropping the class check; wiring test guards both. Live on the Elgato: Cloud, then SQL.
 - 2026-11-25: ISC-137 added and ticked (section sync puts the heading at the top of the note pane; Américo: "can the head line show on the top instead of the middle"). First try forgot Obsidian's inline title and properties offset (~320 px) and still centred; fixed with documentTop. Live: heading 29 px below an 834 px pane top. Commit a482817.
 - 2026-11-25: ISC-134..136 ticked: built, 14 unit tests, checked live in Obsidian on the GuruLink script. The marker is drawn on the row, not the title button, because his vault snippet teleprompter-jump-readable numbers titles with ::before and fills the active one with the accent colour.
