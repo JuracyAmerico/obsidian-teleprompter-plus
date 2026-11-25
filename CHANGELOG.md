@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.12.4] - 2026-11-25
+
 ### Fixed
 - **Read-aloud moves the floating window.** Starting read-aloud from the main window (the button, or a right-click in Jump to Section) while the script floats used to read and scroll the main window while the Elgato Prompter stayed put. It now reads in the floating window, which highlights and scrolls each sentence, and the main window follows.
 
