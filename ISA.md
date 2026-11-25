@@ -493,6 +493,7 @@ acceptance: pass 2026-10-30 (all four runtime checks; mic-blocked Notice + Retry
 
 ## Changelog
 
+- 2026-11-25: ISC-137 added and ticked (section sync puts the heading at the top of the note pane; Américo: "can the head line show on the top instead of the middle"). First try forgot Obsidian's inline title and properties offset (~320 px) and still centred; fixed with documentTop. Live: heading 29 px below an 834 px pane top. Commit a482817.
 - 2026-11-25: ISC-134..136 ticked: built, 14 unit tests, checked live in Obsidian on the GuruLink script. The marker is drawn on the row, not the title button, because his vault snippet teleprompter-jump-readable numbers titles with ::before and fills the active one with the accent colour.
 - 2026-11-25: ISC-134..136 added (Jump to Section follows the reading, compact progress row, stronger current marker; Américo's plan approval "yes, build it after the call").
 - 2026-11-05: ISC-108..114 added, 108..113 ticked (iPhone probe, Américo's "Yes").
