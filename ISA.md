@@ -4,10 +4,10 @@ slug: teleprompter-plus
 project: Teleprompter Plus
 effort: E3
 phase: climbing
-progress: 112/113
+progress: 132/135
 mode: algorithm
 started: 2026-10-29
-updated: 2026-11-05
+updated: 2026-11-25
 ---
 
 ## Ideal State
@@ -207,6 +207,9 @@ Found in Américo's own test run, 2026-11-05 (steps 2, 3, 7, 8):
 - [ ] ISC-127: on a phone every toolbar menu opens upward, above the bar and across the screen, never under Obsidian's navigation bar (Américo, 2026-11-05: "it open below obsidian mobile tool bar"). Source test passes; seen opening upward on the Mac with the phone class at 390 px; open until his iPhone shows it (phone5).
 - [x] ISC-126: on the iPhone, tapping read-aloud leaves idle, highlights the first sentence and speaks it in the system voice. Phone3 stayed idle with no highlight (Américo, 2026-11-05: "when I read it aloud does not move"); the same Web Speech path on the Mac speaks and advances, so the cause is phone-only. Phone4 carries a test-only log (TP_PHONE_LOG=1, src/platform/phone-log.ts) that writes each step to "T+ phone log.md" in the vault. Phone5 log, 21:14: every tap ended in "REJECTION path is not available on this device" from an isAvailable getter: Obsidian on iOS reports Platform.isMacOS true, so Kokoro, macOS Say and the Apple helper passed their Mac guard and reached for Node. Fix: those guards also require native.hasNode(); test fails on the old engines and passes on the new (red-green run). Phone6 shipped. Phone6 log, 21:17: engine Web Speech, 7 sentences prepared, sentence starts 0 to 6 from 42.987 s to 57.310 s with one tap, 1.2 to 3.4 s apart, state playing. ISC-122 stays open for ElevenLabs on the phone, which needs his key entered on the device.
 
+- [x] ISC-134: while he reads, the Jump to Section list scrolls itself so the current section sits about a third from the top with the next titles visible below it; after he scrolls the list by hand it holds still about 5 s before following again; a current section hidden inside a collapsed parent highlights that parent (Américo, 2026-11-25: "I'm in the cloud section but the sections on the jump section still at opening").
+- [x] ISC-135: the progress block above the section list is one compact row (a thin bar plus "67% · ~3 min · 1,230 words"), same data and same rule for when the time shows, leaving the room to section titles (Américo, 2026-11-25: "make more room for the sections titles").
+- [x] ISC-136: the current section in the list is readable from teleprompter distance: a stronger fill than hover and a triangle marker drawn in CSS, no emoji.
 ## Anti-criteria
 
 - ANTI-1: a floating window that cannot be unlocked: no path may start locked or leave the window click-through after `exit()`.
@@ -362,6 +365,9 @@ Found in Américo's own test run, 2026-11-05 (steps 2, 3, 7, 8):
 | ISC-130 | bun-test | glide time equal at 60 and 120 Hz, stalled frame bounded | pass | bun test src/voice/follow-easing.test.ts |
 | ISC-131 | bun-test | phone toolbar choices, play/pause kept, desktop untouched | pass | bun test src/platform/mobile.test.ts -t "ISC-131" |
 | ISC-133 | bun-test | phone column clears header buttons and uses the width | pass (source); runtime on his iPhone open | bun test src/platform/mobile.test.ts -t "ISC-133" |
+| ISC-134 | bun-test | follow target a third down, clamped, pause after manual scroll, collapsed parent | pass (14 tests); live 2026-11-25: prompter at Cloud put the Cloud row 255 px down a 673 px list. The 5 s pause and the collapsed-parent case are proven by unit test only | bun test src/nav-follow.test.ts |
+| ISC-135 | manual | compact progress row in the live panel | pass: one row "67% · ~3 min · 1,279 words", block 36 px tall (was about 100) | screenshot of the panel in Obsidian, 2026-11-25 |
+| ISC-136 | manual | active title marked and filled | pass: triangle in the gutter, title number kept, with his teleprompter-jump-readable snippet on | screenshot of the panel in Obsidian, 2026-11-25 |
 | ISC-11 | manual | retired criterion, kept for history | superseded by ISC-68, which made the claim true; nothing left to assert | none |
 | ISC-123 | manual | Mac still works | opens, speaks, voice starts | Obsidian CLI on the Mac |
 | ANTI-1 | bun-test | exit leaves the window clickable | pass | bun test src/floating/floating-window.test.ts -t "click-through" |
@@ -485,6 +491,8 @@ acceptance: pass 2026-10-30 (all four runtime checks; mic-blocked Notice + Retry
 
 ## Changelog
 
+- 2026-11-25: ISC-134..136 ticked: built, 14 unit tests, checked live in Obsidian on the GuruLink script. The marker is drawn on the row, not the title button, because his vault snippet teleprompter-jump-readable numbers titles with ::before and fills the active one with the accent colour.
+- 2026-11-25: ISC-134..136 added (Jump to Section follows the reading, compact progress row, stronger current marker; Américo's plan approval "yes, build it after the call").
 - 2026-11-05: ISC-108..114 added, 108..113 ticked (iPhone probe, Américo's "Yes").
 - 2026-11-05: ISC-94..107 added and ticked (read-aloud fixes, Américo's "favor corrigir os issues acima").
 - 2026-10-29: ISA created for release 0.11.9.
