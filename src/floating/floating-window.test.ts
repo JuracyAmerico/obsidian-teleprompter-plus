@@ -241,6 +241,22 @@ describe('FloatingSession', () => {
 		expect(session.active).toBe(false)
 	})
 
+	test('ISC-139: reportSection tells listeners each new section once, only while floating', () => {
+		const session = new FloatingSession()
+		const controller = new FloatingWindowController(fakeWindow(), { isMac: true })
+		const seen: string[] = []
+		const stop = session.onSection(title => seen.push(title))
+		session.reportSection('Opening')
+		session.attach(controller, () => {})
+		session.reportSection('Cloud')
+		session.reportSection('Cloud')
+		session.reportSection('SQL')
+		session.detach(controller)
+		session.reportSection('Close')
+		stop()
+		expect(seen).toEqual(['Cloud', 'SQL'])
+	})
+
 	test('forward reaches the attached view and stops at detach', () => {
 		const session = new FloatingSession()
 		const controller = new FloatingWindowController(fakeWindow(), { isMac: true })
