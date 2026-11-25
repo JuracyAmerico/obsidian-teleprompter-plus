@@ -269,7 +269,11 @@ describe('read-aloud runs in the floating view while a script floats (ISC-144)',
 	})
 
 	test('only the main view forwards, and the floating view resolves a section by its title', () => {
-		expect(functionBody('sendTTSToFloating')).toContain('if (isFloating || !plugin.floatingSession.active) return false')
+		const send = functionBody('sendTTSToFloating')
+		expect(send).toContain('if (isFloating || !plugin.floatingSession.active) return false')
+		// A forwarded stop would reset the floating reading before pause or next arrives
+		expect(send).not.toContain('stopTTS()')
+		expect(send).toContain('ttsService.getState().playbackState')
 		expect(app).toContain("case 'teleprompter:tts-from-section'")
 		expect(app).toContain("'teleprompter:tts-from-section',")
 	})

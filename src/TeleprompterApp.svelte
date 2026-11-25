@@ -3129,7 +3129,13 @@
    */
   function sendTTSToFloating(type: string, detail?: unknown): boolean {
     if (isFloating || !plugin.floatingSession.active) return false
-    if (ttsPlaybackState !== 'idle') stopTTS()
+    // Stop only this view's own service. ttsPlaybackState here mirrors the floating view's, and
+    // the shared stop forwards a stop that reset the floating reading to sentence 1 before the real
+    // command arrived: pause restarted the script, next/previous fell silent (Fable, 2026-11-25).
+    if (ttsService && ttsService.getState().playbackState !== 'idle') {
+      ttsService.stop()
+      clearTTSHighlight()
+    }
     plugin.floatingSession.forward(type, detail)
     return true
   }

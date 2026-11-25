@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- **Pausing read-aloud from the main window pauses it.** In 0.12.4, pause (or next/previous sentence) pressed in the main window while the script floated started the reading over from the first sentence.
+
 ### Added
 - **See-through on the Elgato Prompter.** The floating window's See-through slider now works on the Prompter too, with its own setting (solid by default). Put the call window on the Prompter display, lower the slider, and you see the interviewer behind your script while looking into the camera.
 
