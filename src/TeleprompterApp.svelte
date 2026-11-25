@@ -216,6 +216,7 @@
   })
 
   import type TeleprompterPlusPlugin from './main'
+  import { followScrollTop, mayFollow, progressLine, visibleActiveId } from './nav-follow'
 
   let { app, plugin, ownerDocument, ownerWindow }: {
     app: ObsidianApp,
@@ -1903,6 +1904,27 @@
   // Extract headers from rendered HTML (after marked.js processing)
   // This state is updated after markdown rendering
   let headersList = $state<Array<{ level: number; text: string; id: string; parentId?: string; hasChildren: boolean }>>([])
+  // ISC-134: the section list follows the reading; a hand scroll of the list pauses that for a few seconds
+  let navItemsEl = $state<HTMLElement | null>(null)
+  let lastNavManualScrollAt = 0
+  const navHighlightId = $derived(visibleActiveId(headersList, currentHeaderIndex, collapsedHeaders))
+  function markNavManualScroll() { lastNavManualScrollAt = Date.now() }
+  $effect(() => {
+    const id = navHighlightId
+    const list = navItemsEl
+    if (!id || !list || !showNavigation) return
+    if (!mayFollow(Date.now(), lastNavManualScrollAt)) return
+    const item = list.querySelector<HTMLElement>(`[data-nav-id="${CSS.escape(id)}"]`)
+    if (!item) return
+    const top = followScrollTop({
+      itemTop: item.getBoundingClientRect().top - list.getBoundingClientRect().top + list.scrollTop,
+      itemHeight: item.offsetHeight,
+      viewHeight: list.clientHeight,
+      contentHeight: list.scrollHeight,
+      scrollTop: list.scrollTop,
+    })
+    if (top !== null) list.scrollTo({ top, behavior: 'smooth' })
+  })
 
   // Helper function to extract headers from DOM
   function extractHeadersFromDOM() {
@@ -6765,37 +6787,28 @@
           <strong>Jump to Section</strong>
         </div>
 
-        <!-- Progress Summary inside navigation panel -->
-        <div class="nav-progress-summary">
-          <!-- Progress bar -->
-          <div class="nav-progress-bar-container">
+        <!-- Progress summary: one compact row, so the section titles get the room (ISC-135) -->
+        <div class="nav-progress-summary" title="Progress, time remaining and word count">
+          <div class="nav-progress-bar-container" aria-hidden="true">
             <div class="nav-progress-bar-fill" style="width: {scrollPercentage}%"></div>
-            <span class="nav-progress-percentage">{scrollPercentage}%</span>
           </div>
-
-          <!-- Time info -->
-          {#if showTimeEstimation && targetSeconds === null && estimatedRemainingMinutes > 0}
-            <div class="nav-progress-time">
-              <span class="nav-progress-time-label">Est. remaining:</span>
-              <span class="nav-progress-time-value">
-                {estimatedRemainingMinutes < 1 ? '< 1 min' : `~${Math.round(estimatedRemainingMinutes)} min`}
-              </span>
-            </div>
-          {/if}
-
-          <!-- Total words -->
-          {#if totalWordCount > 0}
-            <div class="nav-progress-words">
-              <span class="nav-progress-words-label">Words:</span>
-              <span class="nav-progress-words-value">{totalWordCount.toLocaleString()}</span>
-            </div>
-          {/if}
+          <span class="nav-progress-line">{progressLine(
+            scrollPercentage,
+            showTimeEstimation && targetSeconds === null && estimatedRemainingMinutes > 0 ? estimatedRemainingMinutes : null,
+            totalWordCount
+          )}</span>
         </div>
 
-        <div class="nav-items">
-          {#each headers() as header, index}
+        <!-- svelte-ignore a11y_no_static_element_interactions -->
+        <div
+          class="nav-items"
+          bind:this={navItemsEl}
+          onwheel={markNavManualScroll}
+          ontouchmove={markNavManualScroll}
+        >
+          {#each headers() as header}
             {#if isHeaderVisible(header)}
-              <div class="nav-item-wrapper level-{header.level}" class:active={index === currentHeaderIndex}>
+              <div class="nav-item-wrapper level-{header.level}" class:active={header.id === navHighlightId} data-nav-id={header.id}>
                 {#if header.hasChildren}
                   <button
                     class="collapse-toggle"
@@ -6811,7 +6824,8 @@
                 {/if}
                 <button
                   class="nav-item"
-                  class:active={index === currentHeaderIndex}
+                  class:active={header.id === navHighlightId}
+                  aria-current={header.id === navHighlightId ? 'location' : undefined}
                   onclick={() => jumpToHeader(header.id)}
                   oncontextmenu={(e) => { e.preventDefault(); void startTTSFromSection(header.id) }}
                   title="Click: jump to section | Right-click: read from here"
@@ -7754,21 +7768,22 @@
   }
 
   /* Navigation Progress Summary */
+  /* ISC-135: one compact row, so the titles below get the room */
   .nav-progress-summary {
-    padding: 12px 16px;
+    padding: 6px 12px;
     background: var(--background-secondary);
     border-bottom: 1px solid var(--background-modifier-border);
     display: flex;
     flex-direction: column;
-    gap: 8px;
+    gap: 4px;
     flex-shrink: 0;
   }
 
   .nav-progress-bar-container {
     position: relative;
-    height: 24px;
+    height: 4px;
     background: var(--background-modifier-border);
-    border-radius: 12px;
+    border-radius: 2px;
     overflow: hidden;
   }
 
@@ -7778,42 +7793,17 @@
     top: 0;
     bottom: 0;
     background: var(--interactive-accent);
-    border-radius: 12px;
+    border-radius: 2px;
     transition: width 0.2s ease-out;
-    opacity: 0.8;
   }
 
-  .nav-progress-percentage {
-    position: absolute;
-    left: 50%;
-    top: 50%;
-    transform: translate(-50%, -50%);
-    font-size: 0.75rem;
-    font-weight: 700;
-    color: var(--text-normal);
-    font-family: 'SF Mono', 'Monaco', 'Consolas', monospace;
-    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
-    z-index: 1;
-  }
-
-  .nav-progress-time,
-  .nav-progress-words {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    font-size: 0.75rem;
-  }
-
-  .nav-progress-time-label,
-  .nav-progress-words-label {
+  .nav-progress-line {
+    font-size: 0.72rem;
     color: var(--text-muted);
-  }
-
-  .nav-progress-time-value,
-  .nav-progress-words-value {
-    font-weight: 600;
-    color: var(--text-normal);
     font-family: 'SF Mono', 'Monaco', 'Consolas', monospace;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
 
   .nav-items {
@@ -7887,17 +7877,35 @@
     background: var(--background-modifier-hover);
   }
 
-  /* Active navigation item - currently visible section */
+  /* ISC-136: the current section reads from teleprompter distance: strong fill, CSS triangle marker, no emoji.
+     The marker sits on the row, in the gutter left of the title, so a vault snippet that restyles the title
+     button (its own fill, padding or numbering) cannot hide it or push it over the text. */
   .nav-item.active {
-    background: rgba(var(--interactive-accent-rgb), 0.15);
-    color: var(--interactive-accent);
-    font-weight: 600;
+    background: rgba(var(--interactive-accent-rgb), 0.32);
+    color: var(--text-normal);
+    font-weight: 700;
     border-left-color: var(--interactive-accent);
-    box-shadow: 0 0 0 1px rgba(var(--interactive-accent-rgb), 0.2);
+    box-shadow: 0 0 0 1px rgba(var(--interactive-accent-rgb), 0.45);
+  }
+
+  .nav-item-wrapper {
+    position: relative;
+  }
+
+  .nav-item-wrapper.active::before {
+    content: '';
+    position: absolute;
+    left: 2px;
+    top: 50%;
+    transform: translateY(-50%);
+    border-top: 0.42rem solid transparent;
+    border-bottom: 0.42rem solid transparent;
+    border-left: 0.6rem solid var(--interactive-accent);
+    pointer-events: none;
   }
 
   .nav-item.active:hover {
-    background: rgba(var(--interactive-accent-rgb), 0.25);
+    background: rgba(var(--interactive-accent-rgb), 0.4);
   }
 
   .nav-item-wrapper.level-1 .nav-item {
