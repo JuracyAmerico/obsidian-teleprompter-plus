@@ -210,6 +210,7 @@ export interface TeleprompterSettings {
 	floatingPrompterSeeThrough: number // 30-100 percent on the Prompter; 100 = solid
 	floatingHideFromShare: boolean     // Ask macOS to keep the floating window out of screen capture
 	floatingBounds: { x: number; y: number; width: number; height: number } | null
+	floatingPrompterSize: { width: number; height: number } | null  // kept size on the Prompter, centred; null fills it
 	floatingPreferPrompter: boolean    // Open on an Elgato Prompter when one is connected
 	// Progress indicator style
 	progressIndicatorStyle: 'progress-bar' | 'scrollbar' | 'none'
@@ -264,6 +265,7 @@ export const DEFAULT_SETTINGS: TeleprompterSettings = {
 	floatingPrompterSeeThrough: 100,
 	floatingHideFromShare: false,
 	floatingBounds: null,
+	floatingPrompterSize: null,
 	floatingPreferPrompter: true,
 	// Network Broadcast defaults
 	networkBroadcastEnabled: false,

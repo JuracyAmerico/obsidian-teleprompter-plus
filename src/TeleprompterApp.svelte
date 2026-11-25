@@ -29,6 +29,7 @@
   import {
     canFloat,
     clampSeeThrough,
+    centeredOnPrompter,
     connectedDisplays,
     electronWindowOf,
     findPrompterDisplay,
@@ -3834,6 +3835,7 @@
         savedBounds: plugin.settings.floatingBounds,
         seeThroughPercent: floatingSeeThrough,
         prompterSeeThroughPercent: floatingPrompterSeeThrough,
+        prompterSize: plugin.settings.floatingPrompterSize,
       })
       floatingOnPrompter = placement.onPrompter
       floatingHasPrompter = findPrompterDisplay(displays) !== null
@@ -3896,6 +3898,7 @@
       savedBounds: plugin.settings.floatingBounds,
       seeThroughPercent: floatingSeeThrough,
       prompterSeeThroughPercent: floatingPrompterSeeThrough,
+        prompterSize: plugin.settings.floatingPrompterSize,
     })
     floatingOnPrompter = placement.onPrompter
     floatingController.setSeeThrough(placement.seeThroughPercent)
@@ -3918,12 +3921,30 @@
   }
 
   function saveFloatingBounds() {
-    // The Prompter is always filled, so being there says nothing about the main-screen position.
-    if (floatingOnPrompter) return
+    // On the Prompter only the size is kept, and the window is put back in the centre (ISC-146).
+    // Being there says nothing about the main-screen position.
+    if (floatingOnPrompter) {
+      keepPrompterSizeCentered()
+      return
+    }
     const bounds = floatingController?.currentBounds()
     if (!bounds || JSON.stringify(bounds) === JSON.stringify(plugin.settings.floatingBounds)) return
     plugin.settings.floatingBounds = bounds
     void plugin.saveSettings()
+  }
+
+  function keepPrompterSizeCentered() {
+    const bounds = floatingController?.currentBounds()
+    const prompter = findPrompterDisplay(connectedDisplays())
+    if (!bounds || !prompter) return
+    const size = { width: bounds.width, height: bounds.height }
+    const saved = plugin.settings.floatingPrompterSize
+    if (!saved || saved.width !== size.width || saved.height !== size.height) {
+      plugin.settings.floatingPrompterSize = size
+      void plugin.saveSettings()
+    }
+    const centred = centeredOnPrompter(prompter.bounds, size)
+    if (centred.x !== bounds.x || centred.y !== bounds.y) floatingController?.moveTo(centred)
   }
 
   function endFloating() {
