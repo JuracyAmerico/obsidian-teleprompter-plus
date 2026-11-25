@@ -1585,15 +1585,16 @@
           headerElements.clear()
 
           // Query all headers with data-header-id attribute
-          const headers = contentArea.querySelectorAll('[data-header-id]')
+          const headers = contentArea.querySelectorAll<HTMLElement>('[data-header-id]')
 
-          // Batch DOM operations for better performance
+          // Batch DOM operations for better performance. No class check on HTMLElement here: in a
+          // pop-out (the Elgato floating window) the headings belong to that window's realm and
+          // fail the main window's class check, which left this map empty and dropped every
+          // section jump there (Fable's diagnosis, 2026-11-25, ISC-138: 1 of 25 headings passed).
           const newHeaderElements = new Map()
           headers.forEach((element) => {
             const headerId = element.getAttribute('data-header-id')
-            if (headerId && element instanceof HTMLElement) {
-              newHeaderElements.set(headerId, element)
-            }
+            if (headerId) newHeaderElements.set(headerId, element)
           })
           headerElements = newHeaderElements
 
@@ -4365,11 +4366,17 @@
           }
         }
         break
-      case 'teleprompter:jump-to-header-by-id':
-        if (customEvent.detail?.headerId) {
-          jumpToHeader(customEvent.detail.headerId)
-        }
+      case 'teleprompter:jump-to-header-by-id': {
+        // Header ids are render ordinals and differ between the main and the floating view
+        // (live 2026-11-25: main "header-16" was Cloud, the floating one opened Opening), so a
+        // title sent along wins over the id.
+        const byText = customEvent.detail?.text
+          ? headers().find(h => h.text === customEvent.detail.text)
+          : undefined
+        if (byText) jumpToHeader(byText.id)
+        else if (customEvent.detail?.headerId) jumpToHeader(customEvent.detail.headerId)
         break
+      }
       case 'teleprompter:toggle-navigation':
         toggleNavigation()
         break
@@ -5437,6 +5444,20 @@
     if (!span) return -1
     const idx = parseInt(span.dataset.wordIndex ?? '', 10)
     return Number.isNaN(idx) ? -1 : idx
+  }
+
+  /**
+   * A click in the Jump to Section list. While a script floats, the floating view is the one
+   * being read (on the Elgato Prompter), so it must jump too; commands already reach it through
+   * handleWebSocketEvent, but this click called jumpToHeader directly and never left the main
+   * view (Américo, 2026-11-25, ISC-138). Both views share the note, so header ids match.
+   */
+  function jumpFromNavigation(headerId: string) {
+    if (!isFloating && plugin.floatingSession.active) {
+      const text = headers().find(h => h.id === headerId)?.text
+      plugin.floatingSession.forward('teleprompter:jump-to-header-by-id', { headerId, text })
+    }
+    jumpToHeader(headerId)
   }
 
   function jumpToHeader(headerId: string) {
@@ -6842,7 +6863,7 @@
                   class="nav-item"
                   class:active={header.id === navHighlightId}
                   aria-current={header.id === navHighlightId ? 'location' : undefined}
-                  onclick={() => jumpToHeader(header.id)}
+                  onclick={() => jumpFromNavigation(header.id)}
                   oncontextmenu={(e) => { e.preventDefault(); void startTTSFromSection(header.id) }}
                   title="Click: jump to section | Right-click: read from here"
                 >

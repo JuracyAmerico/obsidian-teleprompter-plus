@@ -4,7 +4,7 @@ slug: teleprompter-plus
 project: Teleprompter Plus
 effort: E3
 phase: climbing
-progress: 133/136
+progress: 134/137
 mode: algorithm
 started: 2026-10-29
 updated: 2026-11-25
@@ -211,6 +211,7 @@ Found in Américo's own test run, 2026-11-05 (steps 2, 3, 7, 8):
 - [x] ISC-135: the progress block above the section list is one compact row (a thin bar plus "67% · ~3 min · 1,230 words"), same data and same rule for when the time shows, leaving the room to section titles (Américo, 2026-11-25: "make more room for the sections titles").
 - [x] ISC-136: the current section in the list is readable from teleprompter distance: a stronger fill than hover and a triangle marker drawn in CSS, no emoji.
 - [x] ISC-137: when the prompter enters a new section, the note pane scrolls that heading to its top (about 30 px down), not its middle; double-click-to-edit still centres the cursor (Américo, 2026-11-25: "can the head line show on the top instead of the middle"). Live: heading 29 px below the pane top of 834 px.
+- [x] ISC-138: while a script floats (the Elgato Prompter window), clicking a title in the main view's Jump to Section list moves the floating script to that section too, not only the main view (Américo, 2026-11-25: "the window on the elgato does not move as I click on the jump to section header"). Live: clicks on Cloud, then SQL, put each heading at the top of the Elgato window (screenshots elgato-fix-Cloud/SQL).
 ## Anti-criteria
 
 - ANTI-1: a floating window that cannot be unlocked: no path may start locked or leave the window click-through after `exit()`.
@@ -493,6 +494,7 @@ acceptance: pass 2026-10-30 (all four runtime checks; mic-blocked Notice + Retry
 
 ## Changelog
 
+- 2026-11-25: ISC-138 added and ticked. Two causes: the main view's list click never left the main view (now forwarded, with the title, since header ids are per-instance ordinals), and in a pop-out the header map stayed empty because `instanceof HTMLElement` rejects pop-out-realm headings (1 of 25 passed; Fable's diagnosis). Fixed by dropping the class check; wiring test guards both. Live on the Elgato: Cloud, then SQL.
 - 2026-11-25: ISC-137 added and ticked (section sync puts the heading at the top of the note pane; Américo: "can the head line show on the top instead of the middle"). First try forgot Obsidian's inline title and properties offset (~320 px) and still centred; fixed with documentTop. Live: heading 29 px below an 834 px pane top. Commit a482817.
 - 2026-11-25: ISC-134..136 ticked: built, 14 unit tests, checked live in Obsidian on the GuruLink script. The marker is drawn on the row, not the title button, because his vault snippet teleprompter-jump-readable numbers titles with ::before and fills the active one with the accent colour.
 - 2026-11-25: ISC-134..136 added (Jump to Section follows the reading, compact progress row, stronger current marker; Américo's plan approval "yes, build it after the call").
