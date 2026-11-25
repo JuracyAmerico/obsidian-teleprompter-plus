@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **See-through on the Elgato Prompter.** The floating window's See-through slider now works on the Prompter too, with its own setting (solid by default). Put the call window on the Prompter display, lower the slider, and you see the interviewer behind your script while looking into the camera.
+
 ## [0.12.4] - 2026-11-25
 
 ### Fixed

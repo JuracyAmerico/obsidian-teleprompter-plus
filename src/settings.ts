@@ -207,6 +207,7 @@ export interface TeleprompterSettings {
 	elevenLabsSimilarity: number       // How closely to hold to the original voice
 	// Floating window: how opaque it is, and where it was last
 	floatingSeeThrough: number         // 30-100 percent
+	floatingPrompterSeeThrough: number // 30-100 percent on the Prompter; 100 = solid
 	floatingHideFromShare: boolean     // Ask macOS to keep the floating window out of screen capture
 	floatingBounds: { x: number; y: number; width: number; height: number } | null
 	floatingPreferPrompter: boolean    // Open on an Elgato Prompter when one is connected
@@ -260,6 +261,7 @@ export const DEFAULT_SETTINGS: TeleprompterSettings = {
 	showConnectionNotifications: true,
 	// Floating window defaults
 	floatingSeeThrough: 85,
+	floatingPrompterSeeThrough: 100,
 	floatingHideFromShare: false,
 	floatingBounds: null,
 	floatingPreferPrompter: true,
