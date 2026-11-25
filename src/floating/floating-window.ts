@@ -86,12 +86,18 @@ export interface FloatingPlacement {
  */
 export function floatingPlacement(
 	displays: DisplayInfo[],
-	preferences: { preferPrompter: boolean; savedBounds: WindowBounds | null | undefined; seeThroughPercent: number; prompterSeeThroughPercent?: number }
+	preferences: {
+		preferPrompter: boolean
+		savedBounds: WindowBounds | null | undefined
+		seeThroughPercent: number
+		prompterSeeThroughPercent?: number
+		prompterSize?: { width: number; height: number } | null
+	}
 ): FloatingPlacement {
 	const prompter = preferences.preferPrompter ? findPrompterDisplay(displays) : null
 	if (prompter) {
 		return {
-			bounds: prompter.bounds,
+			bounds: centeredOnPrompter(prompter.bounds, preferences.prompterSize),
 			onPrompter: true,
 			seeThroughPercent: clampSeeThrough(preferences.prompterSeeThroughPercent ?? MAX_SEE_THROUGH_PERCENT),
 		}
@@ -100,6 +106,26 @@ export function floatingPlacement(
 		bounds: restorableBounds(preferences.savedBounds, displays.map(display => display.bounds)),
 		onPrompter: false,
 		seeThroughPercent: clampSeeThrough(preferences.seeThroughPercent),
+	}
+}
+
+/**
+ * The window on the Prompter: the size the reader left it at, centred on the Prompter, or the whole
+ * Prompter when no size was kept (Américo, 2026-11-25: "keep the floating window at that size I'm now
+ * and centered", ISC-146). A size larger than the Prompter is capped to it.
+ */
+export function centeredOnPrompter(
+	display: WindowBounds,
+	size: { width: number; height: number } | null | undefined
+): WindowBounds {
+	if (!size || !(size.width > 0) || !(size.height > 0)) return display
+	const width = Math.min(Math.round(size.width), display.width)
+	const height = Math.min(Math.round(size.height), display.height)
+	return {
+		x: display.x + Math.round((display.width - width) / 2),
+		y: display.y + Math.round((display.height - height) / 2),
+		width,
+		height,
 	}
 }
 

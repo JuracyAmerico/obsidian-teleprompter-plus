@@ -1,5 +1,6 @@
 import { describe, expect, test } from 'bun:test'
 import {
+	centeredOnPrompter,
 	canFloat,
 	clampSeeThrough,
 	electronWindowOf,
@@ -346,3 +347,17 @@ function fakeWindowForHideTest() {
 		setBackgroundThrottling() {}, getBounds: () => ({ x: 0, y: 0, width: 10, height: 10 }), setBounds() {},
 	}
 }
+
+describe('Prompter size kept and centred (ISC-146)', () => {
+	const display = { x: 312, y: -570, width: 1024, height: 570 }
+	test('no kept size fills the Prompter', () => {
+		expect(centeredOnPrompter(display, null)).toEqual(display)
+	})
+	test('a kept size is centred on the Prompter', () => {
+		expect(centeredOnPrompter(display, { width: 764, height: 570 })).toEqual({ x: 442, y: -570, width: 764, height: 570 })
+		expect(centeredOnPrompter(display, { width: 600, height: 400 })).toEqual({ x: 524, y: -485, width: 600, height: 400 })
+	})
+	test('a size larger than the Prompter is capped to it', () => {
+		expect(centeredOnPrompter(display, { width: 3000, height: 900 })).toEqual(display)
+	})
+})
