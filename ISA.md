@@ -500,6 +500,7 @@ acceptance: pass 2026-10-30 (all four runtime checks; mic-blocked Notice + Retry
 
 ## Changelog
 
+- 2026-11-25: release 0.12.2 on Américo's word ("publish 0.12.2 now"): ISC-139 to ISC-142, the main window follows the floating window. Not yet tried with his real voice.
 - 2026-11-25: ISC-142 added and ticked: the main view glides with the floating script. The floating view reports a fractional word position on every scroll event (throttle and trailing timer gone); the main view eases toward it on its own window's frames, from a cached line table smoothed over 6 words. The mirror no longer uses isProgrammaticJump; the main view's own scroll skips the section recompute while a script floats. Live probe: maxStep 68 to 1-2 px, worstStall 68 to 1-2 frames.
 - 2026-11-25: ISC-141 added and ticked: the floating view reports a passage anchor from its scroll handler (throttled to 150 ms plus a trailing report), and the main view resolves it in its own words and scrolls it to its eyeline. The ISC-140 section scroll was removed so the two cannot fight.
 - 2026-11-25: ISC-140 added and ticked: followFloatingSection also scrolls the main script to the section heading with a plain scroll under isProgrammaticJump, never jumpToHeader (which pauses and re-anchors voice).
