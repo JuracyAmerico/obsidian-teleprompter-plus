@@ -305,6 +305,24 @@ export class FloatingSession {
 		return () => this.sectionListeners.delete(listener)
 	}
 
+	private readonly positionListeners = new Set<(anchor: PassageAnchor) => void>()
+
+	/**
+	 * The floating view reports the word at its eyeline, so the main view's script can mirror it
+	 * line by line (ISC-141). An anchor, not a pixel offset: the two views differ in width and
+	 * font size, so the same pixel is a different line in each.
+	 */
+	reportPosition(anchor: PassageAnchor): void {
+		if (!this.controller) return
+		this.positionListeners.forEach(listener => listener(anchor))
+	}
+
+	/** Returns the function that stops listening. */
+	onPosition(listener: (anchor: PassageAnchor) => void): () => void {
+		this.positionListeners.add(listener)
+		return () => this.positionListeners.delete(listener)
+	}
+
 	get active(): boolean {
 		return this.controller !== null
 	}

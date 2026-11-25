@@ -257,6 +257,22 @@ describe('FloatingSession', () => {
 		expect(seen).toEqual(['Cloud', 'SQL'])
 	})
 
+	test('ISC-141: reportPosition reaches listeners only while floating', () => {
+		const session = new FloatingSession()
+		const controller = new FloatingWindowController(fakeWindow(), { isMac: true })
+		const seen: number[] = []
+		const stop = session.onPosition(anchor => seen.push(anchor.wordIndex))
+		const at = (wordIndex: number) => ({ wordIndex, context: 'a b c', contextStart: wordIndex, fraction: 0 })
+		session.reportPosition(at(1))
+		session.attach(controller, () => {})
+		session.reportPosition(at(5))
+		session.reportPosition(at(9))
+		session.detach(controller)
+		session.reportPosition(at(12))
+		stop()
+		expect(seen).toEqual([5, 9])
+	})
+
 	test('forward reaches the attached view and stops at detach', () => {
 		const session = new FloatingSession()
 		const controller = new FloatingWindowController(fakeWindow(), { isMac: true })

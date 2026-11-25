@@ -4899,6 +4899,7 @@
     syncFloatingSession()
     const stopFloatingSync = plugin.floatingSession.subscribe(syncFloatingSession)
     const stopSectionFollow = plugin.floatingSession.onSection(followFloatingSection)
+    const stopPositionFollow = plugin.floatingSession.onPosition(followFloatingPosition)
 
     // Auto-start playing if setting is enabled
     if (settings.autoStartPlaying) {
@@ -4961,6 +4962,17 @@
     // Add scroll listener to track current section (debounced for performance)
     let scrollTimeout: ReturnType<typeof setTimeout> | null = null
     const handleScroll = () => {
+      // The floating view tells the main view where its reader is, about six times a second
+      // while it moves and once more when it stops (ISC-141).
+      if (isFloating) {
+        const now = Date.now()
+        if (now - lastPositionReport > 150) {
+          lastPositionReport = now
+          reportFloatingPosition()
+        }
+        if (positionReportTimer) clearTimeout(positionReportTimer)
+        positionReportTimer = setTimeout(reportFloatingPosition, 160)
+      }
       if (scrollTimeout) clearTimeout(scrollTimeout)
       scrollTimeout = setTimeout(() => {
         updateCurrentVisibleHeader()
@@ -5268,6 +5280,9 @@
       endFloating()
       stopFloatingSync()
       stopSectionFollow()
+      stopPositionFollow()
+      if (positionReportTimer) clearTimeout(positionReportTimer)
+      if (mirrorReleaseTimer) clearTimeout(mirrorReleaseTimer)
 
       // Cleanup TTS
       if (ttsService) {
@@ -5468,19 +5483,38 @@
     if (index < 0) return
     currentHeaderIndex = index
     currentVisibleHeader = title
-    // The main script follows by section too (ISC-140). A plain scroll, not jumpToHeader: that
-    // one pauses playback and re-anchors voice, and voice lives in the floating view. The flag
-    // keeps this view's own scroll handler from recomputing the section mid-move.
-    const element = headerElements.get(list[index].id)
-    if (element && contentArea) {
-      isProgrammaticJump = true
-      contentArea.scrollTop = Math.max(0, element.offsetTop - contentArea.offsetTop - 50)
-      setTimeout(() => { isProgrammaticJump = false }, 100)
-    }
+    // The main script itself moves line by line in followFloatingPosition (ISC-141); a section
+    // scroll here would fight it.
     if (scrollSyncEnabled && list[index].id !== lastSyncedHeaderId) {
       lastSyncedHeaderId = list[index].id
       syncToEditor(list[index].id)
     }
+  }
+
+  let lastPositionReport = 0
+  let positionReportTimer: ReturnType<typeof setTimeout> | null = null
+  let mirrorReleaseTimer: ReturnType<typeof setTimeout> | null = null
+
+  function reportFloatingPosition() {
+    const anchor = currentPassageAnchor()
+    if (anchor) plugin.floatingSession.reportPosition(anchor)
+  }
+
+  /**
+   * The main script mirrors the floating one: the word at the floating eyeline goes to this
+   * view's eyeline (ISC-141). A plain scroll, never jumpToHeader, which pauses playback and
+   * re-anchors voice; voice lives in the floating view. The flag keeps this view's own scroll
+   * handler from recomputing the section from the mirrored scroll.
+   */
+  function followFloatingPosition(anchor: ReturnType<typeof makeAnchor>) {
+    if (isFloating || !contentArea) return
+    const words = renderedWords(contentArea)
+    if (words.length === 0) return
+    const index = resolveAnchor(anchor, words.map(w => w.value))
+    isProgrammaticJump = true
+    contentArea.scrollTop = scrollTopForWord(contentArea, words, index, readingOffset())
+    if (mirrorReleaseTimer) clearTimeout(mirrorReleaseTimer)
+    mirrorReleaseTimer = setTimeout(() => { isProgrammaticJump = false }, 120)
   }
 
   function jumpFromNavigation(headerId: string) {

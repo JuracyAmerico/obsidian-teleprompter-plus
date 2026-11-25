@@ -185,11 +185,17 @@ describe('commands while floating', () => {
 		expect(fill).not.toMatch(/\binstanceof HTMLElement/)
 	})
 
-	test('ISC-140: the main view scrolls its own script to the floating section without jumpToHeader', () => {
+	test('ISC-141: the main script mirrors the floating reader word by word, never by jumpToHeader', () => {
 		const app = readFileSync(join(import.meta.dir, '..', 'TeleprompterApp.svelte'), 'utf8')
-		const body = app.slice(app.indexOf('function followFloatingSection('), app.indexOf('function jumpFromNavigation('))
-		expect(body).toContain('if (isFloating) return')
-		expect(body).toContain('contentArea.scrollTop = Math.max(0, element.offsetTop - contentArea.offsetTop - 50)')
-		expect(body).not.toContain('jumpToHeader(')
+		const section = app.slice(app.indexOf('function followFloatingSection('), app.indexOf('let lastPositionReport'))
+		expect(section).not.toContain('contentArea.scrollTop =')
+		const mirror = app.slice(app.indexOf('function followFloatingPosition('), app.indexOf('function jumpFromNavigation('))
+		expect(mirror).toContain('if (isFloating || !contentArea) return')
+		expect(mirror).toContain('scrollTopForWord(contentArea, words, index, readingOffset())')
+		expect(mirror).not.toContain('jumpToHeader(')
+		expect(app).toContain('plugin.floatingSession.onPosition(followFloatingPosition)')
+		const scroll = app.slice(app.indexOf('const handleScroll = () => {'), app.indexOf('if (scrollTimeout) clearTimeout(scrollTimeout)'))
+		expect(scroll).toContain('if (isFloating) {')
+		expect(scroll).toContain('reportFloatingPosition()')
 	})
 })
