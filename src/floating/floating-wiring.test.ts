@@ -242,3 +242,19 @@ describe('commands while floating', () => {
 		expect(slice('calculateEyelinePixelPosition()\n          placeAfterRender', 'placeAfterRender = null').length).toBeGreaterThan(0)
 	})
 })
+
+describe('floating view loads the same files as the main view (ISC-143)', () => {
+	test('openFile (floating view and Stream Deck) reads through readScript, with no .md-only filter', () => {
+		const open = functionBody('openFile')
+		expect(open).toContain('readScript(file as TFile)')
+		expect(open).not.toContain("extension === 'md'")
+		expect(functionBody('beginFloating')).toContain('await openFile(request.notePath)')
+	})
+
+	test('the main view reads through the same readScript', () => {
+		expect(functionBody('loadActiveNote')).toContain('readScript(activeFile)')
+		const read = functionBody('readScript')
+		expect(read).toContain("file.extension === 'pdf'")
+		expect(read).toContain('removeYAMLFrontmatter')
+	})
+})

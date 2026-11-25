@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.12.3] - 2026-11-25
+
+### Fixed
+- **The floating window opens .qmd files.** A Quarto (.qmd), text or PDF script that showed in the main window used to leave the floating window (and the Elgato Prompter) empty. Both windows now read files the same way. The Stream Deck open-file button gains the same file types.
+
 ## [0.12.2] - 2026-11-25
 
 ### Added

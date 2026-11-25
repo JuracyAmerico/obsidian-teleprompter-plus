@@ -1624,6 +1624,28 @@
     }
   })
 
+  /**
+   * Read any file the teleprompter can show (.md, .qmd, .txt, PDF) as script text. The main view
+   * and the floating view both load through here, so they accept the same files: on 2026-11-25 a
+   * .qmd showed in the main view and the floating (Elgato) view stayed empty, because the floating
+   * view's own loader only took .md.
+   */
+  async function readScript(file: TFile): Promise<{ content: string; linesRemoved: number }> {
+    if (file.extension === 'pdf') {
+      const pdfText = await extractPDFText(file.path)
+      if (pdfText) {
+        debugLog(`[PDF] Extracted text from ${file.basename}`)
+        return { content: pdfText, linesRemoved: 0 }
+      }
+      return {
+        content: `# ${file.basename}\n\nPDF text extraction requires \`pdftotext\` (poppler).\n\nInstall with: \`brew install poppler\``,
+        linesRemoved: 0,
+      }
+    }
+    const result = removeYAMLFrontmatter(await app.vault.read(file))
+    return { content: removeReferencesSection(result.content), linesRemoved: result.linesRemoved }
+  }
+
   // Load content from active note
   function loadActiveNote() {
     // If note is pinned, don't auto-update
@@ -1641,32 +1663,15 @@
       // Remember where the current note was left BEFORE switching
       if (!isSameFile) saveNotePosition()
 
-      const isPDF = activeFile.extension === 'pdf'
-
       const loadContent = async () => {
-        if (isPDF) {
-          // Extract text from PDF using pdftotext
-          const pdfText = await extractPDFText(newPath)
-          if (pdfText) {
-            content = pdfText
-            yamlLineOffset = 0
-            debugLog(`[PDF] Extracted text from ${activeFile.basename}`)
-          } else {
-            content = `# ${activeFile.basename}\n\nPDF text extraction requires \`pdftotext\` (poppler).\n\nInstall with: \`brew install poppler\``
-            yamlLineOffset = 0
-          }
-        } else {
-          const fileContent = await app.vault.read(activeFile)
-          const result = removeYAMLFrontmatter(fileContent)
-          const nextContent = removeReferencesSection(result.content)
-          // Coming back to the same note must not lose the reader's place if it was edited meanwhile
-          if (isSameFile) {
-            await applyContentKeepingPlace(nextContent, result.linesRemoved)
-            return
-          }
-          content = nextContent
-          yamlLineOffset = result.linesRemoved
+        const script = await readScript(activeFile)
+        // Coming back to the same note must not lose the reader's place if it was edited meanwhile
+        if (isSameFile && activeFile.extension !== 'pdf') {
+          await applyContentKeepingPlace(script.content, script.linesRemoved)
+          return
         }
+        content = script.content
+        yamlLineOffset = script.linesRemoved
 
         currentFileName = activeFile.basename
         currentNotePath = newPath
@@ -3922,14 +3927,13 @@
   async function openFile(filePath: string) {
     debugLog(`[OpenFile] Opening file: ${filePath}`)
     const file = app.vault.getAbstractFileByPath(filePath)
-    if (file && 'extension' in file && file.extension === 'md') {
+    if (file && 'extension' in file) {
       try {
         if (currentNotePath !== filePath) saveNotePosition()
-        const fileContent = await app.vault.read(file as TFile)
-        const result = removeYAMLFrontmatter(fileContent)
-        content = removeReferencesSection(result.content)
-        yamlLineOffset = result.linesRemoved
-        currentFileName = file.name.replace('.md', '')
+        const script = await readScript(file as TFile)
+        content = script.content
+        yamlLineOffset = script.linesRemoved
+        currentFileName = (file as TFile).basename
         currentNotePath = filePath
         hasUsedCountdown = false
         await restoreNotePosition(filePath)
@@ -3938,7 +3942,7 @@
         debugLog(`[OpenFile] Error loading file: ${err}`)
       }
     } else {
-      debugLog(`[OpenFile] File not found or not markdown: ${filePath}`)
+      debugLog(`[OpenFile] File not found: ${filePath}`)
     }
   }
 
@@ -5992,7 +5996,7 @@
         maxScroll: scrollableHeight,
         scrollPercentage: currentScrollPercentage,
         currentNote: pinnedNotePath || null,
-        currentNoteTitle: pinnedNotePath?.split('/').pop()?.replace('.md', '') || null,
+        currentNoteTitle: pinnedNotePath?.split('/').pop()?.replace(/\.[^.]+$/, '') || null,
       })
     }, broadcastInterval)
 
