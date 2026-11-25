@@ -79,13 +79,23 @@ export interface FloatingPlacement {
 	seeThroughPercent: number
 }
 
-/** Where the floating window opens. There is nothing behind a Prompter to see through to. */
+/**
+ * Where the floating window opens. On the Prompter it is solid unless the reader chose otherwise:
+ * a call window placed on the Prompter display, under the script, shows through it, so the reader
+ * sees the interviewer while looking into the camera (Américo, 2026-11-25, ISC-145).
+ */
 export function floatingPlacement(
 	displays: DisplayInfo[],
-	preferences: { preferPrompter: boolean; savedBounds: WindowBounds | null | undefined; seeThroughPercent: number }
+	preferences: { preferPrompter: boolean; savedBounds: WindowBounds | null | undefined; seeThroughPercent: number; prompterSeeThroughPercent?: number }
 ): FloatingPlacement {
 	const prompter = preferences.preferPrompter ? findPrompterDisplay(displays) : null
-	if (prompter) return { bounds: prompter.bounds, onPrompter: true, seeThroughPercent: MAX_SEE_THROUGH_PERCENT }
+	if (prompter) {
+		return {
+			bounds: prompter.bounds,
+			onPrompter: true,
+			seeThroughPercent: clampSeeThrough(preferences.prompterSeeThroughPercent ?? MAX_SEE_THROUGH_PERCENT),
+		}
+	}
 	return {
 		bounds: restorableBounds(preferences.savedBounds, displays.map(display => display.bounds)),
 		onPrompter: false,

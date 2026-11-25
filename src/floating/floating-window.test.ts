@@ -188,6 +188,12 @@ describe('Elgato Prompter', () => {
 		expect(placement).toEqual({ bounds: prompter.bounds, onPrompter: true, seeThroughPercent: 100 })
 	})
 
+	test('placement: on the Prompter the reader own see-through applies, clamped, and the main-screen value never leaks in (ISC-145)', () => {
+		expect(floatingPlacement([laptop, prompter], { preferPrompter: true, savedBounds: saved, seeThroughPercent: 60, prompterSeeThroughPercent: 70 }).seeThroughPercent).toBe(70)
+		expect(floatingPlacement([laptop, prompter], { preferPrompter: true, savedBounds: saved, seeThroughPercent: 60, prompterSeeThroughPercent: 5 }).seeThroughPercent).toBe(30)
+		expect(floatingPlacement([laptop], { preferPrompter: true, savedBounds: saved, seeThroughPercent: 60, prompterSeeThroughPercent: 70 }).seeThroughPercent).toBe(60)
+	})
+
 	test('placement: not preferred uses the saved place and see-through', () => {
 		const placement = floatingPlacement([laptop, prompter], { preferPrompter: false, savedBounds: saved, seeThroughPercent: 60 })
 		expect(placement).toEqual({ bounds: saved, onPrompter: false, seeThroughPercent: 60 })

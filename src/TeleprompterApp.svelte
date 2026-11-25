@@ -895,6 +895,7 @@
   let floatingOnPrompter = $state(false)
   let floatingHasPrompter = $state(false)
   let floatingSeeThrough = $state(clampSeeThrough(plugin?.settings?.floatingSeeThrough ?? 85))
+  let floatingPrompterSeeThrough = $state(clampSeeThrough(plugin?.settings?.floatingPrompterSeeThrough ?? 100))
   let floatingHideFromShare = $state(plugin?.settings?.floatingHideFromShare === true)
   let floatingVoiceError = $state<string | null>(null)
   let floatingSessionActive = $state(false)
@@ -3826,6 +3827,7 @@
         preferPrompter: plugin.settings.floatingPreferPrompter ?? true,
         savedBounds: plugin.settings.floatingBounds,
         seeThroughPercent: floatingSeeThrough,
+        prompterSeeThroughPercent: floatingPrompterSeeThrough,
       })
       floatingOnPrompter = placement.onPrompter
       floatingHasPrompter = findPrompterDisplay(displays) !== null
@@ -3887,6 +3889,7 @@
       preferPrompter: plugin.settings.floatingPreferPrompter,
       savedBounds: plugin.settings.floatingBounds,
       seeThroughPercent: floatingSeeThrough,
+      prompterSeeThroughPercent: floatingPrompterSeeThrough,
     })
     floatingOnPrompter = placement.onPrompter
     floatingController.setSeeThrough(placement.seeThroughPercent)
@@ -3930,10 +3933,17 @@
     floatingLocked = false
   }
 
+  /** The slider sets the see-through of the place the window is in: the Prompter keeps its own value. */
   function setFloatingSeeThrough(percent: number) {
-    floatingSeeThrough = clampSeeThrough(percent)
-    floatingController?.setSeeThrough(floatingOnPrompter ? MAX_SEE_THROUGH_PERCENT : floatingSeeThrough)
-    plugin.settings.floatingSeeThrough = floatingSeeThrough
+    const value = clampSeeThrough(percent)
+    if (floatingOnPrompter) {
+      floatingPrompterSeeThrough = value
+      plugin.settings.floatingPrompterSeeThrough = value
+    } else {
+      floatingSeeThrough = value
+      plugin.settings.floatingSeeThrough = value
+    }
+    floatingController?.setSeeThrough(value)
     void plugin.saveSettings()
   }
 
@@ -6070,17 +6080,16 @@
     {:else}
       <div class="tp-floating-bar">
         <button onclick={() => floatingController?.lock()} title="Clicks pass through to the app underneath">Lock</button>
-        <label class="tp-floating-see-through">
-          {#if !floatingOnPrompter}
-            See-through
-            <input
-              type="range"
-              min={MIN_SEE_THROUGH_PERCENT}
-              max={MAX_SEE_THROUGH_PERCENT}
-              value={floatingSeeThrough}
-              oninput={(event) => setFloatingSeeThrough(Number(event.currentTarget.value))}
-            />
-          {/if}
+        <label class="tp-floating-see-through" title={floatingOnPrompter ? 'Lower it to see a call window placed on the Prompter display behind the script' : 'How much of the apps underneath shows through'}>
+          See-through
+          <input
+            type="range"
+            min={MIN_SEE_THROUGH_PERCENT}
+            max={MAX_SEE_THROUGH_PERCENT}
+            value={floatingOnPrompter ? floatingPrompterSeeThrough : floatingSeeThrough}
+            oninput={(event) => setFloatingSeeThrough(Number(event.currentTarget.value))}
+          />
+          <span class="tp-floating-see-through-value">{floatingOnPrompter ? floatingPrompterSeeThrough : floatingSeeThrough}%</span>
         </label>
         <label class="tp-floating-hide-share" title="Asks macOS to leave this window out of screen capture. Measured sharing an entire screen in Zoom, Google Meet in Chrome and Microsoft Teams on macOS 26.5; other versions and apps may differ, so test yours.">
           <input type="checkbox" checked={floatingHideFromShare} onchange={toggleFloatingHideFromShare} />
