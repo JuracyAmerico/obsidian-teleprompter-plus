@@ -2921,6 +2921,9 @@
       phoneLog(`sentence start ${index}`)
       highlightTTSSentence(index)
       scrollToTTSSentence(index)
+      // The other view shows this counter too (the main window while the Elgato reads); without
+      // this it stayed on "1/22" because only play/pause changes were shared (ISC-144).
+      broadcastState({ ttsCurrentSentence: index })
     })
 
     ttsService.onStateChange((state: TTSState) => {
@@ -3116,7 +3119,22 @@
     ttsTotalSentences = allSentences.length
   }
 
+  /**
+   * While a script floats, the floating view is the one being read (on the Elgato Prompter), so
+   * read-aloud must run there: its highlight and scroll move that window. The main view's buttons
+   * and its Jump to Section right-click called the main view's own read-aloud directly, so the main
+   * window read and scrolled while the Elgato stayed on sentence 1 (Américo, 2026-11-25, ISC-144).
+   * Returns true when the command went to the floating view; this view's own read-aloud stops.
+   */
+  function sendTTSToFloating(type: string, detail?: unknown): boolean {
+    if (isFloating || !plugin.floatingSession.active) return false
+    if (ttsPlaybackState !== 'idle') stopTTS()
+    plugin.floatingSession.forward(type, detail)
+    return true
+  }
+
   async function toggleTTS(): Promise<void> {
+    if (sendTTSToFloating('teleprompter:tts-toggle')) return
     phoneLog(`toggleTTS state=${ttsPlaybackState} initialized=${ttsInitialized} engine=${settings.ttsEngine}`)
     // Starting from idle also picks up a voice, model or engine changed in settings
     if (!ttsInitialized || ttsPlaybackState === 'idle') {
@@ -3148,15 +3166,18 @@
   }
 
   function stopTTS(): void {
+    if (!isFloating && plugin.floatingSession.active) plugin.floatingSession.forward('teleprompter:tts-stop')
     ttsService?.stop()
     clearTTSHighlight()
   }
 
   async function ttsNextSentence(): Promise<void> {
+    if (sendTTSToFloating('teleprompter:tts-next-sentence')) return
     await ttsService?.nextSentence()
   }
 
   async function ttsPrevSentence(): Promise<void> {
+    if (sendTTSToFloating('teleprompter:tts-prev-sentence')) return
     await ttsService?.previousSentence()
   }
 
@@ -4805,6 +4826,14 @@
       case 'teleprompter:tts-stop':
         stopTTS()
         break
+      case 'teleprompter:tts-from-section': {
+        const byText = customEvent.detail?.text
+          ? headers().find(h => h.text === customEvent.detail.text)
+          : undefined
+        const id = byText?.id ?? customEvent.detail?.headerId
+        if (id) void startTTSFromSection(id)
+        break
+      }
       case 'teleprompter:tts-next-sentence':
         void ttsNextSentence()
         break
@@ -5206,6 +5235,7 @@
       // TTS events
       'teleprompter:tts-toggle',
       'teleprompter:tts-stop',
+      'teleprompter:tts-from-section',
       'teleprompter:tts-next-sentence',
       'teleprompter:tts-prev-sentence',
       'teleprompter:tts-speed-up',
@@ -5736,6 +5766,9 @@
 
   // Start TTS from a specific section (right-click on nav item)
   async function startTTSFromSection(headerId: string): Promise<void> {
+    // Header ids differ between the two views; the title travels with the id (see jump-to-header-by-id)
+    const text = headers().find(h => h.id === headerId)?.text
+    if (sendTTSToFloating('teleprompter:tts-from-section', { headerId, text })) return
     if (!ttsInitialized) {
       await initTTS()
     }

@@ -258,3 +258,19 @@ describe('floating view loads the same files as the main view (ISC-143)', () => 
 		expect(read).toContain('removeYAMLFrontmatter')
 	})
 })
+
+describe('read-aloud runs in the floating view while a script floats (ISC-144)', () => {
+	test('every main-view read-aloud entry point sends itself to the floating view first', () => {
+		expect(functionBody('toggleTTS')).toContain("sendTTSToFloating('teleprompter:tts-toggle')")
+		expect(functionBody('ttsNextSentence')).toContain("sendTTSToFloating('teleprompter:tts-next-sentence')")
+		expect(functionBody('ttsPrevSentence')).toContain("sendTTSToFloating('teleprompter:tts-prev-sentence')")
+		expect(functionBody('startTTSFromSection')).toContain("sendTTSToFloating('teleprompter:tts-from-section', { headerId, text })")
+		expect(functionBody('stopTTS')).toContain("plugin.floatingSession.forward('teleprompter:tts-stop')")
+	})
+
+	test('only the main view forwards, and the floating view resolves a section by its title', () => {
+		expect(functionBody('sendTTSToFloating')).toContain('if (isFloating || !plugin.floatingSession.active) return false')
+		expect(app).toContain("case 'teleprompter:tts-from-section'")
+		expect(app).toContain("'teleprompter:tts-from-section',")
+	})
+})
