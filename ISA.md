@@ -504,6 +504,7 @@ acceptance: pass 2026-10-30 (all four runtime checks; mic-blocked Notice + Retry
 
 ## Changelog
 
+- 2026-11-25: release 0.12.4 on Américo's word ("yes you can publish it"): ISC-144, read-aloud runs in the floating view.
 - 2026-11-25: ISC-144 added and ticked: read-aloud runs in the floating view while a script floats; the main view forwards its read-aloud commands and shares the sentence counter.
 - 2026-11-25: release 0.12.3 on Américo's word ("yes" to fix and release): ISC-143, the floating view opens .qmd, .txt and PDF like the main view.
 - 2026-11-25: release 0.12.2 on Américo's word ("publish 0.12.2 now"): ISC-139 to ISC-142, the main window follows the floating window. Not yet tried with his real voice.
