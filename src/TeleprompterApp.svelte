@@ -43,7 +43,8 @@
   import { resolveControlIcon } from './icon-vocabulary'
   import { onMount, tick, untrack } from 'svelte'
   import { alignWords, makeAnchor, mapWordIndex, resolveAnchor, sourceLineOfWord } from './passage-anchor'
-  import { renderedWords, scrollTopForWord, wordAtPoint, wordAtViewportOffset } from './passage-dom'
+  import { lineTable, positionAtY, renderedWords, scrollTopForWord, wordAtPoint, wordAtViewportOffset, yAtPosition, type LineTable } from './passage-dom'
+  import { followShare, REFERENCE_FRAME_MS } from './voice/follow-easing'
   import { rememberPosition } from './position-memory'
   import { markStageCues } from './parser/stage-cues'
   import { wakeHoldAction } from './wake-hold'
@@ -1606,6 +1607,8 @@
 
         // Recalculate eyeline position after content renders
         getActualWindow().requestAnimationFrame(() => {
+          // New words on screen: the cached line table points at the old ones (ISC-142).
+          passageEpoch++
           calculateEyelinePixelPosition()
           placeAfterRender?.()
           placeAfterRender = null
@@ -2732,6 +2735,8 @@
         // Stop voice tracking (also cancels a start that has not reached 'listening' yet)
         if (voiceTrackingService) {
           voiceTrackingService.stop()
+          // Highlights go and spans may change: the line table is measured again (ISC-142).
+          passageEpoch++
         }
         voiceTrackingActive = false
         voiceTrackingStatus = 'off'
@@ -2860,6 +2865,8 @@
         // Starting only spawns the speech helper. Whether tracking is active is decided by the
         // engine's status callback ('listening'), never assumed here.
         await voiceTrackingService.start()
+        // Voice wrapped every word in a span 2 px wider: wraps can move (ISC-142).
+        passageEpoch++
         debugLog('[Voice] Voice tracking start requested')
       }
     } catch (error) {
@@ -3239,6 +3246,51 @@
     return words.length > 0 ? makeAnchor(words.map(w => w.value), readingWordIndex(words)) : null
   }
 
+  /**
+   * The words of this view and the line each sits on, kept between scroll events: the floating view
+   * reads it on every one and the main view on every report (ISC-142). Rebuilt when the box changes
+   * size, the text reflows, the script is rendered again, or voice wraps or unwraps its word spans,
+   * which widen each word and can move a wrap without changing the height.
+   */
+  interface PassageLayout {
+    epoch: number
+    width: number
+    height: number
+    scrollHeight: number
+    words: ReturnType<typeof renderedWords>
+    values: string[]
+    table: LineTable
+  }
+  let passageEpoch = 0
+  let passageCache: PassageLayout | null = null
+
+  function passageLayout(): PassageLayout | null {
+    if (!contentArea) return null
+    const cached = passageCache
+    if (
+      cached &&
+      cached.epoch === passageEpoch &&
+      cached.width === contentArea.clientWidth &&
+      cached.height === contentArea.clientHeight &&
+      cached.scrollHeight === contentArea.scrollHeight &&
+      // A rewrite the epoch missed replaces the text nodes: words cut loose from the page measure as zero.
+      [0, cached.words.length >> 1, cached.words.length - 1].every(i => cached.words[i]?.node.isConnected ?? true)
+    ) {
+      return cached
+    }
+    const words = renderedWords(contentArea)
+    passageCache = {
+      epoch: passageEpoch,
+      width: contentArea.clientWidth,
+      height: contentArea.clientHeight,
+      scrollHeight: contentArea.scrollHeight,
+      words,
+      values: words.map(w => w.value),
+      table: lineTable(contentArea, words),
+    }
+    return passageCache
+  }
+
   function saveNotePosition(): void {
     if (notePositionTimer) clearTimeout(notePositionTimer)
     notePositionTimer = null
@@ -3341,6 +3393,8 @@
     placeAgainAfterLateContent(place)
     rehearsalStartWordIndex = mapWordIndex(map, rehearsalStartWordIndex, newValues.length)
     voice?.rebind(contentArea, mapWordIndex(map, voiceIndex, newValues.length))
+    // Rebinding wraps the new words in voice spans, after the render's own epoch bump.
+    passageEpoch++
     setTimeout(() => { isProgrammaticJump = false }, 100)
     debugLog(`[LiveRefresh] ${oldValues.length} -> ${newValues.length} words`)
   }
@@ -4895,6 +4949,8 @@
     const syncFloatingSession = () => {
       floatingSessionActive = plugin.floatingSession.active
       floatingSessionLocked = plugin.floatingSession.locked
+      // The floating window closed: nothing is left to mirror (ISC-142).
+      if (!plugin.floatingSession.active) stopMirror()
     }
     syncFloatingSession()
     const stopFloatingSync = plugin.floatingSession.subscribe(syncFloatingSession)
@@ -4962,17 +5018,10 @@
     // Add scroll listener to track current section (debounced for performance)
     let scrollTimeout: ReturnType<typeof setTimeout> | null = null
     const handleScroll = () => {
-      // The floating view tells the main view where its reader is, about six times a second
-      // while it moves and once more when it stops (ISC-141).
-      if (isFloating) {
-        const now = Date.now()
-        if (now - lastPositionReport > 150) {
-          lastPositionReport = now
-          reportFloatingPosition()
-        }
-        if (positionReportTimer) clearTimeout(positionReportTimer)
-        positionReportTimer = setTimeout(reportFloatingPosition, 160)
-      }
+      // The floating view tells the main view where its reader is on every scroll event, so the
+      // main script can glide with it frame by frame (ISC-141, ISC-142). The line table is cached,
+      // so a report costs a binary search, not a walk of the script.
+      if (isFloating) reportFloatingPosition()
       if (scrollTimeout) clearTimeout(scrollTimeout)
       scrollTimeout = setTimeout(() => {
         updateCurrentVisibleHeader()
@@ -4982,6 +5031,10 @@
     }
     if (contentArea) {
       contentArea.addEventListener('scroll', handleScroll, { passive: true })
+      // The reader's own wheel or swipe in the main view wins over the mirror for a moment. Only
+      // user gestures fire these; the mirror's scrollTop writes never do (ISC-142).
+      contentArea.addEventListener('wheel', holdMirror, { passive: true })
+      contentArea.addEventListener('touchmove', holdMirror, { passive: true })
     }
 
     // Load initial font size from plugin settings
@@ -5256,6 +5309,8 @@
 
       if (contentArea) {
         contentArea.removeEventListener('scroll', handleScroll)
+        contentArea.removeEventListener('wheel', holdMirror)
+        contentArea.removeEventListener('touchmove', holdMirror)
       }
 
       // Remove WebSocket event listeners
@@ -5281,8 +5336,7 @@
       stopFloatingSync()
       stopSectionFollow()
       stopPositionFollow()
-      if (positionReportTimer) clearTimeout(positionReportTimer)
-      if (mirrorReleaseTimer) clearTimeout(mirrorReleaseTimer)
+      stopMirror()
 
       // Cleanup TTS
       if (ttsService) {
@@ -5337,8 +5391,11 @@
     // The floating view is the one being read: tell the main view which section it is (ISC-139).
     if (isFloating) plugin.floatingSession.reportSection(currentHeader.text)
     // Update the current header index for next/previous navigation
-    // BUT only if this isn't a programmatic jump (to avoid overriding navigation commands)
-    if (!isProgrammaticJump) {
+    // BUT only if this isn't a programmatic jump (to avoid overriding navigation commands).
+    // While a script floats, the main view's scroll is the mirror's, and the section comes from the
+    // floating view through followFloatingSection; recomputing it here would fight that (ISC-142).
+    const mirroringFloating = !isFloating && plugin.floatingSession.active
+    if (!isProgrammaticJump && !mirroringFloating) {
       currentHeaderIndex = headerList.findIndex(h => h.id === currentHeader.id)
 
       // Scroll synchronization: follow the prompter into each new section. Only on a change of
@@ -5466,12 +5523,6 @@
   }
 
   /**
-   * A click in the Jump to Section list. While a script floats, the floating view is the one
-   * being read (on the Elgato Prompter), so it must jump too; commands already reach it through
-   * handleWebSocketEvent, but this click called jumpToHeader directly and never left the main
-   * view (Américo, 2026-11-25, ISC-138). Both views share the note, so header ids match.
-   */
-  /**
    * The main view mirrors the section the floating view reports: its Jump to Section list
    * highlights and follows it, and the note pane moves with it when scroll sync is on. The main
    * script itself does not scroll, so nothing pauses or re-anchors voice tracking (ISC-139).
@@ -5483,7 +5534,7 @@
     if (index < 0) return
     currentHeaderIndex = index
     currentVisibleHeader = title
-    // The main script itself moves line by line in followFloatingPosition (ISC-141); a section
+    // The main script itself glides in followFloatingPosition (ISC-141, ISC-142); a section
     // scroll here would fight it.
     if (scrollSyncEnabled && list[index].id !== lastSyncedHeaderId) {
       lastSyncedHeaderId = list[index].id
@@ -5491,34 +5542,107 @@
     }
   }
 
-  let lastPositionReport = 0
-  let positionReportTimer: ReturnType<typeof setTimeout> | null = null
-  let mirrorReleaseTimer: ReturnType<typeof setTimeout> | null = null
-
+  /**
+   * Where the floating eyeline is, as a fractional word index in its own lines: the word it is on
+   * plus how far it has moved toward the next line's first word (ISC-142).
+   */
   function reportFloatingPosition() {
-    const anchor = currentPassageAnchor()
-    if (anchor) plugin.floatingSession.reportPosition(anchor)
+    const layout = passageLayout()
+    if (!contentArea || !layout || layout.values.length === 0) return
+    const position = positionAtY(layout.table, contentArea.scrollTop + readingOffset())
+    const word = Math.min(Math.floor(position), layout.values.length - 1)
+    plugin.floatingSession.reportPosition(makeAnchor(layout.values, word), position - word)
+  }
+
+  /** Share of the remaining distance the mirror covers per 60 Hz frame; the same at any refresh rate. */
+  const MIRROR_SHARE = 0.25
+  /** How long the reader's own wheel or swipe in the main view keeps the mirror away. */
+  const MIRROR_HOLD_MS = 2000
+  /** Closer than this, the mirror has arrived and stops asking for frames. */
+  const MIRROR_SETTLE_PX = 0.5
+
+  let mirrorTarget: number | null = null
+  /** Kept as a float between frames: scrollTop rounds, and re-reading it would stall slow glides. */
+  let mirrorPosition = 0
+  let mirrorLastFrame: number | null = null
+  let mirrorFrame: number | null = null
+  let mirrorWindow: Window | null = null
+  let mirrorHeldUntil = 0
+
+  /**
+   * The main script glides to where the floating one is: the same fractional word goes to this
+   * view's eyeline, in this view's own lines (ISC-141, ISC-142). A plain scroll, never
+   * jumpToHeader, which pauses playback and re-anchors voice; voice lives in the floating view.
+   * Every report only moves the target; the frames below move the script.
+   */
+  function followFloatingPosition(anchor: ReturnType<typeof makeAnchor>, within: number) {
+    if (isFloating || !contentArea) return
+    if (Date.now() < mirrorHeldUntil) return
+    const layout = passageLayout()
+    if (!layout || layout.values.length === 0) return
+    const position = resolveAnchor(anchor, layout.values) + within
+    const furthest = Math.max(0, contentArea.scrollHeight - contentArea.clientHeight)
+    mirrorTarget = Math.min(furthest, Math.max(0, yAtPosition(layout.table, position) - readingOffset()))
+    if (mirrorFrame !== null) return
+    mirrorPosition = contentArea.scrollTop
+    mirrorLastFrame = null
+    // This view's own window: a bare requestAnimationFrame belongs to the main window's realm.
+    mirrorWindow = getActualWindow()
+    mirrorFrame = mirrorWindow.requestAnimationFrame(stepMirror)
+  }
+
+  function stepMirror(now: number) {
+    mirrorFrame = null
+    if (!contentArea || mirrorTarget === null || isFloating || !plugin.floatingSession.active) {
+      stopMirror()
+      return
+    }
+    const elapsed = mirrorLastFrame === null ? REFERENCE_FRAME_MS : now - mirrorLastFrame
+    mirrorLastFrame = now
+    const gap = mirrorTarget - mirrorPosition
+    // Far away (a section jump on the Prompter): gliding there would sweep the whole script past.
+    if (Math.abs(gap) > contentArea.clientHeight * 2) mirrorPosition = mirrorTarget
+    else mirrorPosition += gap * followShare(MIRROR_SHARE, elapsed)
+    const arrived = Math.abs(mirrorTarget - mirrorPosition) < MIRROR_SETTLE_PX
+    if (arrived) mirrorPosition = mirrorTarget
+    contentArea.scrollTop = mirrorPosition
+    // The 50 ms scroll debounce never fires while the script keeps moving, so the progress
+    // readouts are set here.
+    scrollPosition = contentArea.scrollTop
+    const scrollable = contentArea.scrollHeight - contentArea.clientHeight
+    scrollPercentage = scrollable > 0 ? Math.round((contentArea.scrollTop / scrollable) * 100) : 0
+    if (arrived) {
+      mirrorTarget = null
+      return
+    }
+    mirrorFrame = (mirrorWindow ?? getActualWindow()).requestAnimationFrame(stepMirror)
+  }
+
+  function stopMirror() {
+    if (mirrorFrame !== null) (mirrorWindow ?? getActualWindow()).cancelAnimationFrame(mirrorFrame)
+    mirrorFrame = null
+    mirrorTarget = null
+    mirrorLastFrame = null
+  }
+
+  /** The reader scrolled the main view by hand: stop gliding, and ignore reports for a moment. */
+  function holdMirror() {
+    if (isFloating || !plugin.floatingSession.active) return
+    stopMirror()
+    mirrorHeldUntil = Date.now() + MIRROR_HOLD_MS
   }
 
   /**
-   * The main script mirrors the floating one: the word at the floating eyeline goes to this
-   * view's eyeline (ISC-141). A plain scroll, never jumpToHeader, which pauses playback and
-   * re-anchors voice; voice lives in the floating view. The flag keeps this view's own scroll
-   * handler from recomputing the section from the mirrored scroll.
+   * A click in the Jump to Section list. While a script floats, the floating view is the one
+   * being read (on the Elgato Prompter), so it must jump too; commands already reach it through
+   * handleWebSocketEvent, but this click called jumpToHeader directly and never left the main
+   * view (Américo, 2026-11-25, ISC-138). Both views share the note, so header ids match.
    */
-  function followFloatingPosition(anchor: ReturnType<typeof makeAnchor>) {
-    if (isFloating || !contentArea) return
-    const words = renderedWords(contentArea)
-    if (words.length === 0) return
-    const index = resolveAnchor(anchor, words.map(w => w.value))
-    isProgrammaticJump = true
-    contentArea.scrollTop = scrollTopForWord(contentArea, words, index, readingOffset())
-    if (mirrorReleaseTimer) clearTimeout(mirrorReleaseTimer)
-    mirrorReleaseTimer = setTimeout(() => { isProgrammaticJump = false }, 120)
-  }
-
   function jumpFromNavigation(headerId: string) {
     if (!isFloating && plugin.floatingSession.active) {
+      // A glide in flight would pull this view back to where it was; the floating view's next
+      // report starts a fresh one from the heading.
+      stopMirror()
       const text = headers().find(h => h.id === headerId)?.text
       plugin.floatingSession.forward('teleprompter:jump-to-header-by-id', { headerId, text })
     }
