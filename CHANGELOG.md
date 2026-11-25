@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.12.2] - 2026-11-25
+
+### Added
+- **The main window follows the floating window.** While the script floats (on an Elgato Prompter or over a call), the main window's script glides along with it, line by line, as you read. Its Jump to Section list highlights the section you are in, and the note beside it follows. Scroll the main window yourself and it waits two seconds before following again.
+
 ## [0.12.1] - 2026-11-25
 
 ### Added
