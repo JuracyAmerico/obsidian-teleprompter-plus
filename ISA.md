@@ -4,7 +4,7 @@ slug: teleprompter-plus
 project: Teleprompter Plus
 effort: E3
 phase: climbing
-progress: 132/135
+progress: 133/136
 mode: algorithm
 started: 2026-10-29
 updated: 2026-11-25
@@ -210,6 +210,7 @@ Found in Américo's own test run, 2026-11-05 (steps 2, 3, 7, 8):
 - [x] ISC-134: while he reads, the Jump to Section list scrolls itself so the current section sits about a third from the top with the next titles visible below it; after he scrolls the list by hand it holds still about 5 s before following again; a current section hidden inside a collapsed parent highlights that parent (Américo, 2026-11-25: "I'm in the cloud section but the sections on the jump section still at opening").
 - [x] ISC-135: the progress block above the section list is one compact row (a thin bar plus "67% · ~3 min · 1,230 words"), same data and same rule for when the time shows, leaving the room to section titles (Américo, 2026-11-25: "make more room for the sections titles").
 - [x] ISC-136: the current section in the list is readable from teleprompter distance: a stronger fill than hover and a triangle marker drawn in CSS, no emoji.
+- [x] ISC-137: when the prompter enters a new section, the note pane scrolls that heading to its top (about 30 px down), not its middle; double-click-to-edit still centres the cursor (Américo, 2026-11-25: "can the head line show on the top instead of the middle"). Live: heading 29 px below the pane top of 834 px.
 ## Anti-criteria
 
 - ANTI-1: a floating window that cannot be unlocked: no path may start locked or leave the window click-through after `exit()`.
@@ -368,6 +369,7 @@ Found in Américo's own test run, 2026-11-05 (steps 2, 3, 7, 8):
 | ISC-134 | bun-test | follow target a third down, clamped, pause after manual scroll, collapsed parent | pass (14 tests); live 2026-11-25: prompter at Cloud put the Cloud row 255 px down a 673 px list. The 5 s pause and the collapsed-parent case are proven by unit test only | bun test src/nav-follow.test.ts |
 | ISC-135 | manual | compact progress row in the live panel | pass: one row "67% · ~3 min · 1,279 words", block 36 px tall (was about 100) | screenshot of the panel in Obsidian, 2026-11-25 |
 | ISC-136 | manual | active title marked and filled | pass: triangle in the gutter, title number kept, with his teleprompter-jump-readable snippet on | screenshot of the panel in Obsidian, 2026-11-25 |
+| ISC-137 | manual | section heading at top of note pane | pass: heading 29 px below the pane top after next-section, Obsidian inline title offset included | obsidian eval coordsAtPos plus screenshot, 2026-11-25 |
 | ISC-11 | manual | retired criterion, kept for history | superseded by ISC-68, which made the claim true; nothing left to assert | none |
 | ISC-123 | manual | Mac still works | opens, speaks, voice starts | Obsidian CLI on the Mac |
 | ANTI-1 | bun-test | exit leaves the window clickable | pass | bun test src/floating/floating-window.test.ts -t "click-through" |

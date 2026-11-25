@@ -5355,7 +5355,9 @@
    * Scroll the note's editor pane to a 0-based source line. `focus` is opt-in: navigation
    * and scroll-sync must leave the teleprompter focused, only double-click-to-edit steals it.
    */
-  function jumpEditorToSourceLine(sourceLine: number, options: { focus?: boolean } = {}): boolean {
+  const EDITOR_TOP_MARGIN_PX = 12
+
+  function jumpEditorToSourceLine(sourceLine: number, options: { focus?: boolean; align?: 'top' | 'center' } = {}): boolean {
     if (sourceLine < 0) return false
 
     const view = resolveMarkdownViewForCurrentNote()
@@ -5375,7 +5377,21 @@
 
     const pos = { line: sourceLine, ch: 0 }
     editor.setCursor(pos)
-    editor.scrollIntoView({ from: pos, to: pos }, true)
+    // Section sync puts the heading at the top of the note pane, the way the prompter shows it
+    // (Américo, 2026-11-25: "can the head line show on the top instead of the middle"). The
+    // CodeMirror view is read through the editor instead of imported, so no second copy of
+    // @codemirror/view is bundled. Double-click-to-edit keeps the centred cursor.
+    // lineBlockAt() is measured from the document's first line, but Obsidian puts the inline
+    // title and properties above it (about 320 px on 2026-11-25), so add that offset or the
+    // heading lands mid-pane.
+    const cm = (editor as unknown as { cm?: { lineBlockAt(pos: number): { top: number }; documentTop: number; scrollDOM: HTMLElement; state: { doc: { lines: number; line(n: number): { from: number } } } } }).cm
+    if (options.align === 'top' && cm && sourceLine < cm.state.doc.lines) {
+      const docOffset = cm.documentTop - cm.scrollDOM.getBoundingClientRect().top + cm.scrollDOM.scrollTop
+      const top = cm.lineBlockAt(cm.state.doc.line(sourceLine + 1).from).top + docOffset
+      editor.scrollTo(null, Math.max(0, top - EDITOR_TOP_MARGIN_PX))
+    } else {
+      editor.scrollIntoView({ from: pos, to: pos }, true)
+    }
     if (options.focus) editor.focus()
 
     debugLog(`[EditorSync] Editor scrolled to line ${sourceLine}`)
@@ -5396,7 +5412,7 @@
       debugLog(`[ScrollSync] No source line mapped for ${headerId}`)
       return
     }
-    jumpEditorToSourceLine(sourceLine)
+    jumpEditorToSourceLine(sourceLine, { align: 'top' })
   }
 
   /**
