@@ -305,20 +305,22 @@ export class FloatingSession {
 		return () => this.sectionListeners.delete(listener)
 	}
 
-	private readonly positionListeners = new Set<(anchor: PassageAnchor) => void>()
+	private readonly positionListeners = new Set<(anchor: PassageAnchor, within: number) => void>()
 
 	/**
-	 * The floating view reports the word at its eyeline, so the main view's script can mirror it
-	 * line by line (ISC-141). An anchor, not a pixel offset: the two views differ in width and
-	 * font size, so the same pixel is a different line in each.
+	 * The floating view reports where its eyeline is, so the main view's script can glide with it
+	 * (ISC-141, ISC-142). An anchor, not a pixel offset: the two views differ in width and font
+	 * size, so the same pixel is a different line in each. `within` is how far the eyeline has moved
+	 * from the anchor word toward the next, 0 to 1, so the main view moves between words too.
 	 */
-	reportPosition(anchor: PassageAnchor): void {
+	reportPosition(anchor: PassageAnchor, within: number): void {
 		if (!this.controller) return
-		this.positionListeners.forEach(listener => listener(anchor))
+		const share = Number.isFinite(within) ? Math.min(1, Math.max(0, within)) : 0
+		this.positionListeners.forEach(listener => listener(anchor, share))
 	}
 
 	/** Returns the function that stops listening. */
-	onPosition(listener: (anchor: PassageAnchor) => void): () => void {
+	onPosition(listener: (anchor: PassageAnchor, within: number) => void): () => void {
 		this.positionListeners.add(listener)
 		return () => this.positionListeners.delete(listener)
 	}

@@ -257,20 +257,23 @@ describe('FloatingSession', () => {
 		expect(seen).toEqual(['Cloud', 'SQL'])
 	})
 
-	test('ISC-141: reportPosition reaches listeners only while floating', () => {
+	test('ISC-141/142: reportPosition reaches listeners only while floating, with the share toward the next word', () => {
 		const session = new FloatingSession()
 		const controller = new FloatingWindowController(fakeWindow(), { isMac: true })
-		const seen: number[] = []
-		const stop = session.onPosition(anchor => seen.push(anchor.wordIndex))
+		const seen: [number, number][] = []
+		const stop = session.onPosition((anchor, within) => seen.push([anchor.wordIndex, within]))
 		const at = (wordIndex: number) => ({ wordIndex, context: 'a b c', contextStart: wordIndex, fraction: 0 })
-		session.reportPosition(at(1))
+		session.reportPosition(at(1), 0.5)
 		session.attach(controller, () => {})
-		session.reportPosition(at(5))
-		session.reportPosition(at(9))
+		session.reportPosition(at(5), 0.25)
+		session.reportPosition(at(9), 0)
+		// A share outside 0-1, or not a number, never reaches the main view.
+		session.reportPosition(at(10), 1.7)
+		session.reportPosition(at(11), Number.NaN)
 		session.detach(controller)
-		session.reportPosition(at(12))
+		session.reportPosition(at(12), 0.5)
 		stop()
-		expect(seen).toEqual([5, 9])
+		expect(seen).toEqual([[5, 0.25], [9, 0], [10, 1], [11, 0]])
 	})
 
 	test('forward reaches the attached view and stops at detach', () => {

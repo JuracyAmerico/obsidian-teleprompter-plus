@@ -185,17 +185,60 @@ describe('commands while floating', () => {
 		expect(fill).not.toMatch(/\binstanceof HTMLElement/)
 	})
 
-	test('ISC-141: the main script mirrors the floating reader word by word, never by jumpToHeader', () => {
+	test('ISC-141/142: the main script glides with the floating reader in word space, never by jumpToHeader', () => {
 		const app = readFileSync(join(import.meta.dir, '..', 'TeleprompterApp.svelte'), 'utf8')
-		const section = app.slice(app.indexOf('function followFloatingSection('), app.indexOf('let lastPositionReport'))
+		const slice = (from: string, to: string): string => {
+			const start = app.indexOf(from)
+			expect(start).toBeGreaterThan(-1)
+			return app.slice(start, app.indexOf(to, start))
+		}
+		const section = slice('function followFloatingSection(', 'function reportFloatingPosition(')
 		expect(section).not.toContain('contentArea.scrollTop =')
-		const mirror = app.slice(app.indexOf('function followFloatingPosition('), app.indexOf('function jumpFromNavigation('))
-		expect(mirror).toContain('if (isFloating || !contentArea) return')
-		expect(mirror).toContain('scrollTopForWord(contentArea, words, index, readingOffset())')
-		expect(mirror).not.toContain('jumpToHeader(')
+
+		// Floating side: every scroll event reports a fractional position, no throttle, no trailing timer.
+		const scroll = slice('const handleScroll = () => {', 'if (scrollTimeout) clearTimeout(scrollTimeout)')
+		expect(scroll).toContain('if (isFloating) reportFloatingPosition()')
+		expect(app).not.toContain('lastPositionReport')
+		expect(app).not.toContain('positionReportTimer')
+		const report = slice('function reportFloatingPosition(', 'const MIRROR_SHARE')
+		expect(report).toContain('positionAtY(layout.table, contentArea.scrollTop + readingOffset())')
+		expect(report).toContain('plugin.floatingSession.reportPosition(makeAnchor(layout.values, word), position - word)')
+
+		// Main side: a report only moves the target; frames on this view's own window move the script.
+		const follow = slice('function followFloatingPosition(', 'function stepMirror(')
+		expect(follow).toContain('if (isFloating || !contentArea) return')
+		expect(follow).toContain('resolveAnchor(anchor, layout.values) + within')
+		expect(follow).toContain('yAtPosition(layout.table, position) - readingOffset()')
+		expect(follow).toContain('mirrorWindow = getActualWindow()')
+		expect(follow).toContain('mirrorWindow.requestAnimationFrame(stepMirror)')
+		expect(follow).not.toContain('contentArea.scrollTop =')
+		const step = slice('function stepMirror(', 'function stopMirror(')
+		expect(step).toContain('mirrorPosition += gap * followShare(MIRROR_SHARE, elapsed)')
+		expect(step).toContain('contentArea.scrollTop = mirrorPosition')
+		expect(step).not.toContain('mirrorPosition = contentArea.scrollTop')
+		expect(step).toContain('scrollPercentage = ')
+		for (const body of [follow, step]) {
+			expect(body).not.toContain('jumpToHeader(')
+			expect(body).not.toContain('isProgrammaticJump')
+		}
 		expect(app).toContain('plugin.floatingSession.onPosition(followFloatingPosition)')
-		const scroll = app.slice(app.indexOf('const handleScroll = () => {'), app.indexOf('if (scrollTimeout) clearTimeout(scrollTimeout)'))
-		expect(scroll).toContain('if (isFloating) {')
-		expect(scroll).toContain('reportFloatingPosition()')
+
+		// Stops: session end, unmount, the reader's own wheel or swipe, and a Jump to Section click.
+		expect(slice('const syncFloatingSession = () => {', 'syncFloatingSession()')).toContain('if (!plugin.floatingSession.active) stopMirror()')
+		expect(slice('stopPositionFollow()', 'stateChannel.close()')).toContain('stopMirror()')
+		expect(app).toContain("contentArea.addEventListener('wheel', holdMirror, { passive: true })")
+		expect(app).toContain("contentArea.addEventListener('touchmove', holdMirror, { passive: true })")
+		expect(slice('function holdMirror(', 'function jumpFromNavigation(')).toContain('mirrorHeldUntil = Date.now() + MIRROR_HOLD_MS')
+		expect(slice('function jumpFromNavigation(', 'function jumpToHeader(')).toContain('stopMirror()')
+
+		// The main view's own scroll never recomputes the section while it mirrors.
+		const visible = slice('function updateCurrentVisibleHeader(', 'function resolveMarkdownViewForCurrentNote(')
+		expect(visible).toContain('const mirroringFloating = !isFloating && plugin.floatingSession.active')
+		expect(visible).toContain('if (!isProgrammaticJump && !mirroringFloating) {')
+
+		// The cached line table is measured again after a render and whenever voice starts or stops.
+		expect(app.split('passageEpoch++').length - 1).toBeGreaterThanOrEqual(4)
+		expect(slice('await voiceTrackingService.start()', "debugLog('[Voice] Voice tracking start requested')")).toContain('passageEpoch++')
+		expect(slice('calculateEyelinePixelPosition()\n          placeAfterRender', 'placeAfterRender = null').length).toBeGreaterThan(0)
 	})
 })
