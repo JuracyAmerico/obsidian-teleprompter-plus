@@ -506,6 +506,7 @@ acceptance: pass 2026-10-30 (all four runtime checks; mic-blocked Notice + Retry
 
 ## Changelog
 
+- 2026-11-25: ISC-144 defect fixed (found by Fable, reproduced live before the fix: pause from the main window at 3/4 restarted the reading at 2/4). sendTTSToFloating stopped the main view through the shared stop, which forwards tts-stop and reset the floating reading to sentence 1 before pause/next arrived; it now stops only the main view's own service. Live after: pause at 2/22 holds at "TTS paused 2/22" in both windows.
 - 2026-11-25: ISC-145 added and ticked: See-through slider on the Prompter, with its own remembered value.
 - 2026-11-25: release 0.12.4 on Américo's word ("yes you can publish it"): ISC-144, read-aloud runs in the floating view.
 - 2026-11-25: ISC-144 added and ticked: read-aloud runs in the floating view while a script floats; the main view forwards its read-aloud commands and shares the sentence counter.
