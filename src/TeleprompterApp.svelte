@@ -4898,6 +4898,7 @@
     }
     syncFloatingSession()
     const stopFloatingSync = plugin.floatingSession.subscribe(syncFloatingSession)
+    const stopSectionFollow = plugin.floatingSession.onSection(followFloatingSection)
 
     // Auto-start playing if setting is enabled
     if (settings.autoStartPlaying) {
@@ -5266,6 +5267,7 @@
       voiceErrorNotice?.hide()
       endFloating()
       stopFloatingSync()
+      stopSectionFollow()
 
       // Cleanup TTS
       if (ttsService) {
@@ -5317,6 +5319,8 @@
     }
 
     currentVisibleHeader = currentHeader.text
+    // The floating view is the one being read: tell the main view which section it is (ISC-139).
+    if (isFloating) plugin.floatingSession.reportSection(currentHeader.text)
     // Update the current header index for next/previous navigation
     // BUT only if this isn't a programmatic jump (to avoid overriding navigation commands)
     if (!isProgrammaticJump) {
@@ -5452,6 +5456,24 @@
    * handleWebSocketEvent, but this click called jumpToHeader directly and never left the main
    * view (Américo, 2026-11-25, ISC-138). Both views share the note, so header ids match.
    */
+  /**
+   * The main view mirrors the section the floating view reports: its Jump to Section list
+   * highlights and follows it, and the note pane moves with it when scroll sync is on. The main
+   * script itself does not scroll, so nothing pauses or re-anchors voice tracking (ISC-139).
+   */
+  function followFloatingSection(title: string) {
+    if (isFloating) return
+    const list = headers()
+    const index = list.findIndex(h => h.text === title)
+    if (index < 0) return
+    currentHeaderIndex = index
+    currentVisibleHeader = title
+    if (scrollSyncEnabled && list[index].id !== lastSyncedHeaderId) {
+      lastSyncedHeaderId = list[index].id
+      syncToEditor(list[index].id)
+    }
+  }
+
   function jumpFromNavigation(headerId: string) {
     if (!isFloating && plugin.floatingSession.active) {
       const text = headers().find(h => h.id === headerId)?.text

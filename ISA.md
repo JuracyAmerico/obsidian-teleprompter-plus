@@ -4,7 +4,7 @@ slug: teleprompter-plus
 project: Teleprompter Plus
 effort: E3
 phase: climbing
-progress: 134/137
+progress: 135/138
 mode: algorithm
 started: 2026-10-29
 updated: 2026-11-25
@@ -212,6 +212,7 @@ Found in Américo's own test run, 2026-11-05 (steps 2, 3, 7, 8):
 - [x] ISC-136: the current section in the list is readable from teleprompter distance: a stronger fill than hover and a triangle marker drawn in CSS, no emoji.
 - [x] ISC-137: when the prompter enters a new section, the note pane scrolls that heading to its top (about 30 px down), not its middle; double-click-to-edit still centres the cursor (Américo, 2026-11-25: "can the head line show on the top instead of the middle"). Live: heading 29 px below the pane top of 834 px.
 - [x] ISC-138: while a script floats (the Elgato Prompter window), clicking a title in the main view's Jump to Section list moves the floating script to that section too, not only the main view (Américo, 2026-11-25: "the window on the elgato does not move as I click on the jump to section header"). Live: clicks on Cloud, then SQL, put each heading at the top of the Elgato window (screenshots elgato-fix-Cloud/SQL).
+- [x] ISC-139: while a script floats, the section being read in the floating window (by voice, play or scroll) is the section highlighted and followed in the main view's Jump to Section list, and the note pane follows it when scroll sync is on (Américo, 2026-11-25: "the main app section is not following what I reading in my elgato teleprompter"). Live: three next-section steps on the Elgato window (Work authorization, Location, Salary) each highlighted the same title in the main list; screenshots show Salary on the Elgato, "20. Salary" in the main list and the note pane on Salary. Unit test: reportSection fires once per new section, only while floating.
 ## Anti-criteria
 
 - ANTI-1: a floating window that cannot be unlocked: no path may start locked or leave the window click-through after `exit()`.
@@ -494,6 +495,7 @@ acceptance: pass 2026-10-30 (all four runtime checks; mic-blocked Notice + Retry
 
 ## Changelog
 
+- 2026-11-25: ISC-139 added and ticked. FloatingSession.reportSection carries the floating view's section title to the main view, which highlights it in its list and syncs the note pane; the main script does not scroll, so voice tracking is never re-anchored.
 - 2026-11-25: release 0.12.1 on Américo's word ("publish a new release of teleprompter plus"): ISC-134..138 plus the read-aloud work (ISC-94..107) and the 120 Hz glide fix. manifest stays isDesktopOnly true, so the mobile work ships dormant; flipping it remains its own release decision.
 - 2026-11-25: ISC-138 added and ticked. Two causes: the main view's list click never left the main view (now forwarded, with the title, since header ids are per-instance ordinals), and in a pop-out the header map stayed empty because `instanceof HTMLElement` rejects pop-out-realm headings (1 of 25 passed; Fable's diagnosis). Fixed by dropping the class check; wiring test guards both. Live on the Elgato: Cloud, then SQL.
 - 2026-11-25: ISC-137 added and ticked (section sync puts the heading at the top of the note pane; Américo: "can the head line show on the top instead of the middle"). First try forgot Obsidian's inline title and properties offset (~320 px) and still centred; fixed with documentTop. Live: heading 29 px below an 834 px pane top. Commit a482817.

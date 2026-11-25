@@ -285,6 +285,25 @@ export class FloatingSession {
 	private deliver: ((type: string, detail: unknown) => void) | null = null
 	private forwarding = false
 	private readonly listeners = new Set<() => void>()
+	private section: string | null = null
+	private readonly sectionListeners = new Set<(title: string) => void>()
+
+	/**
+	 * The floating view reports the section it is reading, so the main view's Jump to Section
+	 * list and note pane can follow the Prompter (ISC-139). Titles, not ids: ids are per-view
+	 * render ordinals and can differ between the two views.
+	 */
+	reportSection(title: string): void {
+		if (!this.controller || this.section === title) return
+		this.section = title
+		this.sectionListeners.forEach(listener => listener(title))
+	}
+
+	/** Returns the function that stops listening. */
+	onSection(listener: (title: string) => void): () => void {
+		this.sectionListeners.add(listener)
+		return () => this.sectionListeners.delete(listener)
+	}
 
 	get active(): boolean {
 		return this.controller !== null
@@ -321,6 +340,7 @@ export class FloatingSession {
 		this.controller = null
 		this.closeWindow = null
 		this.deliver = null
+		this.section = null
 		this.notify()
 	}
 
