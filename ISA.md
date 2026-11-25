@@ -4,7 +4,7 @@ slug: teleprompter-plus
 project: Teleprompter Plus
 effort: E3
 phase: climbing
-progress: 136/139
+progress: 137/140
 mode: algorithm
 started: 2026-10-29
 updated: 2026-11-25
@@ -213,7 +213,8 @@ Found in Américo's own test run, 2026-11-05 (steps 2, 3, 7, 8):
 - [x] ISC-137: when the prompter enters a new section, the note pane scrolls that heading to its top (about 30 px down), not its middle; double-click-to-edit still centres the cursor (Américo, 2026-11-25: "can the head line show on the top instead of the middle"). Live: heading 29 px below the pane top of 834 px.
 - [x] ISC-138: while a script floats (the Elgato Prompter window), clicking a title in the main view's Jump to Section list moves the floating script to that section too, not only the main view (Américo, 2026-11-25: "the window on the elgato does not move as I click on the jump to section header"). Live: clicks on Cloud, then SQL, put each heading at the top of the Elgato window (screenshots elgato-fix-Cloud/SQL).
 - [x] ISC-139: while a script floats, the section being read in the floating window (by voice, play or scroll) is the section highlighted and followed in the main view's Jump to Section list, and the note pane follows it when scroll sync is on (Américo, 2026-11-25: "the main app section is not following what I reading in my elgato teleprompter"). Live: three next-section steps on the Elgato window (Work authorization, Location, Salary) each highlighted the same title in the main list; screenshots show Salary on the Elgato, "20. Salary" in the main list and the note pane on Salary. Unit test: reportSection fires once per new section, only while floating.
-- [x] ISC-140: while a script floats, the main view's own script also moves to the heading of the section being read on the floating window, one section at a time, without pausing anything or touching the floating view's voice tracking (Américo, 2026-11-25: "yes, make the main text follow too"). Live: scrolling the floating script to Cloud, SQL, then Salary put the main text, the main list and the note pane on the same section each time (screenshot main-text-follow.png).
+- [x] ISC-140: while a script floats, the main view's own script also moves to the heading of the section being read on the floating window, one section at a time, without pausing anything or touching the floating view's voice tracking (Américo, 2026-11-25: "yes, make the main text follow too"). Live: scrolling the floating script to Cloud, SQL, then Salary put the main text, the main list and the note pane on the same section each time (screenshot main-text-follow.png). Superseded the same day by ISC-141 (line-level mirroring); the section-level scroll was removed so the two cannot fight.
+- [x] ISC-141: while a script floats, the main view's middle panel mirrors the floating script line by line: the word at the floating view's eyeline is placed at the main view's eyeline within about 200 ms, during voice tracking, play and manual scroll, without pausing or re-anchoring the floating view's voice (Américo, 2026-11-25: "I like the middle panel to move as the elgato move following the same"). Live: the floating script stepped down 70 px at a time through Performance; after the last step both screenshots (mirror-main.png, mirror-elgato.png) show the same lines, "When a dashboard was slow, / I turned on a performance recording / in Tableau Server", mid-section. Not yet exercised with real voice tracking or play.
 ## Anti-criteria
 
 - ANTI-1: a floating window that cannot be unlocked: no path may start locked or leave the window click-through after `exit()`.
@@ -496,6 +497,7 @@ acceptance: pass 2026-10-30 (all four runtime checks; mic-blocked Notice + Retry
 
 ## Changelog
 
+- 2026-11-25: ISC-141 added and ticked: the floating view reports a passage anchor from its scroll handler (throttled to 150 ms plus a trailing report), and the main view resolves it in its own words and scrolls it to its eyeline. The ISC-140 section scroll was removed so the two cannot fight.
 - 2026-11-25: ISC-140 added and ticked: followFloatingSection also scrolls the main script to the section heading with a plain scroll under isProgrammaticJump, never jumpToHeader (which pauses and re-anchors voice).
 - 2026-11-25: ISC-139 added and ticked. FloatingSession.reportSection carries the floating view's section title to the main view, which highlights it in its list and syncs the note pane; the main script does not scroll, so voice tracking is never re-anchored.
 - 2026-11-25: release 0.12.1 on Américo's word ("publish a new release of teleprompter plus"): ISC-134..138 plus the read-aloud work (ISC-94..107) and the 120 Hz glide fix. manifest stays isDesktopOnly true, so the mobile work ships dormant; flipping it remains its own release decision.
