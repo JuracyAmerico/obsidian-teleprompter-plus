@@ -184,4 +184,12 @@ describe('commands while floating', () => {
 		expect(fill.length).toBeGreaterThan(0)
 		expect(fill).not.toMatch(/\binstanceof HTMLElement/)
 	})
+
+	test('ISC-140: the main view scrolls its own script to the floating section without jumpToHeader', () => {
+		const app = readFileSync(join(import.meta.dir, '..', 'TeleprompterApp.svelte'), 'utf8')
+		const body = app.slice(app.indexOf('function followFloatingSection('), app.indexOf('function jumpFromNavigation('))
+		expect(body).toContain('if (isFloating) return')
+		expect(body).toContain('contentArea.scrollTop = Math.max(0, element.offsetTop - contentArea.offsetTop - 50)')
+		expect(body).not.toContain('jumpToHeader(')
+	})
 })

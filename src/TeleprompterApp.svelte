@@ -5468,6 +5468,15 @@
     if (index < 0) return
     currentHeaderIndex = index
     currentVisibleHeader = title
+    // The main script follows by section too (ISC-140). A plain scroll, not jumpToHeader: that
+    // one pauses playback and re-anchors voice, and voice lives in the floating view. The flag
+    // keeps this view's own scroll handler from recomputing the section mid-move.
+    const element = headerElements.get(list[index].id)
+    if (element && contentArea) {
+      isProgrammaticJump = true
+      contentArea.scrollTop = Math.max(0, element.offsetTop - contentArea.offsetTop - 50)
+      setTimeout(() => { isProgrammaticJump = false }, 100)
+    }
     if (scrollSyncEnabled && list[index].id !== lastSyncedHeaderId) {
       lastSyncedHeaderId = list[index].id
       syncToEditor(list[index].id)
