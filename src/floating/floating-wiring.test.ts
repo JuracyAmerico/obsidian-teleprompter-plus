@@ -170,4 +170,18 @@ describe('commands while floating', () => {
 		expect(route.indexOf('floatingSession.claim(customEvent)')).toBeLessThan(route.indexOf('floatingSession.forward('))
 		expect(route).toContain('floatingSession.claim(customEvent)')
 	})
+
+	test('ISC-138: a Jump to Section click in the main view also moves the floating script', () => {
+		const app = readFileSync(join(import.meta.dir, '..', 'TeleprompterApp.svelte'), 'utf8')
+		expect(app).toContain('onclick={() => jumpFromNavigation(header.id)}')
+		const body = app.slice(app.indexOf('function jumpFromNavigation('), app.indexOf('function jumpToHeader('))
+		expect(body).toContain('!isFloating && plugin.floatingSession.active')
+		expect(body).toContain("plugin.floatingSession.forward('teleprompter:jump-to-header-by-id', { headerId, text })")
+		expect(app).toContain('headers().find(h => h.text === customEvent.detail.text)')
+		expect(body).toContain('jumpToHeader(headerId)')
+		// The header map must fill in a pop-out too: a main-window instanceof drops pop-out headings.
+		const fill = app.slice(app.indexOf("contentArea.querySelectorAll<HTMLElement>('[data-header-id]')"), app.indexOf('headerElements = newHeaderElements'))
+		expect(fill.length).toBeGreaterThan(0)
+		expect(fill).not.toMatch(/\binstanceof HTMLElement/)
+	})
 })
