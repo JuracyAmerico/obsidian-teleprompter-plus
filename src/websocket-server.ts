@@ -12,6 +12,7 @@
  * - Type-safe message protocol
  */
 
+import type { TakeCard } from './takes'
 import type { Plugin } from 'obsidian'
 import { loadWebSocketModule, getDiagnostics } from './websocket-loader'
 import { REMOTE_INTERFACE_HTML } from './remote-interface'
@@ -230,6 +231,10 @@ export interface TeleprompterState {
 	remainingSeconds?: number // Signed: negative once the target is passed
 	paceStatus?: 'ahead' | 'on-track' | 'behind' | 'over' | 'unknown'
 	sessionState?: 'idle' | 'running' | 'paused' | 'finished'
+	/** The take that just ended (a section or the whole script against its target); null once reading moves on. */
+	lastTake?: TakeCard | null
+	/** Effective reading speed in words per minute at the current speed; null until the script is measured. */
+	wordsPerMinute?: number | null
 	timestamp: number // When this state was captured
 }
 

@@ -9,6 +9,7 @@ import { showsMobileInterface } from './platform/device'
 import { DESKTOP_ONLY_ENGINES, DESKTOP_ONLY_SETTINGS_TABS, PHONE_OPTIONAL_CONTROLS, forPhone } from './platform/mobile-surface'
 import type { NotePositions } from './position-memory'
 import { formatClock, parseTargetTime } from './timing/speech-timer'
+import type { SectionStopMode } from './takes'
 
 /** Settings-field text for a stored target: empty when there is no default. */
 function formatTargetSetting(seconds: number): string {
@@ -154,6 +155,8 @@ export interface TeleprompterSettings {
 	defaultTargetSeconds: number
 	largeTimeDisplay: boolean // Bigger clock, readable from presenting distance
 	showTimeOverlay: boolean // Clock over the script itself, not only in the toolbar
+	// Where playback pauses when a section's take ends: see SectionStopMode in takes.ts
+	sectionStopMode: SectionStopMode
 	voiceTrace?: boolean // Write voice recognition + matcher decisions to voice-trace.jsonl (diagnostics)
 	// Transparency settings
 	backgroundOpacity: number // 0-100 (0 = fully transparent, 100 = opaque)
@@ -323,6 +326,7 @@ export const DEFAULT_SETTINGS: TeleprompterSettings = {
 	defaultTargetSeconds: 0, // No target unless the note declares one
 	largeTimeDisplay: false,
 	showTimeOverlay: true,
+	sectionStopMode: 'targeted', // Pause at the end of a section only when it has a {1:30} target
 	// Transparency settings
 	backgroundOpacity: 100, // Fully opaque by default
 	enableBackgroundTransparency: false,
@@ -1383,6 +1387,21 @@ export class TeleprompterSettingTab extends PluginSettingTab {
 							this.plugin.settings.showTimeOverlay = value as boolean
 							void this.plugin.saveSettings()
 							document.dispatchEvent(new CustomEvent('teleprompter:timing-changed'))
+						}
+					},
+					{
+						name: 'Stop at the end of a section',
+						desc: 'A take of a section ends when the next heading reaches the eyeline. Give a section a target on its heading, like "## Why us {1:30}", and playback pauses there and shows the time against it.',
+						type: 'dropdown',
+						options: [
+							{ value: 'targeted', label: 'Only sections with a target' },
+							{ value: 'always', label: 'Every section' },
+							{ value: 'never', label: 'Never (keep scrolling)' }
+						],
+						value: this.plugin.settings.sectionStopMode,
+						onChange: (value) => {
+							this.plugin.settings.sectionStopMode = value as SectionStopMode
+							void this.plugin.saveSettings()
 						}
 					},
 					{
