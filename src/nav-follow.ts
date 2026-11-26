@@ -23,7 +23,7 @@ export function visibleActiveId(headers: NavHeader[], activeIndex: number, colla
 	for (let h: NavHeader | undefined = active; h; h = h.parentId ? byId.get(h.parentId) : undefined) chain.push(h)
 	// chain[0] is the active header, the last entry is its root. Walk from the root down and stop below the first collapsed one.
 	for (let i = chain.length - 1; i >= 0; i--) {
-		if (i > 0 && collapsed.has(chain[i]!.id)) return chain[i]!.id
+		if (i > 0 && collapsed.has(chain[i].id)) return chain[i].id
 	}
 	return active.id
 }

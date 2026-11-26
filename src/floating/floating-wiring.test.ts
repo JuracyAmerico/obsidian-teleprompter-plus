@@ -364,6 +364,6 @@ describe('read-aloud runs in the floating view while a script floats (ISC-144)',
 
 	test('ISC-157: the prompter has no status bar of its own under the Obsidian one', () => {
 		expect(app).not.toContain('<div class="status-bar">')
-		expect(app).not.toMatch(/\n  \.status-bar \{/)
+		expect(app).not.toMatch(/\n {2}\.status-bar \{/)
 	})
 })

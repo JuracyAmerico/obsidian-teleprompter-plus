@@ -7,6 +7,9 @@ import { ScreenHold, type ScreenHoldDeps, type WakeLockApi } from './screen-hold
 
 const SRC = join(import.meta.dir, '..')
 
+// expect.arrayContaining is typed `any`; this keeps the matcher typed for toEqual.
+const containing = (items: string[]): string[] => expect.arrayContaining(items) as unknown as string[]
+
 function sourceFiles(dir: string): string[] {
 	return readdirSync(dir).flatMap(name => {
 		const full = join(dir, name)
@@ -23,7 +26,7 @@ describe('mobile phase 1', () => {
 		expect(phoneBarControls([])).toEqual([...PHONE_BAR_CONTROLS])
 		expect(phoneBarControls(['tts'])).not.toContain('tts')
 		expect(phoneBarControls(['tts'])).toContain('voice-tracking')
-		expect(phoneBarControls(['play-pause', 'time-display'])).toEqual(expect.arrayContaining(['play-pause', 'time-display']))
+		expect(phoneBarControls(['play-pause', 'time-display'])).toEqual(containing(['play-pause', 'time-display']))
 		expect(PHONE_OPTIONAL_CONTROLS.map(c => c.id)).not.toContain('play-pause')
 		const { DEFAULT_SETTINGS } = await import('../settings')
 		expect(DEFAULT_SETTINGS.phoneToolbarHidden).toEqual([])
@@ -49,10 +52,10 @@ describe('mobile phase 1', () => {
 	})
 
 	test('ISC-119 phone surface: desktop-only tabs, controls and engines drop out only on the phone', () => {
-		expect(DESKTOP_ONLY_SETTINGS_TABS).toEqual(expect.arrayContaining(['connection', 'obs']))
-		expect(DESKTOP_ONLY_TOOLBAR_CONTROLS).toEqual(expect.arrayContaining(['float', 'detach']))
+		expect(DESKTOP_ONLY_SETTINGS_TABS).toEqual(containing(['connection', 'obs']))
+		expect(DESKTOP_ONLY_TOOLBAR_CONTROLS).toEqual(containing(['float', 'detach']))
 		expect(PHONE_BAR_CONTROLS).toContain('voice-tracking')
-		expect(DESKTOP_ONLY_ENGINES).toEqual(expect.arrayContaining(['kokoro', 'mac-say']))
+		expect(DESKTOP_ONLY_ENGINES).toEqual(containing(['kokoro', 'mac-say']))
 		const engines = ['auto', 'kokoro', 'mac-say', 'web-speech', 'elevenlabs']
 		expect(forPhone(engines, e => e, DESKTOP_ONLY_ENGINES, true)).toEqual(['auto', 'web-speech', 'elevenlabs'])
 		expect(forPhone(engines, e => e, DESKTOP_ONLY_ENGINES, false)).toEqual(engines)

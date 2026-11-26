@@ -83,10 +83,22 @@ export function wordAtPoint(
 	clientX: number,
 	clientY: number
 ): number {
-	const caret = container.ownerDocument.caretRangeFromPoint(clientX, clientY)
-	if (!caret || caret.startContainer.nodeType !== Node.TEXT_NODE) return -1
-	const node = caret.startContainer as Text
-	const offset = caret.startOffset
+	const doc = container.ownerDocument
+	let caretNode: Node | null | undefined
+	let offset = 0
+	if (typeof doc.caretPositionFromPoint === 'function') {
+		const position = doc.caretPositionFromPoint(clientX, clientY)
+		caretNode = position?.offsetNode
+		offset = position?.offset ?? 0
+	} else {
+		// Older Chromium has only the non-standard form.
+		// eslint-disable-next-line @typescript-eslint/no-deprecated
+		const range: Range | null = doc.caretRangeFromPoint(clientX, clientY)
+		caretNode = range?.startContainer
+		offset = range?.startOffset ?? 0
+	}
+	if (!caretNode || caretNode.nodeType !== Node.TEXT_NODE) return -1
+	const node = caretNode as Text
 	let nearest = -1
 	for (let i = 0; i < words.length; i++) {
 		if (words[i].node !== node) continue

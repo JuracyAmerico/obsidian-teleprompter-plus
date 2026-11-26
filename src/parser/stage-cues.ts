@@ -5,7 +5,7 @@
  * A bracket naming a link the note defines (`[one]: http://x.io`) is a link, not a cue.
  */
 
-const CUE = /(?<![\[\\])\[(\p{L}[^\][\n]{1,80})\](?![(:])/gu
+const CUE = /(?<![[\\])\[(\p{L}[^\][\n]{1,80})\](?![(:])/gu
 
 const LINK_DEFINITION = /^ {0,3}\[([^\]\n]+)\]:/gm
 
@@ -32,7 +32,7 @@ function replaceCues(markdown: string, replacement: (cue: string) => string): st
 		const protectedText = text.replace(/\[[^\][\n]+\]\[([^\][\n]+)\]/g, (pair: string, label: string) =>
 			labels.has(label.toLowerCase()) ? pair.replace(/\[/g, '\u0000') : pair
 		)
-		return protectedText.replace(CUE, keepLinks).replace(/\u0000/g, '[')
+		return protectedText.replace(CUE, keepLinks).split('\u0000').join('[')
 	})
 }
 
