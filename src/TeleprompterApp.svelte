@@ -6320,19 +6320,7 @@
     <button class="tp-floating-main-unlock" onclick={() => plugin.floatingSession.unlock()}>Unlock floating window</button>
   {/if}
 
-  <!-- Focus indicator hint -->
-  {#if !isTeleprompterFocused && !showsMobileInterface()}
-    <div class="focus-hint">
-      Click here to enable keyboard shortcuts
-    </div>
-  {/if}
-
-  <!-- Shortcuts active badge -->
-  {#if isTeleprompterFocused && !showsMobileInterface()}
-    <div class="shortcuts-active-badge">
-      <span class="tp-inline-icon" use:lucideIcon={'keyboard'}></span> Shortcuts Active
-    </div>
-  {/if}
+  <!-- Keyboard shortcuts state lives on the bar (.tp-keys-btn), not over the script (ISC-156). -->
 
   <!-- Countdown Overlay -->
   {#if isCountingDown}
@@ -7186,6 +7174,21 @@
     <!-- Flex spacer separates the button stream from the right-aligned readout -->
     <div class="tp-spacer" bind:this={readoutSpacerEl}></div>
 
+    <!-- Keyboard shortcuts: dimmed with an amber dot while the prompter does not have the keyboard;
+         one click gives it the keyboard. Replaces the hint and badge that sat on the script (ISC-156). -->
+    {#if !showsMobileInterface()}
+      <button
+        class="tp-keys-btn icon-btn"
+        class:tp-keys-off={!isTeleprompterFocused}
+        aria-label={isTeleprompterFocused ? 'Keyboard shortcuts on' : 'Keyboard shortcuts off: click to turn on'}
+        title={isTeleprompterFocused ? 'Keyboard shortcuts on' : 'Keyboard shortcuts off: click to turn on'}
+        onclick={() => focusTeleprompter()}
+      >
+        <span class="tp-inline-icon" use:lucideIcon={'keyboard'}></span>
+        {#if !isTeleprompterFocused}<span class="tp-keys-dot"></span>{/if}
+      </button>
+    {/if}
+
     <!-- The clock, on the bar while it fits (fitReadout) -->
     {#if readoutControl && (showElapsedTime || showTimeEstimation || targetSeconds !== null) && readoutInBar && !showsMobileInterface()}
       <div class="tp-readout-zone" data-zone="readout">
@@ -7686,6 +7689,26 @@
   .tp-spacer {
     flex: 1 1 auto;
     min-width: 0.25rem;
+  }
+
+  .tp-keys-btn {
+    position: relative;
+    flex: 0 0 auto;
+    color: var(--interactive-accent);
+  }
+
+  .tp-keys-btn.tp-keys-off {
+    color: var(--text-muted);
+  }
+
+  .tp-keys-dot {
+    position: absolute;
+    top: 3px;
+    right: 3px;
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: var(--color-orange, #f5a623);
   }
 
   .tp-readout-zone {
