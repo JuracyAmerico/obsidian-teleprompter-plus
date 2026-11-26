@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.12.13] - 2026-11-26
+
+### Added
+- **Takes with a result.** Give a section a target in its title, `## Why us {1:30}` (also `{90s}` or `{2m}`); the braces never show and are never read aloud. When you finish the section, playback pauses and a card shows your time against the target, like "Why us · 1:42 · target 1:30 · +0:12", in the main window, on the floating script and on the phone remote. Choose in settings whether it stops only at sections with a target, at every section, or never.
+- **Take history.** "Show recent takes" lists your last 20 takes of the note, with the best one per section marked.
+- **Speed in words per minute** next to the speed control, and **Fit to target**: one click sets the speed so the rest of the section ends on its target.
+- **Hide callouts on the prompter**, for reference notes like a markup legend that you don't want on screen or read aloud.
+- **Read-aloud audio is kept.** ElevenLabs sentences you already heard play again without a new charge, even after a restart (up to 200 MB, adjustable), with a command to clear it.
+
+### Fixed
+- **Repeated section titles** (several "Situation" or "Action" headings) no longer jump, read aloud or highlight the wrong one.
+- **Section jumps land on the eyeline**, and the highlighted section is the one at the eyeline.
+- **Callouts render properly**: folded callouts keep their title, and lists inside callouts show as lists.
+
 ## [0.12.12] - 2026-11-26
 
 ### Added
