@@ -108,7 +108,7 @@ describe('floating wiring', () => {
 
 	test('prompter chrome: hidden only under the Prompter class', () => {
 		expect(app).toContain('class:tp-floating-prompter={floatingOnPrompter}')
-		expect(app).toMatch(/\.tp-floating-prompter \.controls,\s*\.tp-floating-prompter \.tp-readout-row,\s*\.tp-floating-prompter \.navigation-panel,\s*\.tp-floating-prompter \.status-bar \{\s*display: none;/)
+		expect(app).toMatch(/\.tp-floating-prompter \.controls,\s*\.tp-floating-prompter \.tp-readout-row,\s*\.tp-floating-prompter \.navigation-panel \{\s*display: none;/)
 	})
 
 	test('real window: the view mounts inside its own window, and an unclaimed request is cleared', () => {
@@ -360,5 +360,10 @@ describe('read-aloud runs in the floating view while a script floats (ISC-144)',
 		expect(app).toContain('onclick={() => focusTeleprompter()}')
 		expect(app).not.toContain('Click here to enable keyboard shortcuts')
 		expect(app).not.toContain('<div class="shortcuts-active-badge">')
+	})
+
+	test('ISC-157: the prompter has no status bar of its own under the Obsidian one', () => {
+		expect(app).not.toContain('<div class="status-bar">')
+		expect(app).not.toMatch(/\n  \.status-bar \{/)
 	})
 })
