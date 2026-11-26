@@ -103,6 +103,7 @@ obsidian-teleprompter-plus/
 3. Test in Obsidian against a real vault — both light and dark themes, both small (~50 lines) and large (>1000 lines) documents.
 4. Test WebSocket changes against the Stream Deck plugin OR a one-off script (see [WebSocket API](docs/websocket-api.md)).
    For remote-server changes, use `bun run package:plugin` so the vault copy includes runtime dependencies.
+   Added, renamed or removed a WebSocket command in `src/main.ts`? Run `bun scripts/gen-ws-docs.ts` to rewrite the command table in `docs/websocket-api.md`; `bun test` fails until you do.
 5. Update `CHANGELOG.md` with a one-line entry under "Unreleased".
 6. Commit with a clear message. Conventional Commits style preferred (`fix:`, `feat:`, `chore:`, `docs:`, `ci:`, `refactor:`).
 7. Push and open a PR. Describe what you changed, why, and how you tested it.
