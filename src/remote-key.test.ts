@@ -38,8 +38,14 @@ describe('ISC-159: the phone remote speed slider and section highlight', () => {
 		expect(page).toContain('if (now - lastSpeedSent > 120) {')
 	})
 	test('set-speed uses the slider range, not 1 to 50', () => {
+		// The range itself (0.5x kept, 50 capped at 10) is a behaviour test in playback.test.ts.
 		expect(app).not.toContain('Math.max(1, Math.min(50, customEvent.detail.speed))')
-		expect(app).toContain('Math.max(settings.minScrollSpeed || 0.5, Math.min(settings.maxScrollSpeed || 10, customEvent.detail.speed))')
+		const setSpeed = app.slice(app.indexOf("case 'teleprompter:set-speed':"), app.indexOf("case 'teleprompter:cycle-speed-preset':"))
+		expect(setSpeed).toContain('applySpeed(requested)')
+		const apply = app.slice(app.indexOf('function applySpeed('), app.indexOf('function togglePlay('))
+		expect(apply).toContain('speed = clampSpeed(next, speedLimits(settings))')
+		expect(app).toContain('min={speedLimits(settings).min}')
+		expect(app).toContain('max={speedLimits(settings).max}')
 	})
 	test('the list scrolls the current section into view, after the open animation', () => {
 		expect(page).toContain('function scrollToCurrentSection() {')
