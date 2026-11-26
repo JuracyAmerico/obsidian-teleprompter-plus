@@ -52,6 +52,7 @@
   import { currentSection, findSection, holdAfterJump, scrollTopForHeading, sectionAtReadingLine, sectionRef, type JumpHold, type SectionRef } from './sections'
   import { wakeHoldAction } from './wake-hold'
   import { PAGE_TURN_SHARE, hotkeyAction } from './pedal-keys'
+  import { LISTENED_COMMAND_EVENTS, SCRIPT_HOTKEY_ACTIONS, dispatchCommand, ownsScript, runIntent, type AppearancePatch, type CommandHandlers, type CommandView, type Direction } from './commands'
   import { AutoScroller, Countdown, clampSpeed, countWords, isAtScriptEnd, maxScrollOf, scrollFraction, shouldCountDown, speedLimits, stepSection, stepSpeed, wordsRemaining as wordsAhead } from './playback'
   import { Marked } from 'marked'
   import { VOICE_TRACKING_PRESETS, type VoiceTrackingPacePreset } from './settings'
@@ -2989,7 +2990,7 @@
   // Voice tracking toggle
   async function toggleVoiceTracking() {
     phoneLog(`toggleVoice enabled=${settings.voiceTrackingEnabled} active=${voiceTrackingActive} status=${voiceTrackingStatus}`)
-    if (!isFloating && plugin.floatingSession.active) {
+    if (!ownsVoice()) {
       plugin.floatingSession.forward('teleprompter:voice-toggle')
       return
     }
@@ -3450,7 +3451,7 @@
    * Returns true when the command went to the floating view; this view's own read-aloud stops.
    */
   function sendTTSToFloating(type: string, detail?: unknown): boolean {
-    if (isFloating || !plugin.floatingSession.active) return false
+    if (ownsTTS()) return false
     // Stop only this view's own service. ttsPlaybackState here mirrors the floating view's, and
     // the shared stop forwards a stop that reset the floating reading to sentence 1 before the real
     // command arrived: pause restarted the script, next/previous fell silent (Fable, 2026-11-25).
@@ -4119,9 +4120,14 @@
   // Floating window: the pop-out, on top of everything, optionally click-through
   // ==========================================================================
 
+  /** This view as the command rule in commands.ts sees it. */
+  function commandView(): CommandView {
+    return { isFloating, floatingActive: plugin.floatingSession.active, canFloat: floatSupported }
+  }
+
   /** The voice service is shared. While a script floats it belongs to that view, whatever this one mirrors. */
   function ownsVoice(): boolean {
-    return isFloating || !plugin.floatingSession.active
+    return ownsScript(commandView())
   }
 
   /**
@@ -4130,7 +4136,7 @@
    * its own read-aloud service, whatever its controls mirror (W1 #4).
    */
   function ownsTTS(): boolean {
-    return isFloating || !plugin.floatingSession.active
+    return ownsScript(commandView())
   }
 
   /** Asked from any view. The script, its place and a running voice all move to the floating view. */
@@ -4599,17 +4605,11 @@
    * ISC-151). Returns true when the action was sent.
    */
   function forwardToFloating(type: string, detail?: unknown): boolean {
-    if (isFloating || !plugin.floatingSession.active) return false
+    if (ownsScript(commandView())) return false
     stopMirror()
     plugin.floatingSession.forward(type, detail)
     return true
   }
-
-  /** Hotkey actions that move or drive the script, so the floating view runs them while it floats. */
-  const SCRIPT_HOTKEY_ACTIONS = new Set([
-    'togglePlay', 'speedUp', 'speedDown', 'scrollUp', 'scrollDown', 'pageDown', 'pageUp',
-    'resetToTop', 'nextSection', 'prevSection', 'cycleSpeedPreset', 'voiceResync',
-  ])
 
   function turnPage(direction: 1 | -1): void {
     if (!contentArea) return
@@ -4713,7 +4713,7 @@
 
     // Voice tracking re-sync: press R while tracking to re-locate your place if it drifts
     // While a script floats its voice runs in the floating view, so R is sent there.
-    if ((voiceTrackingActive || (!isFloating && plugin.floatingSession.active)) && (e.key === 'r' || e.key === 'R')) {
+    if ((voiceTrackingActive || !ownsVoice()) && (e.key === 'r' || e.key === 'R')) {
       e.preventDefault()
       executeHotkeyAction('voiceResync')
       return
@@ -4752,570 +4752,261 @@
     }
   }
 
-  // WebSocket event handlers
-  function handleWebSocketEvent(event: Event) {
-    const customEvent = event as CustomEvent
-    debugLog(`[Event] Received: ${customEvent.type}`)
+  // ==========================================================================
+  // Commands from hotkeys, Obsidian commands, the remote server (Stream Deck, phone) and the other
+  // window. commands.ts decides which intent each event names, checks its parameters, and decides
+  // whether this view runs it, hands it to the floating view, or drops it; this map only says which
+  // of this view's functions runs each intent.
+  // ==========================================================================
 
-    // Commands arrive at the main window; while a script floats, they are meant for that script.
-    if (!isFloating && plugin.floatingSession.active && customEvent.type !== 'teleprompter:toggle-floating') {
-      // Every open view hears a command; the floating script must receive it once.
-      if (plugin.floatingSession.claim(customEvent)) {
-        plugin.floatingSession.forward(customEvent.type, customEvent.detail)
-      }
-      return
-    }
+  function handleCommandEvent(event: Event) {
+    debugLog(`[Event] Received: ${event.type}`)
+    dispatchCommand(event, commandView(), plugin.floatingSession, intent => runIntent(commandHandlers, intent))
+  }
 
-    switch (customEvent.type) {
-      case 'teleprompter:toggle-play':
-        togglePlay()
-        break
-      case 'teleprompter:play':
-        // Remote starts (Stream Deck, phone, command palette) never started the clock before,
-        // because it was keyed on a timestamp only togglePlay ever set.
-        // Play means now: a running countdown is skipped, not left to start playback again later.
-        cancelCountdown('play command')
-        if (!isPlaying) beginPlayback(false)
-        // The other view shows the same Play/Pause state (ISC-151).
-        broadcastState({ isPlaying })
-        break
-      case 'teleprompter:pause':
-        stopPlayback('pause command')
-        // Voice and read-aloud keep isPlaying false, so the clock is paused here either way.
-        pauseSession()
-        broadcastState({ isPlaying })
-        break
-      case 'teleprompter:increase-speed':
-        increaseSpeed()
-        break
-      case 'teleprompter:decrease-speed':
-        decreaseSpeed()
-        break
-      case 'teleprompter:set-speed': {
-        // Same range as the speed slider here: the remote's 0.5x used to become 1x (ISC-159).
-        const requested = Number(customEvent.detail?.speed)
-        if (requested > 0) applySpeed(requested)
-        break
-      }
-      // Speed preset commands
-      case 'teleprompter:cycle-speed-preset':
-        cycleSpeedPreset()
-        break
-      case 'teleprompter:next-speed-preset':
-        nextSpeedPreset()
-        break
-      case 'teleprompter:prev-speed-preset':
-        prevSpeedPreset()
-        break
-      case 'teleprompter:set-speed-preset':
-        if (customEvent.detail?.speed) {
-          setSpeedPreset(customEvent.detail.speed)
-        }
-        break
-      case 'teleprompter:speed-preset-0.5':
-        setSpeedPreset(0.5)
-        break
-      case 'teleprompter:speed-preset-1':
-        setSpeedPreset(1)
-        break
-      case 'teleprompter:speed-preset-1.5':
-        setSpeedPreset(1.5)
-        break
-      case 'teleprompter:speed-preset-2':
-        setSpeedPreset(2)
-        break
-      case 'teleprompter:speed-preset-3':
-        setSpeedPreset(3)
-        break
-      case 'teleprompter:speed-preset-5':
-        setSpeedPreset(5)
-        break
-      case 'teleprompter:reset-to-top':
-        resetToTop()
-        break
-      case 'teleprompter:fit-speed-to-target':
-        fitSpeedToTarget()
-        break
-      case 'teleprompter:apply-voice-preset':
-        if (typeof customEvent.detail?.preset === 'string' && customEvent.detail.preset in VOICE_TRACKING_PRESETS) {
-          applyVoicePreset(customEvent.detail.preset as Exclude<VoiceTrackingPacePreset, 'custom'>)
-        }
-        break
-      case 'teleprompter:hotkey-action':
-        if (typeof customEvent.detail?.action === 'string') executeHotkeyAction(customEvent.detail.action)
-        break
-      case 'teleprompter:scroll':
-        if (contentArea && customEvent.detail?.amount) {
-          contentArea.scrollTop += customEvent.detail.amount
-          moveVoiceToReadingPosition()
-        }
-        break
-      case 'teleprompter:set-scroll-position':
-        // Network Broadcast: Set absolute scroll position (for follower devices)
-        if (contentArea && customEvent.detail?.position !== undefined) {
-          contentArea.scrollTop = customEvent.detail.position
-          debugLog(`[Network Sync] Scroll position set to ${customEvent.detail.position}px`)
-        }
-        break
-      case 'teleprompter:set-scroll-percentage':
-        // A minimap or progress-bar click forwarded from the main window is a seek: pause and cancel the countdown
-        if (contentArea && customEvent.detail?.seek === true && typeof customEvent.detail.percentage === 'number') {
-          seekToFraction(customEvent.detail.percentage / 100, 'Forwarded')
-          break
-        }
-        // Network Broadcast: Set scroll by percentage (for follower devices)
-        if (contentArea && customEvent.detail?.percentage !== undefined) {
-          const scrollableHeight = contentArea.scrollHeight - contentArea.clientHeight
-          contentArea.scrollTop = (customEvent.detail.percentage / 100) * scrollableHeight
-          debugLog(`[Network Sync] Scroll percentage set to ${customEvent.detail.percentage}%`)
-        }
-        break
-      case 'teleprompter:jump-to-header':
-        if (customEvent.detail?.index !== undefined) {
-          const headerList = headers()
-          if (customEvent.detail.index < headerList.length) {
-            jumpToHeader(headerList[customEvent.detail.index].id)
-          }
-        }
-        break
-      case 'teleprompter:jump-to-header-by-id': {
-        // Header ids are render ordinals and can differ between the main and the floating view
-        // (live 2026-11-25: main "header-16" was Cloud, the floating one opened Opening), so a
-        // section reference sent along wins over the id. By line, not title: a title found the
-        // first of every repeated "Situation".
-        const id = headerIdForSection(customEvent.detail)
-        if (id) jumpToHeader(id)
-        break
-      }
-      case 'teleprompter:toggle-navigation':
-        toggleNavigation()
-        break
-      case 'teleprompter:show-navigation':
-        if (!showNavigation) showNavigation = true
-        break
-      case 'teleprompter:hide-navigation':
-        if (showNavigation) showNavigation = false
-        break
-      case 'teleprompter:next-section':
-        jumpToNextSection()
-        break
-      case 'teleprompter:previous-section':
-        jumpToPreviousSection()
-        break
-      case 'teleprompter:broadcast-state':
-        broadcastStateToWebSocket()
-        break
-      case 'teleprompter:set-font-size':
-        if (customEvent.detail?.fontSize) {
-          fontSize = customEvent.detail.fontSize
-        }
-        break
-      case 'teleprompter:apply-all-settings':
-        if (customEvent.detail) {
-          const settings = customEvent.detail
-          if (settings.fontSize) fontSize = settings.fontSize
-          if (settings.textColor) textColor = settings.textColor
-          if (settings.backgroundColor) backgroundColor = settings.backgroundColor
-          if (settings.fontFamily) fontFamily = settings.fontFamily
-          if (settings.lineHeight) lineHeight = settings.lineHeight
-          if (settings.paddingVertical !== undefined) paddingVertical = settings.paddingVertical
-          if (settings.paddingHorizontal !== undefined) paddingHorizontal = settings.paddingHorizontal
-          if (settings.backgroundOpacity !== undefined) backgroundOpacity = settings.backgroundOpacity
-          if (settings.enableBackgroundTransparency !== undefined) enableBackgroundTransparency = settings.enableBackgroundTransparency
-          debugLog('[Teleprompter] Applied all settings from preset:', settings)
-        }
-        break
-      case 'teleprompter:font-size-up':
-        if (fontSize < 72) {
-          fontSize += 2
-          debugLog(`[Font] Size: ${fontSize}px`)
-          broadcastState({ fontSize })
-        }
-        break
-      case 'teleprompter:font-size-down':
-        if (fontSize > 12) {
-          fontSize -= 2
-          debugLog(`[Font] Size: ${fontSize}px`)
-          broadcastState({ fontSize })
-        }
-        break
-      case 'teleprompter:toggle-eyeline':
-        toggleEyeline()
-        break
-      case 'teleprompter:show-eyeline':
-        if (!showEyeline) showEyeline = true
-        break
-      case 'teleprompter:hide-eyeline':
-        if (showEyeline) showEyeline = false
-        break
-      case 'teleprompter:toggle-focus-mode':
-        toggleFocusMode()
-        break
-      case 'teleprompter:enable-focus-mode':
-        if (!focusMode) {
-          focusMode = true
-          broadcastState({ focusMode })
-          debugLog('[FocusMode] Enabled')
-        }
-        break
-      case 'teleprompter:disable-focus-mode':
-        if (focusMode) {
-          focusMode = false
-          broadcastState({ focusMode })
-          debugLog('[FocusMode] Disabled')
-        }
-        break
-      case 'teleprompter:countdown-increase':
+  const commandHandlers: CommandHandlers = {
+    togglePlay: () => togglePlay(),
+    play: () => playCommand(),
+    pause: () => pauseCommand(),
+    stepSpeed: ({ direction }) => {
+      if (direction > 0) increaseSpeed()
+      else decreaseSpeed()
+    },
+    // Same range as the speed slider here: the remote's 0.5x used to become 1x (ISC-159).
+    setSpeed: ({ speed: requested }) => applySpeed(requested),
+    cycleSpeedPreset: () => cycleSpeedPreset(),
+    stepSpeedPreset: ({ direction }) => {
+      if (direction > 0) nextSpeedPreset()
+      else prevSpeedPreset()
+    },
+    setSpeedPreset: ({ speed: preset }) => setSpeedPreset(preset),
+    resetToTop: () => resetToTop(),
+    fitSpeedToTarget: () => fitSpeedToTarget(),
+    applyVoicePreset: ({ preset }) => applyVoicePreset(preset),
+    hotkeyAction: ({ action }) => { executeHotkeyAction(action) },
+    scrollBy: ({ amount }) => scrollByCommand(amount),
+    setScrollPosition: ({ position }) => {
+      if (!contentArea) return
+      contentArea.scrollTop = position
+      debugLog(`[Network Sync] Scroll position set to ${position}px`)
+    },
+    seekToFraction: ({ fraction }) => {
+      if (contentArea) seekToFraction(fraction, 'Forwarded')
+    },
+    followScrollPercentage: ({ percentage }) => {
+      if (!contentArea) return
+      const scrollableHeight = contentArea.scrollHeight - contentArea.clientHeight
+      contentArea.scrollTop = (percentage / 100) * scrollableHeight
+      debugLog(`[Network Sync] Scroll percentage set to ${percentage}%`)
+    },
+    jumpToHeaderIndex: ({ index }) => {
+      const headerList = headers()
+      if (index < headerList.length) jumpToHeader(headerList[index].id)
+    },
+    // Header ids are render ordinals and can differ between the main and the floating view (live
+    // 2026-11-25: main "header-16" was Cloud, the floating one opened Opening), so a section
+    // reference sent along wins over the id. By line, not title: a title found the first of every
+    // repeated "Situation".
+    jumpToSection: ({ target }) => {
+      const id = headerIdForSection(target)
+      if (id) jumpToHeader(id)
+    },
+    toggleNavigation: () => toggleNavigation(),
+    setNavigation: ({ visible }) => {
+      if (showNavigation !== visible) showNavigation = visible
+    },
+    stepSection: ({ direction }) => {
+      if (direction > 0) jumpToNextSection()
+      else jumpToPreviousSection()
+    },
+    broadcastState: () => broadcastStateToWebSocket(),
+    setFontSize: ({ fontSize: size }) => {
+      fontSize = size
+    },
+    applyAppearance: ({ patch }) => applyAppearance(patch),
+    stepFontSize: ({ direction }) => stepFontSize(direction),
+    toggleEyeline: () => toggleEyeline(),
+    setEyeline: ({ visible }) => {
+      if (showEyeline !== visible) showEyeline = visible
+    },
+    toggleFocusMode: () => toggleFocusMode(),
+    setFocusMode: ({ enabled }) => setFocusMode(enabled),
+    stepCountdown: ({ direction }) => {
+      if (direction > 0) {
         increaseCountdown()
         debugLog(`[Countdown] Increased to ${countdownSeconds}s`)
-        break
-      case 'teleprompter:countdown-decrease':
+      } else {
         decreaseCountdown()
         debugLog(`[Countdown] Decreased to ${countdownSeconds}s`)
-        break
-      case 'teleprompter:set-countdown':
-        if (customEvent.detail?.seconds !== undefined) {
-          countdownSeconds = Math.max(0, Math.min(30, customEvent.detail.seconds))
-          debugLog(`[Countdown] Set to ${countdownSeconds}s`)
-        }
-        break
-      case 'teleprompter:start-countdown':
-        // Count down from a stop: scrolling pauses first, and a running countdown restarts (never two).
-        stopPlayback('start-countdown command')
-        startCountdown()
-        debugLog(`[Countdown] Started with ${countdownSeconds}s`)
-        break
-      case 'teleprompter:toggle-pin':
-        togglePin()
-        break
-      case 'teleprompter:pin-note':
-        if (!isPinned) togglePin()
-        break
-      case 'teleprompter:unpin-note':
-        if (isPinned) togglePin()
-        break
-      case 'teleprompter:refresh-pinned':
-        refreshPinnedNote()
-        break
-      case 'teleprompter:toggle-keep-awake':
-        toggleKeepAwake()
-        break
-      case 'teleprompter:enable-keep-awake':
-        if (!isKeepAwake) toggleKeepAwake()
-        break
-      case 'teleprompter:disable-keep-awake':
-        if (isKeepAwake) toggleKeepAwake()
-        break
-      case 'teleprompter:toggle-auto-pause':
-        toggleAutoPauseOnEdit()
-        break
-      case 'teleprompter:enable-auto-pause':
-        setAutoPauseOnEdit(true)
-        break
-      case 'teleprompter:disable-auto-pause':
-        setAutoPauseOnEdit(false)
-        break
-      case 'teleprompter:toggle-double-click-edit':
-        settings.doubleClickToEdit = !settings.doubleClickToEdit
-        debugLog(`[DoubleClick] Toggled to ${settings.doubleClickToEdit}`)
-        break
-      case 'teleprompter:enable-double-click-edit':
-        settings.doubleClickToEdit = true
-        debugLog('[DoubleClick] Enabled')
-        break
-      case 'teleprompter:disable-double-click-edit':
-        settings.doubleClickToEdit = false
-        debugLog('[DoubleClick] Disabled')
-        break
-      case 'teleprompter:toggle-fullscreen':
-        toggleFullScreen()
-        break
-      case 'teleprompter:enable-fullscreen':
-        if (!isFullScreen) toggleFullScreen()
-        break
-      case 'teleprompter:disable-fullscreen':
-        if (isFullScreen) toggleFullScreen()
-        break
-      case 'teleprompter:line-height-increase':
-        increaseLineHeight()
-        break
-      case 'teleprompter:line-height-decrease':
-        decreaseLineHeight()
-        break
-      case 'teleprompter:padding-vertical-increase':
-        increasePaddingVertical()
-        break
-      case 'teleprompter:padding-vertical-decrease':
-        decreasePaddingVertical()
-        break
-      case 'teleprompter:padding-horizontal-increase':
-        increasePaddingHorizontal()
-        break
-      case 'teleprompter:padding-horizontal-decrease':
-        decreasePaddingHorizontal()
-        break
-      case 'teleprompter:color-preset':
-        if (customEvent.detail?.preset) {
-          applyColorPreset(customEvent.detail.preset)
-        }
-        break
-      case 'teleprompter:color-preset-dark':
-        applyColorPreset('dark')
-        break
-      case 'teleprompter:color-preset-light':
-        applyColorPreset('light')
-        break
-      case 'teleprompter:color-preset-black':
-        applyColorPreset('black')
-        break
-      case 'teleprompter:color-preset-sepia':
-        applyColorPreset('sepia')
-        break
-      case 'teleprompter:color-preset-green':
-        applyColorPreset('green-on-black')
-        break
-      case 'teleprompter:color-preset-amber':
-        applyColorPreset('amber-on-black')
-        break
-      case 'teleprompter:set-text-color':
-        if (customEvent.detail?.color) {
-          setTextColor(customEvent.detail.color)
-        }
-        break
-      case 'teleprompter:set-background-color':
-        if (customEvent.detail?.color) {
-          setBackgroundColor(customEvent.detail.color)
-        }
-        break
-      case 'teleprompter:font-preset':
-        if (customEvent.detail?.preset) {
-          applyFontPreset(customEvent.detail.preset)
-        }
-        break
-      case 'teleprompter:font-preset-system':
-        applyFontPreset('system')
-        break
-      case 'teleprompter:font-preset-sans':
-        applyFontPreset('sans')
-        break
-      case 'teleprompter:font-preset-serif':
-        applyFontPreset('serif')
-        break
-      case 'teleprompter:font-preset-mono':
-        applyFontPreset('mono')
-        break
-      case 'teleprompter:font-preset-readable':
-        applyFontPreset('readable')
-        break
-      case 'teleprompter:font-preset-slab':
-        applyFontPreset('slab')
-        break
-      case 'teleprompter:set-font-family':
-        if (customEvent.detail?.family) {
-          setFontFamily(customEvent.detail.family)
-        }
-        break
-      case 'teleprompter:toggle-flip-horizontal':
-        toggleFlipHorizontal()
-        break
-      case 'teleprompter:enable-flip-horizontal':
-        setFlipHorizontal(true)
-        break
-      case 'teleprompter:disable-flip-horizontal':
-        setFlipHorizontal(false)
-        break
-      case 'teleprompter:toggle-flip-vertical':
-        toggleFlipVertical()
-        break
-      case 'teleprompter:enable-flip-vertical':
-        setFlipVertical(true)
-        break
-      case 'teleprompter:disable-flip-vertical':
-        setFlipVertical(false)
-        break
-      // Text alignment commands
-      case 'teleprompter:cycle-alignment':
-        cycleTextAlignment()
-        break
-      case 'teleprompter:align-left':
-        setTextAlignment('left')
-        break
-      case 'teleprompter:align-center':
-        setTextAlignment('center')
-        break
-      case 'teleprompter:align-right':
-        setTextAlignment('right')
-        break
-      case 'teleprompter:align-rtl':
-        setTextAlignment('rtl')
-        break
-      case 'teleprompter:toggle-scroll-sync':
-        toggleScrollSync()
-        break
-      case 'teleprompter:enable-scroll-sync':
-        setScrollSync(true)
-        break
-      case 'teleprompter:disable-scroll-sync':
-        setScrollSync(false)
-        break
-      case 'teleprompter:toggle-minimap':
-        toggleMinimap()
-        break
-      case 'teleprompter:show-minimap':
-        setMinimap(true)
-        break
-      case 'teleprompter:hide-minimap':
-        setMinimap(false)
-        break
-      // Progress indicator style commands
-      case 'teleprompter:cycle-progress-indicator':
-        cycleProgressIndicatorStyle()
-        break
-      case 'teleprompter:progress-indicator-bar':
-        setProgressIndicatorStyle('progress-bar')
-        break
-      case 'teleprompter:progress-indicator-scrollbar':
-        setProgressIndicatorStyle('scrollbar')
-        break
-      case 'teleprompter:progress-indicator-none':
-        setProgressIndicatorStyle('none')
-        break
-      // v0.7.0 commands
-      case 'teleprompter:toggle-eyeline':
-        toggleEyeline()
-        break
-      case 'teleprompter:cycle-speed-preset':
-        cycleSpeedPreset()
-        break
-      case 'teleprompter:next-speed-preset':
-        nextSpeedPreset()
-        break
-      case 'teleprompter:prev-speed-preset':
-        prevSpeedPreset()
-        break
-      case 'teleprompter:cycle-alignment':
-        cycleTextAlignment()
-        break
-      case 'teleprompter:broadcast-state':
-        broadcastStateToWebSocket()
-        break
-      // v0.8.0 Stream Deck commands - Letter spacing
-      case 'teleprompter:letter-spacing-increase':
-        increaseLetterSpacing()
-        break
-      case 'teleprompter:letter-spacing-decrease':
-        decreaseLetterSpacing()
-        break
-      // v0.8.0 Stream Deck commands - Opacity
-      case 'teleprompter:opacity-increase':
-        increaseOpacity()
-        break
-      case 'teleprompter:opacity-decrease':
-        decreaseOpacity()
-        break
-      // v0.8.0 Stream Deck commands - View mode
-      case 'teleprompter:toggle-view-mode':
-        toggleViewMode()
-        break
-      case 'teleprompter:set-view-mode-rendered':
-        setViewMode('rendered')
-        break
-      case 'teleprompter:set-view-mode-plain':
-        setViewMode('plain')
-        break
-      // v0.8.0 Stream Deck commands - Detach window
-      case 'teleprompter:toggle-floating':
-        if (plugin.floatingSession.claim(customEvent)) void toggleFloating()
-        break
-      case 'teleprompter:detach-window':
-        detachWindow()
-        break
-      // v0.8.0 Stream Deck commands - Open file
-      case 'teleprompter:open-file':
-        if (customEvent.detail?.path) {
-          openFile(customEvent.detail.path)
-        }
-        break
-      // Voice tracking commands
-      case 'teleprompter:voice-start':
-        if (!isVoiceEngaged({ active: voiceTrackingActive, status: voiceTrackingStatus })) toggleVoiceTracking()
-        break
-      case 'teleprompter:voice-stop':
-        if (isVoiceEngaged({ active: voiceTrackingActive, status: voiceTrackingStatus })) toggleVoiceTracking()
-        break
-      case 'teleprompter:voice-toggle':
-        toggleVoiceTracking()
-        break
-      case 'teleprompter:voice-resync':
-        if (voiceTrackingActive) {
-          voiceTrackingService?.forceResync()
-          bumpProgressEpoch()
-        }
-        break
-      // TTS commands
-      case 'teleprompter:tts-toggle':
-        void toggleTTS()
-        break
-      case 'teleprompter:tts-stop':
-        stopTTS()
-        break
-      case 'teleprompter:tts-from-section': {
-        const id = headerIdForSection(customEvent.detail)
-        if (id) void startTTSFromSection(id)
-        break
       }
-      case 'teleprompter:tts-next-sentence':
-        void ttsNextSentence()
-        break
-      case 'teleprompter:tts-prev-sentence':
-        void ttsPrevSentence()
-        break
-      case 'teleprompter:tts-repeat':
-        void ttsRepeat()
-        break
-      case 'teleprompter:tts-loop-toggle':
-        ttsToggleLoop()
-        break
-      case 'teleprompter:tts-speed-up':
-        ttsRate = Math.min(2.0, ttsRate + 0.25)
-        onTTSRateChange()
-        break
-      case 'teleprompter:tts-speed-down':
-        ttsRate = Math.max(0.5, ttsRate - 0.25)
-        onTTSRateChange()
-        break
-      case 'teleprompter:get-voice-status':
-        // Update WebSocket state with voice status
-        if (plugin?.wsServer) {
-          plugin.wsServer.updateState({
-            voiceTrackingActive,
-            voiceTrackingStatus
-          })
-        }
-        break
+    },
+    setCountdown: ({ seconds }) => {
+      countdownSeconds = seconds
+      debugLog(`[Countdown] Set to ${countdownSeconds}s`)
+    },
+    startCountdown: () => startCountdownCommand(),
+    togglePin: () => togglePin(),
+    setPinned: ({ pinned }) => {
+      if (isPinned !== pinned) togglePin()
+    },
+    refreshPinned: () => refreshPinnedNote(),
+    toggleKeepAwake: () => toggleKeepAwake(),
+    setKeepAwake: ({ enabled }) => {
+      if (isKeepAwake !== enabled) toggleKeepAwake()
+    },
+    toggleAutoPause: () => toggleAutoPauseOnEdit(),
+    setAutoPause: ({ enabled }) => setAutoPauseOnEdit(enabled),
+    toggleDoubleClickEdit: () => setDoubleClickEdit(!settings.doubleClickToEdit),
+    setDoubleClickEdit: ({ enabled }) => setDoubleClickEdit(enabled),
+    toggleFullScreen: () => toggleFullScreen(),
+    setFullScreen: ({ enabled }) => {
+      if (isFullScreen !== enabled) toggleFullScreen()
+    },
+    stepLineHeight: ({ direction }) => {
+      if (direction > 0) increaseLineHeight()
+      else decreaseLineHeight()
+    },
+    stepPaddingVertical: ({ direction }) => {
+      if (direction > 0) increasePaddingVertical()
+      else decreasePaddingVertical()
+    },
+    stepPaddingHorizontal: ({ direction }) => {
+      if (direction > 0) increasePaddingHorizontal()
+      else decreasePaddingHorizontal()
+    },
+    applyColorPreset: ({ preset }) => applyColorPreset(preset),
+    setTextColor: ({ color }) => setTextColor(color),
+    setBackgroundColor: ({ color }) => setBackgroundColor(color),
+    applyFontPreset: ({ preset }) => applyFontPreset(preset),
+    setFontFamily: ({ family }) => setFontFamily(family),
+    toggleFlipHorizontal: () => toggleFlipHorizontal(),
+    setFlipHorizontal: ({ enabled }) => setFlipHorizontal(enabled),
+    toggleFlipVertical: () => toggleFlipVertical(),
+    setFlipVertical: ({ enabled }) => setFlipVertical(enabled),
+    cycleAlignment: () => cycleTextAlignment(),
+    setAlignment: ({ alignment }) => setTextAlignment(alignment),
+    toggleScrollSync: () => toggleScrollSync(),
+    setScrollSync: ({ enabled }) => setScrollSync(enabled),
+    toggleMinimap: () => toggleMinimap(),
+    setMinimap: ({ visible }) => setMinimap(visible),
+    cycleProgressIndicator: () => cycleProgressIndicatorStyle(),
+    setProgressIndicator: ({ style }) => setProgressIndicatorStyle(style),
+    stepLetterSpacing: ({ direction }) => {
+      if (direction > 0) increaseLetterSpacing()
+      else decreaseLetterSpacing()
+    },
+    stepOpacity: ({ direction }) => {
+      if (direction > 0) increaseOpacity()
+      else decreaseOpacity()
+    },
+    toggleViewMode: () => toggleViewMode(),
+    setViewMode: ({ mode }) => setViewMode(mode),
+    toggleFloating: () => { void toggleFloating() },
+    detachWindow: () => detachWindow(),
+    openFile: ({ path }) => { void openFile(path) },
+    setVoice: ({ on }) => {
+      if (isVoiceEngaged({ active: voiceTrackingActive, status: voiceTrackingStatus }) !== on) void toggleVoiceTracking()
+    },
+    toggleVoice: () => { void toggleVoiceTracking() },
+    voiceResync: () => {
+      if (!voiceTrackingActive) return
+      voiceTrackingService?.forceResync()
+      bumpProgressEpoch()
+    },
+    reportVoiceStatus: () => {
+      // Update WebSocket state with voice status
+      plugin?.wsServer?.updateState({ voiceTrackingActive, voiceTrackingStatus })
+    },
+    toggleTTS: () => { void toggleTTS() },
+    startTTS: () => {
+      if (ttsPlaybackState === 'idle') void toggleTTS()
+    },
+    stopTTS: () => stopTTS(),
+    readFromSection: ({ target }) => {
+      const id = headerIdForSection(target)
+      if (id) void startTTSFromSection(id)
+    },
+    stepTTSSentence: ({ direction }) => { void (direction > 0 ? ttsNextSentence() : ttsPrevSentence()) },
+    repeatTTSSentence: () => { void ttsRepeat() },
+    toggleTTSLoop: () => ttsToggleLoop(),
+    stepTTSRate: ({ direction }) => {
+      ttsRate = direction > 0 ? Math.min(2.0, ttsRate + 0.25) : Math.max(0.5, ttsRate - 0.25)
+      onTTSRateChange()
+    },
+    loadSpeakerNotes: ({ content: notes, title }) => loadSpeakerNotes(notes, title),
+  }
 
-      // PAI Stage integration
-      case 'teleprompter:load-speaker-notes': {
-        const detail = (event as CustomEvent).detail
-        if (detail?.content) {
-          // Set content directly — this overrides the current file content
-          content = detail.content
-          currentFileName = detail.slide ? `Slide ${detail.slide}/${detail.totalSlides || '?'}` : 'Speaker Notes'
-          // Reset scroll to top for new slide
-          if (contentArea) contentArea.scrollTop = 0
-        }
-        break
-      }
-      case 'teleprompter:toggleTTS':
-        void toggleTTS()
-        break
-      case 'teleprompter:startTTS':
-        if (ttsPlaybackState === 'idle') void toggleTTS()
-        break
-      case 'teleprompter:stopTTS':
-        stopTTS()
-        break
-    }
+  /** A remote play (Stream Deck, phone, command palette). */
+  function playCommand() {
+    // Remote starts never started the clock before, because it was keyed on a timestamp only
+    // togglePlay ever set. Play means now: a running countdown is skipped, not left to start
+    // playback again later.
+    cancelCountdown('play command')
+    if (!isPlaying) beginPlayback(false)
+    // The other view shows the same Play/Pause state (ISC-151).
+    broadcastState({ isPlaying })
+  }
+
+  function pauseCommand() {
+    stopPlayback('pause command')
+    // Voice and read-aloud keep isPlaying false, so the clock is paused here either way.
+    pauseSession()
+    broadcastState({ isPlaying })
+  }
+
+  /** Count down from a stop: scrolling pauses first, and a running countdown restarts (never two). */
+  function startCountdownCommand() {
+    stopPlayback('start-countdown command')
+    startCountdown()
+    debugLog(`[Countdown] Started with ${countdownSeconds}s`)
+  }
+
+  /** A remote scroll (Stream Deck, phone) moves the voice with it, as a page turn does. */
+  function scrollByCommand(amount: number) {
+    if (!contentArea) return
+    contentArea.scrollTop += amount
+    moveVoiceToReadingPosition()
+  }
+
+  function stepFontSize(direction: Direction) {
+    if (direction > 0 ? fontSize >= 72 : fontSize <= 12) return
+    fontSize += direction * 2
+    debugLog(`[Font] Size: ${fontSize}px`)
+    broadcastState({ fontSize })
+  }
+
+  function setFocusMode(enabled: boolean) {
+    if (focusMode === enabled) return
+    focusMode = enabled
+    broadcastState({ focusMode })
+    debugLog(`[FocusMode] ${enabled ? 'Enabled' : 'Disabled'}`)
+  }
+
+  function setDoubleClickEdit(enabled: boolean) {
+    settings.doubleClickToEdit = enabled
+    debugLog(`[DoubleClick] Set to ${enabled}`)
+  }
+
+  /** A preset applied from the settings: only the fields it carries change. */
+  function applyAppearance(patch: AppearancePatch) {
+    if (patch.fontSize !== undefined) fontSize = patch.fontSize
+    if (patch.textColor !== undefined) textColor = patch.textColor
+    if (patch.backgroundColor !== undefined) backgroundColor = patch.backgroundColor
+    if (patch.fontFamily !== undefined) fontFamily = patch.fontFamily
+    if (patch.lineHeight !== undefined) lineHeight = patch.lineHeight
+    if (patch.paddingVertical !== undefined) paddingVertical = patch.paddingVertical
+    if (patch.paddingHorizontal !== undefined) paddingHorizontal = patch.paddingHorizontal
+    if (patch.backgroundOpacity !== undefined) backgroundOpacity = patch.backgroundOpacity
+    if (patch.enableBackgroundTransparency !== undefined) enableBackgroundTransparency = patch.enableBackgroundTransparency
+    debugLog('[Teleprompter] Applied all settings from preset:', patch)
+  }
+
+  /** LifeOS Stage sends a slide's speaker notes: they replace the current file's content. */
+  function loadSpeakerNotes(notes: string, title: string) {
+    content = notes
+    currentFileName = title
+    // Reset scroll to top for new slide
+    if (contentArea) contentArea.scrollTop = 0
   }
 
   // Broadcast current state to WebSocket clients
@@ -5593,140 +5284,9 @@
       focusModeRange = plugin.settings.focusModeRange
     }
 
-    // Register WebSocket event listeners
-    const wsEvents = [
-      'teleprompter:toggle-play',
-      'teleprompter:play',
-      'teleprompter:pause',
-      'teleprompter:increase-speed',
-      'teleprompter:decrease-speed',
-      'teleprompter:set-speed',
-      'teleprompter:cycle-speed-preset',
-      'teleprompter:next-speed-preset',
-      'teleprompter:prev-speed-preset',
-      'teleprompter:set-speed-preset',
-      'teleprompter:speed-preset-0.5',
-      'teleprompter:speed-preset-1',
-      'teleprompter:speed-preset-1.5',
-      'teleprompter:speed-preset-2',
-      'teleprompter:speed-preset-3',
-      'teleprompter:speed-preset-5',
-      'teleprompter:reset-to-top',
-      'teleprompter:fit-speed-to-target',
-      'teleprompter:scroll',
-      'teleprompter:hotkey-action',
-      'teleprompter:apply-voice-preset',
-      'teleprompter:set-scroll-position',
-      'teleprompter:set-scroll-percentage',
-      'teleprompter:jump-to-header',
-      'teleprompter:jump-to-header-by-id',
-      'teleprompter:next-section',
-      'teleprompter:previous-section',
-      'teleprompter:toggle-navigation',
-      'teleprompter:show-navigation',
-      'teleprompter:hide-navigation',
-      'teleprompter:broadcast-state',
-      'teleprompter:apply-all-settings',
-      'teleprompter:set-font-size',
-      'teleprompter:font-size-up',
-      'teleprompter:font-size-down',
-      'teleprompter:toggle-eyeline',
-      'teleprompter:show-eyeline',
-      'teleprompter:hide-eyeline',
-      'teleprompter:toggle-focus-mode',
-      'teleprompter:enable-focus-mode',
-      'teleprompter:disable-focus-mode',
-      'teleprompter:toggle-pin',
-      'teleprompter:toggle-floating',
-      'teleprompter:pin-note',
-      'teleprompter:unpin-note',
-      'teleprompter:refresh-pinned',
-      'teleprompter:toggle-keep-awake',
-      'teleprompter:enable-keep-awake',
-      'teleprompter:disable-keep-awake',
-      'teleprompter:toggle-fullscreen',
-      'teleprompter:enable-fullscreen',
-      'teleprompter:disable-fullscreen',
-      'teleprompter:line-height-increase',
-      'teleprompter:line-height-decrease',
-      'teleprompter:padding-vertical-increase',
-      'teleprompter:padding-vertical-decrease',
-      'teleprompter:padding-horizontal-increase',
-      'teleprompter:padding-horizontal-decrease',
-      'teleprompter:color-preset',
-      'teleprompter:color-preset-dark',
-      'teleprompter:color-preset-light',
-      'teleprompter:color-preset-black',
-      'teleprompter:color-preset-sepia',
-      'teleprompter:color-preset-green',
-      'teleprompter:color-preset-amber',
-      'teleprompter:set-text-color',
-      'teleprompter:set-background-color',
-      'teleprompter:font-preset',
-      'teleprompter:font-preset-system',
-      'teleprompter:font-preset-sans',
-      'teleprompter:font-preset-serif',
-      'teleprompter:font-preset-mono',
-      'teleprompter:font-preset-readable',
-      'teleprompter:font-preset-slab',
-      'teleprompter:set-font-family',
-      'teleprompter:toggle-flip-horizontal',
-      'teleprompter:enable-flip-horizontal',
-      'teleprompter:disable-flip-horizontal',
-      'teleprompter:toggle-flip-vertical',
-      'teleprompter:enable-flip-vertical',
-      'teleprompter:disable-flip-vertical',
-      'teleprompter:toggle-scroll-sync',
-      'teleprompter:enable-scroll-sync',
-      'teleprompter:disable-scroll-sync',
-      'teleprompter:toggle-minimap',
-      'teleprompter:show-minimap',
-      'teleprompter:hide-minimap',
-      'teleprompter:cycle-progress-indicator',
-      'teleprompter:progress-indicator-bar',
-      'teleprompter:progress-indicator-scrollbar',
-      'teleprompter:progress-indicator-none',
-      'teleprompter:toggle-auto-pause',
-      'teleprompter:enable-auto-pause',
-      'teleprompter:disable-auto-pause',
-      'teleprompter:toggle-double-click-edit',
-      'teleprompter:enable-double-click-edit',
-      'teleprompter:disable-double-click-edit',
-      'teleprompter:toggle-eyeline',
-      'teleprompter:cycle-speed-preset',
-      'teleprompter:next-speed-preset',
-      'teleprompter:prev-speed-preset',
-      'teleprompter:cycle-alignment',
-      'teleprompter:broadcast-state',
-      // Voice tracking events
-      'teleprompter:voice-start',
-      'teleprompter:voice-stop',
-      'teleprompter:voice-toggle',
-      'teleprompter:get-voice-status',
-      // TTS events
-      'teleprompter:tts-toggle',
-      'teleprompter:tts-stop',
-      'teleprompter:tts-from-section',
-      'teleprompter:tts-next-sentence',
-      'teleprompter:tts-prev-sentence',
-      'teleprompter:tts-repeat',
-      'teleprompter:tts-loop-toggle',
-      'teleprompter:tts-speed-up',
-      'teleprompter:tts-speed-down',
-      // Countdown events
-      'teleprompter:countdown-increase',
-      'teleprompter:countdown-decrease',
-      'teleprompter:set-countdown',
-      'teleprompter:start-countdown',
-      // PAI Stage integration
-      'teleprompter:load-speaker-notes',
-      'teleprompter:toggleTTS',
-      'teleprompter:startTTS',
-      'teleprompter:stopTTS',
-    ]
-
-    wsEvents.forEach(eventType => {
-      actualWin.addEventListener(eventType, handleWebSocketEvent as EventListener)
+    // Every command event in commands.ts that is not dormant, on this view's own window
+    LISTENED_COMMAND_EVENTS.forEach(eventType => {
+      actualWin.addEventListener(eventType, handleCommandEvent)
     })
 
     // Initial state broadcast
@@ -5846,8 +5406,8 @@
       }
 
       // Remove WebSocket event listeners
-      wsEvents.forEach(eventType => {
-        actualWin.removeEventListener(eventType, handleWebSocketEvent as EventListener)
+      LISTENED_COMMAND_EVENTS.forEach(eventType => {
+        actualWin.removeEventListener(eventType, handleCommandEvent)
       })
 
       // A countdown outliving the view would set state on a dead component.
@@ -6193,17 +5753,14 @@
   /**
    * A click in the Jump to Section list. While a script floats, the floating view is the one
    * being read (on the Elgato Prompter), so it must jump too; commands already reach it through
-   * handleWebSocketEvent, but this click called jumpToHeader directly and never left the main
+   * handleCommandEvent, but this click called jumpToHeader directly and never left the main
    * view (Américo, 2026-11-25, ISC-138). The section travels as its line and title (sections.ts):
    * ids are this view's render ordinals, and a title alone finds the first of a repeated title.
+   * forwardToFloating also stops a glide in flight, which would pull this view back to where it
+   * was; the floating view's next report starts a fresh one from the heading.
    */
   function jumpFromNavigation(headerId: string) {
-    if (!isFloating && plugin.floatingSession.active) {
-      // A glide in flight would pull this view back to where it was; the floating view's next
-      // report starts a fresh one from the heading.
-      stopMirror()
-      plugin.floatingSession.forward('teleprompter:jump-to-header-by-id', { headerId, section: sectionOfHeader(headerId) })
-    }
+    forwardToFloating('teleprompter:jump-to-header-by-id', { headerId, section: sectionOfHeader(headerId) })
     jumpToHeader(headerId)
   }
 
