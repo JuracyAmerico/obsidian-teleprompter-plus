@@ -35,7 +35,8 @@
     "lint:fix": "eslint src/ --fix",
     "icons:streamdeck": "bun scripts/generate-streamdeck-icons.ts && cd docs/icons/streamdeck && for f in *.svg; do rsvg-convert -w 288 -h 288 \"$f\" -o \"${f%.svg}.png\"; done",
     "test": "bun test",
-    "test:watch": "bun test --watch"
+    "test:watch": "bun test --watch",
+    "bench:voice": "bun scripts/voice-bench.ts"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.2",
