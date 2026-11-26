@@ -35,11 +35,20 @@ Order on the bar: **Playback → Display/Type → View → Capture → System �
 | Zone | Controls (main bar) | Notes |
 |------|--------------------|-------|
 | **Playback** | Play/pause (hero), Speed, Countdown, Reset | Hero is always first. |
-| **Display / type** | Font size, Line height, Font family | Letter spacing, Opacity, Padding, Text/Bg color, Alignment default into **More**. |
+| **Display / type** | Appearance (one button) | Since 0.12.6 font size, font, padding, text color, background and opacity live in the **Appearance** panel; letter spacing and alignment default into **More**. |
 | **View** | Fullscreen, Flip H, Flip V, Eyeline, Focus mode | Minimap, Navigation, Progress indicator default into **More**. |
 | **Capture** | Voice tracking, Text-to-speech | |
 | **System** | — | Auto-Pause, Keep awake, Pin, Open in Window, Float over other apps, Quick presets default into **More**. |
-| **Readout** | Time display | Rendered separately, right-aligned; never a button. |
+| **Readout** | Keyboard button, time display | Right-aligned. The keyboard button (0.12.9) shows whether shortcuts reach the prompter; the clock is a readout, never a button. |
+
+## Keyboard button
+
+Space, the arrows, R and the number keys only reach the prompter while it has focus. A
+keyboard button (`.tp-keys-btn`) sits just left of the clock and shows that state: greyed
+with an amber dot (`.tp-keys-dot`) while the prompter does not have the keyboard, normal
+once it does. One click gives the prompter the keyboard. It replaced the pulsing "Click here
+to enable keyboard shortcuts" pill and the "Shortcuts Active" badge, which sat over the
+script. Not shown on the phone page or in the floating window.
 
 ## How it interacts with show / hide / reorder
 
@@ -101,7 +110,8 @@ light, dark, and third-party themes. Icons are Lucide via `setIcon()`.
 ## Responsive behavior
 
 When width is tight, secondary controls collapse into the **More** menu rather than the
-bar wrapping to a second row — the bar never wraps. In fullscreen the toolbar follows the
+bar wrapping. If the clock still does not fit, it moves to a row of its own under the bar
+(`readoutInBar`, since 0.12.6) instead of being cut off. In fullscreen the toolbar follows the
 existing show/hide-on-interaction behavior.
 
 ## Related
