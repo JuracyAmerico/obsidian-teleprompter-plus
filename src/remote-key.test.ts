@@ -55,6 +55,8 @@ describe('ISC-160: the phone remote page as served', () => {
 	test('its script parses (a \\n in the template once became a real line break and killed the page)', async () => {
 		const { REMOTE_INTERFACE_HTML } = await import('./remote-interface')
 		const js = REMOTE_INTERFACE_HTML.slice(REMOTE_INTERFACE_HTML.lastIndexOf('<script>') + 8, REMOTE_INTERFACE_HTML.lastIndexOf('</script>'))
+		// Parse-only check of the served script; the function is never called.
+		// eslint-disable-next-line @typescript-eslint/no-implied-eval
 		expect(() => new Function(js)).not.toThrow()
 	})
 	test('the section list is rebuilt only when sections change; the highlight moves in place; no scroll under a finger', () => {
