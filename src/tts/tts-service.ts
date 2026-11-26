@@ -183,6 +183,17 @@ export class TTSService {
 		this.setPlaybackState('paused')
 	}
 
+	/**
+	 * Pause on the sentence whose start is being announced, before a word of it is spoken: a
+	 * sentence-start listener calls this (a take's section end stops before the next heading is read).
+	 * Play then speaks that sentence from its start.
+	 */
+	pauseBeforeSentence(): void {
+		if (this.playbackState !== 'playing' || !this.engine) return
+		this.halt()
+		this.setPlaybackState('paused')
+	}
+
 	/** Stop TTS playback and reset to beginning */
 	stop(): void {
 		if (!this.engine) return
@@ -475,6 +486,8 @@ export class TTSService {
 
 		const text = this.spokenForm(this.document.allSentences[this.currentIndex])
 		this.emitSentenceStart()
+		// A listener paused here (pauseBeforeSentence): the sentence waits for Play, unspoken.
+		if (this.playbackState !== 'playing') return
 
 		const options = this.optionsFor(this.currentIndex)
 		const turn = ++this.speechTurn
