@@ -158,7 +158,7 @@ const EXPECTED: Record<CommandEvent, { detail?: unknown; intent: Intent }> = {
 	'teleprompter:set-view-mode-rendered': { intent: { kind: 'setViewMode', mode: 'rendered' } },
 	'teleprompter:set-view-mode-plain': { intent: { kind: 'setViewMode', mode: 'plain' } },
 	'teleprompter:toggle-floating': { intent: { kind: 'toggleFloating' } },
-	'teleprompter:detach-window': { intent: { kind: 'detachWindow' } },
+	'teleprompter:detach-window': { intent: { kind: 'toggleFloating' } },
 	'teleprompter:open-file': { detail: { path: 'Scripts/Talk.md' }, intent: { kind: 'openFile', path: 'Scripts/Talk.md' } },
 	'teleprompter:voice-start': { intent: { kind: 'setVoice', on: true } },
 	'teleprompter:voice-stop': { intent: { kind: 'setVoice', on: false } },
@@ -205,12 +205,20 @@ const MALFORMED: Partial<Record<CommandEvent, unknown[]>> = {
 	'teleprompter:set-background-color': [undefined, {}, { color: 0 }],
 	'teleprompter:font-preset': [undefined, {}, { preset: '' }],
 	'teleprompter:set-font-family': [undefined, {}, { family: null }],
-	'teleprompter:open-file': [undefined, {}, { path: '' }],
+	'teleprompter:open-file': [undefined, {}, { path: '' }, { path: 'data.json' }, { path: 'plugins/teleprompter-plus/data.json' }, { path: 'photo.png' }],
 	'teleprompter:tts-from-section': [undefined, {}, { headerId: '' }],
 	'teleprompter:load-speaker-notes': [undefined, {}, { content: '' }, { content: 42 }],
 }
 
 /** The events the view listened for before commands.ts, word for word from the old wsEvents list. */
+/** Sent by main.ts (Stream Deck, URI handler) but never listened for until 0.12.14. */
+const TURNED_ON_0_12_14 = [
+	'teleprompter:letter-spacing-increase', 'teleprompter:letter-spacing-decrease',
+	'teleprompter:opacity-increase', 'teleprompter:opacity-decrease',
+	'teleprompter:toggle-view-mode', 'teleprompter:set-view-mode-rendered', 'teleprompter:set-view-mode-plain',
+	'teleprompter:detach-window', 'teleprompter:open-file',
+]
+
 const LISTENED_BEFORE = [
 	'toggle-play', 'play', 'pause', 'increase-speed', 'decrease-speed', 'set-speed', 'cycle-speed-preset',
 	'next-speed-preset', 'prev-speed-preset', 'set-speed-preset', 'speed-preset-0.5', 'speed-preset-1',
@@ -297,16 +305,13 @@ describe('the command table', () => {
 	})
 
 	test('the view listens for exactly what it listened for before', () => {
-		expect<string[]>([...LISTENED_COMMAND_EVENTS].sort()).toEqual([...new Set(LISTENED_BEFORE)].sort())
+		expect<string[]>([...LISTENED_COMMAND_EVENTS].sort()).toEqual([...new Set([...LISTENED_BEFORE, ...TURNED_ON_0_12_14])].sort())
 	})
 
 	test('dormant commands are the ones the view never listened for, each with its reason', () => {
 		const dormant = COMMAND_EVENTS.filter(type => dormantReason(type) !== undefined)
 		expect(dormant.sort()).toEqual([
 			'teleprompter:align-center', 'teleprompter:align-left', 'teleprompter:align-right', 'teleprompter:align-rtl',
-			'teleprompter:detach-window', 'teleprompter:letter-spacing-decrease', 'teleprompter:letter-spacing-increase',
-			'teleprompter:opacity-decrease', 'teleprompter:opacity-increase', 'teleprompter:open-file',
-			'teleprompter:set-view-mode-plain', 'teleprompter:set-view-mode-rendered', 'teleprompter:toggle-view-mode',
 			'teleprompter:voice-resync',
 		])
 		for (const type of dormant) expect(dormantReason(type)?.length ?? 0).toBeGreaterThan(20)
@@ -372,9 +377,9 @@ describe('the routing rule', () => {
 		expect(ownsScript(MAIN_WHILE_FLOATING)).toBe(false)
 	})
 
-	test('only toggle-floating is main-window-only', () => {
+	test('only toggle-floating and its old alias detach-window are main-window-only', () => {
 		const mainOnly = COMMAND_EVENTS.filter(type => commandScope(type) === 'main-window')
-		expect(mainOnly).toEqual(['teleprompter:toggle-floating'])
+		expect(mainOnly).toEqual(['teleprompter:toggle-floating', 'teleprompter:detach-window'])
 	})
 
 	for (const type of COMMAND_EVENTS.filter(t => commandScope(t) === 'script')) {
@@ -448,7 +453,7 @@ describe('dispatching a command in a view', () => {
 		const session = fakeSession()
 		const ran: Intent[] = []
 		expect(dispatchCommand(command('teleprompter:nope'), MAIN, session, intent => ran.push(intent))).toEqual({ outcome: 'ignored', reason: 'unknown' })
-		expect(dispatchCommand(command('teleprompter:opacity-increase'), MAIN_WHILE_FLOATING, session, intent => ran.push(intent))).toEqual({ outcome: 'ignored', reason: 'dormant' })
+		expect(dispatchCommand(command('teleprompter:align-left'), MAIN_WHILE_FLOATING, session, intent => ran.push(intent))).toEqual({ outcome: 'ignored', reason: 'dormant' })
 		expect(ran).toEqual([])
 		expect(session.forwarded).toEqual([])
 	})

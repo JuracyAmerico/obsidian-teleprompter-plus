@@ -229,8 +229,6 @@ const always = (intent: Intent) => () => ({ ...intent }) as Intent
 const script = (parse: (detail: unknown) => Intent | null): CommandSpec => ({ parse, scope: 'script' })
 const fixed = (intent: Intent): CommandSpec => script(always(intent))
 
-const NOT_LISTENED =
-	'main.ts dispatches it, but the view never listened for it, so it has done nothing since it was added. Turning it on is a behaviour change to test live first.'
 const NOT_SENT = 'Nothing dispatches it and the view never listened for it.'
 const dormant = (spec: CommandSpec, reason: string): CommandSpec => ({ ...spec, dormant: reason })
 
@@ -407,23 +405,22 @@ const COMMAND_TABLE = {
 	'teleprompter:progress-indicator-bar': fixed({ kind: 'setProgressIndicator', style: 'progress-bar' }),
 	'teleprompter:progress-indicator-scrollbar': fixed({ kind: 'setProgressIndicator', style: 'scrollbar' }),
 	'teleprompter:progress-indicator-none': fixed({ kind: 'setProgressIndicator', style: 'none' }),
-	'teleprompter:letter-spacing-increase': dormant(fixed({ kind: 'stepLetterSpacing', direction: 1 }), NOT_LISTENED),
-	'teleprompter:letter-spacing-decrease': dormant(fixed({ kind: 'stepLetterSpacing', direction: -1 }), NOT_LISTENED),
-	'teleprompter:opacity-increase': dormant(fixed({ kind: 'stepOpacity', direction: 1 }), NOT_LISTENED),
-	'teleprompter:opacity-decrease': dormant(fixed({ kind: 'stepOpacity', direction: -1 }), NOT_LISTENED),
-	'teleprompter:toggle-view-mode': dormant(fixed({ kind: 'toggleViewMode' }), NOT_LISTENED),
-	'teleprompter:set-view-mode-rendered': dormant(fixed({ kind: 'setViewMode', mode: 'rendered' }), NOT_LISTENED),
-	'teleprompter:set-view-mode-plain': dormant(fixed({ kind: 'setViewMode', mode: 'plain' }), NOT_LISTENED),
+	'teleprompter:letter-spacing-increase': fixed({ kind: 'stepLetterSpacing', direction: 1 }),
+	'teleprompter:letter-spacing-decrease': fixed({ kind: 'stepLetterSpacing', direction: -1 }),
+	'teleprompter:opacity-increase': fixed({ kind: 'stepOpacity', direction: 1 }),
+	'teleprompter:opacity-decrease': fixed({ kind: 'stepOpacity', direction: -1 }),
+	'teleprompter:toggle-view-mode': fixed({ kind: 'toggleViewMode' }),
+	'teleprompter:set-view-mode-rendered': fixed({ kind: 'setViewMode', mode: 'rendered' }),
+	'teleprompter:set-view-mode-plain': fixed({ kind: 'setViewMode', mode: 'plain' }),
 	// Opens or closes the floating window: the view that heard it runs it, never the floating view.
 	'teleprompter:toggle-floating': { parse: always({ kind: 'toggleFloating' }), scope: 'main-window' },
-	'teleprompter:detach-window': dormant(fixed({ kind: 'detachWindow' }), NOT_LISTENED),
-	'teleprompter:open-file': dormant(
-		script(detail => {
-			const path = nonEmptyString(record(detail)?.path)
-			return path ? { kind: 'openFile', path } : null
-		}),
-		NOT_LISTENED
-	),
+	// The Stream Deck "Detach Window" key predates the floating (Elgato) window; it now opens and closes that.
+	'teleprompter:detach-window': { parse: always({ kind: 'toggleFloating' }), scope: 'main-window' },
+	// Only markdown notes: a remote client must not load arbitrary vault files into the prompter.
+	'teleprompter:open-file': script(detail => {
+		const path = nonEmptyString(record(detail)?.path)
+		return path && /\.md$/i.test(path) ? { kind: 'openFile', path } : null
+	}),
 	'teleprompter:voice-start': fixed({ kind: 'setVoice', on: true }),
 	'teleprompter:voice-stop': fixed({ kind: 'setVoice', on: false }),
 	'teleprompter:voice-toggle': fixed({ kind: 'toggleVoice' }),
