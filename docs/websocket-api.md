@@ -13,14 +13,23 @@ For the high-level integration story see the main [README](../README.md). For th
 
 ## Command format
 
-Every command sent to the server is a JSON object with a `command` field and an optional `value`:
+Every command sent to the server is a JSON object with a `command` field. Commands that take a parameter read it from a named field next to `command`, and the name depends on the command (there is no generic `value` field):
 
 ```json
 {
-  "command": "command-name",
-  "value": 123
+  "command": "set-speed",
+  "speed": 3
 }
 ```
+
+| Command | Field |
+|---|---|
+| `set-speed` | `speed` (number) |
+| `jump-to-header` | `index` (number, 0-based) |
+| `jump-to-header-by-id` | `headerId` (string) |
+| `scroll-up`, `scroll-down` | `amount` (number, default 100) |
+
+Other parameters (`fontSize`, `seconds`, `path`, `position`, `percentage`, `scene`) follow the same rule: read the handler in `src/main.ts` for the exact field name.
 
 ## State broadcasts
 
@@ -69,10 +78,10 @@ Treat `timestamp` as monotonically increasing per session — use it to dedupe o
 ws.send(JSON.stringify({ command: "toggle-play" }))
 
 // Set speed to 3×
-ws.send(JSON.stringify({ command: "set-speed", value: 3 }))
+ws.send(JSON.stringify({ command: "set-speed", speed: 3 }))
 
 // Jump to the second header (index 1)
-ws.send(JSON.stringify({ command: "jump-to-header", value: 1 }))
+ws.send(JSON.stringify({ command: "jump-to-header", index: 1 }))
 
 // Manually request a state broadcast
 ws.send(JSON.stringify({ command: "get-state" }))
@@ -103,7 +112,7 @@ ws.onopen = () => {
   ws.send(JSON.stringify({ command: 'play' }))
 
   setTimeout(() => {
-    ws.send(JSON.stringify({ command: 'set-speed', value: 5 }))
+    ws.send(JSON.stringify({ command: 'set-speed', speed: 5 }))
   }, 5000)
 }
 
@@ -172,6 +181,17 @@ function connect() {
 ## Security model
 
 - **Loopback by default.** The server binds to `127.0.0.1` unless you change the host.
-- **Remote key off this computer.** Local processes (the Stream Deck) connect without a key. Anything else, including a phone on your Wi-Fi, gets `401` on the page and `/api/state`, and the WebSocket closes with `4001` unless it sends the key. Before 0.12.10 a server on `0.0.0.0` accepted any device on the network, which could replace the script.
+- **Remote key off this computer.** Local processes (the Stream Deck) connect without a key. Anything else, including a phone on your Wi-Fi, gets `401` on the page and `/api/state`, and the WebSocket closes unless it sends the key as its first message (see the close codes below). Before 0.12.10 a server on `0.0.0.0` accepted any device on the network, which could replace the script.
 - **Rate limiting.** The server applies per-client rate limits to prevent runaway scripts.
 - **Mobile remote.** The phone talks to the server directly over your network, so it needs the full link with `?key=` from Settings → Remote interface.
+
+### WebSocket close codes
+
+When a key is required, the first message must be `{"type":"auth","token":"<key>"}`:
+
+| Code | Reason | When |
+|---|---|---|
+| `4001` | Authentication timeout | No key sent, or silence, for 5 seconds |
+| `4002` | Invalid authentication | A JSON message that is not an auth message, or carries the wrong key |
+| `4003` | Invalid auth message | The first message is not valid JSON |
+| `1008` | Server at maximum capacity | The server is full |
