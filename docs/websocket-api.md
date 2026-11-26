@@ -3,8 +3,8 @@
 Teleprompter Plus exposes a local WebSocket server that lets any language drive playback, query state, and react to changes. The server is the same bridge used by the Stream Deck plugin and the mobile remote.
 
 - **Default endpoint:** `ws://127.0.0.1:8765`
-- **Binding:** loopback only — never exposed to LAN or internet by default
-- **Auth:** none (loopback-only by design — running on `127.0.0.1` means only processes on the same machine can connect)
+- **Binding:** `127.0.0.1` by default. Set the host to `0.0.0.0` (Settings → Connection) to reach it from a phone on the same network.
+- **Auth:** none for clients on this computer (the Stream Deck). Since 0.12.10 any client on the network must present the install's **remote key**: as `?key=` on the remote page link, and as a first `{"type":"auth","token":"<key>"}` message on the WebSocket. The key is generated on first start and is in the link shown under Settings → Remote interface.
 - **Server lifecycle:** controlled from Settings → Connection (auto-start, port, restart)
 
 For the high-level integration story see the main [README](../README.md). For the Stream Deck-specific action catalog see [stream-deck-actions.md](stream-deck-actions.md).
@@ -171,7 +171,7 @@ function connect() {
 
 ## Security model
 
-- **Loopback only.** The server binds to `127.0.0.1` — it is not reachable from the LAN or internet at the network level.
-- **No authentication.** Any local process can connect and send commands. This is intentional and matches the Stream Deck / mobile-remote use case where a teleprompter is a single-user tool on a personal machine. Don't enable an externally-reachable port without adding your own auth layer.
+- **Loopback by default.** The server binds to `127.0.0.1` unless you change the host.
+- **Remote key off this computer.** Local processes (the Stream Deck) connect without a key. Anything else, including a phone on your Wi-Fi, gets `401` on the page and `/api/state`, and the WebSocket closes with `4001` unless it sends the key. Before 0.12.10 a server on `0.0.0.0` accepted any device on the network, which could replace the script.
 - **Rate limiting.** The server applies per-client rate limits to prevent runaway scripts.
-- **Mobile remote.** When you open the remote on your phone, it connects through Obsidian's existing session over the same loopback bridge — your phone does not talk to the server directly.
+- **Mobile remote.** The phone talks to the server directly over your network, so it needs the full link with `?key=` from Settings → Remote interface.

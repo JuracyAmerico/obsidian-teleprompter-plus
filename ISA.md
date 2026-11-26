@@ -4,7 +4,7 @@ slug: teleprompter-plus
 project: Teleprompter Plus
 effort: E3
 phase: climbing
-progress: 149/152
+progress: 150/153
 mode: algorithm
 started: 2026-10-29
 updated: 2026-11-26
@@ -231,6 +231,7 @@ Found in Américo's own test run, 2026-11-05 (steps 2, 3, 7, 8):
 - [x] ISC-155: while a script floats, only the floating view reports state to the Stream Deck and phone, and the main view reports once when floating closes (list item #8); and a plugin reload or update with the floating window open closes that window instead of leaving it as an ordinary pop-out on the Prompter (the dead window, 2026-11-26). Cause of the second: Obsidian destroys the view before the plugin's onunload, and closeOwnLeaf looked the leaf up by the destroyed view's element; the leaf is now captured when floating starts and kept for closeOnUnload. Live before: 12 updates in 5 s of play from two senders alternating (two maxScroll series); after a reload the Elgato window stayed as a pop-out with full toolbar and section list, not on top, showing the note in front (screenshot). Live after: 6 updates from one sender (the floating view), 1 update from the main view after closing; floating window count 1 before the reload, 0 after.
 - [x] ISC-156: whether keyboard shortcuts reach the prompter shows as one keyboard button on the main view's bar, next to the clock: muted with an amber dot while off, one click gives the prompter the keyboard and the dot goes. Nothing about it sits over the script: the pulsing "Click here to enable keyboard shortcuts" pill and the "Shortcuts Active" badge are gone (Americo's screenshot, 2026-11-26: the pill covered a script line). Not on the phone page; the floating view keeps no indicator, as before. Live: off with dot, click, on without dot (zoomed screenshots).
 - [x] ISC-157: the prompter view has no status bar of its own. Its note name and Playing/Paused line sat under the Obsidian status bar, measured live 2026-11-26 (prompter bar 1501,877 419x35; Obsidian bar 1427,885 493x27), so it was never seen, and both facts are on the tab and the Play button. The section list gets the space. Live after: no status bar; the section list reaches the window bottom (912 of 912 px); screenshot.
+- [x] ISC-158: a client that is not on this computer must present the install's remote key (generated on first start, 32 hex chars): `?key=` on the remote page and `/api/state` (else 401; `/health` stays open), and a first auth message on the WebSocket (else close 4001). Clients on this computer, such as the Stream Deck, need no key. The remote link in settings carries the key and the LAN address when bound to 0.0.0.0. And while a script floats, the network broadcast (phone sync, every 100 ms) comes only from the floating view. Found by Fable's Stream Deck review 2026-11-26 (bugs 5 and 13): Americo's server listened on 0.0.0.0 with no auth, and `load-speaker-notes` could replace the script from any device on the Wi-Fi. Live after: LAN page 401 without or with a wrong key, 200 with it; LAN /api/state 401; WS from the LAN address closed 4001 without key, connected with it; 127.0.0.1 page 200 and WS connected without key; the Stream Deck plugin reconnected over loopback; the phone page in a browser showed Connected; during 4 s of play while floating, network pushes came from the floating view only (its two reports use different maxScroll formulas, 16136 and 16625; the main view, 15673, sent none).
 
 ## Anti-criteria
 
@@ -395,6 +396,7 @@ Found in Américo's own test run, 2026-11-05 (steps 2, 3, 7, 8):
 | ISC-143 | bun-test | openFile and loadActiveNote both read through readScript, no .md-only filter; live .qmd in the floating view | pass: 2 wiring tests; live 2706 chars in both views, Elgato capture shows the letter | bun test src/floating; obsidian eval + window capture, 2026-11-25 |
 | ISC-144 | bun-test | main-view read-aloud entry points forward to the floating view; floating resolves a section by title; live Elgato scrolls under read-aloud | pass: 2 wiring tests; live Elgato 66 → 274 px, counters in step | bun test src/floating; obsidian eval sampling + window capture, 2026-11-25 |
 | ISC-145 | bun-test | floatingPlacement uses the Prompter's own see-through, clamped, never the main-screen value; live opacity follows the slider on the Prompter | pass: 1 placement test (3 cases); live opacity 1 → 0.7 | bun test src/floating; obsidian eval getOpacity + window capture, 2026-11-25 |
+| ISC-158 | bun-test | off-machine HTTP/WS need the remote key, loopback does not; network broadcast silent in the mirroring main view | pass: src/remote-key.test.ts; live LAN 401 without key, 200 with, WS 4001 vs connected, local 200/connected, deck reconnected over loopback, phone page Connected, 1 window sending | bun test src/remote-key.test.ts; curl + bun ws probe + lsof + obsidian eval, 2026-11-26 |
 | ISC-157 | bun-test | no .status-bar element or rule in the view | pass: wiring test; live no status bar, section list reaches the window bottom (912/912 px) | bun test src/floating/floating-wiring.test.ts; obsidian eval, 2026-11-26 |
 | ISC-156 | bun-test | keyboard state is a bar button (.tp-keys-btn) with an off dot; hint and badge gone from the script | pass: wiring test; live off with dot, one click on, no dot (zoomed screenshots) | bun test src/floating/floating-wiring.test.ts src/platform/mobile.test.ts; obsidian eval, 2026-11-26 |
 | ISC-155 | bun-test | broadcastStateToWebSocket skips the mirroring main view; closeOnUnload closes once after detach; leaf captured at attach | pass: 2 tests; live 1 sender, 0 floating windows after reload | bun test src/floating; obsidian eval and macos windows, 2026-11-26 |
@@ -532,6 +534,7 @@ acceptance: pass 2026-10-30 (all four runtime checks; mic-blocked Notice + Retry
 
 ## Changelog
 
+- 2026-11-26: ISC-158 added and ticked: remote key for off-machine clients; phone broadcast only from the floating view. From Fable's Stream Deck review. Committed, not released.
 - 2026-11-26: ISC-157 added and ticked: the hidden status bar removed. Committed, not released.
 - 2026-11-26: ISC-156 added and ticked: keyboard shortcut state moves from the script to a bar button. Committed, not released.
 - 2026-11-26: ISC-155 added and ticked: Stream Deck hears only the floating view (#8); reload closes the floating window (dead window). Committed, not released.

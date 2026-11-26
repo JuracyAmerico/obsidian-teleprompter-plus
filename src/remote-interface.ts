@@ -582,6 +582,9 @@ export const REMOTE_INTERFACE_HTML = `<!DOCTYPE html>
         ws = new WebSocket(wsUrl);
 
         ws.onopen = function() {
+          // Off the computer the server wants the remote key from this page's link first (ISC-158).
+          const key = new URLSearchParams(window.location.search).get('key');
+          if (key) ws.send(JSON.stringify({ type: 'auth', token: key }));
           console.debug('Connected to teleprompter');
           setConnectionStatus('connected');
           reconnectAttempts = 0;

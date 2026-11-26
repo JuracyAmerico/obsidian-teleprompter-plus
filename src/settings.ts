@@ -95,6 +95,7 @@ export const VOICE_TRACKING_PRESETS: Record<Exclude<VoiceTrackingPacePreset, 'cu
 export interface TeleprompterSettings {
 	wsPort: number
 	wsHost: string
+	remoteKey: string // phones and other computers must present it; generated on first start (ISC-158)
 	autoStartWebSocket: boolean
 	showConnectionNotifications: boolean
 	// Network Broadcast (multi-device sync)
@@ -258,6 +259,7 @@ export interface Profile {
 export const DEFAULT_SETTINGS: TeleprompterSettings = {
 	wsPort: 8765,
 	wsHost: '127.0.0.1',
+	remoteKey: '',
 	autoStartWebSocket: true,
 	showConnectionNotifications: true,
 	// Floating window defaults
