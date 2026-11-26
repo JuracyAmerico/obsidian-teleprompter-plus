@@ -3228,7 +3228,7 @@
           debugLog(`[Voice] Initializing with content length: ${content.length}`)
           debugLog(`[Voice] ContentArea exists: ${!!contentArea}`)
           debugLog(`[Voice] Content preview: "${content.substring(0, 100)}..."`)
-          voiceTrackingService.initialize(content, contentArea)
+          { const p = currentSourcePath(); voiceTrackingService.initialize(content, contentArea, p ? { path: p, mtime: currentSourceFile()?.stat.mtime ?? 0 } : undefined) }
         } else {
           debugLog('[Voice] WARNING: contentArea is not available!')
         }
