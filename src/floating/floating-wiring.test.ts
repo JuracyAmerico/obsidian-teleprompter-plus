@@ -337,4 +337,13 @@ describe('read-aloud runs in the floating view while a script floats (ISC-144)',
 		expect(functionBody('setTTSVoice')).toContain('broadcastState({ ttsVoice: voiceId })')
 		expect(functionBody('onTTSRateChange')).toContain('broadcastState({ ttsRate })')
 	})
+
+	test('ISC-154: small items: read-aloud state cleared on close, voices load, presets reach the floating voice, left popups', () => {
+		expect(app).toContain('(ttsService?.getState().playbackState ?? "idle") === "idle") {')
+		expect(functionBody('toggleTTSControls')).toContain('if (showTTSControls) void initTTS()')
+		expect(functionBody('applyVoicePreset')).toContain("forwardToFloating('teleprompter:apply-voice-preset', { preset: presetName })")
+		expect(app).toContain("case 'teleprompter:apply-voice-preset':")
+		expect(app).toContain("'teleprompter:apply-voice-preset',")
+		expect(app).toContain('.tp-zone[data-zone="playback"] :global(.popup-slider),')
+	})
 })
