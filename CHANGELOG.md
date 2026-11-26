@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.12.10] - 2026-11-26
+
+### Security
+- **The remote needs a key off this computer.** With the host set to `0.0.0.0`, any device on your network could connect and control the prompter, including replacing the script. Phones and other computers now need the remote key that comes in the link under Settings → Remote interface; the Stream Deck on this Mac needs nothing. If you use the phone remote, open the new link once.
+
+### Fixed
+- **Phone sync follows the Elgato.** While a script floats, only the floating window sends its position to connected phones and devices.
+
 ## [0.12.9] - 2026-11-26
 
 ### Changed
