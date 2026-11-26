@@ -2,7 +2,7 @@ import { Modal, Setting, setIcon } from 'obsidian'
 import type { App } from 'obsidian'
 import type TeleprompterPlusPlugin from './main'
 import changelog from '../CHANGELOG.md?raw'
-import { MAX_HIGHLIGHTS, parseReleaseNotes } from './release-notes'
+import { dialogHighlights, parseSkippedReleaseNotes } from './release-notes'
 
 /**
  * What's New Modal - Shows release notes on first install or after update
@@ -11,11 +11,14 @@ import { MAX_HIGHLIGHTS, parseReleaseNotes } from './release-notes'
 export class WhatsNewModal extends Modal {
 	private plugin: TeleprompterPlusPlugin
 	private version: string
+	/** Read before the dialog closes, because closing records the current version as seen. */
+	private lastSeenVersion: string
 
 	constructor(app: App, plugin: TeleprompterPlusPlugin) {
 		super(app)
 		this.plugin = plugin
 		this.version = plugin.manifest.version
+		this.lastSeenVersion = plugin.settings.lastSeenVersion
 	}
 
 	onOpen() {
@@ -43,23 +46,26 @@ export class WhatsNewModal extends Modal {
 		titleContainer.createSpan({ text: `v${this.version}`, cls: 'whats-new-version' })
 
 		// Welcome message
-		const isFirstInstall = !this.plugin.settings.lastSeenVersion
+		const isFirstInstall = !this.lastSeenVersion
 		const welcomeText = isFirstInstall
 			? 'Thanks for installing!'
 			: `Updated to v${this.version}! Here's what's new:`
 
 		contentEl.createEl('p', { text: welcomeText, cls: 'whats-new-welcome' })
 
+		// Read from CHANGELOG.md at build time: every version skipped since the last one seen, Security first
+		const features = parseSkippedReleaseNotes(changelog, this.lastSeenVersion, this.version)
+		const skippedSeveral = !isFirstInstall && new Set(features.map(feature => feature.version)).size > 1
+
 		// Release highlights - using Setting.setHeading() for section headers
 		const highlights = contentEl.createDiv({ cls: 'whats-new-highlights' })
-		new Setting(highlights).setName(`What's new in v${this.version}`).setHeading()
+		new Setting(highlights)
+			.setName(skippedSeveral ? `What's new since v${this.lastSeenVersion}` : `What's new in v${this.version}`)
+			.setHeading()
 
 		const featureList = highlights.createEl('ul', { cls: 'whats-new-features' })
 
-		// Read from CHANGELOG.md at build time, so the dialog always shows this version's real notes
-		const features = parseReleaseNotes(changelog, this.version)
-
-		features.slice(0, MAX_HIGHLIGHTS).forEach(feature => {
+		dialogHighlights(features).forEach(feature => {
 			const li = featureList.createEl('li', { cls: 'whats-new-feature' })
 			setIcon(li.createSpan({ cls: 'feature-icon' }), feature.icon)
 			const textContainer = li.createDiv({ cls: 'feature-text' })
@@ -67,9 +73,10 @@ export class WhatsNewModal extends Modal {
 			textContainer.createEl('span', { text: feature.title ? ` - ${feature.description}` : feature.description })
 		})
 
-		const more = features.length - MAX_HIGHLIGHTS
+		const more = features.length - dialogHighlights(features).length
+		const releasesUrl = 'https://github.com/JuracyAmerico/obsidian-teleprompter-plus/releases'
 		highlights.createEl('a', {
-			href: `https://github.com/JuracyAmerico/obsidian-teleprompter-plus/releases/tag/${this.version}`,
+			href: skippedSeveral ? releasesUrl : `${releasesUrl}/tag/${this.version}`,
 			text: more > 0 ? `And ${more} more: full release notes →` : 'Full release notes →',
 			cls: 'whats-new-docs-link',
 			attr: { target: '_blank', rel: 'noopener noreferrer' }
