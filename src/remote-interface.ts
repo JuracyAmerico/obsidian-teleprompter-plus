@@ -707,15 +707,17 @@ export const REMOTE_INTERFACE_HTML = `<!DOCTYPE html>
       }
 
       // Update headers/sections
-      if (newState.headers !== undefined) {
+      // Rebuild the list only when the sections themselves change. Rebuilding on every push (up to
+      // 10 a second while playing) made it blink and swallowed taps (ISC-160).
+      if (newState.headers !== undefined && sectionsKey(newState.headers) !== sectionsKey(state.headers)) {
         state.headers = newState.headers;
         updateSectionsList();
       }
 
       // Update current header index
-      if (newState.currentHeaderIndex !== undefined) {
+      if (newState.currentHeaderIndex !== undefined && newState.currentHeaderIndex !== state.currentHeaderIndex) {
         state.currentHeaderIndex = newState.currentHeaderIndex;
-        updateSectionsList();
+        markCurrentSection();
       }
 
       // Update countdown duration
@@ -764,11 +766,32 @@ export const REMOTE_INTERFACE_HTML = `<!DOCTYPE html>
       scrollToCurrentSection();
     }
 
+    function sectionsKey(headers) {
+      if (!headers) return '';
+      return headers.map(function(h) { return typeof h === 'string' ? h : h.text; }).join(' | ');
+    }
+
+    // Move the highlight without rebuilding the buttons (ISC-160).
+    function markCurrentSection() {
+      var items = sectionsList.querySelectorAll('.section-item');
+      for (var i = 0; i < items.length; i++) {
+        items[i].classList.toggle('current', i === state.currentHeaderIndex);
+      }
+      scrollToCurrentSection();
+    }
+
+    // Do not scroll the list under a finger: wait 3 s after the last touch or scroll by hand.
+    var lastSectionsTouch = 0;
+    ['touchstart', 'pointerdown', 'wheel'].forEach(function(type) {
+      sectionsList.addEventListener(type, function() { lastSectionsTouch = Date.now(); }, { passive: true });
+    });
+
     // Keep the section being read in view inside the short list (ISC-159). Runs on every update
     // and when the list opens: while it is closed it has no height to scroll.
     function scrollToCurrentSection() {
       var current = sectionsList.querySelector('.section-item.current');
       if (!current || !sectionsList.classList.contains('visible')) return;
+      if (Date.now() - lastSectionsTouch < 3000) return;
       var list = sectionsList.getBoundingClientRect();
       var item = current.getBoundingClientRect();
       sectionsList.scrollTop += (item.top - list.top) - (list.height - item.height) / 2;

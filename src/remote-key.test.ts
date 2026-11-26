@@ -50,3 +50,17 @@ describe('ISC-159: the phone remote speed slider and section highlight', () => {
 		expect(app).toContain('section: currentVisibleHeader,')
 	})
 })
+
+describe('ISC-160: the phone remote page as served', () => {
+	test('its script parses (a \\n in the template once became a real line break and killed the page)', async () => {
+		const { REMOTE_INTERFACE_HTML } = await import('./remote-interface')
+		const js = REMOTE_INTERFACE_HTML.slice(REMOTE_INTERFACE_HTML.lastIndexOf('<script>') + 8, REMOTE_INTERFACE_HTML.lastIndexOf('</script>'))
+		expect(() => new Function(js)).not.toThrow()
+	})
+	test('the section list is rebuilt only when sections change; the highlight moves in place; no scroll under a finger', () => {
+		const page = readFileSync(join(import.meta.dir, 'remote-interface.ts'), 'utf8')
+		expect(page).toContain('sectionsKey(newState.headers) !== sectionsKey(state.headers)')
+		expect(page).toContain('markCurrentSection();')
+		expect(page).toContain('if (Date.now() - lastSectionsTouch < 3000) return;')
+	})
+})
