@@ -9,19 +9,28 @@
  *
  * Audio is fetched as MP3 via Obsidian's requestUrl (CORS-safe) and played through an
  * HTMLAudioElement. Per-sentence audio is cached (keyed by text+voice+model) so re-reads and
- * hintNext pregeneration never re-bill the same sentence.
+ * hintNext pregeneration never re-bill the same sentence, and a request already in flight is
+ * shared rather than sent twice.
  *
- * Phase 2 (not implemented): word-level "karaoke" highlighting via the /with-timestamps
- * endpoint — see https://elevenlabs.io/docs/api-reference/text-to-speech/convert-with-timestamps
+ * Every speak() takes a turn. stop() or a newer speak() ends that turn: a fetch that returns
+ * afterwards is dropped unplayed, its failure is not reported, and its clip can never fire the
+ * end callback. A pause() during a fetch holds the clip when it arrives; resume() starts it.
+ *
+ * Word-level "karaoke" highlighting through the /with-timestamps endpoint is not implemented:
+ * highlighting is per sentence. See
+ * https://elevenlabs.io/docs/api-reference/text-to-speech/convert-with-timestamps
  */
 
 import { requestUrl } from 'obsidian'
+import type { RequestUrlParam } from 'obsidian'
 import type { TTSEngine, TTSVoice, SpeakOptions } from './tts-types'
 import { buildSpeechBody, speechCacheKey } from './elevenlabs-request'
 import type { SpeechContext } from './elevenlabs-request'
 
 const API_BASE = 'https://api.elevenlabs.io/v1'
 const OUTPUT_FORMAT = 'mp3_44100_128'
+const MIN_RATE = 0.5
+const MAX_RATE = 2.0
 
 /** Configuration injected by the engine factory from plugin settings. */
 export interface ElevenLabsConfig {
@@ -32,6 +41,85 @@ export interface ElevenLabsConfig {
 	similarity?: number
 }
 
+/** The part of an HTMLAudioElement this engine uses. */
+export interface PlayableAudio {
+	playbackRate: number
+	onended: ((event: Event) => unknown) | null
+	onerror: ((event: Event | string) => unknown) | null
+	play(): Promise<void>
+	pause(): void
+}
+
+/** A clip ready to play, and how to free what it holds once it is done. */
+export interface LoadedAudio {
+	audio: PlayableAudio
+	release(): void
+}
+
+/** The part of Obsidian's requestUrl response this engine reads. */
+export interface ElevenLabsResponse {
+	status: number
+	arrayBuffer: ArrayBuffer
+	json: unknown
+}
+
+/** The engine's two ways out of the process: the network and the speakers. Tests replace both. */
+export interface ElevenLabsIO {
+	request(param: RequestUrlParam): Promise<ElevenLabsResponse>
+	load(bytes: ArrayBuffer): LoadedAudio
+}
+
+function loadInBrowser(bytes: ArrayBuffer): LoadedAudio {
+	const url = URL.createObjectURL(new Blob([bytes], { type: 'audio/mpeg' }))
+	return { audio: new Audio(url), release: () => URL.revokeObjectURL(url) }
+}
+
+const BROWSER_IO: ElevenLabsIO = { request: requestUrl, load: loadInBrowser }
+
+function clampRate(rate: number): number {
+	if (!Number.isFinite(rate)) return 1
+	return Math.max(MIN_RATE, Math.min(MAX_RATE, rate))
+}
+
+function messageOf(err: unknown): string {
+	return err instanceof Error ? err.message : String(err)
+}
+
+/** ElevenLabs puts its reason in `detail`: a string, `{ message }`, or a list of `{ msg }`. */
+export function elevenLabsReason(body: unknown): string {
+	if (!body || typeof body !== 'object') return ''
+	const detail = (body as { detail?: unknown }).detail
+	if (typeof detail === 'string') return detail
+	if (Array.isArray(detail)) {
+		const first: unknown = detail[0]
+		if (first && typeof first === 'object' && typeof (first as { msg?: unknown }).msg === 'string') {
+			return (first as { msg: string }).msg
+		}
+		return ''
+	}
+	if (detail && typeof detail === 'object' && typeof (detail as { message?: unknown }).message === 'string') {
+		return (detail as { message: string }).message
+	}
+	return ''
+}
+
+/** What the reader is told when a request fails: the cause in plain words, then ElevenLabs' own reason. */
+export function describeElevenLabsError(status: number, reason = ''): string {
+	const base =
+		status === 401 ? 'ElevenLabs: the API key was refused or the quota is used up (HTTP 401).'
+		: status === 402 ? 'ElevenLabs: the plan has no credits left for this (HTTP 402).'
+		: status === 422 ? 'ElevenLabs: invalid request — check the voice ID (HTTP 422).'
+		: status === 429 ? 'ElevenLabs: rate limit or quota exceeded (HTTP 429). Check your plan credits.'
+		: `ElevenLabs: request failed (HTTP ${status}).`
+	return reason ? `${base} ${reason}` : base
+}
+
+interface Clip {
+	loaded: LoadedAudio
+	resolve: () => void
+	reject: (error: Error) => void
+}
+
 export class ElevenLabsEngine implements TTSEngine {
 	readonly name = 'ElevenLabs'
 
@@ -40,22 +128,29 @@ export class ElevenLabsEngine implements TTSEngine {
 	private modelId: string
 	private stability: number
 	private similarity: number
+	private io: ElevenLabsIO
 
 	private endCallback: (() => void) | null = null
-	private currentAudio: HTMLAudioElement | null = null
-	private currentUrl: string | null = null
+	/** The clip of the current turn, from the moment its bytes arrive until it ends or is stopped. */
+	private clip: Clip | null = null
+	/** Bumped by stop() and by every speak(): a fetch from an older turn is dropped when it lands. */
+	private turn = 0
 	private paused = false
+	private rate = 1
 
 	/** Per-sentence audio cache: key -> MP3 bytes. Avoids re-billing identical text. */
 	private cache: Map<string, ArrayBuffer> = new Map()
+	/** Requests on the wire, so hintNext and speak for the same sentence send one request, not two. */
+	private inflight: Map<string, Promise<ArrayBuffer>> = new Map()
 	private voicesCache: TTSVoice[] | null = null
 
-	constructor(config: ElevenLabsConfig) {
+	constructor(config: ElevenLabsConfig, io: ElevenLabsIO = BROWSER_IO) {
 		this.apiKey = (config.apiKey || '').trim()
 		this.voiceId = (config.voiceId || '').trim()
 		this.modelId = config.modelId || 'eleven_flash_v2_5'
 		this.stability = config.stability ?? 0.5
 		this.similarity = config.similarity ?? 0.75
+		this.io = io
 	}
 
 	get currentVoiceId(): string {
@@ -87,43 +182,62 @@ export class ElevenLabsEngine implements TTSEngine {
 		return Promise.resolve()
 	}
 
+	/**
+	 * Resolves when the clip ends or this turn is stopped or replaced; rejects only when this turn's
+	 * own request or playback fails. A superseded turn never plays and never reports.
+	 */
 	async speak(text: string, options: SpeakOptions): Promise<void> {
-		this.stopPlayback()
-		const audio = await this.synthesize(text, options)
-		return this.playBytes(audio, options)
+		this.endTurn()
+		const turn = this.turn
+		this.rate = clampRate(options.rate || 1)
+
+		let bytes: ArrayBuffer
+		try {
+			bytes = await this.synthesize(text, options)
+		} catch (err) {
+			if (turn !== this.turn) return
+			throw err instanceof Error ? err : new Error(messageOf(err))
+		}
+		if (turn !== this.turn) return
+		return this.playBytes(bytes)
 	}
 
 	/** Pre-warm the cache for the next sentence so the following speak() is instant. */
 	hintNext(text: string, options: SpeakOptions): void {
 		const key = this.cacheKey(text, options)
-		if (this.cache.has(key)) return
-		// Fire-and-forget — failures here are non-fatal; speak() will retry/surface them.
-		void this.synthesize(text, options).catch(() => { /* ignore pregen errors */ })
+		if (this.cache.has(key) || this.inflight.has(key)) return
+		// Fire-and-forget: speak() makes its own request for this sentence and reports that one.
+		void this.synthesize(text, options).catch(() => { /* a failed pregen is retried by speak() */ })
 	}
 
+	/** Also holds a clip whose bytes are still on the way: it arrives paused. */
 	pause(): void {
-		if (this.currentAudio && !this.paused) {
-			this.currentAudio.pause()
-			this.paused = true
-		}
+		if (this.paused) return
+		this.paused = true
+		this.clip?.loaded.audio.pause()
 	}
 
 	resume(): void {
-		if (this.currentAudio && this.paused) {
-			this.paused = false
-			void this.currentAudio.play().catch(() => { /* ignore */ })
-		}
+		if (!this.paused) return
+		this.paused = false
+		if (this.clip) this.start(this.clip)
 	}
 
 	stop(): void {
-		this.stopPlayback()
+		this.endTurn()
+	}
+
+	/** Takes effect on the clip already playing, not only the next one. */
+	setRate(rate: number): void {
+		this.rate = clampRate(rate)
+		if (this.clip) this.clip.loaded.audio.playbackRate = this.rate
 	}
 
 	async getVoices(): Promise<TTSVoice[]> {
 		if (!this.isAvailable) return []
 		if (this.voicesCache) return this.voicesCache
 
-		const res = await requestUrl({
+		const res = await this.send({
 			url: `${API_BASE}/voices`,
 			method: 'GET',
 			headers: { 'xi-api-key': this.apiKey },
@@ -134,8 +248,8 @@ export class ElevenLabsEngine implements TTSEngine {
 			throw new Error(`ElevenLabs: could not load voices (HTTP ${res.status}). Check your API key.`)
 		}
 
-		const raw = res.json as { voices?: Array<{ voice_id: string; name: string; labels?: Record<string, string> }> }
-		const voices: TTSVoice[] = (raw.voices ?? []).map(v => ({
+		const raw = res.json as { voices?: Array<{ voice_id: string; name: string; labels?: Record<string, string> }> } | null
+		const voices: TTSVoice[] = (raw?.voices ?? []).map(v => ({
 			id: v.voice_id,
 			name: v.name,
 			language: v.labels?.language ?? v.labels?.accent ?? 'en',
@@ -149,19 +263,16 @@ export class ElevenLabsEngine implements TTSEngine {
 		this.endCallback = callback
 	}
 
-	/**
-	 * Phase-2 stub. ElevenLabs exposes character-level timing via the /with-timestamps
-	 * endpoint, which would drive word-level highlighting through this hook. Not wired yet.
-	 * TODO: https://elevenlabs.io/docs/api-reference/text-to-speech/convert-with-timestamps
-	 */
+	/** Sentence-level highlighting only; see the file header for the word-level endpoint. */
 	onBoundary(_callback: (_charIndex: number) => void): void {
-		/* not implemented in v1 — sentence-level highlighting only */
+		/* no character timings without the /with-timestamps endpoint */
 	}
 
 	destroy(): void {
-		this.stopPlayback()
+		this.endTurn()
 		this.endCallback = null
 		this.cache.clear()
+		this.inflight.clear()
 		this.voicesCache = null
 	}
 
@@ -171,13 +282,37 @@ export class ElevenLabsEngine implements TTSEngine {
 		return speechCacheKey(this.modelId, this.voiceId, text, context, this.stability, this.similarity)
 	}
 
-	/** Fetch MP3 bytes for a sentence, using the per-sentence cache when possible. */
-	private async synthesize(text: string, context: SpeechContext): Promise<ArrayBuffer> {
+	/** Network failures (offline, DNS) throw instead of returning a status: name the engine in them. */
+	private async send(param: RequestUrlParam): Promise<ElevenLabsResponse> {
+		try {
+			return await this.io.request(param)
+		} catch (err) {
+			throw new Error(`ElevenLabs: could not reach the server (${messageOf(err)}).`)
+		}
+	}
+
+	/** MP3 bytes for a sentence: from the cache, from a request already on the wire, or a new request. */
+	private synthesize(text: string, context: SpeechContext): Promise<ArrayBuffer> {
 		const key = this.cacheKey(text, context)
 		const cached = this.cache.get(key)
-		if (cached) return cached
+		if (cached) return Promise.resolve(cached)
+		const pending = this.inflight.get(key)
+		if (pending) return pending
 
-		const res = await requestUrl({
+		const request = this.fetchSpeech(text, context)
+			.then((bytes) => {
+				this.cache.set(key, bytes)
+				return bytes
+			})
+			.finally(() => {
+				this.inflight.delete(key)
+			})
+		this.inflight.set(key, request)
+		return request
+	}
+
+	private async fetchSpeech(text: string, context: SpeechContext): Promise<ArrayBuffer> {
+		const res = await this.send({
 			url: `${API_BASE}/text-to-speech/${encodeURIComponent(this.voiceId)}?output_format=${OUTPUT_FORMAT}`,
 			method: 'POST',
 			headers: {
@@ -197,76 +332,90 @@ export class ElevenLabsEngine implements TTSEngine {
 		})
 
 		if (res.status !== 200) {
-			throw new Error(this.describeError(res.status))
+			let reason = ''
+			try {
+				reason = elevenLabsReason(res.json)
+			} catch {
+				// The body was not JSON: the status alone says what went wrong.
+			}
+			throw new Error(describeElevenLabsError(res.status, reason))
 		}
-
-		this.cache.set(key, res.arrayBuffer)
+		// Not instanceof: the buffer can come from another realm than this window's.
+		if (typeof res.arrayBuffer?.byteLength !== 'number' || res.arrayBuffer.byteLength === 0) {
+			throw new Error('ElevenLabs: the server answered with no audio.')
+		}
 		return res.arrayBuffer
 	}
 
-	private playBytes(bytes: ArrayBuffer, options: SpeakOptions): Promise<void> {
+	/** Plays this turn's bytes. Settles when the clip ends (resolve), fails (reject) or is stopped (resolve). */
+	private playBytes(bytes: ArrayBuffer): Promise<void> {
 		return new Promise<void>((resolve, reject) => {
+			let loaded: LoadedAudio
 			try {
-				const blob = new Blob([bytes], { type: 'audio/mpeg' })
-				const url = URL.createObjectURL(blob)
-				const audio = new Audio(url)
-				audio.playbackRate = options.rate || 1.0
-
-				this.currentAudio = audio
-				this.currentUrl = url
-				this.paused = false
-
-				const cleanup = () => {
-					if (this.currentUrl === url) {
-						URL.revokeObjectURL(url)
-						this.currentUrl = null
-					}
-					if (this.currentAudio === audio) {
-						this.currentAudio = null
-					}
-				}
-
-				audio.onended = () => {
-					cleanup()
-					this.paused = false
-					this.endCallback?.()
-					resolve()
-				}
-
-				audio.onerror = () => {
-					cleanup()
-					reject(new Error('ElevenLabs: audio playback failed'))
-				}
-
-				void audio.play().catch((err: unknown) => {
-					cleanup()
-					reject(new Error(err instanceof Error ? err.message : 'ElevenLabs: audio playback failed'))
-				})
+				loaded = this.io.load(bytes)
 			} catch (err) {
-				reject(new Error(err instanceof Error ? err.message : 'ElevenLabs: audio playback failed'))
+				reject(new Error(`ElevenLabs: audio playback failed (${messageOf(err)}).`))
+				return
 			}
+
+			const clip: Clip = { loaded, resolve, reject }
+			// Only one clip ever sounds: whatever was here belongs to an ended turn.
+			const stale = this.clip
+			if (stale) {
+				this.release(stale)
+				stale.resolve()
+			}
+			this.clip = clip
+			loaded.audio.playbackRate = this.rate
+
+			loaded.audio.onended = () => {
+				if (this.clip !== clip) return
+				this.release(clip)
+				this.paused = false
+				this.endCallback?.()
+				resolve()
+			}
+			loaded.audio.onerror = () => {
+				if (this.clip !== clip) return
+				this.release(clip)
+				reject(new Error('ElevenLabs: audio playback failed.'))
+			}
+
+			// Paused while the bytes were on the way: hold the clip, resume() starts it.
+			if (!this.paused) this.start(clip)
 		})
 	}
 
-	/** Stop only playback (preserve the audio cache for re-use). */
-	private stopPlayback(): void {
-		if (this.currentAudio) {
-			this.currentAudio.onended = null
-			this.currentAudio.onerror = null
-			try { this.currentAudio.pause() } catch { /* ignore */ }
-			this.currentAudio = null
-		}
-		if (this.currentUrl) {
-			URL.revokeObjectURL(this.currentUrl)
-			this.currentUrl = null
-		}
-		this.paused = false
+	private start(clip: Clip): void {
+		clip.loaded.audio.play().catch((err: unknown) => {
+			// A pause or stop right after play() interrupts it; that is not a failure.
+			if (this.clip !== clip || this.paused) return
+			this.release(clip)
+			clip.reject(new Error(`ElevenLabs: audio playback failed (${messageOf(err)}).`))
+		})
 	}
 
-	private describeError(status: number): string {
-		if (status === 401) return 'ElevenLabs: invalid API key (HTTP 401).'
-		if (status === 422) return 'ElevenLabs: invalid request — check the voice ID (HTTP 422).'
-		if (status === 429) return 'ElevenLabs: rate limit or quota exceeded (HTTP 429). Check your plan credits.'
-		return `ElevenLabs: request failed (HTTP ${status}).`
+	/** Silences a clip and frees its audio. Its speak() is settled by whoever released it. */
+	private release(clip: Clip): void {
+		if (this.clip === clip) this.clip = null
+		clip.loaded.audio.onended = null
+		clip.loaded.audio.onerror = null
+		try {
+			clip.loaded.audio.pause()
+		} catch {
+			// An element that never started has nothing to pause.
+		}
+		clip.loaded.release()
+	}
+
+	/** Ends the current turn: its clip goes silent, its speak() resolves, a fetch still out is dropped. */
+	private endTurn(): void {
+		this.turn++
+		const clip = this.clip
+		if (clip) {
+			this.release(clip)
+			clip.resolve()
+		}
+		this.paused = false
 	}
 }

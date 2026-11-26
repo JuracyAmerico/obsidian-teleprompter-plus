@@ -43,6 +43,8 @@ export interface TTSState {
 	rate: number
 	engineName: string
 	voiceId: string
+	/** The current sentence is read again and again instead of moving on */
+	loop: boolean
 }
 
 /** Events emitted by the TTS service */
@@ -65,6 +67,8 @@ export interface TTSEngine {
 	pause(): void
 	resume(): void
 	stop(): void
+	/** For an engine that can change the speed of the sentence already playing */
+	setRate?(rate: number): void
 	getVoices(): Promise<TTSVoice[]>
 	onEnd(callback: () => void): void
 	onBoundary?(callback: (charIndex: number) => void): void
