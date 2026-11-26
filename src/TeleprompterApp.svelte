@@ -7441,10 +7441,8 @@
 
   <!-- Option C: None - No progress indicator shown -->
 
-  <div class="status-bar">
-    <span>{currentFileName || 'No file open'}</span>
-    <span>{isPlaying ? '⏵ Playing' : '⏸ Paused'}</span>
-  </div>
+  <!-- No status bar of its own: Obsidian's status bar covered it, and the note name and play state
+       are on the tab and the Play button (ISC-157). -->
 </div>
 
 <style>
@@ -7466,8 +7464,7 @@
   /* The Prompter has 600 pixels and is read from a distance: the script gets them. */
   .tp-floating-prompter .controls,
   .tp-floating-prompter .tp-readout-row,
-  .tp-floating-prompter .navigation-panel,
-  .tp-floating-prompter .status-bar {
+  .tp-floating-prompter .navigation-panel {
     display: none;
   }
 
@@ -8943,15 +8940,6 @@
     margin: 0.5rem 0;
   }
 
-  .status-bar {
-    display: flex;
-    justify-content: space-between;
-    padding: 0.5rem 1rem;
-    border-top: 1px solid var(--background-modifier-border);
-    font-size: 0.875rem;
-    color: var(--text-muted);
-  }
-
   /* Countdown Overlay */
   .countdown-overlay {
     position: absolute;
@@ -10110,7 +10098,7 @@
     align-items: center;
     transition: height 0.2s ease, background 0.2s ease;
     flex-shrink: 0;
-    /* Natural flex order: after main-content, before status-bar */
+    /* Natural flex order: after main-content */
   }
 
   .progress-bar-container:hover {
