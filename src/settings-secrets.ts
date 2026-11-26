@@ -4,7 +4,7 @@
  */
 
 /** Setting keys that hold secrets — must never be written to an exported or shared file. */
-export const SECRET_SETTING_KEYS = ['elevenLabsApiKey', 'obsPassword'] as const
+export const SECRET_SETTING_KEYS = ['elevenLabsApiKey', 'obsPassword', 'remoteKey'] as const
 
 /**
  * Return a shallow copy of a settings/profile object with secret keys REMOVED (not blanked).

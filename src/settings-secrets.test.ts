@@ -52,3 +52,17 @@ describe('redactSecrets', () => {
     expect(json).toContain('fontSize');
   });
 });
+
+describe('the phone remote key is a secret (0.12.14)', () => {
+	test('export and Save-as-Profile leave remoteKey out', () => {
+		const out = redactSecrets({ remoteKey: 'abc123', fontSize: 40 })
+		expect('remoteKey' in out).toBe(false)
+		expect(out.fontSize).toBe(40)
+	})
+	test('every place that applies an imported file or profile strips secrets first', () => {
+		const src = require('node:fs').readFileSync(require('node:path').join(__dirname, 'settings.ts'), 'utf8') as string
+		const applies = src.match(/Object\.assign\(this\.plugin\.settings, (?!DEFAULT_SETTINGS)[^)]*\)/g) ?? []
+		expect(applies.length).toBeGreaterThan(0)
+		for (const call of applies) expect(call).toContain('redactSecrets(')
+	})
+})
