@@ -277,4 +277,14 @@ describe('read-aloud runs in the floating view while a script floats (ISC-144)',
 		expect(app).toContain("case 'teleprompter:tts-from-section'")
 		expect(app).toContain("'teleprompter:tts-from-section',")
 	})
+
+	test('ISC-148: the main view stays on the floating note and catches up when floating closes', () => {
+		const load = functionBody('loadActiveNote')
+		expect(load).toContain('plugin.floatingSession.notePath')
+		expect(load.indexOf('floatingSession.notePath')).toBeLessThan(load.indexOf('resetSession()'))
+		expect(functionBody('beginFloating')).toContain('plugin.floatingSession.setNote(request.notePath)')
+		expect(app).toContain('if (wasFloating && !plugin.floatingSession.active && !isFloating) loadActiveNote()')
+		expect(app).toContain('if (!wasFloating && plugin.floatingSession.active && !isFloating) loadActiveNote()')
+		expect(app).toContain('plugin.floatingSession.renamed(oldPath, file.path)')
+	})
 })

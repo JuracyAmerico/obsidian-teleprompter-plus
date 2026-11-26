@@ -4,7 +4,7 @@ slug: teleprompter-plus
 project: Teleprompter Plus
 effort: E3
 phase: climbing
-progress: 139/142
+progress: 140/143
 mode: algorithm
 started: 2026-10-29
 updated: 2026-11-26
@@ -221,6 +221,7 @@ Found in Américo's own test run, 2026-11-05 (steps 2, 3, 7, 8):
 - [x] ISC-145: on the Elgato Prompter the floating window has its own See-through slider (30-100 %, default 100 = solid, remembered apart from the main-screen value), so a call window placed on the Prompter display under the script shows through and the reader sees the interviewer while looking into the camera (Américo, 2026-11-25: "can we have a percent transparence control? like I have the audience or the recruiter camera behind that window and still see the recruiter"). Before, the slider was hidden on the Prompter and the window forced to 100 %. Live: floating on the Prompter, slider moved to 70: window opacity 1 → 0.7, setting floatingPrompterSeeThrough 70, main-screen value 90 untouched; elgato-see.png shows the slider at 70 % and the window translucent. Not yet tried with a real call window behind it.
 - [x] ISC-146: on the Elgato Prompter the floating window keeps the size the reader gave it and sits centred on the Prompter: the size is saved (floatingPrompterSize) and the window recentred within 2 s of a resize, and the next float opens at that size, centred; no saved size fills the Prompter as before; a size larger than the Prompter is capped (Américo, 2026-11-25: "can you keep the floating window at that size I'm now and centered?"). Live: his window at 764 × 570 saved, plugin reloaded, float reopened at {x 442, y -570, 764 × 570} on the 1024 × 570 Prompter at x 312, so 130 px each side.
 - [x] ISC-147: each teleprompter view (main and floating) renders with its own Marked instance, renderer and heading counter, so after a save, a floating window opening or closing, or either view remounting, both views number their headings from header-0 and the note pane follows the section in both (list item #2, 2026-11-26). Live before the fix: the main view numbered header-25.. from a closed floating view's renderer, and a Section Delta click left the note at line 0; with both open, the later-mounted view's ids ran header-6..11. Live after: both views header-0..5 after a save; floating closed, the same click moved the note to line 95 (Section Delta); floating reading Echo then Bravo moved the note to 126 and 33, screenshot viewed. Guarded by `src/renderer-per-view.test.ts` (two tests: independent numbering in either mount order; no global `marked` call left in TeleprompterApp.svelte).
+- [x] ISC-148: while a script floats, the main view stays on the floating note: clicking another note keeps both clocks and the floating script where they are, list clicks in the main view go to the floating note's own sections, opening the floating window moves the main view onto that note, and closing it brings the main view back to the note in front (list item #3, 2026-11-26). Live before the fix: after 6 s of play, clicking note B set both clocks from 00:06 to 00:00, threw the floating script to the top and put note B in the main view, and a main list click on "B section Three" sent the Prompter to "A section Three". Live after: clicking note B left both clocks at 00:06, the main view on note A and the scroll unchanged; a list click put both views on "A section Three" (the clock restart there is setRehearsalStart, by design); closing floating loaded note B in the main view, screenshot viewed.
 
 ## Anti-criteria
 
@@ -385,6 +386,7 @@ Found in Américo's own test run, 2026-11-05 (steps 2, 3, 7, 8):
 | ISC-143 | bun-test | openFile and loadActiveNote both read through readScript, no .md-only filter; live .qmd in the floating view | pass: 2 wiring tests; live 2706 chars in both views, Elgato capture shows the letter | bun test src/floating; obsidian eval + window capture, 2026-11-25 |
 | ISC-144 | bun-test | main-view read-aloud entry points forward to the floating view; floating resolves a section by title; live Elgato scrolls under read-aloud | pass: 2 wiring tests; live Elgato 66 → 274 px, counters in step | bun test src/floating; obsidian eval sampling + window capture, 2026-11-25 |
 | ISC-145 | bun-test | floatingPlacement uses the Prompter's own see-through, clamped, never the main-screen value; live opacity follows the slider on the Prompter | pass: 1 placement test (3 cases); live opacity 1 → 0.7 | bun test src/floating; obsidian eval getOpacity + window capture, 2026-11-25 |
+| ISC-148 | bun-test | FloatingSession.notePath only while floating, follows a rename; loadActiveNote checks it before resetSession; float start and close reload the main view | pass: 2 tests; live clocks 00:06 kept on note click, main back on note B after close | bun test src/floating; obsidian eval, 2026-11-26 |
 | ISC-147 | bun-test | two Marked views number headings independently; the app never touches the global marked; live ids and note-pane lines after save and after closing floating | pass: 2 tests; live header-0..5 in both views, note at lines 95, 126, 33 | bun test src/renderer-per-view.test.ts; obsidian eval, 2026-11-26 |
 | ISC-146 | bun-test | centeredOnPrompter centres a kept size, fills with none, caps a larger one; live reopen at the kept size, centred | pass: 3 tests; live bounds x 442 w 764 on a 1024-wide Prompter at x 312 | bun test src/floating; obsidian eval getBounds, 2026-11-25 |
 | ISC-11 | manual | retired criterion, kept for history | superseded by ISC-68, which made the claim true; nothing left to assert | none |
@@ -512,6 +514,7 @@ acceptance: pass 2026-10-30 (all four runtime checks; mic-blocked Notice + Retry
 
 ## Changelog
 
+- 2026-11-26: ISC-148 added and ticked: the main view stays on the floating note while a script floats (list item #3). Committed, not released.
 - 2026-11-26: ISC-147 added and ticked: each view renders with its own Marked instance (list item #2). Committed, not released.
 - 2026-11-25: release 0.12.5 on Américo's word ("yes", to publish pause + see-through, with the size kept first): ISC-145, ISC-146 and the ISC-144 pause fix.
 - 2026-11-25: ISC-146 added and ticked: the Prompter window keeps its size, centred.
