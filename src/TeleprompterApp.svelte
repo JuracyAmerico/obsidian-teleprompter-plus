@@ -1660,7 +1660,16 @@
       return
     }
 
-    const activeFile = app.workspace.getActiveFile()
+    // While a script floats, the main view is its control surface and stays on the floating note.
+    // Following a clicked note here reset both clocks and pointed list clicks at the wrong script
+    // (list item #3, ISC-148). The main view catches up to the active note when floating closes.
+    const floatingNote = !isFloating ? plugin.floatingSession.notePath : null
+    if (floatingNote && floatingNote === currentNotePath) {
+      debugLog('[Floating] Staying on the floating note:', floatingNote)
+      return
+    }
+    const floatingFile = floatingNote ? app.vault.getAbstractFileByPath(floatingNote) : null
+    const activeFile = floatingFile && "extension" in floatingFile ? (floatingFile as TFile) : app.workspace.getActiveFile()
     if (activeFile) {
       // Check if this is actually a different file
       const newPath = activeFile.path
@@ -3828,6 +3837,7 @@
     if (request.notePath) {
       isPinned = true
       pinnedNotePath = request.notePath
+      plugin.floatingSession.setNote(request.notePath)
       await openFile(request.notePath)
     }
 
@@ -5020,11 +5030,17 @@
     loadActiveNote()
     if (floatRequest) void beginFloating(floatRequest)
 
+    let wasFloating = plugin.floatingSession.active
     const syncFloatingSession = () => {
       floatingSessionActive = plugin.floatingSession.active
       floatingSessionLocked = plugin.floatingSession.locked
       // The floating window closed: nothing is left to mirror (ISC-142).
       if (!plugin.floatingSession.active) stopMirror()
+      // It held the main view on its note (ISC-148); now the main view follows the active note again.
+      if (wasFloating && !plugin.floatingSession.active && !isFloating) loadActiveNote()
+      // A script started floating: the main view moves onto that note so its controls drive it.
+      if (!wasFloating && plugin.floatingSession.active && !isFloating) loadActiveNote()
+      wasFloating = plugin.floatingSession.active
     }
     syncFloatingSession()
     const stopFloatingSync = plugin.floatingSession.subscribe(syncFloatingSession)
@@ -5054,6 +5070,7 @@
     })
     const renameRef = app.vault.on('rename', (file, oldPath) => {
       if (currentNotePath === oldPath) currentNotePath = file.path
+      plugin.floatingSession.renamed(oldPath, file.path)
       if (pinnedNotePath === oldPath) pinnedNotePath = file.path
     })
     const handleStageCuesChanged = (event: Event): void => {

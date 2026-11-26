@@ -248,6 +248,22 @@ describe('FloatingSession', () => {
 		expect(session.active).toBe(false)
 	})
 
+	test('ISC-148: notePath is the floating note only while a window floats, and follows a rename', () => {
+		const session = new FloatingSession()
+		const controller = new FloatingWindowController(fakeWindow(), { isMac: true })
+		session.setNote('Notes/answer.md')
+		expect(session.notePath).toBeNull()
+		session.attach(controller, () => {})
+		expect(session.notePath).toBe('Notes/answer.md')
+		session.renamed('Notes/other.md', 'Notes/x.md')
+		session.renamed('Notes/answer.md', 'Notes/answer-v2.md')
+		expect(session.notePath).toBe('Notes/answer-v2.md')
+		session.detach(controller)
+		expect(session.notePath).toBeNull()
+		session.attach(controller, () => {})
+		expect(session.notePath).toBeNull()
+	})
+
 	test('ISC-139: reportSection tells listeners each new section once, only while floating', () => {
 		const session = new FloatingSession()
 		const controller = new FloatingWindowController(fakeWindow(), { isMac: true })

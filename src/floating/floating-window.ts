@@ -365,6 +365,26 @@ export class FloatingSession {
 		return this.controller !== null
 	}
 
+	private note: string | null = null
+
+	/**
+	 * The note the floating window is reading. While a script floats, the main view stays on this
+	 * note instead of following whichever note the reader clicks: switching reset both clocks and
+	 * sent the Prompter to the wrong section (list item #3, ISC-148).
+	 */
+	get notePath(): string | null {
+		return this.controller ? this.note : null
+	}
+
+	setNote(path: string | null): void {
+		this.note = path
+	}
+
+	/** Keeps the floating note's path right when it is renamed while it floats. */
+	renamed(oldPath: string, newPath: string): void {
+		if (this.note === oldPath) this.note = newPath
+	}
+
 	get locked(): boolean {
 		return this.controller?.isLocked ?? false
 	}
@@ -397,6 +417,7 @@ export class FloatingSession {
 		this.closeWindow = null
 		this.deliver = null
 		this.section = null
+		this.note = null
 		this.notify()
 	}
 
