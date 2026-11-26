@@ -17,7 +17,15 @@ import type {
 import { tokenize, cleanWord } from './word-tokenizer'
 import { UNTRACKED_TEXT_SELECTOR } from '../passage-dom'
 import { normalizeForSpeech } from '../parser/speech-normalizer'
-import { findNextPosition, findGlobalPosition, findRereadPosition, type SpeechMatcherConfig } from './speech-matcher'
+import {
+  alignHeardEnd,
+  findGlobalPosition,
+  findNextPosition,
+  findRereadPosition,
+  isConfidentMatch,
+  type SpeechMatcherConfig,
+} from './speech-matcher'
+import { buildContextHints } from './context-hints'
 import { VoskRecognizer } from './vosk-recognizer'
 import { AppleSpeechRecognizer } from './apple-speech-recognizer'
 import { SpeechActivityDetector } from './speech-activity-detector'
@@ -29,17 +37,10 @@ const DEFAULT_CONFIG: VoiceTrackingConfig = {
   language: 'en-US',
   scrollBehavior: 'smooth',
   showIndicator: true,
-  // Speech matching tuning - CONSERVATIVE to prevent snowball effect
-  confidenceThreshold: 0.35,  // Higher = stricter matching (was 0.20)
-  windowSize: 5,              // Smaller look-ahead window (was 6)
-  maxJumpDistance: 2,         // Smaller max jump (was 3)
-  minJumpDistance: 2,         // Min words before scrolling
-  updateFrequencyMs: 800,     // Slower updates (was 500ms)
-  animationBaseMs: 400,       // Base animation duration
-  animationPerWordMs: 60,     // Extra animation time per word
-  // Pause detection defaults
-  pauseDetection: true,
-  pauseThresholdMs: 1200,     // Time to detect pause
+  // Speech matching tuning. The app always passes its own values; these only serve a bare service.
+  confidenceThreshold: 0.35,  // Higher = stricter matching
+  windowSize: 5,              // Global re-sync window
+  updateFrequencyMs: 500,     // At most one partial matched per this many ms (the newest held one runs at the end)
   // Scroll position default (20% from top = 80% runway below)
   scrollPosition: 20
 }
@@ -84,14 +85,9 @@ export class VoiceTrackingService {
   private lastRecognizedText: string = ''
   private contentArea: HTMLElement | null = null
   private scrollFrameWindow: Window | null = null
-  private silenceTimerWindow: Window | null = null
   private isInitialized: boolean = false  // Track if word spans are created
 
-  // Pause detection state
-  private lastSpeechTime: number = 0
   private lastMatchedIndex: number = -1
-  private noProgressCount: number = 0
-  private isPaused: boolean = false
 
   // Global search state - for starting from any position
   private needsGlobalSearch: boolean = true
@@ -119,15 +115,8 @@ export class VoiceTrackingService {
   // velocity) so it can't overshoot/race; and it eases rather than hard-snapping, so no jumps.
   // FOLLOW_FACTOR: lower = smoother/calmer, higher = snappier. ~0.12-0.22 is the usable range.
   private targetScrollPos = 0
-  // Both live-tunable from settings:
-  // FOLLOW_FACTOR (smoothness) — lower = calmer glide, higher = snappier.
+  // Live-tunable from settings: FOLLOW_FACTOR (smoothness) — lower = calmer glide, higher = snappier.
   private get FOLLOW_FACTOR(): number { return this.config.smoothness ?? 0.16 }
-  // READ_TRAIL — how many words BEHIND your spoken word the scroll anchors. The fix for
-  // "the scroll runs ahead of me": raise it until the line you're reading sits comfortably.
-  private get READ_TRAIL(): number { return this.config.readTrail ?? 8 }
-  // Anchor the scroll a few words BEHIND the spoken word, so the line you're reading always sits
-  // slightly ahead of the scroll. Prevents the text from running ahead of your voice.
-  private readonly READ_AHEAD_LAG = 4
   // Re-sync only relocates within this many words of where the reader is looking —
   // a bounded search can never teleport to the end of the document.
   private readonly GLOBAL_SEARCH_RADIUS = 120
@@ -188,14 +177,6 @@ export class VoiceTrackingService {
   private get HIGHLIGHT_LEAD(): number { return this.config.highlightLead ?? 2 }
   // Set by forceResync(): the next global match commits immediately, no confirmation gate.
   private resyncRequested = false
-
-  // Turn-based scrolling state
-  private lastSpeechResultTime: number = 0      // Last time we received ANY speech result
-  private isInSpeechTurn: boolean = false       // Are we currently in an active speech turn?
-  private silenceCheckTimer: number | null = null  // Timer for detecting silence
-  private pendingScrollTarget: number = -1      // Accumulated scroll target
-  private matchAccumulator: number[] = []       // Recent match positions for averaging
-  private readonly MATCH_ACCUMULATOR_SIZE = 2   // consistent matches before scrolling (rejects single overshoots, stays responsive)
 
   // Callbacks
   /**
@@ -643,15 +624,10 @@ export class VoiceTrackingService {
     this.needsGlobalSearch = true
     this.consecutiveFailedMatches = 0
 
-    // Cancel any ongoing scroll animation
+    // Cancel any ongoing scroll animation, and forget speech heard before the stop
     this.cancelScrollFrame()
-
-    // Clear turn-based scrolling state
-    this.clearSilenceTimer()
-    this.isInSpeechTurn = false
-    this.matchAccumulator = []
-    this.pendingScrollTarget = -1
-    this.noProgressCount = 0
+    this.dropHeldPartial()
+    this.lastMatchedPartialWords = 0
 
     // Clear karaoke highlights (but keep spans for potential restart)
     this.clearHighlights()
@@ -678,7 +654,6 @@ export class VoiceTrackingService {
     this.resyncRequested = true   // next global match commits immediately, even a far one
     this.consecutiveFailedMatches = 0
     this.pendingGlobalIndex = -1
-    this.matchAccumulator = []
   }
 
   /**
@@ -711,11 +686,11 @@ export class VoiceTrackingService {
     this.lastMatchedIndex = clamped
     this.needsGlobalSearch = false
 
-    // Clear all latch / confirmation / accumulator / pace state so the next partial matches cleanly
-    // from the new anchor and isn't gated or clamped by history from the section we just left.
+    // Clear all latch / confirmation / pace state so the next partial matches cleanly from the new
+    // anchor and isn't gated or clamped by history from the section we just left. A held partial was
+    // heard before the move, so it is dropped too.
     this.recentMatchPositions = []
-    this.matchAccumulator = []
-    this.pendingScrollTarget = -1
+    this.dropHeldPartial()
     this.pendingGlobalIndex = -1
     this.consecutiveFailedMatches = 0
     this.resyncRequested = false
@@ -760,31 +735,13 @@ export class VoiceTrackingService {
   }
 
   /**
-   * Build the contextualStrings hint list for Apple's on-device recognizer from the ORIGINAL
-   * token text (preserving case + internal hyphens), NOT the lowercased Vosk grammar. Proper
-   * nouns and section headers ("Module", "Hamid", "U-Haul", "UX") are exactly what SFSpeechRecognizer
-   * mis-hears, and the bias is much stronger when they are supplied in natural form. We surface those
-   * "strong" tokens first (capitalized / numeric / hyphenated), then fill with other 4+ char words,
-   * dedup case-insensitively, and cap the list (Apple ignores an oversized hint set).
+   * Build the contextualStrings hint list for Apple's on-device recognizer from the ORIGINAL token
+   * text (case and hyphenated names kept), NOT the lowercased Vosk grammar. The list is capped, so it
+   * goes to the script's rarest words first: see buildContextHints.
    */
   private buildContextVocabulary(): string | undefined {
-    const isStrong = (w: string) => /^[A-ZÀ-Þ0-9]/.test(w) || w.includes('-')
-    const strip = (v: string) => v.trim().replace(/^[^\p{L}\p{N}]+|[^\p{L}\p{N}-]+$/gu, '')
-    const strong: string[] = []
-    const rest: string[] = []
-    const seen = new Set<string>()
-    for (const t of this.wordTokens) {
-      const w = strip(t.value)
-      if (!w || w === '[unk]') continue
-      const key = w.toLowerCase()
-      if (seen.has(key)) continue
-      if (isStrong(w)) { seen.add(key); strong.push(w) }
-      else if (w.length >= 4) { seen.add(key); rest.push(w) }
-    }
-    // Cap matches the Swift sidecar's contextualStrings limit (100); strong tokens are first so
-    // proper nouns survive the cut even when the script is long.
-    const salient = [...strong, ...rest].slice(0, 100)
-    return salient.length ? JSON.stringify(salient) : undefined
+    const hints = buildContextHints(this.tokens)
+    return hints.length ? JSON.stringify(hints) : undefined
   }
 
   /**
@@ -798,10 +755,7 @@ export class VoiceTrackingService {
     this.needsGlobalSearch = true
     this.consecutiveFailedMatches = 0
 
-    // Reset turn-based scrolling state
-    this.matchAccumulator = []
-    this.pendingScrollTarget = -1
-    this.noProgressCount = 0
+    this.dropHeldPartial()
 
     // Scroll to top
     if (this.contentArea) {
@@ -809,8 +763,15 @@ export class VoiceTrackingService {
     }
   }
 
-  // Throttle partial results to avoid too many scroll operations
+  // Partial throttle: a partial that only re-sends or revises words already matched is matched at most
+  // once per PARTIAL_THROTTLE_MS. One that arrives inside the window is HELD, the newest replacing an
+  // older one, and matched when the window ends. Dropping it instead lost the last words before a
+  // pause, and the place sat behind the voice until the reader spoke again.
   private lastPartialProcessTime: number = 0
+  private lastMatchedPartialWords: number = 0
+  private heldPartial: string | null = null
+  private heldPartialTimer: number | null = null
+  private heldPartialTimerWindow: Window | null = null
   private pendingRereadIndex: number = -1 // A re-read seen once, waiting for speech to confirm it
 
   // Smooth scroll animation state
@@ -818,18 +779,11 @@ export class VoiceTrackingService {
 
   // Getters for tuning parameters (from config)
   private get PARTIAL_THROTTLE_MS(): number { return this.config.updateFrequencyMs ?? 400 }
-  private get MIN_JUMP_DISTANCE(): number { return this.config.minJumpDistance ?? 3 }
-  private get MAX_JUMP_DISTANCE(): number { return this.config.maxJumpDistance ?? 8 }
-  private get SCROLL_DURATION_BASE_MS(): number { return this.config.animationBaseMs ?? 350 }
-  private get SCROLL_DURATION_PER_WORD_MS(): number { return this.config.animationPerWordMs ?? 50 }
-  private get PAUSE_DETECTION_ENABLED(): boolean { return this.config.pauseDetection ?? true }
-  private get PAUSE_THRESHOLD_MS(): number { return this.config.pauseThresholdMs ?? 1500 }
   private get SCROLL_POSITION(): number { return this.config.scrollPosition ?? 30 }
 
   /**
-   * Handle recognition results from the recognizer.
-   * Uses turn-based scrolling: accumulates matches during active speech,
-   * only scrolls when we have consistent matches.
+   * Handle recognition results from the recognizer: a final is matched at once; a partial is matched
+   * at once or, inside the throttle window, held and matched when the window ends.
    */
   private handleRecognitionResult(rawText: string, isFinal: boolean): void {
     // Speech recognizers return numbers as DIGITS ("$759", "2:24", "30%") while a teleprompter
@@ -843,28 +797,64 @@ export class VoiceTrackingService {
     this.lastRecognizedText = text
     this.onRecognizedText?.(text, isFinal)
 
-    const now = Date.now()
-
-    // Mark that we received speech - this starts/continues a speech turn
-    this.markSpeechActivity()
-
-    // For partial results, throttle to avoid too many match operations
-    if (!isFinal) {
-      if (now - this.lastPartialProcessTime < this.PARTIAL_THROTTLE_MS) {
-        return // Skip this partial, too soon
-      }
-      // Only process partials with at least 3 words
-      const wordCount = text.split(/\s+/).filter(w => w.length > 0).length
-      if (wordCount < 3) {
-        return // Too few words to match reliably
-      }
-      this.lastPartialProcessTime = now
+    if (isFinal) {
+      // A final is the newest and most complete text of its utterance: a held partial is stale.
+      this.dropHeldPartial()
+      this.lastMatchedPartialWords = 0 // the next partial starts a new utterance
+      this.matchRecognizedText(text, true)
+      return
     }
 
+    // Only process partials with at least 3 words: fewer are too few to match reliably
+    const wordCount = text.split(/\s+/).filter(w => w.length > 0).length
+    if (wordCount < 3) return
+
+    // A partial with a different number of words carries a word the matcher has not seen: new
+    // evidence of where the reader is, matched at once. Holding it for the throttle window is what
+    // made a slow update rate trail the voice (the "Conservative" preset's 600 ms, at a non-native
+    // reader's ~2.4 words a second). The throttle paces the rest: the recognizer re-sending or
+    // revising words already matched.
+    const wait = this.lastPartialProcessTime + this.PARTIAL_THROTTLE_MS - Date.now()
+    if (wait > 0 && wordCount === this.lastMatchedPartialWords) {
+      this.holdPartial(text, wait)
+      return
+    }
+    this.dropHeldPartial()
+    this.matchPartial(text)
+  }
+
+  private matchPartial(text: string): void {
+    this.lastPartialProcessTime = Date.now()
+    this.lastMatchedPartialWords = text.split(/\s+/).filter(w => w.length > 0).length
+    this.matchRecognizedText(text, false)
+  }
+
+  /** Keep the newest partial heard inside the throttle window, and match it when the window ends. */
+  private holdPartial(text: string, waitMs: number): void {
+    this.heldPartial = text
+    if (this.heldPartialTimer !== null) return // already scheduled for the end of this window
+    this.heldPartialTimerWindow = this.contentWindow()
+    this.heldPartialTimer = this.heldPartialTimerWindow.setTimeout(() => {
+      this.heldPartialTimer = null
+      const held = this.heldPartial
+      this.heldPartial = null
+      if (held !== null) this.matchPartial(held)
+    }, waitMs)
+  }
+
+  private dropHeldPartial(): void {
+    this.heldPartial = null
+    if (this.heldPartialTimer === null) return
+    const owner = this.heldPartialTimerWindow ?? window
+    owner.clearTimeout(this.heldPartialTimer)
+    this.heldPartialTimer = null
+  }
+
+  /** Match one recognized text against the script and move the place if the evidence allows. */
+  private matchRecognizedText(text: string, isFinal: boolean): void {
     // Build speech matcher config from service config
     const matcherConfig: SpeechMatcherConfig = {
       windowSize: this.config.windowSize ?? 6,
-      maxJumpDistance: this.config.maxJumpDistance ?? 3,
       confidenceThreshold: this.config.confidenceThreshold ?? 0.20
     }
 
@@ -879,7 +869,6 @@ export class VoiceTrackingService {
         this.currentWordIndex = snapTo
         this.lastMatchedIndex = snapTo
         this.recentMatchPositions = []
-        this.matchAccumulator = []
         this.consecutiveFailedMatches = 0
         this.needsGlobalSearch = false
         this.resetPaceGovernor()  // discontinuity: don't clamp the next commit against pre-snap pace
@@ -907,26 +896,40 @@ export class VoiceTrackingService {
     let newIndex: number
     let isGlobalMatch = false  // Flag for global search result
 
-    // Global search ONLY on initial start / explicit R re-sync — NEVER on mid-reading
-    // failures. The old auto-global-search-on-failures (consecutiveFailedMatches) is exactly
-    // what teleported the reader to the end on a few mis-hears. Off-script now simply holds
-    // position until forward matching resumes or the user presses R. And the search is
-    // bounded near where they're looking, so it can't jump to an unrelated section.
+    // Re-sync on initial start, on R, and after STALL_RESYNC_THRESHOLD partials without progress.
+    // The wide search is bounded near where the reader is looking, so it can't jump to an unrelated
+    // section, and its result must line up word by word (below) before it can move the place.
     if (this.needsGlobalSearch) {
-      // Get hint position based on current scroll (where user is looking)
-      const hintPosition = this.estimateWordIndexFromScroll()
+      // A stall re-sync first looks just ahead of the place, where the tail-aligned matcher sees the
+      // nearest copy of what was heard. The wide search below scores letters over a fixed window, so of
+      // two nearby copies ("That is where the real work ... and that is where I have done") it can
+      // prefer the farther one. R skips this: the reader asked to be found wherever they are.
+      const nearby = findNextPosition(text, this.wordTokens, this.currentWordIndex, matcherConfig)
+      const useNearby = !this.resyncRequested && nearby > this.currentWordIndex
 
-      const globalIndex = findGlobalPosition(text, this.wordTokens, matcherConfig, hintPosition, this.GLOBAL_SEARCH_RADIUS)
+      // findGlobalPosition answers where the heard words START (passage-anchor relies on that). The
+      // reader is at the LAST of them: landing on the first left the place a whole utterance behind the
+      // voice. The last words are re-aligned around their expected end, and must actually line up with
+      // the script there: the letter-level global match alone accepted an off-script aside ("okay one
+      // second my phone is ringing") and, confirmed by its own final, flung the place 30 words ahead.
+      const heardEnd = (): number => {
+        const hintPosition = this.estimateWordIndexFromScroll()  // where the reader is looking
+        const heardStart = findGlobalPosition(text, this.wordTokens, matcherConfig, hintPosition, this.GLOBAL_SEARCH_RADIUS)
+        if (heardStart < 0) return -1
+        const heardWords = tokenize(text).filter(t => t.type === 'TOKEN').length
+        const end = alignHeardEnd(text, this.wordTokens, heardStart + heardWords - 1)
+        return end && isConfidentMatch(end.confidence, matcherConfig) ? end.matchedWordIndex : -1
+      }
+      const found = useNearby ? nearby : heardEnd()
 
-      if (globalIndex >= 0) {
-        // Found a match anywhere in document
-        newIndex = globalIndex
+      if (found >= 0) {
+        newIndex = found
         isGlobalMatch = true
         this.needsGlobalSearch = false
         this.consecutiveFailedMatches = 0
       } else {
-        // No global match found, try local anyway
-        newIndex = findNextPosition(text, this.wordTokens, this.currentWordIndex, matcherConfig)
+        // Nothing found: the forward match stands (no progress, unless R found the reader nearby)
+        newIndex = nearby
       }
     } else {
       // Normal forward-only search
@@ -945,7 +948,6 @@ export class VoiceTrackingService {
       proposedWord: this.wordTokens[newIndex]?.value ?? '?',
       jump: jumpDistance,
       global: isGlobalMatch,
-      inTurn: this.isInSpeechTurn,
       fails: this.consecutiveFailedMatches,
       total: this.wordTokens.length,
     })
@@ -1013,7 +1015,6 @@ export class VoiceTrackingService {
         this.pendingGlobalIndex = -1
         this.currentWordIndex = newIndex
         this.lastMatchedIndex = newIndex
-        this.matchAccumulator = []  // Clear accumulator on global jump
         this.resetPaceGovernor()    // discontinuity: a catch-up jump must not be clamped by pace
         this.scrollToWord(newIndex)
       } else {
@@ -1021,13 +1022,6 @@ export class VoiceTrackingService {
         this.pendingGlobalIndex = newIndex
         this.needsGlobalSearch = true
       }
-      return
-    }
-
-    // === TURN-BASED SCROLLING ===
-    // Only process if we're in an active speech turn
-    if (!this.isInSpeechTurn) {
-      this.onDiagnostic?.('held', { reason: 'not-in-speech-turn', cur: this.currentWordIndex, proposed: newIndex })
       return
     }
 
@@ -1092,8 +1086,6 @@ export class VoiceTrackingService {
       } else if (DEBUG_VOICE_MATCH) {
         console.warn(`[VT]   GATED big jump → #${newIndex} (recent ${this.recentMatchPositions.join(',')}; need 2 within ${this.AGREE_WORDS} words)`)
       }
-    } else {
-      this.noProgressCount++  // no forward progress — likely a pause or repetition
     }
   }
 
@@ -1238,13 +1230,6 @@ export class VoiceTrackingService {
     this.scrollAnimationId = null
   }
 
-  private clearSilenceTimer(): void {
-    if (this.silenceCheckTimer === null) return
-    const owner = this.silenceTimerWindow ?? window
-    owner.clearTimeout(this.silenceCheckTimer)
-    this.silenceCheckTimer = null
-  }
-
   /** Per-frame critically-damped follow toward the latest target. Reuses scrollAnimationId so
    *  stop() cancels it. Settles exactly on target and idles until the next word moves it. */
   private startScrollFollow(): void {
@@ -1266,61 +1251,6 @@ export class VoiceTrackingService {
       this.scrollAnimationId = this.requestScrollFrame(step)
     }
     this.scrollAnimationId = this.requestScrollFrame(step)
-  }
-
-  /**
-   * Animate scroll to target position with easing.
-   * Uses easeInOutQuad for smooth acceleration and deceleration.
-   * @param targetScroll - Target scroll position
-   * @param jumpDistance - Number of words being jumped (affects duration)
-   */
-  private animateScrollTo(targetScroll: number, jumpDistance: number = 5): void {
-    if (!this.contentArea) return
-
-    // Cancel any existing animation
-    this.cancelScrollFrame()
-
-    const startScroll = this.contentArea.scrollTop
-    const distance = targetScroll - startScroll
-
-    // If distance is very small, just set directly
-    if (Math.abs(distance) < 5) {
-      this.contentArea.scrollTop = targetScroll
-      return
-    }
-
-    // Calculate dynamic duration based on jump distance
-    // Larger jumps get more time for smoother motion
-    const duration = this.SCROLL_DURATION_BASE_MS + (jumpDistance * this.SCROLL_DURATION_PER_WORD_MS)
-
-    const startTime = performance.now()
-    const contentArea = this.contentArea
-
-    // Easing function: easeInOutQuad - smooth acceleration and deceleration
-    // This feels more natural for following text than easeOutCubic
-    const easeInOutQuad = (t: number): number => {
-      return t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2
-    }
-
-    const animate = (currentTime: number) => {
-      const elapsed = currentTime - startTime
-      const progress = Math.min(elapsed / duration, 1)
-
-      // Apply easing
-      const easedProgress = easeInOutQuad(progress)
-      const newScrollTop = startScroll + (distance * easedProgress)
-
-      contentArea.scrollTop = newScrollTop
-
-      // Continue animation if not complete
-      if (progress < 1) {
-        this.scrollAnimationId = this.requestScrollFrame(animate)
-      } else {
-        this.scrollAnimationId = null
-      }
-    }
-
-    this.scrollAnimationId = this.requestScrollFrame(animate)
   }
 
   /**
@@ -1351,89 +1281,6 @@ export class VoiceTrackingService {
     })
 
     return closestIndex
-  }
-
-  /**
-   * Mark that we received speech input - starts/continues a speech turn.
-   */
-  private markSpeechActivity(): void {
-    const now = Date.now()
-    this.lastSpeechResultTime = now
-
-    // Start a new speech turn if we weren't in one
-    if (!this.isInSpeechTurn) {
-      this.isInSpeechTurn = true
-    }
-
-    // Reset/restart the silence detection timer
-    this.resetSilenceTimer()
-  }
-
-  /**
-   * Reset the silence detection timer.
-   * Called whenever we receive speech input.
-   */
-  private resetSilenceTimer(): void {
-    // Clear existing timer
-    this.clearSilenceTimer()
-
-    // Set new timer - if no speech for PAUSE_THRESHOLD_MS, end the turn
-    this.silenceTimerWindow = this.contentWindow()
-    this.silenceCheckTimer = this.silenceTimerWindow.setTimeout(() => {
-      this.endSpeechTurn()
-    }, this.PAUSE_THRESHOLD_MS)
-  }
-
-  /**
-   * End the current speech turn (silence detected).
-   */
-  private endSpeechTurn(): void {
-    if (this.isInSpeechTurn) {
-      this.isInSpeechTurn = false
-
-      // Clear the match accumulator - fresh start for next turn
-      this.matchAccumulator = []
-      this.pendingScrollTarget = -1
-    }
-  }
-
-  /**
-   * Add a match to the accumulator and check if we should scroll.
-   * Returns the target word index if we have enough consistent matches, -1 otherwise.
-   */
-  private accumulateMatch(matchIndex: number): number {
-    // Add to accumulator
-    this.matchAccumulator.push(matchIndex)
-
-    // Keep only recent matches
-    if (this.matchAccumulator.length > this.MATCH_ACCUMULATOR_SIZE) {
-      this.matchAccumulator.shift()
-    }
-
-    // Need enough matches to make a decision
-    if (this.matchAccumulator.length < this.MATCH_ACCUMULATOR_SIZE) {
-      return -1
-    }
-
-    // Check if matches are consistent (all within 3 words of each other)
-    const min = Math.min(...this.matchAccumulator)
-    const max = Math.max(...this.matchAccumulator)
-    const spread = max - min
-
-    if (spread > 5) {
-      // Matches are too spread out - not consistent, remove oldest and wait
-      this.matchAccumulator.shift()
-      return -1
-    }
-
-    // Matches are consistent - use the median
-    const sorted = [...this.matchAccumulator].sort((a, b) => a - b)
-    const median = sorted[Math.floor(sorted.length / 2)]
-
-    // Clear accumulator after successful scroll decision
-    this.matchAccumulator = []
-
-    return median
   }
 
   /**
@@ -1502,9 +1349,6 @@ export class VoiceTrackingService {
     this.wordPositions.clear()
     this.wordSpans.clear()
     this.contentArea = null
-
-    // Clean up turn-based scrolling timer
-    this.clearSilenceTimer()
   }
 }
 

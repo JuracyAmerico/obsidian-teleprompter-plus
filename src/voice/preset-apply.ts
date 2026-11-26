@@ -16,20 +16,15 @@ import {
 
 export type ConcretePreset = Exclude<VoiceTrackingPacePreset, 'custom'>
 
-export type PresetTuning = Pick<
-  VoiceTrackingConfig,
-  'confidenceThreshold' | 'windowSize' | 'maxJumpDistance' | 'minJumpDistance' | 'updateFrequencyMs' | 'animationBaseMs'
->
+/** The preset fields the service reads. A preset's jump and animation fields are read by nothing. */
+export type PresetTuning = Pick<VoiceTrackingConfig, 'confidenceThreshold' | 'windowSize' | 'updateFrequencyMs'>
 
 /** The service-config fields a preset controls. */
 export function presetToTuning(preset: VoiceTrackingPresetConfig): PresetTuning {
   return {
     confidenceThreshold: preset.confidenceThreshold,
     windowSize: preset.windowSize,
-    maxJumpDistance: preset.maxJumpDistance,
-    minJumpDistance: preset.minJumpDistance,
     updateFrequencyMs: preset.updateFrequencyMs,
-    animationBaseMs: preset.animationBaseMs,
   }
 }
 
