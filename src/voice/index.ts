@@ -19,6 +19,7 @@ export type {
 } from './types'
 
 export { VOICE_LANGUAGES } from './types'
+export type { ScriptSource } from './script-fingerprint'
 
 // Core algorithms
 export { tokenize, tokenizeWords, tokensToString, cleanWord } from './word-tokenizer'
