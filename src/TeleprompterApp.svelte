@@ -56,7 +56,7 @@
   import { AutoScroller, Countdown, clampSpeed, countWords, isAtScriptEnd, maxScrollOf, scrollFraction, shouldCountDown, speedLimits, stepSection, stepSpeed, wordsRemaining as wordsAhead } from './playback'
   import { Marked } from 'marked'
   import { VOICE_TRACKING_PRESETS, type VoiceTrackingPacePreset } from './settings'
-  import type { VoiceTrackingService } from './voice'
+  import type { VoiceReadingMove, VoiceTrackingService } from './voice'
   import { applyPresetLive } from './voice/preset-apply'
   import { isVoiceEngaged, nextVoiceUiState, voiceFailureText } from './voice/voice-ui-state'
   import { resolveReadAloudLanguage, resolveVoiceLanguage } from './voice/voice-language'
@@ -73,7 +73,7 @@
   import { SpeechClock, computePaceState, formatClock, resolveTarget, type ClockSnapshot, type PaceStatus, type TargetSource } from './timing/speech-timer'
   import { removeYAMLFrontmatter, createHeadingLineMapper, type HeadingLineMapper } from './parser/heading-source-map'
   import { assignSectionTargets, parseSectionTargets, stripHeadingTargets } from './parser/section-targets'
-  import { TakeTracker, loggableTakes, planFit, scriptEndCard, speedForPlan, takeCard, type FitPlan, type SectionEnd, type TakeCard, type TakeFrame, type TakeResult, type TakeSection } from './takes'
+  import { TakeTracker, loggableTakes, planFit, readingFrame, scriptEndCard, speedForPlan, takeCard, voiceReachedScriptEnd, type FitPlan, type SectionEnd, type TakeCard, type TakeFrame, type TakeResult, type TakeSection } from './takes'
   import { densityOfLines, formatWordsPerMinute, speedToWordsPerMinute, wordsInDistance } from './reading-rate'
   import type { TTSDocument, TTSSection } from './tts/tts-types'
   import hljs from 'highlight.js/lib/core'
@@ -2134,6 +2134,98 @@
     return true
   }
 
+  // ===== Takes under voice tracking and read-aloud =====
+  // Neither moves the script through the scroll loop, so each reports the reader's place (the word
+  // heard, the sentence being read) and the same tracker follows it (TakeTracker.follow), on the
+  // same rehearsal clock. A section jump, seek, reset or R re-sync discards the take, as it does for
+  // auto-scroll (bumpProgressEpoch).
+
+  /**
+   * Voice committed a word as the reader's place. His words moving the place mean he is reading, so
+   * the clock runs: it was idle after a section jump or a reset (both zero it), or stopped on a
+   * section-end card. His last words close the run as the end of an auto-scroll does. Nothing here
+   * stops the microphone.
+   */
+  function followVoiceTake(move: VoiceReadingMove): void {
+    const area = contentArea
+    if (!area || !move.span || !ownsVoice() || !voiceTrackingActive) return
+    const atEnd = voiceReachedScriptEnd(move.wordIndex, move.totalWords)
+    // Read to its end: the result stays up while the matcher sits on the last words.
+    if (sessionState === 'finished' && atEnd) return
+    if (sessionState !== 'running') startSession()
+    const crossed = takeTracker.follow(readingFrame({
+      sections: takeSections(area),
+      readingLine: takeContentTopOf(move.span, area),
+      // The page has not moved for this word yet: this is the screen he sees as he says it.
+      viewTop: area.scrollTop,
+      viewHeight: area.clientHeight,
+      elapsedMs: rehearsalClock.elapsedMs,
+    }), plugin.settings.sectionStopMode ?? 'targeted')
+    if (atEnd) {
+      finishSession()
+      closeScriptTake(crossed)
+      return
+    }
+    if (crossed) endVoiceSectionTake(crossed)
+  }
+
+  /**
+   * A section ended under voice. The microphone stays on: he goes straight on into the next answer,
+   * and stopping it would cost his first words and make him start it again. When the stop mode says
+   * so, the clock stops on the card instead, until his next words move the place.
+   */
+  function endVoiceSectionTake(end: SectionEnd): void {
+    keepTakes([end.result])
+    if (!end.stop || !end.result) return
+    pauseSession()
+    showTake(takeCard(end.result))
+    debugLog('[Takes] Section end under voice:', takeCardShown?.text)
+  }
+
+  /**
+   * Read-aloud started a sentence. Only a reading that is playing moves the take: a sentence picked
+   * while paused was not read. A reading that is playing is stage time, so the clock runs: it was
+   * idle after a section jump or a reset, or paused when reading started from a section.
+   */
+  function followReadAloudTake(index: number): void {
+    const area = contentArea
+    const sentence = ttsSentenceElements[index]
+    if (!area || !sentence || ttsService?.getState().playbackState !== 'playing') return
+    if (sessionState !== 'running') startSession()
+    const readingLine = takeContentTopOf(sentence, area)
+    const crossed = takeTracker.follow(readingFrame({
+      sections: takeSections(area),
+      readingLine,
+      // Where scrollToTTSSentence takes the page, the sentence on the eyeline. The first sentence is
+      // the top of the script, wherever the page was when the reading started.
+      viewTop: index === 0 ? 0 : Math.max(0, readingLine - readingOffset()),
+      viewHeight: area.clientHeight,
+      elapsedMs: rehearsalClock.elapsedMs,
+    }), plugin.settings.sectionStopMode ?? 'targeted')
+    if (crossed) endReadAloudSectionTake(crossed)
+  }
+
+  /**
+   * A section ended while reading aloud. When the stop mode says so the reading pauses before the
+   * next heading is spoken, the clock with it, and the card shows; Play reads on from that heading.
+   */
+  function endReadAloudSectionTake(end: SectionEnd): void {
+    keepTakes([end.result])
+    if (!end.stop || !end.result) return
+    ttsService?.pauseBeforeSentence()
+    pauseSession()
+    showTake(takeCard(end.result))
+    debugLog('[Takes] Section end reading aloud:', takeCardShown?.text)
+  }
+
+  /** Read-aloud finished the last sentence of the script: the clock freezes and the take closes. */
+  function finishReadAloudTake(index: number): void {
+    if (!ownsTTS() || ttsLoop || !ttsService) return
+    if (index < ttsService.getState().totalSentences - 1) return
+    finishSession()
+    closeScriptTake(null)
+  }
+
   /** Stop a running countdown so it never starts playback. Returns whether one was running. */
   function cancelCountdown(reason: string): boolean {
     const wasRunning = countdown.cancel()
@@ -2184,12 +2276,21 @@
     isPlaying = false
     finishSession()
     broadcastState({ isPlaying: false })
+    closeScriptTake(crossed)
+  }
+
+  /**
+   * The reading reached the end of the script, by auto-scroll, voice or read-aloud: the open take
+   * closes, as the whole script when it was read from the top, else as the last section, and is
+   * logged and shown. `crossed` is a boundary passed on the same last step, kept before it closes.
+   */
+  function closeScriptTake(crossed: SectionEnd | null): void {
     if (crossed) keepTakes([crossed.result])
     const end = contentArea ? takeTracker.finish(takeFrame(contentArea), targetSeconds) : null
     if (end) keepTakes([end.section, end.script])
     const card = (end ? scriptEndCard(end) : null) ?? crossed?.result ?? null
     if (card) showTake(takeCard(card))
-    debugLog('[Playback] Reached the end of the script', card ? `— ${takeCard(card).text}` : '')
+    debugLog('[Takes] Reached the end of the script', card ? `— ${takeCard(card).text}` : '')
   }
 
   /** Jump to a share of the script (minimap, progress bar, forwarded clicks): a seek pauses. */
@@ -3103,6 +3204,9 @@
           debugLog(`[Voice] Matched word ${wordIndex}, scrolling to ${scrollPosition}`)
         }
 
+        // Every commit of his place, for takes: the scroll loop never runs under voice (./takes).
+        voiceTrackingService.onReadingMove = (move: VoiceReadingMove) => followVoiceTake(move)
+
         voiceTrackingService.onPauseChange = (isPaused: boolean) => {
           debugLog(`[Voice] Pause state: ${isPaused ? 'PAUSED' : 'RESUMED'}`)
         }
@@ -3198,7 +3302,13 @@
       // The other view shows this counter too (the main window while the Elgato reads); without
       // this it stayed on "1/22" because only play/pause changes were shared (ISC-144).
       broadcastState({ ttsCurrentSentence: index })
+      // The reading's place, for takes: the scroll loop never runs while reading aloud (./takes).
+      // Last, because a section end here may pause the reading before this sentence is spoken.
+      followReadAloudTake(index)
     })
+
+    // The last sentence of the script read to its end closes the take, as the end of a scroll does.
+    ttsService.onSentenceEndEvent(({ index }) => finishReadAloudTake(index))
 
     ttsService.onStateChange((state: TTSState) => {
       // While a script floats, this view shows the floating view's reading. Its own service going
@@ -3488,6 +3598,8 @@
         broadcastState({ isPlaying })
       }
 
+      // Reading starts at the first sentence, wherever the page was: a take open elsewhere ends here.
+      takeTracker.discard()
       await ttsService.play()
       phoneLog(`play returned state=${ttsPlaybackState}`)
       // A first sentence that failed left the reading paused: the clock must not run on it
@@ -5878,7 +5990,8 @@
       broadcastState({ isPlaying: false })
     }
 
-    // Jump to the section and start playing
+    // Jump to the section and start playing. A jump: the take open elsewhere is not a read of one section.
+    takeTracker.discard()
     await ttsService.jumpToSection(headerId)
     if (ttsPlaybackState !== 'playing') {
       await ttsService.play()
