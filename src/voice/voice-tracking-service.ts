@@ -26,6 +26,7 @@ import {
   type SpeechMatcherConfig,
 } from './speech-matcher'
 import { buildContextHints } from './context-hints'
+import { scriptHash, wordListText, type ScriptSource } from './script-fingerprint'
 import { VoskRecognizer } from './vosk-recognizer'
 import { AppleSpeechRecognizer } from './apple-speech-recognizer'
 import { SpeechActivityDetector } from './speech-activity-detector'
@@ -280,8 +281,9 @@ export class VoiceTrackingService {
    *
    * @param content - The script text to track
    * @param contentArea - The DOM element containing the rendered content
+   * @param source - The note the script came from, when the host knows it. Only traced.
    */
-  initialize(content: string, contentArea: HTMLElement): void {
+  initialize(content: string, contentArea: HTMLElement, source?: ScriptSource): void {
     // Tokenize the content
     const nextTokens = tokenize(content)
     const nextWords = nextTokens.filter(t => t.type === 'TOKEN')
@@ -290,12 +292,20 @@ export class VoiceTrackingService {
     // loaded would otherwise wipe a working script to zero words: the recognizer keeps hearing
     // you, the matcher has nothing to match against, and tracking silently dies. Measured
     // 2026-09-16: 1087 words on the first run, 0 after a second view re-initialized it.
-    this.onDiagnostic?.('init', {
-      incomingWords: nextWords.length,
-      hadWords: this.wordTokens.length,
-      contentChars: content.length,
-      domChars: contentArea?.textContent?.length ?? -1,
-    })
+    // The script, its hash, the language and the note let scripts/voice-bench.ts replay the
+    // session later against the same text. Built only when a trace handler is listening.
+    if (this.onDiagnostic) {
+      this.onDiagnostic('init', {
+        incomingWords: nextWords.length,
+        hadWords: this.wordTokens.length,
+        contentChars: content.length,
+        domChars: contentArea?.textContent?.length ?? -1,
+        scriptHash: scriptHash(content),
+        language: this.config.language,
+        ...(source ? { notePath: source.path, noteMtime: source.mtime } : {}),
+        script: content,
+      })
+    }
 
     if (nextWords.length === 0 && this.wordTokens.length > 0) {
       this.onDiagnostic?.('init-ignored', { reason: 'empty-content', keptWords: this.wordTokens.length })
@@ -499,7 +509,16 @@ export class VoiceTrackingService {
     })
 
     this.isInitialized = true
-    this.onDiagnostic?.('wrapped', { words: this.wordTokens.length, spans: this.wordSpans.size })
+    // The exact word list the matcher indexes, after rendering: what a replay needs to be exact.
+    if (this.onDiagnostic) {
+      const wordList = wordListText(this.wordTokens)
+      this.onDiagnostic('wrapped', {
+        words: this.wordTokens.length,
+        spans: this.wordSpans.size,
+        wordsHash: scriptHash(wordList),
+        wordList,
+      })
+    }
   }
 
   /**
