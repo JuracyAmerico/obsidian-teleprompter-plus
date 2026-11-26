@@ -467,7 +467,7 @@ export const REMOTE_INTERFACE_HTML = `<!DOCTYPE html>
         <span class="card-value" id="speedValue">2.0x</span>
       </div>
       <input type="range" class="speed-slider" id="speedSlider"
-             min="0.5" max="10" step="0.5" value="2">
+             min="0.5" max="10" step="0.1" value="2">
       <div class="speed-labels">
         <span>0.5x</span>
         <span>5x</span>
@@ -690,8 +690,12 @@ export const REMOTE_INTERFACE_HTML = `<!DOCTYPE html>
       // Update speed
       if (newState.speed !== undefined) {
         state.speed = newState.speed;
-        speedSlider.value = state.speed;
-        speedValue.textContent = state.speed.toFixed(1) + 'x';
+        // Not while a finger is on the slider: the Mac pushes state up to 10 times a second, and
+        // each push put the thumb back at the old speed, so dragging stuttered (ISC-159).
+        if (!speedDragging) {
+          speedSlider.value = state.speed;
+          speedValue.textContent = state.speed.toFixed(1) + 'x';
+        }
       }
 
       // Update progress
@@ -757,6 +761,17 @@ export const REMOTE_INTERFACE_HTML = `<!DOCTYPE html>
         btn.textContent = text;
         sectionsList.appendChild(btn);
       }
+      scrollToCurrentSection();
+    }
+
+    // Keep the section being read in view inside the short list (ISC-159). Runs on every update
+    // and when the list opens: while it is closed it has no height to scroll.
+    function scrollToCurrentSection() {
+      var current = sectionsList.querySelector('.section-item.current');
+      if (!current || !sectionsList.classList.contains('visible')) return;
+      var list = sectionsList.getBoundingClientRect();
+      var item = current.getBoundingClientRect();
+      sectionsList.scrollTop += (item.top - list.top) - (list.height - item.height) / 2;
     }
 
     // Update countdown selector buttons
@@ -779,9 +794,30 @@ export const REMOTE_INTERFACE_HTML = `<!DOCTYPE html>
       sendCommand('toggle-play');
     });
 
+    // Dragging: the prompter follows live (at most every 120 ms), and incoming state leaves the
+    // thumb alone until the finger lifts (ISC-159).
+    var speedDragging = false;
+    var lastSpeedSent = 0;
+    function startSpeedDrag() { speedDragging = true; }
+    function endSpeedDrag() {
+      if (!speedDragging) return;
+      speedDragging = false;
+      sendCommand('set-speed', { speed: parseFloat(speedSlider.value) });
+    }
+    speedSlider.addEventListener('pointerdown', startSpeedDrag);
+    speedSlider.addEventListener('touchstart', startSpeedDrag, { passive: true });
+    speedSlider.addEventListener('pointerup', endSpeedDrag);
+    speedSlider.addEventListener('pointercancel', endSpeedDrag);
+    speedSlider.addEventListener('touchend', endSpeedDrag);
+
     speedSlider.addEventListener('input', function(e) {
       var value = parseFloat(e.target.value);
       speedValue.textContent = value.toFixed(1) + 'x';
+      var now = Date.now();
+      if (now - lastSpeedSent > 120) {
+        lastSpeedSent = now;
+        sendCommand('set-speed', { speed: value });
+      }
     });
 
     speedSlider.addEventListener('change', function(e) {
@@ -801,6 +837,8 @@ export const REMOTE_INTERFACE_HTML = `<!DOCTYPE html>
     sectionsToggle.addEventListener('click', function() {
       sectionsToggle.classList.toggle('expanded');
       sectionsList.classList.toggle('visible');
+      // The list opens with a height transition: scroll once it has its height.
+      setTimeout(scrollToCurrentSection, 350);
     });
 
     sectionsList.addEventListener('click', function(e) {
