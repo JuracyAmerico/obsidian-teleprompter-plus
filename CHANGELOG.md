@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.12.14] - 2026-11-26
+
 ### Added
 - **Takes when you rehearse by voice or read-aloud.** A section read by voice or read aloud now gives the same card and log entry as auto-scroll. With your voice, the card appears when your next words are recognized, the microphone keeps listening, and the clock waits for you instead of counting the time you spend on the card. Read-aloud stops before it speaks the next heading; Play reads on.
 - **Voice accuracy benchmark** for contributors: `bun run bench:voice` replays recorded rehearsals through the current voice matcher and reports how far behind it runs.
