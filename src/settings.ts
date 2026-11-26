@@ -55,7 +55,7 @@ export interface VoiceTrackingPresetConfig {
 // Preset configurations for different speaking paces
 export const VOICE_TRACKING_PRESETS: Record<Exclude<VoiceTrackingPacePreset, 'custom'>, VoiceTrackingPresetConfig> = {
 	conservative: {
-		confidenceThreshold: 0.25,   // Higher confidence required
+		confidenceThreshold: 0.20,   // Same as Balanced: the new matcher is careful by itself, and 0.25 trailed more (ISC-161)
 		maxJumpDistance: 2,          // Smaller jumps
 		minJumpDistance: 1,          // Respond to small matches
 		windowSize: 4,               // Smaller look-ahead

@@ -16,3 +16,11 @@ describe('Stream Deck commands are registered and handled', () => {
 		})
 	}
 })
+
+describe('ISC-161: starting voice or read-aloud cancels a running countdown; Conservative is not stricter than Balanced', () => {
+	const app = readFileSync(join(import.meta.dir, 'TeleprompterApp.svelte'), 'utf8')
+	const settings = readFileSync(join(import.meta.dir, 'settings.ts'), 'utf8')
+	test('read-aloud start', () => expect(app).toContain("cancelCountdown('read-aloud started')"))
+	test('voice toggle', () => expect(app).toContain("cancelCountdown('voice tracking toggled')"))
+	test('conservative threshold', () => expect(settings).toMatch(/conservative:\s*\{\s*confidenceThreshold: 0\.20,/))
+})
