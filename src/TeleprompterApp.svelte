@@ -1347,8 +1347,19 @@
 
   // ===== Rehearsal session =====
 
+  /** The clock was stopped by auto-pause on edit while voice or read-aloud kept going (ISC-149). */
+  let pausedForEdit = false
+
+  /** The reading went on after an edit click: count stage time again (ISC-149). */
+  function resumeAfterEditPause(): void {
+    if (!pausedForEdit) return
+    pausedForEdit = false
+    if (sessionState === 'paused') startSession()
+  }
+
   /** Begin (or resume) counting stage time. Called from every path that starts speaking. */
   function startSession(): void {
+    pausedForEdit = false
     if (sessionState === 'running') return
     if (sessionState === 'idle' || sessionState === 'finished') {
       rehearsalClock.start()
@@ -1366,7 +1377,7 @@
 
   /** Stop counting but keep the time — pause, blur, manual scrub, voice/TTS stop. */
   function pauseSession(): void {
-    if (sessionState !== 'running') return
+    if (sessionState !== 'running') { pausedForEdit = false; return }
     rehearsalClock.pause()
     sessionState = 'paused'
     elapsedSeconds = rehearsalClock.elapsedSeconds
@@ -2833,6 +2844,7 @@
 
         voiceTrackingService.onRecognizedText = (text: string, isFinal: boolean) => {
           lastRecognizedText = text
+          resumeAfterEditPause()
           phoneLog(`voice heard ${isFinal ? 'final' : 'partial'} (${text.split(' ').length} words) "${text.split(' ').slice(-3).join(' ')}"`)
           if (voiceTraceEnabled) writeTraceLine('voice-trace.jsonl', 'heard', { final: isFinal, text })
           debugLog(`[Voice] Recognized (${isFinal ? 'final' : 'partial'}): ${text}`)
@@ -2933,6 +2945,7 @@
     // Subscribe to TTS events
     ttsService.onSentenceStartEvent(({ index }) => {
       ttsCurrentSentence = index
+      resumeAfterEditPause()
       phoneLog(`sentence start ${index}`)
       highlightTTSSentence(index)
       scrollToTTSSentence(index)
@@ -2943,6 +2956,8 @@
 
     ttsService.onStateChange((state: TTSState) => {
       ttsPlaybackState = state.playbackState
+      // Read-aloud paused or stopped on purpose: an edit pause must not come back on its own.
+      if (state.playbackState !== 'playing') pausedForEdit = false
       ttsCurrentSentence = state.currentSentenceIndex
       ttsTotalSentences = state.totalSentences
       ttsRate = state.rate
@@ -4205,7 +4220,12 @@
     // Auto-pause when user starts editing (clicks on editor). The clock pauses on the SESSION,
     // not on isPlaying — otherwise leaving to edit a note would stop the clock in scroll mode
     // and leave it running in voice mode, where isPlaying is already false.
-    if (autoPauseOnEdit) pauseSession()
+    if (autoPauseOnEdit) {
+      // Voice keeps listening and read-aloud keeps speaking after this click, so the clock comes
+      // back with the next words heard or the next sentence read (list item #6, ISC-149).
+      pausedForEdit = sessionState === 'running' && (voiceTrackingActive || ttsPlaybackState === 'playing')
+      pauseSession()
+    }
     if (autoPauseOnEdit && isPlaying) {
       isPlaying = false
       debugLog('[AutoPause] Teleprompter paused - user clicked outside to edit')
