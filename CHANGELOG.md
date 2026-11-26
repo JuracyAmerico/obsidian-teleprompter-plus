@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **Takes when you rehearse by voice or read-aloud.** A section read by voice or read aloud now gives the same card and log entry as auto-scroll. With your voice, the card appears when your next words are recognized, the microphone keeps listening, and the clock waits for you instead of counting the time you spend on the card. Read-aloud stops before it speaks the next heading; Play reads on.
+- **Voice accuracy benchmark** for contributors: `bun run bench:voice` replays recorded rehearsals through the current voice matcher and reports how far behind it runs.
+
+### Fixed
+- **Ten Stream Deck and remote commands that never did anything now work:** letter spacing, opacity, view mode (rendered, plain, toggle), Detach Window (now opens and closes the floating window) and Open File (markdown notes only).
+- The voice-tracking clock restarts on your words after a section jump, and read-aloud freezes the clock at the end of the script.
+
+### Security
+- **The phone remote key is no longer written into exported settings or saved profiles**, and importing a file or profile never changes it.
+
+### Changed
+- The WebSocket command reference is generated from the code, the Stream Deck action list matches the real 60 keys, and the attack-surface notes cover the network server, the remote key, the audio cache and the take log.
+
 ## [0.12.13] - 2026-11-26
 
 ### Added

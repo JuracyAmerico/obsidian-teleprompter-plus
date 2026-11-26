@@ -4,7 +4,7 @@ slug: teleprompter-plus
 project: Teleprompter Plus
 effort: E3
 phase: climbing
-progress: 160/163
+progress: 165/168
 mode: algorithm
 started: 2026-10-29
 updated: 2026-11-26
@@ -242,6 +242,10 @@ Found in Américo's own test run, 2026-11-05 (steps 2, 3, 7, 8):
 - [x] ISC-166: a rehearsal has takes. Reading a section whole while playing is a take of that section; the top to the end is a take of the script. A heading may carry a target, `## Why us {1:30}` (also `{90s}`, `{2m}`), never shown, spoken or counted. At a section end (by default only sections with a target) playback pauses, the clock freezes and a card reads `Why us · 1:42 · target 1:30 · +0:12`, in both windows and on the phone. Whole takes go to takes.json; "Show recent takes" lists the last 20 for the note with the best per section (closest to target). Speed shows as words per minute and "Fit to target" sets the speed so the rest of the section ends on its target. 108 tests, including an end-to-end take that ends within 1 s of its 90 s target. Live check owed. Not yet: voice-tracked and read-aloud runs produce no take.
 - [x] ISC-167: sections keep their identity by the heading's source line across windows, remotes and read-aloud, so repeated titles (STAR "Situation"/"Action") never resolve to the first; the current section is measured at the eyeline and jumps put the heading on the eyeline, with a hold so a jump to a short last section stays highlighted. Callouts render as full markdown with folded titles kept, and "Hide callouts on the prompter" keeps a reference callout (the Markup legend) out of the screen, read-aloud and word count. 49 tests. Merged with ISC-166: take start tolerates a heading a few pixels below the eyeline.
 - [x] ISC-168: ElevenLabs audio persists in IndexedDB across engine instances and reloads (key: speechCacheKey; 200 MB cap, least recently used evicted; any failure is a miss), with "Clear read-aloud audio cache". 18 tests with an in-memory IndexedDB; a real-Obsidian check (read, reload, read again, no new charge) is owed.
+- [x] ISC-169: voice-tracked and read-aloud runs produce takes, cards and take-log entries through the same TakeTracker and rehearsal clock as auto-scroll. Voice is measured at the word heard, not the eyeline; a section end with a stop pauses the clock and shows the card and never touches the microphone; the clock restarts on the next matched words. Read-aloud pauses before speaking the next heading; Play reads on. A backward re-sync never reopens or re-ends a section. 24 tests (TakeTracker under irregular voice steps, re-sync, sentence steps, a 20 s card pause excluded from the next take; wiring guards that the voice path never stops the mic). Live check owed: a voice take on a `{1:30}` section.
+- [x] ISC-170: every `teleprompter:*` command goes through one table and one routing rule in src/commands.ts (133 events, typed intents, a missing handler is a type error); malformed commands are dropped before they cross windows. 292 tests. The move exposed ten commands main.ts sent that the view never heard; letter spacing ±, opacity ±, view mode ×3 and Open File (markdown notes only) now work, and Detach Window opens and closes the floating window. Live-checked over the WebSocket on the main view: spacing 0→1 px, opacity 1→0.9, plain view, a temp note opened, `.env` refused.
+- [x] ISC-171: a voice accuracy benchmark replays real traced rehearsals through the current matcher (`bun run bench:voice`), scored against an offline ground truth that agrees with 47 hand labels. 0.12.13 on 23 resolvable sessions (14.6 min): lag p50 0, p95 39.9 words, 16.6% of updates more than 5 words off, 7.5 s stalled per minute, 75/78 re-syncs recovered. A regression gate fails if the committed sample gets worse. New traces record the script, its word list and the note path, so every future session replays exactly.
+- [x] ISC-172: the phone remote key is a secret: Settings → Export and Save-as-Profile omit it, and every import or profile apply strips secrets first, so a shared file cannot plant a known key. ATTACKSURFACE.md, the WebSocket command reference (generated from code, test-guarded) and the Stream Deck catalog (60 keys, matched to the deck manifest) are current; the stale-issue bot is removed.
 
 ## Anti-criteria
 
@@ -406,6 +410,10 @@ Found in Américo's own test run, 2026-11-05 (steps 2, 3, 7, 8):
 | ISC-143 | bun-test | openFile and loadActiveNote both read through readScript, no .md-only filter; live .qmd in the floating view | pass: 2 wiring tests; live 2706 chars in both views, Elgato capture shows the letter | bun test src/floating; obsidian eval + window capture, 2026-11-25 |
 | ISC-144 | bun-test | main-view read-aloud entry points forward to the floating view; floating resolves a section by title; live Elgato scrolls under read-aloud | pass: 2 wiring tests; live Elgato 66 → 274 px, counters in step | bun test src/floating; obsidian eval sampling + window capture, 2026-11-25 |
 | ISC-145 | bun-test | floatingPlacement uses the Prompter's own see-through, clamped, never the main-screen value; live opacity follows the slider on the Prompter | pass: 1 placement test (3 cases); live opacity 1 → 0.7 | bun test src/floating; obsidian eval getOpacity + window capture, 2026-11-25 |
+| ISC-169 | bun-test | voice and read-aloud takes | pass: takes, reading-move, tts-service, take-wiring | bun test, 2026-11-26 |
+| ISC-170 | bun-test + live | command table, ten dead keys | pass: commands.test.ts (292); live WebSocket probe on the main view | 2026-11-26 |
+| ISC-171 | bun-test | voice benchmark gate | pass: bench.test.ts; bench:voice run on real traces | 2026-11-26 |
+| ISC-172 | bun-test | remote key secret, docs current | pass: settings-secrets, gen-ws-docs, stream-deck-docs tests | 2026-11-26 |
 | ISC-166 | bun-test | takes, section targets, take log, WPM, fit | pass: section-targets, takes, take-log, reading-rate, take-wiring tests (108) | bun test, 2026-11-26 |
 | ISC-167 | bun-test | section identity by line, eyeline, callouts | pass: sections.test.ts, parser/callout.test.ts, heading-source-map (49) | bun test, 2026-11-26 |
 | ISC-168 | bun-test | ElevenLabs persistent cache | pass: speech-audio-store.test.ts (18) | bun test src/tts, 2026-11-26 |
@@ -554,6 +562,7 @@ acceptance: pass 2026-10-30 (all four runtime checks; mic-blocked Notice + Retry
 
 ## Changelog
 
+- 2026-11-26: ISC-169 to ISC-172 added and ticked: Waves 3 and 4 (takes by voice and read-aloud, command table and ten dead keys, voice benchmark, remote key secret and docs), merged on integrate; 1093 tests pass. Not released.
 - 2026-11-26: ISC-166 to ISC-168 added and ticked: Wave 2 of the 360° plan (takes and targets, section identity and callouts, ElevenLabs cache), merged on integrate; 735 tests pass. Not released.
 
 - 2026-11-26: ISC-161 to ISC-165 added and ticked from the 360° review (revisao-360-2026-11-26 in the vault): Wave 0 safety net and Wave 1 fixes for playback, read-aloud, voice tracking and Stream Deck commands. Built by five agents in separate worktrees, merged on branch integrate; 558 tests pass. Not released.
