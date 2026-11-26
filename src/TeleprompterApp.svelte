@@ -48,6 +48,8 @@
   import { followShare, REFERENCE_FRAME_MS } from './voice/follow-easing'
   import { rememberPosition } from './position-memory'
   import { markStageCues } from './parser/stage-cues'
+  import { calloutBlockquote } from './parser/callout'
+  import { currentSection, findSection, holdAfterJump, scrollTopForHeading, sectionAtReadingLine, sectionRef, type JumpHold, type SectionRef } from './sections'
   import { wakeHoldAction } from './wake-hold'
   import { PAGE_TURN_SHARE, hotkeyAction } from './pedal-keys'
   import { AutoScroller, Countdown, clampSpeed, countWords, isAtScriptEnd, maxScrollOf, scrollFraction, shouldCountDown, speedLimits, stepSection, stepSpeed, wordsRemaining as wordsAhead } from './playback'
@@ -136,85 +138,10 @@
     return `<pre><code>${text}</code></pre>\n`
   }
 
-  // Callout type configuration with icons and default titles
-  const calloutConfig: Record<string, { icon: string; defaultTitle: string }> = {
-    'info': { icon: 'info', defaultTitle: 'Info' },
-    'tip': { icon: 'lightbulb', defaultTitle: 'Tip' },
-    'hint': { icon: 'lightbulb', defaultTitle: 'Hint' },
-    'important': { icon: 'flame', defaultTitle: 'Important' },
-    'warning': { icon: 'alert-triangle', defaultTitle: 'Warning' },
-    'caution': { icon: 'alert-triangle', defaultTitle: 'Caution' },
-    'attention': { icon: 'alert-triangle', defaultTitle: 'Attention' },
-    'note': { icon: 'pencil', defaultTitle: 'Note' },
-    'success': { icon: 'check-circle-2', defaultTitle: 'Success' },
-    'check': { icon: 'check-circle-2', defaultTitle: 'Check' },
-    'done': { icon: 'check-circle-2', defaultTitle: 'Done' },
-    'question': { icon: 'help-circle', defaultTitle: 'Question' },
-    'help': { icon: 'help-circle', defaultTitle: 'Help' },
-    'faq': { icon: 'help-circle', defaultTitle: 'FAQ' },
-    'danger': { icon: 'zap', defaultTitle: 'Danger' },
-    'error': { icon: 'x-circle', defaultTitle: 'Error' },
-    'bug': { icon: 'bug', defaultTitle: 'Bug' },
-    'example': { icon: 'list', defaultTitle: 'Example' },
-    'quote': { icon: 'quote', defaultTitle: 'Quote' },
-    'cite': { icon: 'quote', defaultTitle: 'Cite' },
-    'abstract': { icon: 'file-text', defaultTitle: 'Abstract' },
-    'summary': { icon: 'file-text', defaultTitle: 'Summary' },
-    'tldr': { icon: 'file-text', defaultTitle: 'TL;DR' },
-    'todo': { icon: 'check-square', defaultTitle: 'Todo' },
-    'failure': { icon: 'x-circle', defaultTitle: 'Failure' },
-    'fail': { icon: 'x-circle', defaultTitle: 'Fail' },
-    'missing': { icon: 'x-circle', defaultTitle: 'Missing' },
-    'video': { icon: 'film', defaultTitle: 'Video' },
-  }
-
-  // Override blockquote renderer to support Obsidian callouts
-  renderer.blockquote = function({ text }) {
-    // Check if this is an Obsidian callout: [!type] or [!type] Title
-    // marked passes raw text with newlines, not HTML
-    // [^\n]+ captures title until newline (greedy, not lazy)
-    const calloutMatch = text.match(/^\[!(\w+)\](?:\s+([^\n]+))?\n?([\s\S]*)/i)
-
-    if (calloutMatch) {
-      const calloutType = calloutMatch[1].toLowerCase()
-      let customTitle = calloutMatch[2]?.trim() || ''
-      let content = calloutMatch[3]?.trim() || ''
-
-      // Convert remaining content newlines and parse inline markdown (bold, italic, links, etc.)
-      content = content.split('\n').map(line => `<p>${md.parseInline(line)}</p>`).join('\n')
-
-      // Get config for this callout type, default to 'note' style
-      const config = calloutConfig[calloutType] || { icon: 'pin', defaultTitle: calloutType.charAt(0).toUpperCase() + calloutType.slice(1) }
-      const title = customTitle || config.defaultTitle
-      const icon = config.icon
-
-      // Determine color class based on type
-      let colorClass = 'callout-default'
-      if (['info'].includes(calloutType)) colorClass = 'callout-info'
-      else if (['tip', 'hint', 'important'].includes(calloutType)) colorClass = 'callout-tip'
-      else if (['warning', 'caution', 'attention'].includes(calloutType)) colorClass = 'callout-warning'
-      else if (['note'].includes(calloutType)) colorClass = 'callout-note'
-      else if (['success', 'check', 'done'].includes(calloutType)) colorClass = 'callout-success'
-      else if (['question', 'help', 'faq'].includes(calloutType)) colorClass = 'callout-question'
-      else if (['danger', 'error', 'bug', 'failure', 'fail', 'missing'].includes(calloutType)) colorClass = 'callout-danger'
-      else if (['example'].includes(calloutType)) colorClass = 'callout-example'
-      else if (['quote', 'cite'].includes(calloutType)) colorClass = 'callout-quote'
-      else if (['abstract', 'summary', 'tldr'].includes(calloutType)) colorClass = 'callout-abstract'
-      else if (['todo'].includes(calloutType)) colorClass = 'callout-todo'
-      else if (['video'].includes(calloutType)) colorClass = 'callout-video'
-
-      return `<div class="callout ${colorClass}" data-callout="${calloutType}">
-        <div class="callout-title">
-          <span class="callout-icon" data-tp-icon="${icon}"></span>
-          <span class="callout-title-text">${title}</span>
-        </div>
-        <div class="callout-content">${content}</div>
-      </div>\n`
-    }
-
-    // Regular blockquote (not a callout)
-    return `<blockquote>${text}</blockquote>\n`
-  }
+  // Obsidian callouts: full markdown bodies, folded titles kept, and the "Hide callouts on the
+  // prompter" switch (parser/callout.ts). Read at render time; the render effect re-runs on a change.
+  let hideCalloutsInRender = false
+  renderer.blockquote = calloutBlockquote(md, () => hideCalloutsInRender)
 
   // Configure this view's own Marked instance with its renderer
   md.setOptions({
@@ -927,7 +854,11 @@
   let isCountingDown = $state(false) // Whether countdown is active
   let currentCountdown = $state(0) // Current countdown value
   let hasUsedCountdown = $state(false) // Track if countdown was already used (reset only on document change or explicit reset)
-  let currentVisibleHeader = $state<string>('') // Track currently visible header text
+  // The section at the eyeline, as an index into headers(); -1 when there are none. An index, not a
+  // title: repeated titles (STAR "Situation" under every answer) all matched the first one.
+  let currentVisibleIndex = $state(-1)
+  // Holds a jumped-to section that the end (or the top) of the script kept off the eyeline (sections.ts).
+  let jumpHold: JumpHold | null = null
   let isDraggingIndicator = $state(false) // Whether eyeline indicator is being dragged
   let eyelinePosition = $state(50) // Eyeline position as percentage of content area height (default 50% - middle)
   let showEyeline = $state(true) // Whether eyeline indicator is visible
@@ -979,6 +910,9 @@
   let scrollPercentage = $state(0) // Scroll percentage (0-100) for progress display
   // Per-note scroll position preservation (stores scrollTop per file path)
   let stageCueDisplay = $state<'hide' | 'dim' | 'show'>(settings.stageCueDisplay ?? 'hide')
+  // Callouts (a Markup legend, reference notes) can stay out of the read script.
+  let hideCallouts = $state(settings.hideCallouts === true)
+  let lastRenderedHideCallouts = settings.hideCallouts === true
   let currentNotePath = $state<string | null>(null) // Track current note path for scroll position saving
   // Focus mode state
   let focusMode = $state(false) // Dim text outside eyeline area
@@ -1590,8 +1524,11 @@
 
   // Render markdown whenever content changes
   $effect(() => {
-    // Skip if content hasn't changed (performance optimization)
-    if (content === lastRenderedContent && renderedHTML) return
+    // Skip if content hasn't changed (performance optimization). Reading hideCallouts here is
+    // what re-renders the script when the switch is flipped in Settings.
+    if (content === lastRenderedContent && hideCallouts === lastRenderedHideCallouts && renderedHTML) return
+    hideCalloutsInRender = hideCallouts
+    lastRenderedHideCallouts = hideCallouts
 
     try {
       // Reset header counter and the ordinal -> source-line map before parsing.
@@ -1680,8 +1617,12 @@
           })
           headerElements = newHeaderElements
 
-          // Extract headers list for navigation
+          // Extract headers list for navigation. The section being read keeps its identity across
+          // the rebuild: a heading added above it shifts its index, not its line or title.
+          const previousRef = sectionRef(headersList, currentVisibleIndex)
           headersList = extractHeadersFromDOM()
+          currentVisibleIndex = findSection(headersList, previousRef)
+          jumpHold = null
 
           debugLog(`[Markdown] Registered ${headerElements.size} headers in Map, ${headersList.length} in list`)
         }
@@ -1981,7 +1922,9 @@
 
   // Extract headers from rendered HTML (after marked.js processing)
   // This state is updated after markdown rendering
-  let headersList = $state<Array<{ level: number; text: string; id: string; parentId?: string; hasChildren: boolean }>>([])
+  // `line` is the heading's line in the note body: its identity across views (sections.ts).
+  type ScriptHeading = { level: number; text: string; id: string; line: number; parentId?: string; hasChildren: boolean }
+  let headersList = $state<ScriptHeading[]>([])
   // ISC-134: the section list follows the reading; a hand scroll of the list pauses that for a few seconds
   let navItemsEl = $state<HTMLElement | null>(null)
   let lastNavManualScrollAt = 0
@@ -2008,7 +1951,7 @@
   function extractHeadersFromDOM() {
     if (!contentArea) return []
 
-    const result: Array<{ level: number; text: string; id: string; parentId?: string; hasChildren: boolean }> = []
+    const result: ScriptHeading[] = []
     const stack: Array<{ level: number; id: string }> = []
 
     // Query all headers with data-header-id
@@ -2046,7 +1989,7 @@
           }
         }
 
-        result.push({ level, text, id: headerId, parentId, hasChildren: false })
+        result.push({ level, text, id: headerId, line: contentLineForHeader(headerId), parentId, hasChildren: false })
         stack.push({ level, id: headerId })
       }
     })
@@ -4609,6 +4552,7 @@
       stopPlayback('reset to top')
       contentArea.scrollTop = 0
       currentHeaderIndex = 0 // Reset header navigation index
+      jumpHold = null
 
       // Reset countdown flag when explicitly resetting to top
       hasUsedCountdown = false
@@ -4747,14 +4691,12 @@
         }
         break
       case 'teleprompter:jump-to-header-by-id': {
-        // Header ids are render ordinals and differ between the main and the floating view
+        // Header ids are render ordinals and can differ between the main and the floating view
         // (live 2026-11-25: main "header-16" was Cloud, the floating one opened Opening), so a
-        // title sent along wins over the id.
-        const byText = customEvent.detail?.text
-          ? headers().find(h => h.text === customEvent.detail.text)
-          : undefined
-        if (byText) jumpToHeader(byText.id)
-        else if (customEvent.detail?.headerId) jumpToHeader(customEvent.detail.headerId)
+        // section reference sent along wins over the id. By line, not title: a title found the
+        // first of every repeated "Situation".
+        const id = headerIdForSection(customEvent.detail)
+        if (id) jumpToHeader(id)
         break
       }
       case 'teleprompter:toggle-navigation':
@@ -5130,10 +5072,7 @@
         stopTTS()
         break
       case 'teleprompter:tts-from-section': {
-        const byText = customEvent.detail?.text
-          ? headers().find(h => h.text === customEvent.detail.text)
-          : undefined
-        const id = byText?.id ?? customEvent.detail?.headerId
+        const id = headerIdForSection(customEvent.detail)
         if (id) void startTTSFromSection(id)
         break
       }
@@ -5223,7 +5162,7 @@
       currentNote: activeFile?.path || null,
       currentNoteTitle: activeFile?.basename || null,
       // The phone highlights the section being read (ISC-159).
-      currentHeaderIndex: headers().findIndex(h => h.text === currentVisibleHeader),
+      currentHeaderIndex: currentVisibleIndex < headers().length ? currentVisibleIndex : -1,
       headers: headers().map(h => ({
         id: h.id,
         text: h.text,
@@ -5260,7 +5199,7 @@
       showNav: showNavigation,
       headerCount: headers().length,
       // A new section pushes state, so the phone highlight follows (ISC-159).
-      section: currentVisibleHeader,
+      section: currentVisibleIndex,
       fontSize,
       // Reading elapsedSeconds registers it as a dependency, so a running rehearsal pushes
       // state once a second. Deliberate: without it the remote clock would sit stale until
@@ -5351,6 +5290,10 @@
       stageCueDisplay = (event as CustomEvent<{ display: 'hide' | 'dim' | 'show' }>).detail.display
     }
     document.addEventListener('teleprompter:stage-cues-changed', handleStageCuesChanged)
+    const handleCalloutsChanged = (event: Event): void => {
+      hideCallouts = (event as CustomEvent<{ hide: boolean }>).detail.hide === true
+    }
+    document.addEventListener('teleprompter:callouts-changed', handleCalloutsChanged)
 
     // Get actual document/window from mounted element for popout window support
     // IMPORTANT: Must use getActualDocument() here, NOT activeDoc from props
@@ -5691,6 +5634,7 @@
       app.vault.offref(renameRef)
       if (refreshTimer) clearTimeout(refreshTimer)
       document.removeEventListener('teleprompter:stage-cues-changed', handleStageCuesChanged)
+      document.removeEventListener('teleprompter:callouts-changed', handleCalloutsChanged)
       actualDoc.removeEventListener('mousemove', handleMouseMove)
       actualDoc.removeEventListener('mouseup', stopResize)
       actualDoc.removeEventListener('mousemove', handleEyelineDrag)
@@ -5762,38 +5706,34 @@
 
     const headerList = headers()
     if (headerList.length === 0) {
-      currentVisibleHeader = ''
+      currentVisibleIndex = -1
+      jumpHold = null
       return
     }
 
-    // Find the header that is currently at or above the viewport center
+    // The section is the one the reader is in: the last heading at or above the eyeline, where
+    // read-aloud and the floating mirror also put the reading. It used to be measured at the top
+    // third while the eyeline sits at 50%, so highlights ran ahead of the reading. Before the first
+    // heading, the first section, as always.
     const scrollTop = contentArea.scrollTop
-    const viewportCenter = scrollTop + (contentArea.clientHeight / 3) // Use top third as reference
+    const measured = sectionAtReadingLine(headingTops(headerList), scrollTop + readingOffset())
+    const resolved = currentSection(measured, jumpHold, scrollTop)
+    jumpHold = resolved.hold
+    const index = Math.max(0, resolved.index)
+    const currentHeader = headerList[index]
 
-    let currentHeader = headerList[0]
-
-    for (const header of headerList) {
-      const element = headerElements.get(header.id)
-      if (element) {
-        const elementTop = element.offsetTop - contentArea.offsetTop
-        if (elementTop <= viewportCenter) {
-          currentHeader = header
-        } else {
-          break
-        }
-      }
-    }
-
-    currentVisibleHeader = currentHeader.text
-    // The floating view is the one being read: tell the main view which section it is (ISC-139).
-    if (isFloating) plugin.floatingSession.reportSection(currentHeader.text)
+    currentVisibleIndex = index
+    // The floating view is the one being read: tell the main view which section it is (ISC-139),
+    // by line and title, so a repeated title names its own section.
+    const ref = sectionRef(headerList, index)
+    if (isFloating && ref) plugin.floatingSession.reportSection(ref)
     // Update the current header index for next/previous navigation
     // BUT only if this isn't a programmatic jump (to avoid overriding navigation commands).
     // While a script floats, the main view's scroll is the mirror's, and the section comes from the
     // floating view through followFloatingSection; recomputing it here would fight that (ISC-142).
     const mirroringFloating = !isFloating && plugin.floatingSession.active
     if (!isProgrammaticJump && !mirroringFloating) {
-      currentHeaderIndex = headerList.findIndex(h => h.id === currentHeader.id)
+      currentHeaderIndex = index
 
       // Scroll synchronization: follow the prompter into each new section. Only on a change of
       // section: every scroll event used to pull the cursor back to the heading, which took it away
@@ -5803,6 +5743,25 @@
         syncToEditor(currentHeader.id)
       }
     }
+  }
+
+  /**
+   * An element's top in the scrolled content's own coordinates, the space scrollTop moves through.
+   * Measured from the rendered boxes like read-aloud's placement: offsetTop counts from whichever
+   * ancestor is positioned, which is not the scroller for a heading inside a callout.
+   */
+  function contentTopOf(element: HTMLElement, origin: number): number {
+    return element.getBoundingClientRect().top - origin
+  }
+
+  /** Each heading's top in content coordinates, in list order; NaN for one not in the DOM. */
+  function headingTops(list: ScriptHeading[]): number[] {
+    if (!contentArea) return list.map(() => Number.NaN)
+    const origin = contentArea.getBoundingClientRect().top - contentArea.scrollTop
+    return list.map((h) => {
+      const element = headerElements.get(h.id)
+      return element ? contentTopOf(element, origin) : Number.NaN
+    })
   }
 
   /**
@@ -5878,11 +5837,17 @@
     return true
   }
 
-  /** 0-based line in the file for a heading ordinal, or -1 when unresolvable. */
-  function sourceLineForHeader(headerId: string): number {
+  /** 0-based line in the note body (after frontmatter) for a heading ordinal, or -1 when unresolvable. */
+  function contentLineForHeader(headerId: string): number {
     const ordinal = parseInt(headerId.replace('header-', ''), 10)
     const contentLine = headerSourceLines[ordinal]
-    if (contentLine === undefined || contentLine < 0) return -1
+    return contentLine === undefined || contentLine < 0 ? -1 : contentLine
+  }
+
+  /** 0-based line in the file for a heading ordinal, or -1 when unresolvable. */
+  function sourceLineForHeader(headerId: string): number {
+    const contentLine = contentLineForHeader(headerId)
+    if (contentLine < 0) return -1
     return contentLine + yamlLineOffset
   }
 
@@ -5924,13 +5889,14 @@
    * highlights and follows it, and the note pane moves with it when scroll sync is on. The main
    * script itself does not scroll, so nothing pauses or re-anchors voice tracking (ISC-139).
    */
-  function followFloatingSection(title: string) {
+  function followFloatingSection(section: SectionRef) {
     if (isFloating) return
     const list = headers()
-    const index = list.findIndex(h => h.text === title)
+    // By line, then title and occurrence: the second "Situation" is not the first (sections.ts).
+    const index = findSection(list, section)
     if (index < 0) return
     currentHeaderIndex = index
-    currentVisibleHeader = title
+    currentVisibleIndex = index
     // The main script itself glides in followFloatingPosition (ISC-141, ISC-142); a section
     // scroll here would fight it.
     if (scrollSyncEnabled && list[index].id !== lastSyncedHeaderId) {
@@ -6033,17 +5999,35 @@
    * A click in the Jump to Section list. While a script floats, the floating view is the one
    * being read (on the Elgato Prompter), so it must jump too; commands already reach it through
    * handleWebSocketEvent, but this click called jumpToHeader directly and never left the main
-   * view (Américo, 2026-11-25, ISC-138). Both views share the note, so header ids match.
+   * view (Américo, 2026-11-25, ISC-138). The section travels as its line and title (sections.ts):
+   * ids are this view's render ordinals, and a title alone finds the first of a repeated title.
    */
   function jumpFromNavigation(headerId: string) {
     if (!isFloating && plugin.floatingSession.active) {
       // A glide in flight would pull this view back to where it was; the floating view's next
       // report starts a fresh one from the heading.
       stopMirror()
-      const text = headers().find(h => h.id === headerId)?.text
-      plugin.floatingSession.forward('teleprompter:jump-to-header-by-id', { headerId, text })
+      plugin.floatingSession.forward('teleprompter:jump-to-header-by-id', { headerId, section: sectionOfHeader(headerId) })
     }
     jumpToHeader(headerId)
+  }
+
+  /** The cross-view reference for one of this view's heading ids, or null when it is not listed. */
+  function sectionOfHeader(headerId: string): SectionRef | null {
+    const list = headers()
+    return sectionRef(list, list.findIndex(h => h.id === headerId))
+  }
+
+  /**
+   * The heading id in this view for a section another view or a remote named: by line and title
+   * when a reference came along, else the id as sent (same note, same ordinals). Null when neither
+   * names a heading here.
+   */
+  function headerIdForSection(detail: { headerId?: unknown; section?: Partial<SectionRef> | null } | undefined): string | null {
+    const list = headers()
+    const index = findSection(list, detail?.section)
+    if (index >= 0) return list[index].id
+    return typeof detail?.headerId === 'string' && detail.headerId ? detail.headerId : null
   }
 
   function jumpToHeader(headerId: string) {
@@ -6058,33 +6042,30 @@
       // until speech settles rather than flipping to "behind" mid-sentence.
       bumpProgressEpoch()
 
-      // Scroll to header in teleprompter
-      const offsetTop = element.offsetTop - contentArea.offsetTop
-      contentArea.scrollTop = offsetTop - 50 // Add small offset for visibility
+      // The heading lands on the eyeline, where read-aloud and the floating mirror put the reading.
+      // It used to land about 50 px from the top, half a screen above where he reads.
+      const origin = contentArea.getBoundingClientRect().top - contentArea.scrollTop
+      contentArea.scrollTop = scrollTopForHeading(
+        contentTopOf(element, origin),
+        readingOffset(),
+        contentArea.scrollHeight - contentArea.clientHeight,
+      )
 
-      // Update current visible header (but don't override currentHeaderIndex during navigation)
+      // The section is the one jumped to. Near the end (or the top) of the script the heading
+      // cannot reach the eyeline; the hold keeps it current until the reader moves (sections.ts).
       const headerList = headers()
-      if (headerList.length > 0) {
-        const scrollTop = contentArea.scrollTop
-        const viewportCenter = scrollTop + (contentArea.clientHeight / 3)
-
-        let currentHeader = headerList[0]
-        for (const header of headerList) {
-          const element = headerElements.get(header.id)
-          if (element) {
-            const elementTop = element.offsetTop - contentArea.offsetTop
-            if (elementTop <= viewportCenter) {
-              currentHeader = header
-            } else {
-              break
-            }
-          }
-        }
-        currentVisibleHeader = currentHeader.text
+      const headerIndex = headerList.findIndex(h => h.id === headerId)
+      const landed = sectionAtReadingLine(headingTops(headerList), contentArea.scrollTop + readingOffset())
+      if (headerIndex !== -1) {
+        jumpHold = holdAfterJump(headerIndex, landed, contentArea.scrollTop)
+        currentVisibleIndex = headerIndex
+      } else {
+        // A heading the section list does not show (h4 and deeper): the eyeline decides.
+        jumpHold = null
+        currentVisibleIndex = headerList.length > 0 ? Math.max(0, landed) : -1
       }
 
       // Sync currentHeaderIndex with the header we jumped to
-      const headerIndex = headerList.findIndex(h => h.id === headerId)
       if (headerIndex !== -1) {
         currentHeaderIndex = headerIndex
         debugLog(`[jumpToHeader] Synced currentHeaderIndex to ${currentHeaderIndex}`)
@@ -6120,9 +6101,8 @@
 
   // Start TTS from a specific section (right-click on nav item)
   async function startTTSFromSection(headerId: string): Promise<void> {
-    // Header ids differ between the two views; the title travels with the id (see jump-to-header-by-id)
-    const text = headers().find(h => h.id === headerId)?.text
-    if (sendTTSToFloating('teleprompter:tts-from-section', { headerId, text })) return
+    // The section travels by line and title with the id (see jump-to-header-by-id)
+    if (sendTTSToFloating('teleprompter:tts-from-section', { headerId, section: sectionOfHeader(headerId) })) return
     if (!ttsInitialized) {
       await initTTS()
     }
@@ -8917,11 +8897,12 @@
     margin: 0.5rem 0;
   }
 
-  .markdown-content :global(.callout-content p:first-child) {
+  /* Bodies are full markdown now: a list or a nested callout can open or close the body too. */
+  .markdown-content :global(.callout-content > :first-child) {
     margin-top: 0;
   }
 
-  .markdown-content :global(.callout-content p:last-child) {
+  .markdown-content :global(.callout-content > :last-child) {
     margin-bottom: 0;
   }
 

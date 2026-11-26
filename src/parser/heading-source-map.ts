@@ -36,23 +36,38 @@ export function removeYAMLFrontmatter(text: string): FrontmatterStripResult {
 }
 
 /**
- * Lines that can never hold an ATX heading: inside a fenced code block, or indented as code.
- * A real heading allows at most three leading spaces, so the indent rule is exact.
+ * Blockquote and callout markers in front of a line: `> `, `> > `. A heading inside a callout
+ * reaches the renderer without them, so the line is compared with and without.
  */
-function markCodeLines(source: string): boolean[] {
-	const isCode: boolean[] = []
-	let fence: string | null = null
+const QUOTE_PREFIX = /^(?: {0,3}>[ \t]?)+/
 
-	source.split('\n').forEach((line, i) => {
-		const open = /^\s{0,3}(`{3,}|~{3,})/.exec(line)
+function unquote(line: string): { text: string; depth: number } {
+	const prefix = QUOTE_PREFIX.exec(line)
+	if (!prefix) return { text: line, depth: 0 }
+	return { text: line.slice(prefix[0].length), depth: (prefix[0].match(/>/g) ?? []).length }
+}
+
+/**
+ * Lines that can never hold an ATX heading: inside a fenced code block, or indented as code.
+ * A real heading allows at most three leading spaces, so the indent rule is exact. Fences and
+ * indents are read after any quote markers, and a fence opened inside a quote ends with it.
+ */
+function markCodeLines(lines: readonly string[]): boolean[] {
+	const isCode: boolean[] = []
+	let fence: { marker: string; depth: number } | null = null
+
+	lines.forEach((line, i) => {
+		const { text, depth } = unquote(line)
+		if (fence !== null && depth < fence.depth) fence = null
+		const open = /^\s{0,3}(`{3,}|~{3,})/.exec(text)
 		if (open) {
 			const marker = open[1][0]
-			if (fence === null) fence = marker
-			else if (marker === fence) fence = null
+			if (fence === null) fence = { marker, depth }
+			else if (marker === fence.marker) fence = null
 			isCode[i] = true
 			return
 		}
-		isCode[i] = fence !== null || /^(?: {4,}|\t)/.test(line)
+		isCode[i] = fence !== null || /^(?: {4,}|\t)/.test(text)
 	})
 
 	return isCode
@@ -68,49 +83,24 @@ export interface HeadingLineMapper {
 }
 
 export function createHeadingLineMapper(source: string): HeadingLineMapper {
-	const lineStarts = [0]
-	for (let i = 0; i < source.length; i++) {
-		if (source[i] === '\n') lineStarts.push(i + 1)
-	}
-
-	const isCode = markCodeLines(source)
-	let cursor = 0
-
-	const lineAtOffset = (offset: number): number => {
-		let lo = 0
-		let hi = lineStarts.length - 1
-		while (lo < hi) {
-			const mid = (lo + hi + 1) >> 1
-			if (lineStarts[mid] <= offset) lo = mid
-			else hi = mid - 1
-		}
-		return lo
-	}
+	const lines = source.split('\n')
+	const unquoted = lines.map(line => unquote(line).text)
+	const isCode = markCodeLines(lines)
+	let nextLine = 0
 
 	return {
 		resolve(raw: string): number {
 			const needle = raw.split('\n')[0].trimEnd()
 			if (!needle) return -1
 
-			let idx = -1
-			if (cursor === 0 && source.startsWith(needle) && !isCode[0]) {
-				idx = 0
-			} else {
-				let from = Math.max(0, cursor - 1)
-				for (;;) {
-					const found = source.indexOf('\n' + needle, from)
-					if (found === -1) break
-					if (!isCode[lineAtOffset(found + 1)]) {
-						idx = found + 1
-						break
-					}
-					from = found + 1 // that match was inside code — keep looking
+			for (let i = nextLine; i < lines.length; i++) {
+				if (isCode[i]) continue
+				if (lines[i].startsWith(needle) || unquoted[i].startsWith(needle)) {
+					nextLine = i + 1
+					return i
 				}
 			}
-			if (idx === -1) return -1
-
-			cursor = idx + needle.length
-			return lineAtOffset(idx)
+			return -1
 		},
 	}
 }
