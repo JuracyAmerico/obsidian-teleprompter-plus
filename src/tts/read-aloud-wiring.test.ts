@@ -1,6 +1,8 @@
 import { describe, expect, test } from 'bun:test'
 import { readFileSync } from 'fs'
 import { join } from 'path'
+import { LISTENED_COMMAND_EVENTS, parseCommand } from '../commands'
+import { commandHandlerSource } from '../test-support/command-handler-source'
 
 /**
  * Source-text guards for the read-aloud wiring inside the Svelte component, which bun cannot
@@ -69,7 +71,10 @@ describe('W1 #3: the read-aloud speed is saved', () => {
 
 describe('W1 #4: while a script floats, the main window only forwards read-aloud', () => {
 	test('ownsTTS mirrors ownsVoice', () => {
-		expect(functionBody('ownsTTS')).toContain('return isFloating || !plugin.floatingSession.active')
+		// Both are the one script-owner rule, tested as behaviour in commands.test.ts.
+		expect(functionBody('ownsTTS')).toContain('return ownsScript(commandView())')
+		expect(functionBody('ownsVoice')).toContain('return ownsScript(commandView())')
+		expect(functionBody('commandView')).toContain('return { isFloating, floatingActive: plugin.floatingSession.active, canFloat: floatSupported }')
 	})
 
 	test('its own service neither shows nor shares state', () => {
@@ -97,10 +102,12 @@ describe('W1 #6: repeat and loop the current sentence', () => {
 		expect(main).toContain("new CustomEvent('teleprompter:tts-repeat')")
 		expect(main).toContain("id: 'tts-loop-toggle'")
 		expect(main).toContain("new CustomEvent('teleprompter:tts-loop-toggle')")
-		expect(app).toContain("'teleprompter:tts-repeat',")
-		expect(app).toContain("'teleprompter:tts-loop-toggle',")
-		expect(app).toContain("case 'teleprompter:tts-repeat':")
-		expect(app).toContain("case 'teleprompter:tts-loop-toggle':")
+		expect(LISTENED_COMMAND_EVENTS).toContain('teleprompter:tts-repeat')
+		expect(LISTENED_COMMAND_EVENTS).toContain('teleprompter:tts-loop-toggle')
+		expect(parseCommand('teleprompter:tts-repeat', undefined)).toEqual({ kind: 'repeatTTSSentence' })
+		expect(parseCommand('teleprompter:tts-loop-toggle', undefined)).toEqual({ kind: 'toggleTTSLoop' })
+		expect(commandHandlerSource(app, 'tts-repeat')).toContain('void ttsRepeat()')
+		expect(commandHandlerSource(app, 'tts-loop-toggle')).toContain('ttsToggleLoop()')
 	})
 
 	test('the panel buttons forward while a script floats, like the other read-aloud controls', () => {

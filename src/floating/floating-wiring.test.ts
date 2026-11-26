@@ -1,6 +1,9 @@
 import { describe, expect, test } from 'bun:test'
 import { readFileSync } from 'fs'
 import { join } from 'path'
+import { LISTENED_COMMAND_EVENTS, SCRIPT_HOTKEY_ACTIONS, dispatchCommand, ownsScript, parseCommand } from '../commands'
+import { commandHandlerSource } from '../test-support/command-handler-source'
+import { FloatingSession } from './floating-window'
 
 /**
  * Source-text guards for wiring inside the Svelte component, which bun cannot mount. The window
@@ -98,9 +101,11 @@ describe('floating wiring', () => {
 	})
 
 	test('routes commands: the main view hands events and its voice button to the floating view', () => {
-		const handler = functionBody('handleWebSocketEvent')
-		expect(handler.slice(0, 500)).toMatch(/!isFloating && plugin\.floatingSession\.active/)
-		expect(handler.slice(0, 800)).toContain('plugin.floatingSession.forward(customEvent.type, customEvent.detail)')
+		// Whether a command runs here or is forwarded is commands.ts's rule, tested as behaviour there and
+		// with the real FloatingSession below; the view hands it this view and the plugin's session.
+		expect(functionBody('handleCommandEvent')).toContain('dispatchCommand(event, commandView(), plugin.floatingSession, intent => runIntent(commandHandlers, intent))')
+		expect(app).toContain('LISTENED_COMMAND_EVENTS.forEach(eventType => {\n      actualWin.addEventListener(eventType, handleCommandEvent)')
+		expect(app).toContain('LISTENED_COMMAND_EVENTS.forEach(eventType => {\n        actualWin.removeEventListener(eventType, handleCommandEvent)')
 		const voice = functionBody('toggleVoiceTracking')
 		expect(voice.slice(0, 300)).toContain("plugin.floatingSession.forward('teleprompter:voice-toggle')")
 		expect(functionBody('beginFloating')).toContain('new (win as Window & typeof globalThis).CustomEvent(type, { detail })')
@@ -121,7 +126,10 @@ describe('floating wiring', () => {
 	})
 
 	test('voice owner: a view that does not own the voice never stops or seeks it', () => {
-		expect(app).toMatch(/function ownsVoice\(\): boolean \{\s*return isFloating \|\| !plugin\.floatingSession\.active/)
+		expect(app).toMatch(/function ownsVoice\(\): boolean \{\s*return ownsScript\(commandView\(\)\)/)
+		expect(app).toMatch(/function commandView\(\): CommandView \{\s*return \{ isFloating, floatingActive: plugin\.floatingSession\.active, canFloat: floatSupported \}/)
+		expect(ownsScript({ isFloating: false, floatingActive: true, canFloat: true })).toBe(false)
+		expect(ownsScript({ isFloating: true, floatingActive: true, canFloat: true })).toBe(true)
 		const teardown = app.slice(app.indexOf('Stop listening when the view goes away'))
 		expect(teardown.slice(0, 500)).toContain('ownsVoice() &&')
 		expect(functionBody('jumpToHeader').length).toBeGreaterThan(0)
@@ -159,26 +167,42 @@ describe('closing the floating window', () => {
 		const app = readFileSync(join(import.meta.dir, '..', 'TeleprompterApp.svelte'), 'utf8')
 		expect(app).toContain('() => (capturedLeaf ? capturedLeaf.detach() : closeOwnLeaf()),')
 		expect(app).not.toContain('() => win.close()')
-		expect(app).toContain('plugin.floatingSession.claim(customEvent)')
+		// One toggle-floating heard by every open view toggles once: the first view claims it.
+		const session = new FloatingSession()
+		const event = new CustomEvent('teleprompter:toggle-floating')
+		const toggled: string[] = []
+		const main = { isFloating: false, floatingActive: false, canFloat: true }
+		dispatchCommand(event, main, session, intent => toggled.push(intent.kind))
+		dispatchCommand(event, main, session, intent => toggled.push(intent.kind))
+		expect(toggled).toEqual(['toggleFloating'])
+		expect(app).toContain('toggleFloating: () => { void toggleFloating() },')
 	})
 })
 
 describe('commands while floating', () => {
 	test('every view hears a command, and the floating script receives it once', () => {
-		const app = readFileSync(join(import.meta.dir, '..', 'TeleprompterApp.svelte'), 'utf8')
-		const route = app.slice(app.indexOf('Commands arrive at the main window'), app.indexOf("switch (customEvent.type) {"))
-		expect(route.indexOf('floatingSession.claim(customEvent)')).toBeLessThan(route.indexOf('floatingSession.forward('))
-		expect(route).toContain('floatingSession.claim(customEvent)')
+		const session = new FloatingSession()
+		const delivered: { type: string; detail: unknown }[] = []
+		session.attach({} as Parameters<FloatingSession['attach']>[0], () => {}, (type, detail) => delivered.push({ type, detail }))
+		const main = { isFloating: false, floatingActive: session.active, canFloat: true }
+		const event = new CustomEvent('teleprompter:next-section')
+		const ranHere: string[] = []
+		for (let view = 0; view < 3; view++) dispatchCommand(event, main, session, intent => ranHere.push(intent.kind))
+		expect(ranHere).toEqual([])
+		expect(delivered).toEqual([{ type: 'teleprompter:next-section', detail: null }])
 	})
 
 	test('ISC-138: a Jump to Section click in the main view also moves the floating script', () => {
 		const app = readFileSync(join(import.meta.dir, '..', 'TeleprompterApp.svelte'), 'utf8')
 		expect(app).toContain('onclick={() => jumpFromNavigation(header.id)}')
 		const body = app.slice(app.indexOf('function jumpFromNavigation('), app.indexOf('function jumpToHeader('))
-		expect(body).toContain('!isFloating && plugin.floatingSession.active')
-		expect(body).toContain("plugin.floatingSession.forward('teleprompter:jump-to-header-by-id', { headerId, section: sectionOfHeader(headerId) })")
+		expect(body).toContain("forwardToFloating('teleprompter:jump-to-header-by-id', { headerId, section: sectionOfHeader(headerId) })")
 		expect(app.includes('h.text === customEvent.detail.text')).toBe(false)
-		expect(app.slice(app.indexOf("case 'teleprompter:jump-to-header-by-id'"), app.indexOf("case 'teleprompter:toggle-navigation'"))).toContain('headerIdForSection(customEvent.detail)')
+		// The floating view receives the section reference intact and resolves it by line and title.
+		const section = { line: 40, text: 'Situation', occurrence: 2 }
+		expect(parseCommand('teleprompter:jump-to-header-by-id', { headerId: 'header-16', section }))
+			.toEqual({ kind: 'jumpToSection', target: { headerId: 'header-16', section } })
+		expect(commandHandlerSource(app, 'jump-to-header-by-id', { headerId: 'header-16', section })).toContain('const id = headerIdForSection(target)')
 		expect(body).toContain('jumpToHeader(headerId)')
 		// The header map must fill in a pop-out too: a main-window instanceof drops pop-out headings.
 		const fill = app.slice(app.indexOf("contentArea.querySelectorAll<HTMLElement>('[data-header-id]')"), app.indexOf('headerElements = newHeaderElements'))
@@ -230,7 +254,8 @@ describe('commands while floating', () => {
 		expect(app).toContain("contentArea.addEventListener('wheel', holdMirror, { passive: true })")
 		expect(app).toContain("contentArea.addEventListener('touchmove', holdMirror, { passive: true })")
 		expect(slice('function holdMirror(', 'function jumpFromNavigation(')).toContain('mirrorHeldUntil = Date.now() + MIRROR_HOLD_MS')
-		expect(slice('function jumpFromNavigation(', 'function jumpToHeader(')).toContain('stopMirror()')
+		expect(slice('function jumpFromNavigation(', 'function jumpToHeader(')).toContain("forwardToFloating('teleprompter:jump-to-header-by-id'")
+		expect(slice('function forwardToFloating(', 'function turnPage(')).toContain('stopMirror()')
 
 		// The main view's own scroll never recomputes the section while it mirrors.
 		const visible = slice('function updateCurrentVisibleHeader(', 'function resolveMarkdownViewForCurrentNote(')
@@ -271,12 +296,15 @@ describe('read-aloud runs in the floating view while a script floats (ISC-144)',
 
 	test('only the main view forwards, and the floating view resolves a section by its line and title', () => {
 		const send = functionBody('sendTTSToFloating')
-		expect(send).toContain('if (isFloating || !plugin.floatingSession.active) return false')
+		expect(send).toContain('if (ownsTTS()) return false')
 		// A forwarded stop would reset the floating reading before pause or next arrives
 		expect(send).not.toContain('stopTTS()')
 		expect(send).toContain('ttsService.getState().playbackState')
-		expect(app).toContain("case 'teleprompter:tts-from-section'")
-		expect(app).toContain("'teleprompter:tts-from-section',")
+		const section = { line: 12, text: 'Situation', occurrence: 1 }
+		expect(LISTENED_COMMAND_EVENTS).toContain('teleprompter:tts-from-section')
+		expect(parseCommand('teleprompter:tts-from-section', { headerId: 'header-3', section }))
+			.toEqual({ kind: 'readFromSection', target: { headerId: 'header-3', section } })
+		expect(commandHandlerSource(app, 'tts-from-section', { headerId: 'header-3', section })).toContain('const id = headerIdForSection(target)')
 	})
 
 	test('ISC-148: the main view stays on the floating note and catches up when floating closes', () => {
@@ -317,7 +345,7 @@ describe('read-aloud runs in the floating view while a script floats (ISC-144)',
 
 	test('ISC-151: while a script floats, the main window keys and buttons drive the floating script', () => {
 		const fwd = functionBody('forwardToFloating')
-		expect(fwd).toContain('if (isFloating || !plugin.floatingSession.active) return false')
+		expect(fwd).toContain('if (ownsScript(commandView())) return false')
 		expect(fwd).toContain('plugin.floatingSession.forward(type, detail)')
 		expect(functionBody('executeHotkeyAction')).toContain("if (SCRIPT_HOTKEY_ACTIONS.has(action) && forwardToFloating('teleprompter:hotkey-action', { action })) return true")
 		for (const [fn, type] of [['togglePlay', 'toggle-play'], ['resetToTop', 'reset-to-top'], ['jumpToNextSection', 'next-section'], ['jumpToPreviousSection', 'previous-section']]) {
@@ -326,8 +354,11 @@ describe('read-aloud runs in the floating view while a script floats (ISC-144)',
 		expect(functionBody('handleProgressBarClick')).toContain("forwardToFloating('teleprompter:set-scroll-percentage'")
 		expect(functionBody('handleMinimapClick')).toContain("forwardToFloating('teleprompter:set-scroll-percentage'")
 		expect(functionBody('handleKeyPress')).toContain('jumpFromNavigation(headerList[index].id)')
-		expect(app).toContain("case 'teleprompter:hotkey-action':")
-		expect(app).toContain("'teleprompter:hotkey-action',")
+		// The floating view runs a forwarded hotkey through its own executeHotkeyAction.
+		expect(LISTENED_COMMAND_EVENTS).toContain('teleprompter:hotkey-action')
+		expect(parseCommand('teleprompter:hotkey-action', { action: 'pageDown' })).toEqual({ kind: 'hotkeyAction', action: 'pageDown' })
+		expect(commandHandlerSource(app, 'hotkey-action', { action: 'pageDown' })).toContain('executeHotkeyAction(action)')
+		expect(SCRIPT_HOTKEY_ACTIONS.has('pageDown')).toBe(true)
 		expect(app).toContain('const mirroring = !isFloating && floatingSessionActive')
 		expect(app).toContain('if (isPlaying && contentArea && !mirroring) {')
 	})
@@ -343,8 +374,9 @@ describe('read-aloud runs in the floating view while a script floats (ISC-144)',
 		expect(app).toContain('(ttsService?.getState().playbackState ?? "idle") === "idle") {')
 		expect(functionBody('toggleTTSControls')).toContain('if (showTTSControls) void initTTS()')
 		expect(functionBody('applyVoicePreset')).toContain("forwardToFloating('teleprompter:apply-voice-preset', { preset: presetName })")
-		expect(app).toContain("case 'teleprompter:apply-voice-preset':")
-		expect(app).toContain("'teleprompter:apply-voice-preset',")
+		expect(LISTENED_COMMAND_EVENTS).toContain('teleprompter:apply-voice-preset')
+		expect(parseCommand('teleprompter:apply-voice-preset', { preset: 'responsive' })).toEqual({ kind: 'applyVoicePreset', preset: 'responsive' })
+		expect(commandHandlerSource(app, 'apply-voice-preset', { preset: 'responsive' })).toContain('applyVoicePreset(preset)')
 		expect(app).toContain('.tp-zone[data-zone="playback"] :global(.popup-slider),')
 	})
 

@@ -3,6 +3,8 @@ import { readFileSync } from 'fs'
 import { join } from 'path'
 import { PAGE_TURN_SHARE, hotkeyAction, withMissingDefaultHotkeys } from './pedal-keys'
 import { obsidianStub } from './test-support/obsidian-stub'
+import { commandHandlerSource } from './test-support/command-handler-source'
+import { parseCommand } from './commands'
 
 void mock.module('obsidian', () => obsidianStub)
 const { DEFAULT_SETTINGS } = await import('./settings')
@@ -38,7 +40,9 @@ describe('pedal keys', () => {
 
 	test('stream deck: a remote scroll moves voice with it', () => {
 		const app = src('TeleprompterApp.svelte')
-		const scroll = app.slice(app.indexOf("case 'teleprompter:scroll':"), app.indexOf("case 'teleprompter:set-scroll-position':"))
+		expect(parseCommand('teleprompter:scroll', { amount: 100 })).toEqual({ kind: 'scrollBy', amount: 100 })
+		const scroll = commandHandlerSource(app, 'scroll', { amount: 100 })
+		expect(scroll).toContain('contentArea.scrollTop += amount')
 		expect(scroll).toContain('moveVoiceToReadingPosition()')
 	})
 
