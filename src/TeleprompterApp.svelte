@@ -61,6 +61,7 @@
   import { phoneLog } from './platform/phone-log'
   import { DESKTOP_ONLY_TOOLBAR_CONTROLS, PHONE_MORE_CONTROLS, forPhone, phoneBarControls } from './platform/mobile-surface'
   import { engineSignature } from './tts/elevenlabs-request'
+  import { createRateMemory } from './tts/rate-memory'
   import { TTSService } from './tts'
   import type { TTSState, TTSPlaybackState, TTSVoice } from './tts'
   import { resolveCitations, loadBibliography } from './parser/citation-resolver'
@@ -289,6 +290,9 @@
     ttsTotalSentences?: number
     ttsRate?: number
     ttsVoice?: string
+    ttsLoop?: boolean
+    // Why read-aloud stopped; '' once it reads again
+    ttsError?: string
     // Rehearsal clock: the anchor, not the ticks (see broadcastClockState).
     sessionState?: 'idle' | 'running' | 'paused' | 'finished'
     clockSnapshot?: ClockSnapshot
@@ -1062,6 +1066,9 @@
   let ttsInitializedEngine = '' // Track which engine was initialized
   let ttsVoices = $state<TTSVoice[]>([])
   let ttsCurrentVoice = $state(settings.ttsVoice || '')
+  let ttsLoop = $state(false) // Read the current sentence again and again
+  let ttsError = $state('') // Why read-aloud stopped, shown on the badge of every view
+  let ttsErrorNotice: Notice | null = null
 
   // Citation resolution cache for visual rendering (must be $state for render effect reactivity)
   let cachedBibEntries = $state<Map<string, { key: string; authors: string[]; year: string; isInstitutional: boolean }> | null>(null)
@@ -3000,6 +3007,10 @@
     ttsService.onSentenceStartEvent(({ index }) => {
       ttsCurrentSentence = index
       resumeAfterEditPause()
+      // While a script floats, only the floating view's reading may move a highlight or be shared.
+      if (!ownsTTS()) return
+      // Reading again: the reason it stopped is history
+      clearTTSError()
       phoneLog(`sentence start ${index}`)
       highlightTTSSentence(index)
       scrollToTTSSentence(index)
@@ -3009,19 +3020,28 @@
     })
 
     ttsService.onStateChange((state: TTSState) => {
+      // While a script floats, this view shows the floating view's reading. Its own service going
+      // idle (stopped on the way to forwarding a command) overwrote that and was shared back to the
+      // Elgato as "idle, 1/0" (W1 #4).
+      if (!ownsTTS()) return
       ttsPlaybackState = state.playbackState
       // Read-aloud paused or stopped on purpose: an edit pause must not come back on its own.
       if (state.playbackState !== 'playing') pausedForEdit = false
       ttsCurrentSentence = state.currentSentenceIndex
       ttsTotalSentences = state.totalSentences
       ttsRate = state.rate
-      broadcastState({ ttsPlaybackState, ttsCurrentSentence, ttsTotalSentences })
+      ttsLoop = state.loop
+      broadcastState({ ttsPlaybackState, ttsCurrentSentence, ttsTotalSentences, ttsLoop })
     })
 
     ttsService.onError(({ message }) => {
       phoneLog(`TTS error ${message}`)
       console.error('[TTS] Error:', message)
+      reportTTSError(message)
     })
+
+    // A loop turned on before this engine was built, or kept across a rebuild
+    ttsService.setLoop(ttsLoop)
 
     await ttsService.initialize()
     ttsInitialized = true
@@ -3040,8 +3060,14 @@
       new Notice(`TTS: Using ${engineState.engineName} engine`, 3000)
     }
 
-    // Load available voices
-    const voices = await ttsService.getVoices()
+    // Load available voices. A refused key already reached the reader through initialize(); a second
+    // throw here only left an unhandled rejection and stopped Play from trying.
+    let voices: TTSVoice[] = []
+    try {
+      voices = await ttsService.getVoices()
+    } catch (error) {
+      console.error('[TTS] Could not load voices:', error)
+    }
     ttsVoices = voices
     if (!ttsCurrentVoice && voices.length > 0) {
       const defaultVoice = voices.find(v => v.isDefault) || voices[0]
@@ -3054,6 +3080,37 @@
     })
 
     debugLog(`[TTS] Initialized with ${voices.length} voices`)
+  }
+
+  /**
+   * A read-aloud failure has to be seen: an ElevenLabs 429 or 401 used to leave silence with the
+   * Pause button showing, and the reason only in the console (the Elgato window's console while a
+   * script floats). The reading view shows it on its badge and shares it; the main window raises a
+   * Notice, from its own failure or from the floating view's (W1 #1).
+   */
+  function reportTTSError(message: string): void {
+    if (ownsTTS()) {
+      ttsError = message
+      // Sent straight to the channel: broadcastState drops anything sent within 50 ms of a received
+      // update, and this is not an echo. The paused state travels with it for the same reason.
+      stateChannel.postMessage({ type: 'state-update', data: { ttsError: message, ttsPlaybackState } })
+      // The reading paused on the failed sentence, so the rehearsal clock pauses with it
+      if (ttsPlaybackState === 'paused') pauseSession()
+    }
+    if (!isFloating) showTTSErrorNotice(message)
+  }
+
+  function showTTSErrorNotice(message: string): void {
+    ttsErrorNotice?.hide()
+    ttsErrorNotice = new Notice(`Read aloud: ${message}`, 10000)
+  }
+
+  function clearTTSError(): void {
+    ttsErrorNotice?.hide()
+    ttsErrorNotice = null
+    if (!ttsError) return
+    ttsError = ''
+    if (ownsTTS()) stateChannel.postMessage({ type: 'state-update', data: { ttsError: '' } })
   }
 
   function setTTSVoice(voiceId: string): void {
@@ -3227,6 +3284,7 @@
 
   async function toggleTTS(): Promise<void> {
     if (sendTTSToFloating('teleprompter:tts-toggle')) return
+    clearTTSError()
     phoneLog(`toggleTTS state=${ttsPlaybackState} initialized=${ttsInitialized} engine=${settings.ttsEngine}`)
     // Starting from idle also picks up a voice, model or engine changed in settings
     if (!ttsInitialized || ttsPlaybackState === 'idle') {
@@ -3249,7 +3307,8 @@
 
       await ttsService.play()
       phoneLog(`play returned state=${ttsPlaybackState}`)
-      startSession()
+      // A first sentence that failed left the reading paused: the clock must not run on it
+      if (ttsService.getState().playbackState === 'playing') startSession()
     } else {
       await ttsService.togglePlayPause()
       if (ttsPlaybackState === 'playing') startSession()
@@ -3258,7 +3317,15 @@
   }
 
   function stopTTS(): void {
-    if (!isFloating && plugin.floatingSession.active) plugin.floatingSession.forward('teleprompter:tts-stop')
+    clearTTSError()
+    if (!ownsTTS()) {
+      plugin.floatingSession.forward('teleprompter:tts-stop')
+      // This view's own service is not the reader. Stop it only if it somehow runs; its idle
+      // state stays here (see onStateChange in initTTS).
+      if (ttsService && ttsService.getState().playbackState !== 'idle') ttsService.stop()
+      clearTTSHighlight()
+      return
+    }
     ttsService?.stop()
     clearTTSHighlight()
   }
@@ -3273,8 +3340,30 @@
     await ttsService?.previousSentence()
   }
 
+  /** Say the current sentence again from its start (paused reading resumes with it). */
+  async function ttsRepeat(): Promise<void> {
+    if (sendTTSToFloating('teleprompter:tts-repeat')) return
+    clearTTSError()
+    await ttsService?.repeatCurrent()
+  }
+
+  /** Loop on: the current sentence is read over and over until loop is turned off. */
+  function ttsToggleLoop(): void {
+    if (sendTTSToFloating('teleprompter:tts-loop-toggle')) return
+    ttsLoop = !ttsLoop
+    ttsService?.setLoop(ttsLoop)
+    // Shared even before a service exists, so the other view's button shows it
+    broadcastState({ ttsLoop })
+  }
+
+  // Each change lands in settings at once and on disk once the slider settles (W1 #3).
+  const rememberTTSRate = createRateMemory(settings, () => { void plugin?.saveSettings() })
+
   function onTTSRateChange(): void {
     ttsService?.setRate(ttsRate)
+    // Saved, or the floating view's first read and an engine rebuilt after a voice change start
+    // from the old speed in settings (W1 #3).
+    rememberTTSRate(ttsRate)
     broadcastState({ ttsRate })
   }
 
@@ -3850,6 +3939,15 @@
 
   /** The voice service is shared. While a script floats it belongs to that view, whatever this one mirrors. */
   function ownsVoice(): boolean {
+    return isFloating || !plugin.floatingSession.active
+  }
+
+  /**
+   * Read-aloud follows the same rule. While a script floats, the floating view reads (on the
+   * Elgato): the main window acts as its remote, forwarding commands, and never drives or shares
+   * its own read-aloud service, whatever its controls mirror (W1 #4).
+   */
+  function ownsTTS(): boolean {
     return isFloating || !plugin.floatingSession.active
   }
 
@@ -5021,6 +5119,12 @@
       case 'teleprompter:tts-prev-sentence':
         void ttsPrevSentence()
         break
+      case 'teleprompter:tts-repeat':
+        void ttsRepeat()
+        break
+      case 'teleprompter:tts-loop-toggle':
+        ttsToggleLoop()
+        break
       case 'teleprompter:tts-speed-up':
         ttsRate = Math.min(2.0, ttsRate + 0.25)
         onTTSRateChange()
@@ -5181,6 +5285,7 @@
       if (wasFloating && !plugin.floatingSession.active && !isFloating && (ttsService?.getState().playbackState ?? "idle") === "idle") {
         ttsPlaybackState = "idle"
         ttsCurrentSentence = 0
+        ttsError = ""
         clearTTSHighlight()
       }
       // A script started floating: the main view moves onto that note so its controls drive it.
@@ -5444,6 +5549,8 @@
       'teleprompter:tts-from-section',
       'teleprompter:tts-next-sentence',
       'teleprompter:tts-prev-sentence',
+      'teleprompter:tts-repeat',
+      'teleprompter:tts-loop-toggle',
       'teleprompter:tts-speed-up',
       'teleprompter:tts-speed-down',
       // Countdown events
@@ -5532,6 +5639,20 @@
           ttsCurrentVoice = data.ttsVoice
           ttsService?.setVoice(data.ttsVoice)
         }
+        if (data.ttsLoop !== undefined) {
+          ttsLoop = data.ttsLoop
+          ttsService?.setLoop(data.ttsLoop)
+        }
+        // The reading view failed (or reads again): its badge shows it, and the main window says it
+        if (data.ttsError !== undefined) {
+          ttsError = data.ttsError
+          if (!data.ttsError) {
+            ttsErrorNotice?.hide()
+            ttsErrorNotice = null
+          } else if (!isFloating) {
+            showTTSErrorNotice(data.ttsError)
+          }
+        }
 
         // Allow broadcasting again after state is applied
         setTimeout(() => { isReceivingBroadcast = false }, 50)
@@ -5588,6 +5709,7 @@
       stopMirror()
 
       // Cleanup TTS
+      ttsErrorNotice?.hide()
       if (ttsService) {
         ttsService.destroy()
         ttsService = null
@@ -5957,8 +6079,9 @@
         isProgrammaticJump = false
       }, 100)
 
-      // If TTS is active, also jump TTS to this section
-      if (ttsService && ttsPlaybackState !== 'idle') {
+      // If TTS is active, also jump TTS to this section. While a script floats, the jump reaches
+      // the floating view's reading through the forwarded jump; this view's own service is not it.
+      if (ownsTTS() && ttsService && ttsPlaybackState !== 'idle') {
         void ttsService.jumpToSection(headerId)
       }
 
@@ -6369,15 +6492,23 @@
   {/if}
 
   <!-- TTS status indicator -->
-  {#if ttsPlaybackState !== 'idle'}
+  {#if ttsPlaybackState !== 'idle' || ttsError}
     <div class="tts-status-overlay">
-      <div class="tts-status-indicator" class:playing={ttsPlaybackState === 'playing'}>
-        <span class="tts-status-icon" use:lucideIcon={ttsPlaybackState === 'playing' ? 'volume-2' : 'pause'}></span>
+      <div class="tts-status-indicator" class:playing={ttsPlaybackState === 'playing' && !ttsError} class:failed={!!ttsError}>
+        <span class="tts-status-icon" use:lucideIcon={ttsError ? 'alert-triangle' : ttsPlaybackState === 'playing' ? 'volume-2' : 'pause'}></span>
         <span class="tts-status-text">
-          {ttsPlaybackState === 'playing' ? 'Reading aloud' : 'TTS paused'}
+          {ttsError ? 'Read aloud stopped' : ttsPlaybackState === 'playing' ? 'Reading aloud' : 'TTS paused'}
         </span>
-        <span class="tts-sentence-info">{ttsCurrentSentence + 1}/{ttsTotalSentences}</span>
+        {#if ttsPlaybackState !== 'idle'}
+          <span class="tts-sentence-info">{ttsCurrentSentence + 1}/{ttsTotalSentences}</span>
+        {/if}
+        {#if ttsLoop && !ttsError}
+          <span class="tts-status-icon" use:lucideIcon={'repeat-1'} title="Looping this sentence"></span>
+        {/if}
       </div>
+      {#if ttsError}
+        <div class="tts-status-error">{ttsError}</div>
+      {/if}
     </div>
   {/if}
 
@@ -6643,7 +6774,17 @@
                 <button onclick={ttsPrevSentence} class="tts-nav-btn" title="Previous sentence">
                   <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 18 9 12 15 6"/></svg>
                 </button>
+                <button onclick={ttsRepeat} class="tts-nav-btn" title="Repeat this sentence" aria-label="Repeat this sentence" use:lucideIcon={'rotate-ccw'}></button>
                 <span class="tts-sentence-counter">{ttsCurrentSentence + 1} / {ttsTotalSentences}</span>
+                <button
+                  onclick={ttsToggleLoop}
+                  class="tts-nav-btn"
+                  class:active={ttsLoop}
+                  aria-pressed={ttsLoop}
+                  title={ttsLoop ? 'Stop looping this sentence' : 'Loop this sentence'}
+                  aria-label={ttsLoop ? 'Stop looping this sentence' : 'Loop this sentence'}
+                  use:lucideIcon={'repeat-1'}
+                ></button>
                 <button onclick={ttsNextSentence} class="tts-nav-btn" title="Next sentence">
                   <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>
                 </button>
@@ -9138,6 +9279,22 @@
     border-color: rgba(76, 175, 80, 0.5);
   }
 
+  .tts-status-indicator.failed {
+    border-color: rgba(244, 67, 54, 0.7);
+  }
+
+  .tts-status-error {
+    max-width: 360px;
+    padding: 4px 10px;
+    background: rgba(0, 0, 0, 0.7);
+    border: 1px solid rgba(244, 67, 54, 0.7);
+    border-radius: 6px;
+    font-size: 0.75rem;
+    line-height: 1.35;
+    color: rgba(255, 255, 255, 0.9);
+    backdrop-filter: blur(4px);
+  }
+
   .tts-status-icon {
     font-size: 0.9rem;
   }
@@ -9332,6 +9489,12 @@
   .tts-nav-btn:hover {
     background: var(--background-modifier-hover);
     color: var(--text-normal);
+  }
+
+  .tts-nav-btn.active {
+    background: var(--interactive-accent);
+    border-color: var(--interactive-accent);
+    color: var(--text-on-accent);
   }
 
   .tts-sentence-counter {
