@@ -5,6 +5,7 @@
 
 import type { TTSSection, TTSDocument } from '../tts/tts-types'
 import { stripStageCues } from './stage-cues'
+import { parseHeadingTarget } from './section-targets'
 
 /** Common abbreviations that shouldn't trigger sentence splits */
 const ABBREVIATIONS = new Set([
@@ -422,7 +423,8 @@ export function cleanDocument(rawContent: string, options: Partial<CleanerOption
 					})
 				}
 			}
-			currentHeading = headingMatch[2].trim()
+			// A section target ({1:30}) is for the clock, not for the listener
+			currentHeading = parseHeadingTarget(headingMatch[2]).title
 			currentHeadingId = `header-${headingCounter++}`
 			currentContent = []
 			// Include heading text as the first content line so TTS reads it aloud
