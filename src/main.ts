@@ -843,6 +843,27 @@ export default class TeleprompterPlusPlugin extends Plugin {
 			)
 		})
 
+		// Stream Deck keys that had no server command (Fable review 2026-11-26): each dispatches the
+		// event the view already handles.
+		this.wsServer.registerCommand('cycle-speed-preset', () => {
+			window.dispatchEvent(new CustomEvent('teleprompter:cycle-speed-preset'))
+		})
+		this.wsServer.registerCommand('next-speed-preset', () => {
+			window.dispatchEvent(new CustomEvent('teleprompter:next-speed-preset'))
+		})
+		this.wsServer.registerCommand('prev-speed-preset', () => {
+			window.dispatchEvent(new CustomEvent('teleprompter:prev-speed-preset'))
+		})
+		this.wsServer.registerCommand('cycle-alignment', () => {
+			window.dispatchEvent(new CustomEvent('teleprompter:cycle-alignment'))
+		})
+		this.wsServer.registerCommand('cycle-progress-indicator', () => {
+			window.dispatchEvent(new CustomEvent('teleprompter:cycle-progress-indicator'))
+		})
+		this.wsServer.registerCommand('toggle-auto-pause', () => {
+			window.dispatchEvent(new CustomEvent('teleprompter:toggle-auto-pause'))
+		})
+
 		this.wsServer.registerCommand('start-countdown', () => {
 			window.dispatchEvent(new CustomEvent('teleprompter:start-countdown'))
 		})
