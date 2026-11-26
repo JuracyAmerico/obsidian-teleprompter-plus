@@ -184,6 +184,39 @@ export const REMOTE_INTERFACE_HTML = `<!DOCTYPE html>
       color: var(--accent);
     }
 
+    /* The take that just ended, as the prompter's card shows it */
+    .take-banner {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      border: 1px solid rgba(255, 255, 255, 0.15);
+    }
+
+    .take-banner.on-target {
+      border-color: var(--success);
+    }
+
+    .take-banner.over {
+      border-color: var(--error);
+    }
+
+    .take-banner.under {
+      border-color: var(--accent-hover);
+    }
+
+    .take-text {
+      font-size: 18px;
+      font-weight: 700;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .speed-wpm {
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--text-secondary);
+      margin-right: 8px;
+    }
+
     /* Speed Slider */
     .speed-slider {
       width: 100%;
@@ -464,7 +497,7 @@ export const REMOTE_INTERFACE_HTML = `<!DOCTYPE html>
     <section class="card">
       <div class="card-header">
         <span class="card-title">Speed</span>
-        <span class="card-value" id="speedValue">2.0x</span>
+        <span><span class="speed-wpm" id="speedWpm"></span><span class="card-value" id="speedValue">2.0x</span></span>
       </div>
       <input type="range" class="speed-slider" id="speedSlider"
              min="0.5" max="10" step="0.1" value="2">
@@ -473,6 +506,12 @@ export const REMOTE_INTERFACE_HTML = `<!DOCTYPE html>
         <span>5x</span>
         <span>10x</span>
       </div>
+    </section>
+
+    <!-- The take that just ended -->
+    <section class="card take-banner hidden" id="takeBanner" role="status">
+      <span class="card-title">Last take</span>
+      <span class="take-text" id="takeText"></span>
     </section>
 
     <!-- Progress -->
@@ -556,6 +595,9 @@ export const REMOTE_INTERFACE_HTML = `<!DOCTYPE html>
     const playStatus = document.getElementById('playStatus');
     const speedSlider = document.getElementById('speedSlider');
     const speedValue = document.getElementById('speedValue');
+    const speedWpm = document.getElementById('speedWpm');
+    const takeBanner = document.getElementById('takeBanner');
+    const takeText = document.getElementById('takeText');
     const progressValue = document.getElementById('progressValue');
     const progressFill = document.getElementById('progressFill');
     const sectionsToggle = document.getElementById('sectionsToggle');
@@ -695,6 +737,23 @@ export const REMOTE_INTERFACE_HTML = `<!DOCTYPE html>
         if (!speedDragging) {
           speedSlider.value = state.speed;
           speedValue.textContent = state.speed.toFixed(1) + 'x';
+        }
+      }
+
+      // Effective reading speed, measured on the prompter
+      if (newState.wordsPerMinute !== undefined) {
+        speedWpm.textContent = typeof newState.wordsPerMinute === 'number' ? newState.wordsPerMinute + ' wpm' : '';
+      }
+
+      // The take that just ended: shown until reading moves on
+      if (newState.lastTake !== undefined) {
+        var take = newState.lastTake;
+        if (take && typeof take.text === 'string') {
+          takeText.textContent = take.text;
+          takeBanner.className = 'card take-banner ' + (take.verdict === 'on-target' || take.verdict === 'over' || take.verdict === 'under' ? take.verdict : '');
+        } else {
+          takeText.textContent = '';
+          takeBanner.className = 'card take-banner hidden';
         }
       }
 
