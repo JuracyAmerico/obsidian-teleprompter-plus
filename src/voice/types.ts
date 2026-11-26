@@ -25,6 +25,8 @@ export interface MatchResult {
   matchedWordIndex: number
   /** The token that was matched */
   token: TextElement | null
+  /** How well the last heard words align with the script ending at that word, 0-1 (1 = exact) */
+  confidence: number
 }
 
 /**
@@ -69,29 +71,30 @@ export interface VoiceTrackingConfig {
   // Tuning parameters (user-adjustable for speaking pace)
   /** Confidence threshold for accepting a match (0-1) */
   confidenceThreshold?: number
-  /** Look-ahead window size for matching */
+  /** Window for the global re-sync search, and the floor of the local look-ahead */
   windowSize?: number
-  /** Maximum words to scroll at once (smaller = smoother) */
-  maxJumpDistance?: number
-  /** Minimum words before triggering a scroll */
-  minJumpDistance?: number
-  /** How often to process partial results (ms) */
+  /** Partials that only re-send or revise words already matched are matched at most this often (ms).
+   *  A partial with a new word is always matched at once. */
   updateFrequencyMs?: number
-  /** Base duration for scroll animation (ms) */
-  animationBaseMs?: number
-  /** Extra animation time per word jumped (ms) */
-  animationPerWordMs?: number
 
-  // Pause detection settings
-  /** Enable pause detection (stops scrolling when user pauses speaking) */
+  // Read by nothing. The app still passes these from saved settings, so they stay until it stops.
+  /** @deprecated Ignored. Capping each step made the place trail a reader; FORWARD_CAP and the pace governor own step size. */
+  maxJumpDistance?: number
+  /** @deprecated Ignored. Small steps always commit; larger ones need agreeing matches (SMALL_STEP_WORDS). */
+  minJumpDistance?: number
+  /** @deprecated Ignored. The timed scroll animation was replaced by the damped follower; see `smoothness`. */
+  animationBaseMs?: number
+  /** @deprecated Ignored, as `animationBaseMs`. */
+  animationPerWordMs?: number
+  /** @deprecated Ignored. The speech-turn gate it fed was always open; the silence gate (VAD) handles pauses. */
   pauseDetection?: boolean
-  /** Time without new speech to consider as a pause (ms) */
+  /** @deprecated Ignored, as `pauseDetection`. */
   pauseThresholdMs?: number
 
   // Scroll position settings
   /** Where current word appears on screen (0-100%, from top) */
   scrollPosition?: number
-  /** Words to keep the scroll BEHIND your spoken word (fix for "scroll runs ahead"). */
+  /** @deprecated Ignored. `highlightLead` and `scrollPosition` place the reading line. */
   readTrail?: number
   /** Scroll-follow smoothness 0..1 (lower = calmer glide, higher = snappier). */
   smoothness?: number
