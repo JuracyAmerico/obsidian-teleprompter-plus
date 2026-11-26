@@ -4,7 +4,7 @@ slug: teleprompter-plus
 project: Teleprompter Plus
 effort: E3
 phase: climbing
-progress: 146/149
+progress: 147/150
 mode: algorithm
 started: 2026-10-29
 updated: 2026-11-26
@@ -228,6 +228,7 @@ Found in Américo's own test run, 2026-11-05 (steps 2, 3, 7, 8):
 - [x] ISC-152: a read-aloud rate or voice chosen in one window is applied to the other window's speech, not only to the number on its screen; scroll speed already synced (list item #5, 2026-11-26). Live before the fix, floating reading: 2 sentences per 10 s at 1x and still 2 per 10 s after the main window's 2x preset (3 to 5, then 6 to 8). Live after: 2 per 10 s at 1x, then 5 per 10 s after the main 2x (7 to 12). Scroll speed measured already in sync (main slider to 3.5, floating 3.5). Voice: broadcast plus apply, covered by the wiring test; not proven live because the main window shows no voice list while a script floats (its speech engine never starts), filed under item #7 with the stale main sentence counter (1/27 while floating read 12/27). His rate set back to 1x after the test.
 - [x] ISC-153: a countdown started with Play in the main window while a script floats runs on the floating script, then the floating script scrolls (list item #9, 2026-11-26). No new code: ISC-151 sends Play to the floating view before any countdown logic, and countdownSeconds was already shared. Live: countdown set to 3 s in the main window, Reset, Play in the main window: the floating view showed 2, then 1, stayed at 0 px, then scrolled to 34 and 83 px. Started away from the top, Play skips the countdown by design (isAtStart).
 - [x] ISC-154: small items from list item #7 (2026-11-26): (b) closing the floating window clears the read-aloud state the main view mirrored, unless its own speech is running; (e) opening the read-aloud panel starts the main view's engine so the voice list is there while a script floats; (c) a rhythm (voice pace) preset chosen in the main view is applied live to the floating view's voice; (g) popups of the first toolbar zone (speed, countdown) open left-aligned, not cut by the pane edge; R re-sync already forwarded by ISC-151. Live before: after closing floating, the main view kept "Reading aloud 5/27" and a Pause button for 5 s; the main panel showed no voice list; the speed popup was cut at the left edge (screenshot). Live after: counter and "Reading aloud" gone, button back to "Start TTS reading"; voice list with 32 voices; speed popup fully visible (zoomed screenshot). (c) covered by the wiring test only: no live voice session in this run.
+- [x] ISC-155: while a script floats, only the floating view reports state to the Stream Deck and phone, and the main view reports once when floating closes (list item #8); and a plugin reload or update with the floating window open closes that window instead of leaving it as an ordinary pop-out on the Prompter (the dead window, 2026-11-26). Cause of the second: Obsidian destroys the view before the plugin's onunload, and closeOwnLeaf looked the leaf up by the destroyed view's element; the leaf is now captured when floating starts and kept for closeOnUnload. Live before: 12 updates in 5 s of play from two senders alternating (two maxScroll series); after a reload the Elgato window stayed as a pop-out with full toolbar and section list, not on top, showing the note in front (screenshot). Live after: 6 updates from one sender (the floating view), 1 update from the main view after closing; floating window count 1 before the reload, 0 after.
 
 ## Anti-criteria
 
@@ -392,6 +393,7 @@ Found in Américo's own test run, 2026-11-05 (steps 2, 3, 7, 8):
 | ISC-143 | bun-test | openFile and loadActiveNote both read through readScript, no .md-only filter; live .qmd in the floating view | pass: 2 wiring tests; live 2706 chars in both views, Elgato capture shows the letter | bun test src/floating; obsidian eval + window capture, 2026-11-25 |
 | ISC-144 | bun-test | main-view read-aloud entry points forward to the floating view; floating resolves a section by title; live Elgato scrolls under read-aloud | pass: 2 wiring tests; live Elgato 66 → 274 px, counters in step | bun test src/floating; obsidian eval sampling + window capture, 2026-11-25 |
 | ISC-145 | bun-test | floatingPlacement uses the Prompter's own see-through, clamped, never the main-screen value; live opacity follows the slider on the Prompter | pass: 1 placement test (3 cases); live opacity 1 → 0.7 | bun test src/floating; obsidian eval getOpacity + window capture, 2026-11-25 |
+| ISC-155 | bun-test | broadcastStateToWebSocket skips the mirroring main view; closeOnUnload closes once after detach; leaf captured at attach | pass: 2 tests; live 1 sender, 0 floating windows after reload | bun test src/floating; obsidian eval and macos windows, 2026-11-26 |
 | ISC-154 | bun-test | close clears mirrored read-aloud state; panel loads voices; preset forwarded; first-zone popups left-aligned | pass: wiring test; live state cleared on close, 32 voices, speed popup visible | bun test src/floating/floating-wiring.test.ts; obsidian eval, 2026-11-26 |
 | ISC-153 | bun-test | togglePlay forwards before the countdown branch (ISC-151 wiring test) | pass: live countdown 2, 1 on the floating view, then 0 to 34 to 83 px | bun test src/floating/floating-wiring.test.ts; obsidian eval, 2026-11-26 |
 | ISC-152 | bun-test | receiver applies ttsRate and ttsVoice to its own service; setTTSVoice broadcasts the voice | pass: wiring test; live floating pace 2 to 5 sentences per 10 s after main 2x | bun test src/floating/floating-wiring.test.ts; obsidian eval, 2026-11-26 |
@@ -526,6 +528,7 @@ acceptance: pass 2026-10-30 (all four runtime checks; mic-blocked Notice + Retry
 
 ## Changelog
 
+- 2026-11-26: ISC-155 added and ticked: Stream Deck hears only the floating view (#8); reload closes the floating window (dead window). Committed, not released.
 - 2026-11-26: ISC-154 added and ticked: small items (#7): read-aloud state cleared on close, voice list, preset to floating, popup clipping. Committed, not released.
 - 2026-11-26: ISC-152 added and ticked: read-aloud rate and voice reach the other window's speech (list item #5). Committed, not released.
 - 2026-11-26: ISC-151 added and ticked: the main window's keys and buttons drive the floating script (list item #4). Committed, not released.

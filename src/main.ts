@@ -562,6 +562,11 @@ export default class TeleprompterPlusPlugin extends Plugin {
 	}
 
 	onunload() {
+		// A floating window left open by an update or reload came back as an ordinary pop-out on the
+		// Prompter: full toolbar, the wrong note, no longer on top (list item: dead window, ISC-155).
+		// Close it with the plugin; the reader opens it again in one click.
+		this.floatingSession.closeOnUnload()
+
 		// Stop WebSocket server
 		void this.stopWebSocketServer()
 

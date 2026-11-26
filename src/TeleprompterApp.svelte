@@ -3941,9 +3941,16 @@
       controller.setHideFromShare(floatingHideFromShare)
       floatingController = controller
       isFloating = true
+      // Capture the leaf now: once this view is destroyed (plugin reload or update) its element is
+      // gone and closeOwnLeaf finds nothing, so the window could not be closed (ISC-155).
+      let ownLeaf: { detach: () => void } | null = null
+      app.workspace.iterateAllLeaves((leaf) => {
+        if (teleprompterContainer && leaf.view.containerEl.contains(teleprompterContainer)) ownLeaf = leaf
+      })
+      const capturedLeaf = ownLeaf as { detach: () => void } | null
       plugin.floatingSession.attach(
         controller,
-        closeOwnLeaf,
+        () => (capturedLeaf ? capturedLeaf.detach() : closeOwnLeaf()),
         (type, detail) => win.dispatchEvent(new (win as Window & typeof globalThis).CustomEvent(type, { detail }))
       )
       floatingBoundsTimer = {
@@ -5058,6 +5065,10 @@
   // Broadcast current state to WebSocket clients
   function broadcastStateToWebSocket() {
     if (!plugin) return
+    // While a script floats, the floating view is the one being read: only it reports to the Stream
+    // Deck and phone. Both views used to report and the last one won, alternating every tick
+    // (list item #8, ISC-155). The main view reports again when the floating window closes.
+    if (!isFloating && plugin.floatingSession.active) return
 
     // Remotes must be told which note is on the prompter, not which is focused in the sidebar.
     const activeFile = currentSourceFile()
@@ -5169,6 +5180,7 @@
       }
       // A script started floating: the main view moves onto that note so its controls drive it.
       if (!wasFloating && plugin.floatingSession.active && !isFloating) loadActiveNote()
+      if (wasFloating && !plugin.floatingSession.active && !isFloating) broadcastStateToWebSocket()
       wasFloating = plugin.floatingSession.active
     }
     syncFloatingSession()

@@ -157,7 +157,7 @@ describe('floating wiring', () => {
 describe('closing the floating window', () => {
 	test('one command closes through the leaf, because pop-outs ignore window.close', () => {
 		const app = readFileSync(join(import.meta.dir, '..', 'TeleprompterApp.svelte'), 'utf8')
-		expect(app).toContain('closeOwnLeaf,')
+		expect(app).toContain('() => (capturedLeaf ? capturedLeaf.detach() : closeOwnLeaf()),')
 		expect(app).not.toContain('() => win.close()')
 		expect(app).toContain('plugin.floatingSession.claim(customEvent)')
 	})
@@ -345,5 +345,12 @@ describe('read-aloud runs in the floating view while a script floats (ISC-144)',
 		expect(app).toContain("case 'teleprompter:apply-voice-preset':")
 		expect(app).toContain("'teleprompter:apply-voice-preset',")
 		expect(app).toContain('.tp-zone[data-zone="playback"] :global(.popup-slider),')
+	})
+
+	test('ISC-155: only the floating view reports to the Stream Deck; a reload closes the floating window', () => {
+		expect(functionBody('broadcastStateToWebSocket')).toContain('if (!isFloating && plugin.floatingSession.active) return')
+		expect(app).toContain('if (wasFloating && !plugin.floatingSession.active && !isFloating) broadcastStateToWebSocket()')
+		expect(app).toContain('() => (capturedLeaf ? capturedLeaf.detach() : closeOwnLeaf()),')
+		expect(main).toContain('this.floatingSession.closeOnUnload()')
 	})
 })
