@@ -288,6 +288,7 @@
     ttsCurrentSentence?: number
     ttsTotalSentences?: number
     ttsRate?: number
+    ttsVoice?: string
     // Rehearsal clock: the anchor, not the ticks (see broadcastClockState).
     sessionState?: 'idle' | 'running' | 'paused' | 'finished'
     clockSnapshot?: ClockSnapshot
@@ -3059,6 +3060,8 @@
     }
     plugin?.saveSettings()
     ttsService?.setVoice(voiceId)
+    // The floating view reads with its own service: tell it the new voice (list item #5, ISC-152).
+    broadcastState({ ttsVoice: voiceId })
   }
 
   /**
@@ -5480,7 +5483,16 @@
         if (data.ttsPlaybackState !== undefined) ttsPlaybackState = data.ttsPlaybackState
         if (data.ttsCurrentSentence !== undefined) ttsCurrentSentence = data.ttsCurrentSentence
         if (data.ttsTotalSentences !== undefined) ttsTotalSentences = data.ttsTotalSentences
-        if (data.ttsRate !== undefined) ttsRate = data.ttsRate
+        // Apply rate and voice to this view's own speech, not just the number on screen: the main
+        // window's choices never reached the Elgato's reading (list item #5, ISC-152).
+        if (data.ttsRate !== undefined) {
+          ttsRate = data.ttsRate
+          ttsService?.setRate(data.ttsRate)
+        }
+        if (data.ttsVoice !== undefined && data.ttsVoice !== ttsCurrentVoice) {
+          ttsCurrentVoice = data.ttsVoice
+          ttsService?.setVoice(data.ttsVoice)
+        }
 
         // Allow broadcasting again after state is applied
         setTimeout(() => { isReceivingBroadcast = false }, 50)
