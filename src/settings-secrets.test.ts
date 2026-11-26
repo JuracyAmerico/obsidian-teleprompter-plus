@@ -5,6 +5,8 @@
  * imported profile re-apply via Object.assign without wiping the recipient's own live key.
  */
 import { describe, expect, test } from 'bun:test';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { SECRET_SETTING_KEYS, redactSecrets } from './settings-secrets';
 
 describe('redactSecrets', () => {
@@ -60,7 +62,7 @@ describe('the phone remote key is a secret (0.12.14)', () => {
 		expect(out.fontSize).toBe(40)
 	})
 	test('every place that applies an imported file or profile strips secrets first', () => {
-		const src = require('node:fs').readFileSync(require('node:path').join(__dirname, 'settings.ts'), 'utf8') as string
+		const src = readFileSync(join(import.meta.dir, 'settings.ts'), 'utf8')
 		const applies = src.match(/Object\.assign\(this\.plugin\.settings, (?!DEFAULT_SETTINGS)[^)]*\)/g) ?? []
 		expect(applies.length).toBeGreaterThan(0)
 		for (const call of applies) expect(call).toContain('redactSecrets(')
