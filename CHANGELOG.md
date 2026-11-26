@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.12.6] - 2026-11-26
+
+### Changed
+- **A tidier toolbar.** Font size, font, padding, text color, background and opacity now live behind one Appearance button, and the clock sits on the button bar instead of a row of its own. In a narrow window the clock moves to its own row rather than being cut off.
+- **English everywhere on the bar.** The target-time button uses an icon instead of an emoji, and the target panel's labels are in English.
+
+### Fixed
+- **The note keeps following sections.** With the floating window open, the note beside the main window could stop following the sections after a save, or after the floating window closed. Each window now renders its own headings.
+- **Clicking another note mid-rehearsal.** While a script floats, clicking another note used to reset both clocks, send the floating script back to the top and point the section list at the wrong note. The main window now stays on the floating note and follows the note in front again when floating closes.
+- **The clock comes back after an edit click.** With read-aloud or voice tracking on, clicking into the note paused the clock for good while the reading went on. It now resumes with the next sentence read or the next words heard.
+- **Toolbar popups open above the eyeline arrow** instead of underneath it.
+
 ## [0.12.5] - 2026-11-25
 
 ### Added
