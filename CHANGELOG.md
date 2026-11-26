@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.12.8] - 2026-11-26
+
+### Fixed
+- **Updating the plugin closes the floating window.** Updating or reloading the plugin while a script floated left the Elgato window behind as an ordinary window, with the full toolbar and the wrong note. It now closes; open it again with one click.
+- **The Stream Deck follows the Elgato.** While a script floats, only the floating window reports to the Stream Deck and phone, so their position and section stop jumping between two values. The main window takes over when floating closes.
+- **Read-aloud stops showing after closing.** Closing the floating window while it read aloud left "Reading aloud" and a Pause button in the main window.
+- **Voices and rhythm from the main window.** While a script floats, the main window's read-aloud panel lists the voices, and a voice-tracking rhythm chosen there reaches the Elgato.
+- **Speed and countdown popups** open fully instead of being cut off at the left edge.
+
 ## [0.12.7] - 2026-11-26
 
 ### Fixed
