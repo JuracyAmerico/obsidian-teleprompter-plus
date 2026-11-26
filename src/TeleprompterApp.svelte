@@ -2082,6 +2082,7 @@
   }
 
   function togglePlay() {
+    if (forwardToFloating('teleprompter:toggle-play')) return
     if (isPlaying) {
       // Pause
       isPlaying = false
@@ -4120,6 +4121,10 @@
 
   function handleMinimapClick(e: MouseEvent) {
     if (!contentArea || !minimapElement) return
+    {
+      const box = minimapElement.getBoundingClientRect()
+      if (forwardToFloating('teleprompter:set-scroll-percentage', { percentage: ((e.clientY - box.top) / box.height) * 100 })) return
+    }
 
     // Cancel countdown and pause playback when manually navigating
     if (isCountingDown) {
@@ -4174,6 +4179,7 @@
 
     // Calculate scroll position based on click position
     const clickPercentage = clickX / barWidth
+    if (forwardToFloating('teleprompter:set-scroll-percentage', { percentage: clickPercentage * 100 })) return
     const maxScroll = contentArea.scrollHeight - contentArea.clientHeight
     const targetScroll = clickPercentage * maxScroll
 
@@ -4327,6 +4333,25 @@
     voiceTrackingService.seekToWord(wordAtViewportOffset(contentArea, words, readingOffset()))
   }
 
+  /**
+   * While a script floats, the main window is its remote: a key or button press there is sent to the
+   * floating view, which owns the script on the Prompter. Without this, Reset, page turns, section
+   * keys, number keys, the progress bar and the minimap moved only the main window (list item #4,
+   * ISC-151). Returns true when the action was sent.
+   */
+  function forwardToFloating(type: string, detail?: unknown): boolean {
+    if (isFloating || !plugin.floatingSession.active) return false
+    stopMirror()
+    plugin.floatingSession.forward(type, detail)
+    return true
+  }
+
+  /** Hotkey actions that move or drive the script, so the floating view runs them while it floats. */
+  const SCRIPT_HOTKEY_ACTIONS = new Set([
+    'togglePlay', 'speedUp', 'speedDown', 'scrollUp', 'scrollDown', 'pageDown', 'pageUp',
+    'resetToTop', 'nextSection', 'prevSection', 'cycleSpeedPreset', 'voiceResync',
+  ])
+
   function turnPage(direction: 1 | -1): void {
     if (!contentArea) return
     contentArea.scrollTop += direction * PAGE_TURN_SHARE * contentArea.clientHeight
@@ -4334,7 +4359,16 @@
   }
 
   function executeHotkeyAction(action: string): boolean {
+    if (SCRIPT_HOTKEY_ACTIONS.has(action) && forwardToFloating('teleprompter:hotkey-action', { action })) return true
     switch (action) {
+      case 'voiceResync':
+        if (!voiceTrackingActive) return false
+        voiceTrackingService?.forceResync()
+        lastRecognizedText = ''
+        bumpProgressEpoch()
+        new Notice('Voice tracking: re-syncing — keep reading', 2000)
+        debugLog('[Voice] Manual re-sync requested')
+        return true
       case 'togglePlay':
         togglePlay()
         return true
@@ -4419,13 +4453,10 @@
     }
 
     // Voice tracking re-sync: press R while tracking to re-locate your place if it drifts
-    if (voiceTrackingActive && (e.key === 'r' || e.key === 'R')) {
+    // While a script floats its voice runs in the floating view, so R is sent there.
+    if ((voiceTrackingActive || (!isFloating && plugin.floatingSession.active)) && (e.key === 'r' || e.key === 'R')) {
       e.preventDefault()
-      voiceTrackingService?.forceResync()
-      lastRecognizedText = ''
-      bumpProgressEpoch()
-      new Notice('Voice tracking: re-syncing — keep reading', 2000)
-      debugLog('[Voice] Manual re-sync requested')
+      executeHotkeyAction('voiceResync')
       return
     }
 
@@ -4434,12 +4465,14 @@
       const index = parseInt(e.key) - 1
       const headerList = headers()
       if (index < headerList.length) {
-        jumpToHeader(headerList[index].id)
+        // jumpFromNavigation also moves the floating script when one is open (ISC-151).
+        jumpFromNavigation(headerList[index].id)
       }
     }
   }
 
   function resetToTop() {
+    if (forwardToFloating('teleprompter:reset-to-top')) return
     if (contentArea) {
       contentArea.scrollTop = 0
       if (isPlaying) isPlaying = false
@@ -4481,10 +4514,13 @@
         // because it was keyed on a timestamp only togglePlay ever set.
         if (!isPlaying) isPlaying = true
         startSession()
+        // The other view shows the same Play/Pause state (ISC-151).
+        broadcastState({ isPlaying })
         break
       case 'teleprompter:pause':
         if (isPlaying) isPlaying = false
         pauseSession()
+        broadcastState({ isPlaying })
         break
       case 'teleprompter:increase-speed':
         speed = Math.min(speed + speedIncrement, settings.maxScrollSpeed || 10)
@@ -4532,6 +4568,9 @@
         break
       case 'teleprompter:reset-to-top':
         resetToTop()
+        break
+      case 'teleprompter:hotkey-action':
+        if (typeof customEvent.detail?.action === 'string') executeHotkeyAction(customEvent.detail.action)
         break
       case 'teleprompter:scroll':
         if (contentArea && customEvent.detail?.amount) {
@@ -5269,6 +5308,7 @@
       'teleprompter:speed-preset-5',
       'teleprompter:reset-to-top',
       'teleprompter:scroll',
+      'teleprompter:hotkey-action',
       'teleprompter:set-scroll-position',
       'teleprompter:set-scroll-percentage',
       'teleprompter:jump-to-header',
@@ -6044,6 +6084,7 @@
   }
 
   function jumpToNextSection() {
+    if (forwardToFloating('teleprompter:next-section')) return
     const headerList = headers()
     debugLog(`[Nav] Next: ${headerList.length} headers available`)
     if (headerList.length === 0) return
@@ -6061,6 +6102,7 @@
   }
 
   function jumpToPreviousSection() {
+    if (forwardToFloating('teleprompter:previous-section')) return
     const headerList = headers()
     debugLog(`[Nav] Prev: ${headerList.length} headers available`)
     if (headerList.length === 0) return
@@ -6079,7 +6121,10 @@
 
   // Auto-scroll effect - watching isPlaying (optimized with requestAnimationFrame)
   $effect(() => {
-    if (isPlaying && contentArea) {
+    // While a script floats, the main view shows the play state but never scrolls itself: it
+    // glides with the floating script, and its own scroll ran on after a pause (ISC-151).
+    const mirroring = !isFloating && floatingSessionActive
+    if (isPlaying && contentArea && !mirroring) {
       // Use requestAnimationFrame for smoother, more performant scrolling
       let animationFrameId: number
       const frameWindow = getActualWindow()

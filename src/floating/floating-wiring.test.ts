@@ -313,4 +313,21 @@ describe('read-aloud runs in the floating view while a script floats (ISC-144)',
 		expect(app).not.toContain('⏱')
 		expect(app).toMatch(/\.controls \{[^}]*z-index: 250;/)
 	})
+
+	test('ISC-151: while a script floats, the main window keys and buttons drive the floating script', () => {
+		const fwd = functionBody('forwardToFloating')
+		expect(fwd).toContain('if (isFloating || !plugin.floatingSession.active) return false')
+		expect(fwd).toContain('plugin.floatingSession.forward(type, detail)')
+		expect(functionBody('executeHotkeyAction')).toContain("if (SCRIPT_HOTKEY_ACTIONS.has(action) && forwardToFloating('teleprompter:hotkey-action', { action })) return true")
+		for (const [fn, type] of [['togglePlay', 'toggle-play'], ['resetToTop', 'reset-to-top'], ['jumpToNextSection', 'next-section'], ['jumpToPreviousSection', 'previous-section']]) {
+			expect(functionBody(fn)).toContain(`if (forwardToFloating('teleprompter:${type}')) return`)
+		}
+		expect(functionBody('handleProgressBarClick')).toContain("forwardToFloating('teleprompter:set-scroll-percentage'")
+		expect(functionBody('handleMinimapClick')).toContain("forwardToFloating('teleprompter:set-scroll-percentage'")
+		expect(functionBody('handleKeyPress')).toContain('jumpFromNavigation(headerList[index].id)')
+		expect(app).toContain("case 'teleprompter:hotkey-action':")
+		expect(app).toContain("'teleprompter:hotkey-action',")
+		expect(app).toContain('const mirroring = !isFloating && floatingSessionActive')
+		expect(app).toContain('if (isPlaying && contentArea && !mirroring) {')
+	})
 })
