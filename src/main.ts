@@ -615,9 +615,18 @@ export default class TeleprompterPlusPlugin extends Plugin {
 		}
 
 		try {
+			// Every install gets its own remote key: a server on the network accepted any device
+			// on the Wi-Fi, which could replace the script (Fable review 2026-11-26, ISC-158).
+			if (!this.settings.remoteKey) {
+				const bytes = new Uint8Array(16)
+				crypto.getRandomValues(bytes)
+				this.settings.remoteKey = Array.from(bytes, b => b.toString(16).padStart(2, '0')).join('')
+				await this.saveSettings()
+			}
 			this.wsServer = new TeleprompterWebSocketServer(this, {
 				port: this.settings.wsPort,
 				host: this.settings.wsHost,
+				remoteKey: this.settings.remoteKey,
 			})
 
 			await this.wsServer.start()

@@ -6230,6 +6230,9 @@
 
     const intervalId = setInterval(() => {
       if (!contentArea) return
+      // While a script floats only the floating view reports, as in broadcastStateToWebSocket: the
+      // main view mirrors isPlaying, so both pushed here and alternated 10 times a second (ISC-158).
+      if (!isFloating && plugin.floatingSession.active) return
 
       const scrollableHeight = contentArea.scrollHeight - contentArea.clientHeight
       const currentScrollPercentage = scrollableHeight > 0

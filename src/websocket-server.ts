@@ -32,6 +32,22 @@ interface IncomingMessage {
 	method?: string
 	url?: string
 	headers?: Record<string, string | string[] | undefined>
+	socket?: { remoteAddress?: string }
+}
+
+/** True when the connection comes from this computer (the Stream Deck, a local browser). */
+export function isLoopbackAddress(address: string | undefined): boolean {
+	if (!address) return false
+	return address === '127.0.0.1' || address === '::1' || address === '::ffff:127.0.0.1' || address.startsWith('127.')
+}
+
+/** The `key` query parameter of a request URL, or '' when absent. */
+export function remoteKeyFromUrl(url: string | undefined): string {
+	try {
+		return new URL(url || '/', 'http://local').searchParams.get('key') ?? ''
+	} catch {
+		return ''
+	}
 }
 
 interface ServerResponse {
@@ -243,6 +259,9 @@ export interface WebSocketServerConfig {
 	heartbeatInterval?: number
 	authToken?: string // Optional authentication token
 	rateLimitPerSecond?: number // Max messages per second per client
+	// Required from any client that is not on this computer (ISC-158). The Stream Deck connects
+	// over loopback and never needs it; a phone on the network gets it in its remote link.
+	remoteKey?: string
 }
 
 /**
@@ -289,6 +308,7 @@ export class TeleprompterWebSocketServer {
 			heartbeatInterval: config.heartbeatInterval || 30000, // 30 seconds
 			authToken: config.authToken || '', // Empty = no auth required
 			rateLimitPerSecond: config.rateLimitPerSecond || 50, // Max 50 messages/second
+			remoteKey: config.remoteKey || '',
 		}
 
 		// Note if binding to non-localhost (security consideration). Logged at debug level — LAN
@@ -397,7 +417,17 @@ export class TeleprompterWebSocketServer {
 			return
 		}
 
-		const url = req.url || '/'
+		const url = (req.url || '/').split('?')[0]
+
+		// Off this computer, everything but the health check needs the remote key (ISC-158): the
+		// page and /api/state carry the note's title and outline, and the page drives the prompter.
+		const fromThisComputer = isLoopbackAddress(req.socket?.remoteAddress)
+		if (!fromThisComputer && this.config.remoteKey && url !== '/health' && url !== '/api/health'
+			&& remoteKeyFromUrl(req.url) !== this.config.remoteKey) {
+			res.writeHead(401, { 'Content-Type': 'text/plain' })
+			res.end('Remote key required: open the link shown in Teleprompter Plus settings')
+			return
+		}
 
 		// Serve Remote Interface HTML
 		if (url === '/' || url === '/remote' || url === '/remote/') {
@@ -601,8 +631,11 @@ export class TeleprompterWebSocketServer {
 			return
 		}
 
-		// If auth is required, wait for auth message
-		if (this.config.authToken) {
+		// If auth is required, wait for auth message. A client off this computer must send the remote
+		// key when one is set (ISC-158); loopback clients (the Stream Deck) only need authToken.
+		const offMachine = !isLoopbackAddress(request?.socket?.remoteAddress)
+		const requiredToken = this.config.authToken || (offMachine ? this.config.remoteKey : '')
+		if (requiredToken) {
 			const authTimeout = setTimeout(() => {
 				ws.close(4001, 'Authentication timeout')
 			}, 5000)
@@ -611,7 +644,7 @@ export class TeleprompterWebSocketServer {
 				clearTimeout(authTimeout)
 				try {
 					const msg = JSON.parse(String(data)) as Record<string, unknown>
-					if (msg.type !== 'auth' || msg.token !== this.config.authToken) {
+					if (msg.type !== 'auth' || msg.token !== requiredToken) {
 						ws.close(4002, 'Invalid authentication')
 						return
 					}
@@ -920,7 +953,7 @@ export class TeleprompterWebSocketServer {
 			clientCount: this.clients.size,
 			port: this.config.port,
 			host: this.config.host,
-			remoteUrl: `http://${this.config.host}:${this.config.port}/`,
+			remoteUrl: this.getRemoteUrl(),
 		}
 	}
 
@@ -928,7 +961,10 @@ export class TeleprompterWebSocketServer {
 	 * Get the URL for the Remote Web Interface
 	 */
 	getRemoteUrl(): string {
-		return `http://${this.config.host}:${this.config.port}/`
+		// Bound to the network: give the address a phone can reach, with the key it must carry.
+		const lan = this.config.host === '0.0.0.0' ? this.getLocalNetworkUrl() : null
+		const base = lan ?? `http://${this.config.host}:${this.config.port}/`
+		return this.config.remoteKey ? `${base}?key=${encodeURIComponent(this.config.remoteKey)}` : base
 	}
 
 	/**
