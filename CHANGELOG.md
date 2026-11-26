@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.12.7] - 2026-11-26
+
+### Fixed
+- **The main window drives the Elgato.** While a script floats, the main window works as its remote: Play, Reset, page turns, next and previous section, number keys, R to re-sync voice, the progress bar and the minimap all move the floating script, and the main window follows. The main window no longer keeps scrolling by itself after a pause.
+- **Read-aloud speed reaches the Elgato.** A read-aloud speed or voice chosen in one window now changes the reading in the other window too, not just the number on screen.
+- **Countdown from the main window.** Play in the main window runs the countdown on the floating script, then scrolls it.
+
 ## [0.12.6] - 2026-11-26
 
 ### Changed
