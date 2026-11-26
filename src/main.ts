@@ -537,6 +537,22 @@ export default class TeleprompterPlusPlugin extends Plugin {
 		})
 
 		this.addCommand({
+			id: 'tts-repeat',
+			name: 'Repeat current sentence (text-to-speech)',
+			callback: () => {
+				window.dispatchEvent(new CustomEvent('teleprompter:tts-repeat'))
+			},
+		})
+
+		this.addCommand({
+			id: 'tts-loop-toggle',
+			name: 'Loop current sentence on or off (text-to-speech)',
+			callback: () => {
+				window.dispatchEvent(new CustomEvent('teleprompter:tts-loop-toggle'))
+			},
+		})
+
+		this.addCommand({
 			id: 'tts-speed-up',
 			name: 'Increase speech speed',
 			callback: () => {
