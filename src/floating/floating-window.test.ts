@@ -248,6 +248,22 @@ describe('FloatingSession', () => {
 		expect(session.active).toBe(false)
 	})
 
+	test('ISC-155: closeOnUnload still closes the window after its view detached, once; a deliberate close clears it', () => {
+		const session = new FloatingSession()
+		const controller = new FloatingWindowController(fakeWindow(), { isMac: true })
+		let closed = 0
+		session.attach(controller, () => { closed++ })
+		session.detach(controller)
+		session.closeOnUnload()
+		session.closeOnUnload()
+		expect(closed).toBe(1)
+		session.attach(controller, () => { closed++ })
+		session.close()
+		session.detach(controller)
+		session.closeOnUnload()
+		expect(closed).toBe(2)
+	})
+
 	test('ISC-148: notePath is the floating note only while a window floats, and follows a rename', () => {
 		const session = new FloatingSession()
 		const controller = new FloatingWindowController(fakeWindow(), { isMac: true })

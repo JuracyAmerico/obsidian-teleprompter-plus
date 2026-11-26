@@ -407,6 +407,7 @@ export class FloatingSession {
 	): void {
 		this.controller = controller
 		this.closeWindow = closeWindow
+		this.lastWindowClose = closeWindow
 		this.deliver = deliver ?? null
 		this.notify()
 	}
@@ -426,7 +427,27 @@ export class FloatingSession {
 	}
 
 	close(): void {
+		// Closed on purpose: nothing is left for closeOnUnload to close later.
+		this.lastWindowClose = null
 		this.closeWindow?.()
+	}
+
+	/**
+	 * The floating window's closer, kept after its view is torn down. On a plugin reload or update,
+	 * Obsidian destroys the view before the plugin's onunload runs, so close() has nothing left to
+	 * call and the window came back as an ordinary pop-out on the Prompter (dead window, ISC-155).
+	 */
+	private lastWindowClose: (() => void) | null = null
+
+	/** Closes the floating window on plugin unload, even when its view was already torn down. */
+	closeOnUnload(): void {
+		const close = this.closeWindow ?? this.lastWindowClose
+		this.lastWindowClose = null
+		try {
+			close?.()
+		} catch (error) {
+			console.warn("[Floating] Could not close the floating window on unload:", error)
+		}
 	}
 
 	/** Remote commands arrive at the main window. The script being read is in the floating one. */
