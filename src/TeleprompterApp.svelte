@@ -50,6 +50,7 @@
   import { markStageCues } from './parser/stage-cues'
   import { wakeHoldAction } from './wake-hold'
   import { PAGE_TURN_SHARE, hotkeyAction } from './pedal-keys'
+  import { AutoScroller, Countdown, clampSpeed, countWords, isAtScriptEnd, maxScrollOf, scrollFraction, shouldCountDown, speedLimits, stepSection, stepSpeed, wordsRemaining as wordsAhead } from './playback'
   import { Marked } from 'marked'
   import { VOICE_TRACKING_PRESETS, type VoiceTrackingPacePreset } from './settings'
   import type { VoiceTrackingService } from './voice'
@@ -901,8 +902,8 @@
     }
   }
 
-  let speed = $state(settings.defaultScrollSpeed || 2)
-  let speedIncrement = settings.speedIncrement || 0.5
+  // The validator allows a default up to 100, so it is held inside the same range as every other change.
+  let speed = $state(clampSpeed(settings.defaultScrollSpeed || 2, speedLimits(settings)))
 
   // Speed presets for quick selection
   const SPEED_PRESETS = [0.5, 1, 1.5, 2, 3, 5] as const
@@ -1423,6 +1424,23 @@
     broadcastClockState()
   }
 
+  /**
+   * The script scrolled to its end: freeze the clock on the final time. The next play from
+   * further up starts a fresh rehearsal (startSession treats 'finished' like 'idle').
+   */
+  function finishSession(): void {
+    pausedForEdit = false
+    if (sessionState === 'idle' || sessionState === 'finished') return
+    sampleProgress()
+    rehearsalClock.pause()
+    sessionState = 'finished'
+    elapsedSeconds = rehearsalClock.elapsedSeconds
+    wordsRemaining = calculateWordsRemaining()
+    estimatedRemainingMinutes = calculateTimeRemaining()
+    updatePaceState()
+    broadcastClockState()
+  }
+
   /** Back to zero — reset to top, or loading a different note. */
   function resetSession(): void {
     rehearsalClock.reset()
@@ -1868,31 +1886,10 @@
     return text
   }
 
-  // Calculate word count from text content
-  function calculateWordCount(text: string): number {
-    // Remove markdown syntax and count words
-    const cleanText = text
-      .replace(/```[\s\S]*?```/g, '') // Remove code blocks
-      .replace(/`[^`]+`/g, '') // Remove inline code
-      .replace(/!\[.*?\]\(.*?\)/g, '') // Remove images
-      .replace(/\[.*?\]\(.*?\)/g, '$1') // Keep link text only
-      .replace(/[#*_~`]/g, '') // Remove markdown symbols
-      .trim()
-
-    if (!cleanText) return 0
-
-    // Split by whitespace and filter empty strings
-    const words = cleanText.split(/\s+/).filter(word => word.length > 0)
-    return words.length
-  }
-
-  // Calculate words remaining based on scroll position
+  // Calculate words remaining based on scroll position (never NaN when nothing scrolls)
   function calculateWordsRemaining(): number {
     if (!contentArea || totalWordCount === 0) return totalWordCount
-
-    const scrollPercentage = contentArea.scrollTop / (contentArea.scrollHeight - contentArea.clientHeight)
-    const wordsRead = Math.floor(totalWordCount * scrollPercentage)
-    return Math.max(0, totalWordCount - wordsRead)
+    return wordsAhead(totalWordCount, scrollFraction(contentArea.scrollTop, maxScrollOf(contentArea)))
   }
 
   // Calculate estimated time remaining in minutes
@@ -1921,7 +1918,7 @@
 
   // Update word count when content changes
   function updateWordCount() {
-    totalWordCount = calculateWordCount(content)
+    totalWordCount = countWords(content)
     wordsRemaining = totalWordCount
     debugLog('[Time] Total word count:', totalWordCount)
   }
@@ -2082,13 +2079,85 @@
     return true
   }
 
+  // ===== Playback (decisions live in ./playback; this wires them to state and the clock) =====
+
+  /** One countdown per view, on this view's own window timers (a pop-out has its own realm). */
+  const countdown = new Countdown(() => getActualWindow())
+  const autoScroller = new AutoScroller()
+
+  /** Stop a running countdown so it never starts playback. Returns whether one was running. */
+  function cancelCountdown(reason: string): boolean {
+    const wasRunning = countdown.cancel()
+    isCountingDown = false
+    currentCountdown = 0
+    if (wasRunning) {
+      // It never got to play, so the next play from the top counts down again.
+      hasUsedCountdown = false
+      debugLog(`[Countdown] Cancelled: ${reason}`)
+    }
+    return wasRunning
+  }
+
+  /**
+   * Whatever pauses playback also cancels a countdown, which is playback about to start: a
+   * section jump, minimap or progress-bar click, reset, pause command or auto-pause.
+   */
+  function stopPlayback(reason: string): void {
+    cancelCountdown(reason)
+    if (isPlaying) {
+      isPlaying = false
+      pauseSession()
+      broadcastState({ isPlaying: false })
+      debugLog(`[Playback] Paused: ${reason}`)
+    }
+  }
+
+  /** Start scrolling now, unless the script is already at its end (the final time stays on screen). */
+  function beginPlayback(focus: boolean): boolean {
+    if (contentArea && isAtScriptEnd(contentArea)) {
+      new Notice('End of the script. Reset to top to play it again.', 3000)
+      debugLog('[Playback] Not started: already at the end of the script')
+      return false
+    }
+    isPlaying = true
+    startSession()
+    // Focus teleprompter so blur event fires when user clicks on editor (for auto-pause)
+    if (focus) focusTeleprompter()
+    return true
+  }
+
+  /** The scroll loop reached the bottom: stop scrolling and freeze the clock on the final time. */
+  function finishPlayback(): void {
+    isPlaying = false
+    finishSession()
+    broadcastState({ isPlaying: false })
+    debugLog('[Playback] Reached the end of the script')
+  }
+
+  /** Jump to a share of the script (minimap, progress bar, forwarded clicks): a seek pauses. */
+  function seekToFraction(fraction: number, source: string): void {
+    if (!contentArea) return
+    stopPlayback(`${source} seek`)
+    // Position moved discontinuously — the pace verdict must not be trusted for a few seconds.
+    bumpProgressEpoch()
+    contentArea.scrollTop = Math.min(1, Math.max(0, fraction)) * Math.max(0, maxScrollOf(contentArea))
+    debugLog(`[${source}] Jumped to ${(fraction * 100).toFixed(1)}% of document`)
+  }
+
+  /** Every speed change lands here: held inside the settings range and sent to the other window. */
+  function applySpeed(next: number): void {
+    speed = clampSpeed(next, speedLimits(settings))
+    broadcastState({ speed })
+  }
+
   function togglePlay() {
     if (forwardToFloating('teleprompter:toggle-play')) return
-    if (isPlaying) {
+    if (isCountingDown) {
+      // Space or the button during the countdown cancels it, as the button says ("Cancel countdown").
+      cancelCountdown('play pressed during the countdown')
+    } else if (isPlaying) {
       // Pause
       isPlaying = false
-      isCountingDown = false
-      currentCountdown = 0
       startTimestamp = null // Pause timer
       pauseSession()
       debugLog('[Play] Paused')
@@ -2110,15 +2179,9 @@
         debugLog('[Time] Resuming timer from', elapsedSeconds, 'seconds')
       }
 
-      // Only show countdown if:
-      // 1. Countdown is enabled (countdownSeconds > 0)
-      // 2. Not already counting down
-      // 3. At the very start of document
-      // 4. Haven't used countdown yet in this session
-      if (countdownSeconds > 0 && !isCountingDown && isAtStart && !hasUsedCountdown) {
-        // Start countdown - this will only happen ONCE per document
+      // Count down only when enabled, at the very start, and not used since the last reset.
+      if (shouldCountDown({ countdownSeconds, atStart: isAtStart, alreadyUsed: hasUsedCountdown })) {
         debugLog('[Countdown] Starting countdown - first time at document start')
-        hasUsedCountdown = true // Mark as used
         startCountdown()
       } else {
         // Resume playing immediately (no countdown)
@@ -2131,44 +2194,36 @@
         } else {
           debugLog('[Play] Starting playback immediately')
         }
-        isPlaying = true
-        startSession()
-        // Focus teleprompter so blur event fires when user clicks on editor (for auto-pause)
-        focusTeleprompter()
+        beginPlayback(true)
       }
     }
     // Broadcast play state change to other windows
     broadcastState({ isPlaying })
   }
 
+  /** Count down, then play. A second start replaces the running countdown; it never runs twice. */
   function startCountdown() {
-    // Set initial countdown value FIRST, before showing overlay
-    currentCountdown = countdownSeconds
+    if (contentArea && isAtScriptEnd(contentArea)) {
+      beginPlayback(true) // says why nothing starts, and keeps the final time
+      return
+    }
+    hasUsedCountdown = true
     isCountingDown = true
-
-    debugLog(`[Countdown] Starting countdown from ${currentCountdown}`)
-
-    const countdownInterval = setInterval(() => {
-      if (currentCountdown <= 1) {
-        // This is the last tick - clear and start playing
-        clearInterval(countdownInterval)
+    debugLog(`[Countdown] Starting countdown from ${countdownSeconds}`)
+    countdown.start(countdownSeconds, {
+      onTick: (remaining) => {
+        currentCountdown = remaining
+        debugLog(`[Countdown] ${remaining}...`)
+      },
+      onDone: () => {
+        isCountingDown = false
         currentCountdown = 0
         debugLog('[Countdown] Finished - starting playback')
-
-        // Small delay to show "0" briefly before transitioning
-        setTimeout(() => {
-          isCountingDown = false
-          isPlaying = true
-          // Start the rehearsal clock HERE, not in togglePlay: the countdown is not speaking time.
-          startSession()
-          // Focus teleprompter so blur event fires when user clicks on editor (for auto-pause)
-          focusTeleprompter()
-        }, 500)
-      } else {
-        currentCountdown--
-        debugLog(`[Countdown] ${currentCountdown}...`)
-      }
-    }, 1000)
+        // The rehearsal clock starts HERE, not when the countdown starts: the countdown is not speaking time.
+        beginPlayback(true)
+        broadcastState({ isPlaying })
+      },
+    })
   }
 
   function increaseCountdown() {
@@ -2185,54 +2240,49 @@
     }
   }
 
+  // Speed up and down: one rule for the toolbar, the hotkeys and the remote (settings step and range).
   function increaseSpeed() {
-    speed = Math.min(speed + speedIncrement, settings.maxScrollSpeed || 10)
-    broadcastState({ speed })
+    applySpeed(stepSpeed(speed, 1, speedLimits(settings)))
   }
 
   function decreaseSpeed() {
-    speed = Math.max(speed - speedIncrement, settings.minScrollSpeed || 0.5)
-    broadcastState({ speed })
+    applySpeed(stepSpeed(speed, -1, speedLimits(settings)))
   }
 
   // Speed preset functions
   function cycleSpeedPreset() {
     currentPresetIndex = (currentPresetIndex + 1) % SPEED_PRESETS.length
-    speed = SPEED_PRESETS[currentPresetIndex]
+    applySpeed(SPEED_PRESETS[currentPresetIndex])
     debugLog(`[Speed] Preset: ${speed}x`)
-    broadcastState({ speed })
   }
 
   function setSpeedPreset(presetSpeed: number) {
     const index = SPEED_PRESETS.indexOf(presetSpeed as typeof SPEED_PRESETS[number])
     if (index !== -1) {
       currentPresetIndex = index
-      speed = SPEED_PRESETS[index]
+      applySpeed(SPEED_PRESETS[index])
       debugLog(`[Speed] Set preset: ${speed}x`)
     } else {
       // If not a preset, just set the speed directly
-      speed = Math.max(settings.minScrollSpeed || 0.5, Math.min(presetSpeed, settings.maxScrollSpeed || 10))
+      applySpeed(presetSpeed)
       currentPresetIndex = -1 // Not a preset
       debugLog(`[Speed] Custom speed: ${speed}x`)
     }
-    broadcastState({ speed })
   }
 
   function nextSpeedPreset() {
     if (currentPresetIndex < SPEED_PRESETS.length - 1) {
       currentPresetIndex++
-      speed = SPEED_PRESETS[currentPresetIndex]
+      applySpeed(SPEED_PRESETS[currentPresetIndex])
       debugLog(`[Speed] Next preset: ${speed}x`)
-      broadcastState({ speed })
     }
   }
 
   function prevSpeedPreset() {
     if (currentPresetIndex > 0) {
       currentPresetIndex--
-      speed = SPEED_PRESETS[currentPresetIndex]
+      applySpeed(SPEED_PRESETS[currentPresetIndex])
       debugLog(`[Speed] Previous preset: ${speed}x`)
-      broadcastState({ speed })
     }
   }
 
@@ -4140,36 +4190,12 @@
 
   function handleMinimapClick(e: MouseEvent) {
     if (!contentArea || !minimapElement) return
-    {
-      const box = minimapElement.getBoundingClientRect()
-      if (forwardToFloating('teleprompter:set-scroll-percentage', { percentage: ((e.clientY - box.top) / box.height) * 100 })) return
-    }
-
-    // Cancel countdown and pause playback when manually navigating
-    if (isCountingDown) {
-      isCountingDown = false
-      currentCountdown = 0
-      debugLog('[Minimap] Cancelled countdown due to manual navigation')
-    }
-    if (isPlaying) {
-      isPlaying = false
-      pauseSession()
-      debugLog('[Minimap] Paused playback due to manual navigation')
-    }
-    // Position moved discontinuously — the pace verdict must not be trusted for a few seconds.
-    bumpProgressEpoch()
-
-    const rect = minimapElement.getBoundingClientRect()
-    const clickY = e.clientY - rect.top
-    const minimapHeight = rect.height
-
-    // Calculate scroll position based on click position in minimap
-    const scrollPercentage = clickY / minimapHeight
-    const maxScroll = contentArea.scrollHeight - contentArea.clientHeight
-    const targetScroll = scrollPercentage * maxScroll
-
-    contentArea.scrollTop = targetScroll
-    debugLog(`[Minimap] Jumped to ${(scrollPercentage * 100).toFixed(1)}% of document`)
+    const box = minimapElement.getBoundingClientRect()
+    if (!box.height) return
+    const fraction = (e.clientY - box.top) / box.height
+    // `seek: true` makes the floating script pause and cancel its countdown, as a click here does.
+    if (forwardToFloating('teleprompter:set-scroll-percentage', { percentage: fraction * 100, seek: true })) return
+    seekToFraction(fraction, 'Minimap')
   }
 
   // Progress indicator style functions
@@ -4193,30 +4219,10 @@
     if (!contentArea) return
     const target = e.currentTarget as HTMLElement
     const rect = target.getBoundingClientRect()
-    const clickX = e.clientX - rect.left
-    const barWidth = rect.width
-
-    // Calculate scroll position based on click position
-    const clickPercentage = clickX / barWidth
-    if (forwardToFloating('teleprompter:set-scroll-percentage', { percentage: clickPercentage * 100 })) return
-    const maxScroll = contentArea.scrollHeight - contentArea.clientHeight
-    const targetScroll = clickPercentage * maxScroll
-
-    // Cancel countdown and pause playback when manually navigating
-    if (isCountingDown) {
-      isCountingDown = false
-      currentCountdown = 0
-      debugLog('[ProgressBar] Cancelled countdown due to manual navigation')
-    }
-    if (isPlaying) {
-      isPlaying = false
-      pauseSession()
-      debugLog('[ProgressBar] Paused playback due to manual navigation')
-    }
-    bumpProgressEpoch()
-
-    contentArea.scrollTop = targetScroll
-    debugLog(`[ProgressBar] Jumped to ${(clickPercentage * 100).toFixed(1)}% of document`)
+    if (!rect.width) return
+    const fraction = (e.clientX - rect.left) / rect.width
+    if (forwardToFloating('teleprompter:set-scroll-percentage', { percentage: fraction * 100, seek: true })) return
+    seekToFraction(fraction, 'ProgressBar')
   }
 
   function startResize(e: MouseEvent) {
@@ -4296,6 +4302,10 @@
       // back with the next words heard or the next sentence read (list item #6, ISC-149).
       pausedForEdit = sessionState === 'running' && (voiceTrackingActive || ttsPlaybackState === 'playing')
       pauseSession()
+    }
+    if (autoPauseOnEdit) {
+      // A countdown left running would start scrolling and take focus back from the editor.
+      cancelCountdown('clicked outside to edit')
     }
     if (autoPauseOnEdit && isPlaying) {
       isPlaying = false
@@ -4392,10 +4402,10 @@
         togglePlay()
         return true
       case 'speedUp':
-        if (speed < 50) speed++
+        increaseSpeed()
         return true
       case 'speedDown':
-        if (speed > 1) speed--
+        decreaseSpeed()
         return true
       case 'scrollUp':
         if (contentArea) contentArea.scrollTop -= 100
@@ -4493,8 +4503,9 @@
   function resetToTop() {
     if (forwardToFloating('teleprompter:reset-to-top')) return
     if (contentArea) {
+      // A countdown running now would start playback at the top a moment later.
+      stopPlayback('reset to top')
       contentArea.scrollTop = 0
-      if (isPlaying) isPlaying = false
       currentHeaderIndex = 0 // Reset header navigation index
 
       // Reset countdown flag when explicitly resetting to top
@@ -4531,28 +4542,30 @@
       case 'teleprompter:play':
         // Remote starts (Stream Deck, phone, command palette) never started the clock before,
         // because it was keyed on a timestamp only togglePlay ever set.
-        if (!isPlaying) isPlaying = true
-        startSession()
+        // Play means now: a running countdown is skipped, not left to start playback again later.
+        cancelCountdown('play command')
+        if (!isPlaying) beginPlayback(false)
         // The other view shows the same Play/Pause state (ISC-151).
         broadcastState({ isPlaying })
         break
       case 'teleprompter:pause':
-        if (isPlaying) isPlaying = false
+        stopPlayback('pause command')
+        // Voice and read-aloud keep isPlaying false, so the clock is paused here either way.
         pauseSession()
         broadcastState({ isPlaying })
         break
       case 'teleprompter:increase-speed':
-        speed = Math.min(speed + speedIncrement, settings.maxScrollSpeed || 10)
+        increaseSpeed()
         break
       case 'teleprompter:decrease-speed':
-        speed = Math.max(speed - speedIncrement, settings.minScrollSpeed || 0.5)
+        decreaseSpeed()
         break
-      case 'teleprompter:set-speed':
-        if (customEvent.detail?.speed) {
-          // Same range as the speed slider here: the remote's 0.5x used to become 1x (ISC-159).
-          speed = Math.max(settings.minScrollSpeed || 0.5, Math.min(settings.maxScrollSpeed || 10, customEvent.detail.speed))
-        }
+      case 'teleprompter:set-speed': {
+        // Same range as the speed slider here: the remote's 0.5x used to become 1x (ISC-159).
+        const requested = Number(customEvent.detail?.speed)
+        if (requested > 0) applySpeed(requested)
         break
+      }
       // Speed preset commands
       case 'teleprompter:cycle-speed-preset':
         cycleSpeedPreset()
@@ -4611,6 +4624,11 @@
         }
         break
       case 'teleprompter:set-scroll-percentage':
+        // A minimap or progress-bar click forwarded from the main window is a seek: pause and cancel the countdown
+        if (contentArea && customEvent.detail?.seek === true && typeof customEvent.detail.percentage === 'number') {
+          seekToFraction(customEvent.detail.percentage / 100, 'Forwarded')
+          break
+        }
         // Network Broadcast: Set scroll by percentage (for follower devices)
         if (contentArea && customEvent.detail?.percentage !== undefined) {
           const scrollableHeight = contentArea.scrollHeight - contentArea.clientHeight
@@ -4730,6 +4748,8 @@
         }
         break
       case 'teleprompter:start-countdown':
+        // Count down from a stop: scrolling pauses first, and a running countdown restarts (never two).
+        stopPlayback('start-countdown command')
         startCountdown()
         debugLog(`[Countdown] Started with ${countdownSeconds}s`)
         break
@@ -5090,7 +5110,7 @@
       scrollPosition: contentArea?.scrollTop || 0,
       maxScroll: contentArea?.scrollHeight || 0,
       scrollPercentage: contentArea
-        ? ((contentArea.scrollTop / (contentArea.scrollHeight - contentArea.clientHeight)) * 100)
+        ? scrollFraction(contentArea.scrollTop, maxScrollOf(contentArea)) * 100
         : 0,
       currentNote: activeFile?.path || null,
       currentNoteTitle: activeFile?.basename || null,
@@ -5197,8 +5217,7 @@
     if (settings.autoStartPlaying) {
       // Delay slightly to ensure content is loaded
       setTimeout(() => {
-        isPlaying = true
-        startSession()
+        beginPlayback(false)
       }, 500)
     }
 
@@ -5567,6 +5586,9 @@
         actualWin.removeEventListener(eventType, handleWebSocketEvent as EventListener)
       })
 
+      // A countdown outliving the view would set state on a dead component.
+      countdown.cancel()
+
       // Cleanup keep awake
       stopKeepAwake()
 
@@ -5904,18 +5926,8 @@
       // Set flag to prevent scroll handler from overriding index
       isProgrammaticJump = true
 
-      // Cancel countdown and pause playback when manually jumping to section
-      if (isCountingDown) {
-        isCountingDown = false
-        currentCountdown = 0
-        debugLog('[Navigation] Cancelled countdown due to manual jump')
-      }
-      if (isPlaying) {
-        isPlaying = false
-        pauseSession()
-        broadcastState({ isPlaying: false })
-        debugLog('[Navigation] Paused playback due to manual jump')
-      }
+      // A section jump pauses playback and cancels a countdown, which would otherwise start it again.
+      stopPlayback('section jump')
       // A section jump re-anchors the matcher, including backwards — the verdict goes quiet
       // until speech settles rather than flipping to "behind" mid-sentence.
       bumpProgressEpoch()
@@ -6138,15 +6150,13 @@
     if (forwardToFloating('teleprompter:next-section')) return
     const headerList = headers()
     debugLog(`[Nav] Next: ${headerList.length} headers available`)
-    if (headerList.length === 0) return
-
-    // Move to next header
-    currentHeaderIndex++
-
-    // Wrap around if at end
-    if (currentHeaderIndex >= headerList.length) {
-      currentHeaderIndex = 0
+    // Stops at the last section: wrapping sent a double pedal press at the end to the top, paused and reset the clock.
+    const next = stepSection(currentHeaderIndex, headerList.length, 1)
+    if (next === null) {
+      debugLog('[Nav] Already at the last section')
+      return
     }
+    currentHeaderIndex = next
 
     debugLog(`[Nav] Jumping to ${currentHeaderIndex}: ${headerList[currentHeaderIndex].text.substring(0,30)}`)
     jumpToHeader(headerList[currentHeaderIndex].id)
@@ -6156,15 +6166,13 @@
     if (forwardToFloating('teleprompter:previous-section')) return
     const headerList = headers()
     debugLog(`[Nav] Prev: ${headerList.length} headers available`)
-    if (headerList.length === 0) return
-
-    // Move to previous header
-    currentHeaderIndex--
-
-    // Wrap around if at beginning
-    if (currentHeaderIndex < 0) {
-      currentHeaderIndex = headerList.length - 1
+    // Stops at the first section instead of wrapping to the last.
+    const previous = stepSection(currentHeaderIndex, headerList.length, -1)
+    if (previous === null) {
+      debugLog('[Nav] Already at the first section')
+      return
     }
+    currentHeaderIndex = previous
 
     debugLog(`[Nav] Jumping to ${currentHeaderIndex}: ${headerList[currentHeaderIndex].text.substring(0,30)}`)
     jumpToHeader(headerList[currentHeaderIndex].id)
@@ -6176,39 +6184,25 @@
     // glides with the floating script, and its own scroll ran on after a pause (ISC-151).
     const mirroring = !isFloating && floatingSessionActive
     if (isPlaying && contentArea && !mirroring) {
-      // Use requestAnimationFrame for smoother, more performant scrolling
-      let animationFrameId: number
+      // Every frame advances by elapsed time from a float position (./playback AutoScroller): no
+      // 16.67 ms gate that skipped 60 Hz frames, and no whole-pixel steps at slow speeds.
+      const area = contentArea
       const frameWindow = getActualWindow()
-      let lastTimestamp = 0
-      let accumulatedScroll = 0 // Accumulate fractional pixels
+      let animationFrameId = 0
+      autoScroller.start()
 
       const scroll = (timestamp: number) => {
-        if (!lastTimestamp) lastTimestamp = timestamp
-        const delta = timestamp - lastTimestamp
+        const frame = autoScroller.step(timestamp, area, speed)
 
-        // Target 60fps, adjust scroll amount based on actual time elapsed
-        if (delta >= 16.67) { // ~60fps
-          if (contentArea) {
-            // Accumulate scroll amount (fractional pixels)
-            accumulatedScroll += (speed / 2) * (delta / 50)
+        // Update scroll position and percentage in real-time during auto-scroll
+        scrollPosition = area.scrollTop
+        scrollPercentage = Math.round(scrollFraction(area.scrollTop, maxScrollOf(area)) * 100)
 
-            // Only apply scroll when we have at least 1 pixel
-            if (accumulatedScroll >= 1) {
-              const pixelsToScroll = Math.floor(accumulatedScroll)
-              contentArea.scrollTop += pixelsToScroll
-              accumulatedScroll -= pixelsToScroll // Keep the remainder
-            }
-
-            // Update scroll position and percentage in real-time during auto-scroll
-            scrollPosition = contentArea.scrollTop
-            const scrollableHeight = contentArea.scrollHeight - contentArea.clientHeight
-            scrollPercentage = scrollableHeight > 0
-              ? Math.round((contentArea.scrollTop / scrollableHeight) * 100)
-              : 0
-          }
-          lastTimestamp = timestamp
+        if (frame.finished) {
+          // The end of the script: scrolling stops and the clock freezes on the final time.
+          finishPlayback()
+          return
         }
-
         if (isPlaying) {
           animationFrameId = frameWindow.requestAnimationFrame(scroll)
         }
@@ -6681,9 +6675,9 @@
                   type="range"
                   bind:value={speed}
                   oninput={() => broadcastState({ speed })}
-                  min={settings.minScrollSpeed || 0.5}
-                  max={settings.maxScrollSpeed || 10}
-                  step={speedIncrement}
+                  min={speedLimits(settings).min}
+                  max={speedLimits(settings).max}
+                  step={speedLimits(settings).step}
                 />
               </label>
             </div>
