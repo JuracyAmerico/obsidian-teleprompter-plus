@@ -4,7 +4,7 @@ slug: teleprompter-plus
 project: Teleprompter Plus
 effort: E3
 phase: climbing
-progress: 157/160
+progress: 160/163
 mode: algorithm
 started: 2026-10-29
 updated: 2026-11-26
@@ -239,6 +239,9 @@ Found in Américo's own test run, 2026-11-05 (steps 2, 3, 7, 8):
 - [x] ISC-163: read-aloud failures are visible and race-free: an ElevenLabs error pauses on that sentence, shows a Notice in the main window and a banner on the Elgato; a superseded fetch never plays (no two voices, no skipped sentence); Pause during a fetch holds; the read-aloud speed is saved and applies to the clip already playing; while a script floats the main window never drives or broadcasts its own speech (ownsTTS); repeat and loop of the current sentence (commands, panel buttons, forwarded while floating). 37 tests, each fix shown to fail its test when reverted.
 - [x] ISC-164: voice tracking finds the reader by the last words heard: the heard tail is aligned word by word with the script window ending at each candidate (the old prefix lost readers 5+ words ahead); re-sync and R land on the last word heard; a held partial is matched when the throttle ends; Apple hint words are ranked by rarity. Simulated reader (accent every 7th word): every preset trails 1.0 word on average, 5 at worst, never ahead (HEAD: Balanced 9.6 / 37, Rehearsal 22.9 / 71). 31 tests, 18 failing on HEAD. Live voice check owed.
 - [x] ISC-165: every command the Stream Deck sends is registered (six were not: speed presets, alignment, progress indicator, auto-pause), guarded by stream-deck-commands.test.ts. The Stream Deck plugin itself (outside this repo, local git fa08131) now shows real state (Play/Pause, mic status), replays the last state to keys that appear, alerts on a dropped press or unknown command, and has a Clock key coloured by pace.
+- [x] ISC-166: a rehearsal has takes. Reading a section whole while playing is a take of that section; the top to the end is a take of the script. A heading may carry a target, `## Why us {1:30}` (also `{90s}`, `{2m}`), never shown, spoken or counted. At a section end (by default only sections with a target) playback pauses, the clock freezes and a card reads `Why us · 1:42 · target 1:30 · +0:12`, in both windows and on the phone. Whole takes go to takes.json; "Show recent takes" lists the last 20 for the note with the best per section (closest to target). Speed shows as words per minute and "Fit to target" sets the speed so the rest of the section ends on its target. 108 tests, including an end-to-end take that ends within 1 s of its 90 s target. Live check owed. Not yet: voice-tracked and read-aloud runs produce no take.
+- [x] ISC-167: sections keep their identity by the heading's source line across windows, remotes and read-aloud, so repeated titles (STAR "Situation"/"Action") never resolve to the first; the current section is measured at the eyeline and jumps put the heading on the eyeline, with a hold so a jump to a short last section stays highlighted. Callouts render as full markdown with folded titles kept, and "Hide callouts on the prompter" keeps a reference callout (the Markup legend) out of the screen, read-aloud and word count. 49 tests. Merged with ISC-166: take start tolerates a heading a few pixels below the eyeline.
+- [x] ISC-168: ElevenLabs audio persists in IndexedDB across engine instances and reloads (key: speechCacheKey; 200 MB cap, least recently used evicted; any failure is a miss), with "Clear read-aloud audio cache". 18 tests with an in-memory IndexedDB; a real-Obsidian check (read, reload, read again, no new charge) is owed.
 
 ## Anti-criteria
 
@@ -403,6 +406,9 @@ Found in Américo's own test run, 2026-11-05 (steps 2, 3, 7, 8):
 | ISC-143 | bun-test | openFile and loadActiveNote both read through readScript, no .md-only filter; live .qmd in the floating view | pass: 2 wiring tests; live 2706 chars in both views, Elgato capture shows the letter | bun test src/floating; obsidian eval + window capture, 2026-11-25 |
 | ISC-144 | bun-test | main-view read-aloud entry points forward to the floating view; floating resolves a section by title; live Elgato scrolls under read-aloud | pass: 2 wiring tests; live Elgato 66 → 274 px, counters in step | bun test src/floating; obsidian eval sampling + window capture, 2026-11-25 |
 | ISC-145 | bun-test | floatingPlacement uses the Prompter's own see-through, clamped, never the main-screen value; live opacity follows the slider on the Prompter | pass: 1 placement test (3 cases); live opacity 1 → 0.7 | bun test src/floating; obsidian eval getOpacity + window capture, 2026-11-25 |
+| ISC-166 | bun-test | takes, section targets, take log, WPM, fit | pass: section-targets, takes, take-log, reading-rate, take-wiring tests (108) | bun test, 2026-11-26 |
+| ISC-167 | bun-test | section identity by line, eyeline, callouts | pass: sections.test.ts, parser/callout.test.ts, heading-source-map (49) | bun test, 2026-11-26 |
+| ISC-168 | bun-test | ElevenLabs persistent cache | pass: speech-audio-store.test.ts (18) | bun test src/tts, 2026-11-26 |
 | ISC-161 | bun-test | CI, lint, skipped-version notes, release script, docs, countdown cancel | pass: release-notes.test.ts, scripts/release.test.ts, stream-deck-commands.test.ts | bun test, bun run lint, 2026-11-26 |
 | ISC-162 | bun-test | playback module behaviour | pass: src/playback.test.ts (33) | bun test src/playback.test.ts, 2026-11-26 |
 | ISC-163 | bun-test | read-aloud errors, races, rate, ownership, repeat/loop | pass: src/tts/*.test.ts (37) | bun test src/tts, 2026-11-26 |
@@ -547,6 +553,8 @@ Lane: inline
 acceptance: pass 2026-10-30 (all four runtime checks; mic-blocked Notice + Retry seen on the Vosk path, /tmp/clipboard_image_1793396070.png, /tmp/clipboard_image_1793395959.png; Américo: "It work now". Apple-path denial could not be forced on this Mac, see Decisions) — earlier notes: — Américo at the Mac, rebuilt helper (Oct 30 build) + new main.js: granted start → "Listening…" and tracking followed his reading to the end of the GeoSentinel 2-min script ("the track is almost perfect now"); ~3 min silence held position and kept listening (screenshots /tmp/clipboard_image_1793394059.png, /tmp/clipboard_image_1793394287.png). Preset switch mid-read (Voice Pace Presets menu → Rehearsal) kept listening and position ("working great", /tmp/clipboard_image_1793394390.png). Still owed: mic-denied Notice (ISC-17). Deny test 2026-10-30: the Apple helper kept listening with Obsidian's mic switch OFF (it holds its own TCC grant, not listed in Settings; `tccutil reset Microphone com.teleprompterplus.stt` refused, -10814), so a denial could not be forced on the Apple path. With the helper hidden, the plugin fell back to Vosk; with Obsidian's mic OFF, Vosk sat on "Initializing…" with no message (/tmp/clipboard_image_1793394981.png). Cause not yet known (model load vs a getUserMedia that never settles). The Vosk start path has no start timeout: new gap.
 
 ## Changelog
+
+- 2026-11-26: ISC-166 to ISC-168 added and ticked: Wave 2 of the 360° plan (takes and targets, section identity and callouts, ElevenLabs cache), merged on integrate; 735 tests pass. Not released.
 
 - 2026-11-26: ISC-161 to ISC-165 added and ticked from the 360° review (revisao-360-2026-11-26 in the vault): Wave 0 safety net and Wave 1 fixes for playback, read-aloud, voice tracking and Stream Deck commands. Built by five agents in separate worktrees, merged on branch integrate; 558 tests pass. Not released.
 
