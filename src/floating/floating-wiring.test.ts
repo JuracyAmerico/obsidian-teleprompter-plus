@@ -330,4 +330,11 @@ describe('read-aloud runs in the floating view while a script floats (ISC-144)',
 		expect(app).toContain('const mirroring = !isFloating && floatingSessionActive')
 		expect(app).toContain('if (isPlaying && contentArea && !mirroring) {')
 	})
+
+	test('ISC-152: read-aloud rate and voice from one window reach the speech in the other window', () => {
+		expect(app).toContain('ttsService?.setRate(data.ttsRate)')
+		expect(app).toContain('ttsService?.setVoice(data.ttsVoice)')
+		expect(functionBody('setTTSVoice')).toContain('broadcastState({ ttsVoice: voiceId })')
+		expect(functionBody('onTTSRateChange')).toContain('broadcastState({ ttsRate })')
+	})
 })
