@@ -28,3 +28,25 @@ describe('ISC-158: remote key for clients off this computer', () => {
 		expect(app).toMatch(/const intervalId = setInterval\(\(\) => \{\s*if \(!contentArea\) return[\s\S]{0,300}if \(!isFloating && plugin\.floatingSession\.active\) return/)
 	})
 })
+
+describe('ISC-159: the phone remote speed slider and section highlight', () => {
+	const page = readFileSync(join(import.meta.dir, 'remote-interface.ts'), 'utf8')
+	const app = readFileSync(join(import.meta.dir, 'TeleprompterApp.svelte'), 'utf8')
+	test('incoming state leaves the thumb alone while dragging; fine steps; live updates', () => {
+		expect(page).toContain('if (!speedDragging) {')
+		expect(page).toContain('min="0.5" max="10" step="0.1"')
+		expect(page).toContain('if (now - lastSpeedSent > 120) {')
+	})
+	test('set-speed uses the slider range, not 1 to 50', () => {
+		expect(app).not.toContain('Math.max(1, Math.min(50, customEvent.detail.speed))')
+		expect(app).toContain('Math.max(settings.minScrollSpeed || 0.5, Math.min(settings.maxScrollSpeed || 10, customEvent.detail.speed))')
+	})
+	test('the list scrolls the current section into view, after the open animation', () => {
+		expect(page).toContain('function scrollToCurrentSection() {')
+		expect(page).toContain('setTimeout(scrollToCurrentSection, 350);')
+	})
+	test('the current section is sent and pushes on change', () => {
+		expect(app).toContain('currentHeaderIndex: headers().findIndex(h => h.text === currentVisibleHeader),')
+		expect(app).toContain('section: currentVisibleHeader,')
+	})
+})

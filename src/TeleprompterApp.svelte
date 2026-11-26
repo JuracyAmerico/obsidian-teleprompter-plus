@@ -4549,7 +4549,8 @@
         break
       case 'teleprompter:set-speed':
         if (customEvent.detail?.speed) {
-          speed = Math.max(1, Math.min(50, customEvent.detail.speed))
+          // Same range as the speed slider here: the remote's 0.5x used to become 1x (ISC-159).
+          speed = Math.max(settings.minScrollSpeed || 0.5, Math.min(settings.maxScrollSpeed || 10, customEvent.detail.speed))
         }
         break
       // Speed preset commands
@@ -5093,6 +5094,8 @@
         : 0,
       currentNote: activeFile?.path || null,
       currentNoteTitle: activeFile?.basename || null,
+      // The phone highlights the section being read (ISC-159).
+      currentHeaderIndex: headers().findIndex(h => h.text === currentVisibleHeader),
       headers: headers().map(h => ({
         id: h.id,
         text: h.text,
@@ -5128,6 +5131,8 @@
       scrollPos: contentArea?.scrollTop,
       showNav: showNavigation,
       headerCount: headers().length,
+      // A new section pushes state, so the phone highlight follows (ISC-159).
+      section: currentVisibleHeader,
       fontSize,
       // Reading elapsedSeconds registers it as a dependency, so a running rehearsal pushes
       // state once a second. Deliberate: without it the remote clock would sit stale until

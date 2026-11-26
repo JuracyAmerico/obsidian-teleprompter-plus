@@ -198,6 +198,8 @@ export interface TeleprompterState {
 	scrollPercentage: number
 	currentNote: string | null
 	currentNoteTitle: string | null
+	/** Index in headers of the section being read; -1 when none (ISC-159). */
+	currentHeaderIndex?: number
 	headers: Array<{
 		id: string
 		text: string
