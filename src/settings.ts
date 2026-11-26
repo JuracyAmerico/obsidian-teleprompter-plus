@@ -206,6 +206,7 @@ export interface TeleprompterSettings {
 	elevenLabsModelId: string          // ElevenLabs model (flash/turbo/multilingual)
 	elevenLabsStability: number        // 0 = more expressive, 1 = steadier
 	elevenLabsSimilarity: number       // How closely to hold to the original voice
+	elevenLabsAudioCacheMb: number     // Size cap of the saved read-aloud audio (oldest-used dropped first)
 	// Floating window: how opaque it is, and where it was last
 	floatingSeeThrough: number         // 30-100 percent
 	floatingPrompterSeeThrough: number // 30-100 percent on the Prompter; 100 = solid
@@ -394,6 +395,7 @@ export const DEFAULT_SETTINGS: TeleprompterSettings = {
 	elevenLabsModelId: 'eleven_flash_v2_5',
 	elevenLabsStability: 0.5,
 	elevenLabsSimilarity: 0.75,
+	elevenLabsAudioCacheMb: 200,
 	// Progress indicator style
 	progressIndicatorStyle: 'progress-bar' as const,
 	phoneToolbarHidden: [] as string[],
@@ -1984,6 +1986,17 @@ export class TeleprompterSettingTab extends PluginSettingTab {
 						value: this.plugin.settings.elevenLabsSimilarity,
 						onChange: (value) => {
 							this.plugin.settings.elevenLabsSimilarity = value as number
+							void this.plugin.saveSettings()
+						}
+					},
+					{
+						name: 'Saved audio size (MB)',
+						desc: 'Read-aloud audio is kept on this device so a script you rehearse again costs no credits and starts at once. When the saved audio passes this size the least recently used goes first. The command "Clear read-aloud audio cache" empties it.',
+						type: 'slider',
+						min: 50, max: 1000, step: 50,
+						value: this.plugin.settings.elevenLabsAudioCacheMb,
+						onChange: (value) => {
+							this.plugin.settings.elevenLabsAudioCacheMb = value as number
 							void this.plugin.saveSettings()
 						}
 					}
