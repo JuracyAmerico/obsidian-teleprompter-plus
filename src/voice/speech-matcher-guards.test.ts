@@ -2,7 +2,7 @@ import { describe, expect, test } from 'bun:test'
 import { tokenizeWords } from './word-tokenizer'
 import { findGlobalPosition, type SpeechMatcherConfig } from './speech-matcher'
 
-const CONFIG: SpeechMatcherConfig = { windowSize: 6, maxJumpDistance: 3, confidenceThreshold: 0.2 }
+const CONFIG: SpeechMatcherConfig = { windowSize: 6, confidenceThreshold: 0.2 }
 
 // Distinct filler so the only repeated text in a script is the twin we place on purpose.
 function filler(label: string, words: number): string {
