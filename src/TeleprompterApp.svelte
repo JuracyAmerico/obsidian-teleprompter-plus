@@ -50,7 +50,7 @@
   import { markStageCues } from './parser/stage-cues'
   import { wakeHoldAction } from './wake-hold'
   import { PAGE_TURN_SHARE, hotkeyAction } from './pedal-keys'
-  import { marked } from 'marked'
+  import { Marked } from 'marked'
   import { VOICE_TRACKING_PRESETS, type VoiceTrackingPacePreset } from './settings'
   import type { VoiceTrackingService } from './voice'
   import { applyPresetLive } from './voice/preset-apply'
@@ -87,8 +87,12 @@
   hljs.registerLanguage('json', json)
   hljs.registerLanguage('markdown', markdown)
 
-  // Create custom renderer to add IDs to headers
-  const renderer = new marked.Renderer()
+  // Each view (main and floating) gets its own Marked instance, renderer and heading counter. With the
+  // shared global `marked`, the last view to mount owned the renderer: the other view numbered its headings
+  // from that view's counter and filled that view's line map, so its note-pane sync found no source line.
+  // Closing the floating window left the main view on a dead view's renderer (2026-11-26, list item #2).
+  const md = new Marked()
+  const renderer = new md.Renderer()
   let headerCounter = 0 // Counter for generating header IDs
 
   // Heading ordinal -> 0-based line in `content`. -1 means unresolvable.
@@ -175,7 +179,7 @@
       let content = calloutMatch[3]?.trim() || ''
 
       // Convert remaining content newlines and parse inline markdown (bold, italic, links, etc.)
-      content = content.split('\n').map(line => `<p>${marked.parseInline(line)}</p>`).join('\n')
+      content = content.split('\n').map(line => `<p>${md.parseInline(line)}</p>`).join('\n')
 
       // Get config for this callout type, default to 'note' style
       const config = calloutConfig[calloutType] || { icon: 'pin', defaultTitle: calloutType.charAt(0).toUpperCase() + calloutType.slice(1) }
@@ -210,8 +214,8 @@
     return `<blockquote>${text}</blockquote>\n`
   }
 
-  // Configure marked with custom renderer
-  marked.setOptions({
+  // Configure this view's own Marked instance with its renderer
+  md.setOptions({
     renderer: renderer,
     breaks: true, // Convert \n to <br>
     gfm: true // Enable GitHub Flavored Markdown
@@ -564,7 +568,7 @@
             .replace(/```\{=[a-z]+\}\r?\n[\s\S]*?\r?\n```/g, '')
 
           // Render markdown
-          const renderedContent = marked.parse(cleanContent) as string
+          const renderedContent = md.parse(cleanContent) as string
 
           const contentDiv = embed.querySelector('.embedded-note-content')
           if (contentDiv) {
@@ -1566,7 +1570,7 @@
         // sanitizeHTMLToDom strips handlers/scripts while keeping the safe tags + data-*/class/id
         // attributes the pipeline (images, embeds, callouts) and navigation (data-header-id) rely on
         // — the embedded-note path already depends on that same preservation. Mirrors that path.
-        const parsed = marked.parse(processedContent) as string
+        const parsed = md.parse(processedContent) as string
         const sanitizerHost = document.createElement('div')
         sanitizerHost.appendChild(sanitizeHTMLToDom(parsed))
         renderedHTML = sanitizerHost.innerHTML
