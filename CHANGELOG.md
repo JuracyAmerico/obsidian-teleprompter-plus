@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.12.9] - 2026-11-26
+
+### Changed
+- **Keyboard shortcuts live on the bar.** A keyboard button next to the clock shows whether Space, the arrows and R reach the prompter: greyed with an amber dot when they do not, and one click turns them on. The pulsing hint and the badge that sat over the script are gone.
+- **More room for the section list.** The prompter's own status bar, which sat hidden under Obsidian's, is gone; the note name and play state are already on the tab and the Play button.
+
 ## [0.12.8] - 2026-11-26
 
 ### Fixed
