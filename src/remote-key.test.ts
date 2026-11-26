@@ -52,8 +52,9 @@ describe('ISC-159: the phone remote speed slider and section highlight', () => {
 		expect(page).toContain('setTimeout(scrollToCurrentSection, 350);')
 	})
 	test('the current section is sent and pushes on change', () => {
-		expect(app).toContain('currentHeaderIndex: headers().findIndex(h => h.text === currentVisibleHeader),')
-		expect(app).toContain('section: currentVisibleHeader,')
+		// An index, not a title lookup: a repeated title highlighted the first one (sections.ts).
+		expect(app).toContain('currentHeaderIndex: currentVisibleIndex < headers().length ? currentVisibleIndex : -1,')
+		expect(app).toContain('section: currentVisibleIndex,')
 	})
 })
 

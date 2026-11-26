@@ -151,3 +151,32 @@ describe('ordinal -> file line (the integer handed to the editor)', () => {
 		expect(sourceLineForHeader([-1], 0, linesRemoved)).toBe(-1)
 	})
 })
+
+describe('headings inside quotes and callouts', () => {
+	test('a heading in a callout maps to its own line, and a later heading with the same title to its own', () => {
+		// Before: "> ## Situation" never matched, so the search ran on and claimed the real
+		// "## Situation" below for the callout's heading, and the real one came back -1.
+		const content = '# Q1\n\n> [!note] Prep\n> ## Situation\n> notes\n\n## Situation\n\ntext\n'
+		const map = buildMap(content)
+		expect(map).toEqual([0, 3, 6])
+	})
+
+	test('nested quotes', () => {
+		expect(buildMap('> > ## Deep\n\n## Deep\n')).toEqual([0, 2])
+	})
+
+	test('a quoted code fence hides its lines; the quote ending closes it', () => {
+		const content = '> ```\n> # not a heading\n\n# Real\n'
+		expect(buildMap(content)).toEqual([3])
+		// Unclosed inside the quote: marked closes the fence where the quote ends, and so do we.
+		expect(buildMap('> ```\n> # code\n\n# After\n')).toEqual([3])
+	})
+
+	test('repeated STAR titles each keep their own line', () => {
+		const content = [
+			'## Conflict', '### Situation', 'a', '### Action', 'b',
+			'## Failure', '### Situation', 'c', '### Action', 'd',
+		].join('\n')
+		expect(buildMap(content)).toEqual([0, 1, 3, 5, 6, 8])
+	})
+})

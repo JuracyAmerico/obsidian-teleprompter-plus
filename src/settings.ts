@@ -126,6 +126,7 @@ export interface TeleprompterSettings {
 	keepAwakeAutoMigrated: boolean // The setting did nothing before 0.12.0, so a saved "off" was never a choice
 	notePositions: NotePositions // Where each note was left
 	stageCueDisplay: 'hide' | 'dim' | 'show' // How cues such as [pause] show on screen
+	hideCallouts: boolean // Leave callouts (legends, reference notes) out of the read script
 	pedalArrowKeys: boolean // Arrow keys turn pages, for pedals in arrow mode
 	defaultCountdown: number
 	showEyeline: boolean
@@ -297,6 +298,7 @@ export const DEFAULT_SETTINGS: TeleprompterSettings = {
 	keepAwakeAutoMigrated: false,
 	notePositions: {},
 	stageCueDisplay: 'hide',
+	hideCallouts: false,
 	pedalArrowKeys: false,
 	defaultCountdown: 5,
 	showEyeline: true,
@@ -1639,6 +1641,17 @@ export class TeleprompterSettingTab extends PluginSettingTab {
 							this.plugin.settings.stageCueDisplay = value as 'hide' | 'dim' | 'show'
 							void this.plugin.saveSettings()
 							document.dispatchEvent(new CustomEvent('teleprompter:stage-cues-changed', { detail: { display: value } }))
+						}
+					},
+					{
+						name: 'Hide callouts on the prompter',
+						desc: 'Callouts such as > [!info] stay in the note but are left out of the script: not shown, read aloud or tracked by voice.',
+						type: 'toggle',
+						value: this.plugin.settings.hideCallouts,
+						onChange: (value) => {
+							this.plugin.settings.hideCallouts = value === true
+							void this.plugin.saveSettings()
+							document.dispatchEvent(new CustomEvent('teleprompter:callouts-changed', { detail: { hide: value === true } }))
 						}
 					}
 				]

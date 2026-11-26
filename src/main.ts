@@ -1480,6 +1480,7 @@ Use this address to connect from external devices.`
 		s.notePositions = validPositions(s.notePositions)
 		s.customHotkeys = withMissingDefaultHotkeys(s.customHotkeys, d.customHotkeys)
 		if (!['hide', 'dim', 'show'].includes(s.stageCueDisplay)) s.stageCueDisplay = d.stageCueDisplay
+		s.hideCallouts = s.hideCallouts === true
 
 		// Validate numeric ranges
 		s.wsPort = this.clamp(s.wsPort, 1024, 65535)
