@@ -9,12 +9,15 @@ import {
 	locateSection,
 	loggableTakes,
 	planFit,
+	READING_STEP_VIEW_SHARE,
+	readingFrame,
 	scoreTake,
 	scriptEndCard,
 	sectionIndexAt,
 	shouldStopAtSectionEnd,
 	speedForPlan,
 	takeCard,
+	voiceReachedScriptEnd,
 	type TakeFrame,
 	type TakeSection,
 } from './takes'
@@ -255,6 +258,167 @@ describe('TakeTracker: a take of the whole script', () => {
 		expect(tracker.finish(at(900, 75, []), 60)).toEqual({
 			section: null,
 			script: { kind: 'script', title: SCRIPT_TAKE_TITLE, durationSeconds: 75, targetSeconds: 60, complete: true },
+		})
+	})
+})
+
+/**
+ * Voice tracking and read-aloud report a place, not a frame: the top of the word just heard, or of
+ * the sentence being read. In these tests the page follows that place the way each one scrolls:
+ * voice keeps the word 160 px below the top of the 800 px view, read-aloud puts the sentence on the
+ * eyeline (400 px). Headings are 80 px tall, so the first line of a section is 80 px under it.
+ */
+const VIEW_HEIGHT = 800
+const VOICE_ANCHOR = 160
+
+/** Voice committed a word at content y `place`, the clock reading `seconds`. */
+function heard(place: number, seconds: number, viewTop = Math.max(0, place - VOICE_ANCHOR)): TakeFrame {
+	return readingFrame({ sections, readingLine: place, viewTop, viewHeight: VIEW_HEIGHT, elapsedMs: seconds * 1000 })
+}
+
+/** Read-aloud started the sentence whose block starts at content y `place`. */
+function spoken(place: number, seconds: number): TakeFrame {
+	return readingFrame({ sections, readingLine: place, viewTop: Math.max(0, place - EYELINE), viewHeight: VIEW_HEIGHT, elapsedMs: seconds * 1000 })
+}
+
+describe('a reported place is a frame with a reading step', () => {
+	test('the reading line is the place; the view top is the page the reader sees', () => {
+		expect(heard(1260, 12, 1020)).toEqual({ sections, readingLine: 1260, viewTop: 1020, elapsedMs: 12_000, liveCrossingPx: 400 })
+	})
+
+	test('a heading half a view past the place still counts as read into; never less than a scroll frame allows', () => {
+		expect(READING_STEP_VIEW_SHARE).toBe(0.5)
+		expect(readingFrame({ sections, readingLine: 0, viewTop: 0, viewHeight: 50, elapsedMs: 0 }).liveCrossingPx).toBe(40)
+	})
+
+	test('voice has reached the end of the script on its last word or the one before', () => {
+		expect(voiceReachedScriptEnd(97, 100)).toBe(false)
+		expect(voiceReachedScriptEnd(98, 100)).toBe(true)
+		expect(voiceReachedScriptEnd(99, 100)).toBe(true)
+		expect(voiceReachedScriptEnd(0, 0)).toBe(false)
+	})
+})
+
+describe('TakeTracker.follow: voice tracking moves the place a few words at a time', () => {
+	test('read from the top: each section is a whole take, though no heading is spoken, and the script is one too', () => {
+		const tracker = new TakeTracker()
+		// The first words heard are on Intro's first line, with the page still at the top.
+		expect(tracker.follow(heard(180, 2, 0), 'targeted')).toBeNull()
+		expect(tracker.isActive).toBe(true)
+		// Irregular steps: a line, the same line again, two lines in one catch-up, a pause in speech.
+		for (const [place, seconds] of [[240, 5], [240, 6], [380, 11], [700, 25], [1020, 38]]) {
+			expect(tracker.follow(heard(place, seconds), 'targeted')).toBeNull()
+		}
+		// He never says "Why us": the next place is its first line, 80 px under the heading and a
+		// line further, 130 px past the heading. A scroll frame that far past would be a jump.
+		const intro = tracker.follow(heard(1230, 41), 'targeted')
+		expect(intro).toEqual({ result: { kind: 'section', title: 'Intro', durationSeconds: 39, targetSeconds: null, complete: true }, stop: false })
+		for (const [place, seconds] of [[1300, 45], [1480, 60], [1800, 90], [2040, 128]]) {
+			expect(tracker.follow(heard(place, seconds), 'targeted')).toBeNull()
+		}
+		const whyUs = tracker.follow(heard(2180, 133), 'targeted')
+		expect(whyUs).toEqual({ result: { kind: 'section', title: 'Why us', durationSeconds: 92, targetSeconds: 90, complete: true }, stop: true })
+		tracker.follow(heard(2400, 170), 'targeted')
+		const end = tracker.finish(heard(2600, 191), 200)
+		expect(end.section).toEqual({ kind: 'section', title: 'Closing', durationSeconds: 58, targetSeconds: 60, complete: true })
+		expect(end.script).toEqual({ kind: 'script', title: SCRIPT_TAKE_TITLE, durationSeconds: 189, targetSeconds: 200, complete: true })
+		expect(loggableTakes([intro?.result ?? null, whyUs?.result ?? null, end.section, end.script])).toHaveLength(4)
+	})
+
+	test('after a section jump the first words heard open a whole take of that section', () => {
+		const tracker = new TakeTracker()
+		// The jump left the heading on the eyeline; he starts two lines in.
+		tracker.follow(heard(1240, 0, 700), 'targeted')
+		expect(tracker.currentSection).toBe(1)
+		expect(tracker.follow(heard(2200, 88), 'targeted')?.result).toMatchObject({ title: 'Why us', durationSeconds: 88, complete: true })
+	})
+
+	test('starting to speak in the middle of a section, its heading off the screen, is a partial take', () => {
+		const tracker = new TakeTracker()
+		tracker.follow(heard(1600, 0, 1440), 'targeted')
+		expect(tracker.follow(heard(2200, 50), 'targeted')?.result).toMatchObject({ title: 'Why us', complete: false })
+	})
+
+	test('a re-sync jump back inside the section ends nothing; the time spent going back is in the take', () => {
+		const tracker = new TakeTracker()
+		tracker.follow(heard(1240, 0, 700), 'targeted')
+		tracker.follow(heard(1700, 40), 'targeted')
+		expect(tracker.follow(heard(1450, 42), 'targeted')).toBeNull()
+		expect(tracker.follow(heard(1700, 55), 'targeted')).toBeNull()
+		expect(tracker.follow(heard(2190, 100), 'targeted')?.result).toMatchObject({ title: 'Why us', durationSeconds: 100, complete: true })
+	})
+
+	test('back over the heading just crossed and forward again is not a second take', () => {
+		const tracker = new TakeTracker()
+		tracker.follow(heard(1240, 0, 700), 'targeted')
+		expect(tracker.follow(heard(2180, 91), 'targeted')?.result?.title).toBe('Why us')
+		// The matcher had run a line ahead; the re-sync puts him back on Why us's last line.
+		expect(tracker.follow(heard(2040, 92), 'targeted')).toBeNull()
+		expect(tracker.follow(heard(2180, 94), 'targeted')).toBeNull()
+		expect(tracker.currentSection).toBe(2)
+		// Closing was timed from the first crossing.
+		expect(tracker.finish(heard(2600, 150), null).section).toMatchObject({ title: 'Closing', durationSeconds: 59, complete: true })
+	})
+
+	test('a forward jump of more than half the view (a hand scroll, then reading there) lands in a partial take', () => {
+		const tracker = new TakeTracker()
+		tracker.follow(heard(1240, 0, 700), 'targeted')
+		tracker.follow(heard(1500, 30), 'targeted')
+		expect(tracker.follow(heard(2550, 35), 'targeted')?.result?.title).toBe('Why us') // 450 px into Closing
+		expect(tracker.finish(heard(2600, 60), null).section).toMatchObject({ title: 'Closing', complete: false })
+	})
+
+	test('the clock stopped on the card: the wait before his next words is not in the next take', async () => {
+		const { SpeechClock } = await import('./timing/speech-timer')
+		let now = 0
+		const clock = new SpeechClock(() => now)
+		const place = (top: number): TakeFrame => readingFrame({ sections, readingLine: top, viewTop: Math.max(0, top - VOICE_ANCHOR), viewHeight: VIEW_HEIGHT, elapsedMs: clock.elapsedMs })
+		const tracker = new TakeTracker()
+		clock.start()
+		tracker.follow(readingFrame({ sections, readingLine: 1240, viewTop: 700, viewHeight: VIEW_HEIGHT, elapsedMs: clock.elapsedMs }), 'targeted')
+		now = 90_000
+		expect(tracker.follow(place(2180), 'targeted')?.stop).toBe(true)
+		clock.pause() // the section end stops the clock on the card; the microphone stays on
+		now = 110_000 // twenty seconds reading the card
+		clock.resume() // his next words move the place again
+		now = 112_000
+		tracker.follow(place(2240), 'targeted')
+		now = 150_000
+		expect(tracker.finish(place(2600), null).section).toMatchObject({ title: 'Closing', durationSeconds: 40 })
+	})
+})
+
+describe('TakeTracker.follow: read-aloud moves the place a sentence at a time', () => {
+	test('the heading is read as a sentence: the section ends on it, and the next take is whole', () => {
+		const tracker = new TakeTracker()
+		tracker.follow(spoken(100, 0), 'targeted') // sentence 0, the Intro heading, page at the top
+		// Long sentences move the place hundreds of pixels; a block of two sentences reports the same place twice.
+		for (const [place, seconds] of [[180, 2], [180, 6], [520, 14], [900, 30]]) {
+			expect(tracker.follow(spoken(place, seconds), 'targeted')).toBeNull()
+		}
+		expect(tracker.follow(spoken(1100, 40), 'targeted')?.result).toMatchObject({ title: 'Intro', durationSeconds: 40, complete: true })
+		for (const [place, seconds] of [[1180, 42], [1500, 60], [1880, 84]]) {
+			expect(tracker.follow(spoken(place, seconds), 'targeted')).toBeNull()
+		}
+		const whyUs = tracker.follow(spoken(2100, 95), 'targeted')
+		expect(whyUs).toEqual({ result: { kind: 'section', title: 'Why us', durationSeconds: 55, targetSeconds: 90, complete: true }, stop: true })
+		// Paused before the Closing heading is spoken; Play reads it, and the same place is no new end.
+		expect(tracker.follow(spoken(2100, 95), 'targeted')).toBeNull()
+		tracker.follow(spoken(2180, 97), 'targeted')
+		const end = tracker.finish(spoken(2400, 150), 180)
+		expect(end.section).toMatchObject({ title: 'Closing', durationSeconds: 55, complete: true })
+		expect(end.script).toMatchObject({ durationSeconds: 150, targetSeconds: 180, complete: true })
+	})
+
+	test('a sentence read again (repeat, loop, previous sentence) ends nothing', () => {
+		const tracker = new TakeTracker()
+		tracker.follow(spoken(1100, 0), 'always')
+		tracker.follow(spoken(1500, 20), 'always')
+		expect(tracker.follow(spoken(1180, 25), 'always')).toBeNull()
+		expect(tracker.follow(spoken(1500, 30), 'always')).toBeNull()
+		expect(tracker.follow(spoken(2100, 70), 'always')).toEqual({
+			result: { kind: 'section', title: 'Why us', durationSeconds: 70, targetSeconds: 90, complete: true },
+			stop: true,
 		})
 	})
 })
