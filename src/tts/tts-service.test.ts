@@ -263,3 +263,44 @@ describe('repeat and loop the current sentence (W1 #6)', () => {
 		expect(service.getState().loop).toBe(false)
 	})
 })
+
+describe('a pause announced at a sentence start (a take\'s section end)', () => {
+	test('a sentence-start listener pauses before the sentence is spoken; Play speaks it from its start', async () => {
+		const engine = new FakeEngine()
+		const { service } = await serviceWith(engine)
+		const starts: number[] = []
+		service.onSentenceStartEvent(({ index }) => {
+			starts.push(index)
+			// The take tracker sees the third sentence's block reach a heading and stops there, once.
+			if (index === 2 && starts.filter(i => i === 2).length === 1) service.pauseBeforeSentence()
+		})
+		void service.play()
+		await settle()
+		engine.finish() // Alpha
+		await settle()
+		engine.finish() // Bravo
+		await settle()
+
+		expect(service.getState().playbackState).toBe('paused')
+		expect(service.getState().currentSentenceIndex).toBe(2)
+		expect(engine.spoken).toEqual(['Alpha speaks.', 'Bravo speaks.'])
+
+		void service.play()
+		await settle()
+		expect(engine.spoken).toEqual(['Alpha speaks.', 'Bravo speaks.', 'Charlie speaks.'])
+		expect(engine.calls).not.toContain('resume')
+		expect(service.getState().playbackState).toBe('playing')
+	})
+
+	test('it does nothing unless the reading is playing', async () => {
+		const engine = new FakeEngine()
+		const { service } = await serviceWith(engine)
+		service.pauseBeforeSentence()
+		expect(service.getState().playbackState).toBe('idle')
+		void service.play()
+		await settle()
+		service.pause()
+		service.pauseBeforeSentence()
+		expect(engine.calls.filter(c => c === 'stop')).toEqual([])
+	})
+})
