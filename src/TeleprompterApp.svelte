@@ -2865,6 +2865,8 @@
       plugin.floatingSession.forward('teleprompter:voice-toggle')
       return
     }
+    // Voice drives the scroll: a countdown left running would start autoscroll on top of it (ISC-161).
+    cancelCountdown('voice tracking toggled')
     if (!settings.voiceTrackingEnabled) {
       debugLog('[Voice] Voice tracking is disabled in settings')
       // A tap that does nothing reads as broken, above all on a phone
@@ -3334,6 +3336,8 @@
 
   async function toggleTTS(): Promise<void> {
     if (sendTTSToFloating('teleprompter:tts-toggle')) return
+    // Read-aloud drives the scroll itself: a countdown left running would start autoscroll later (ISC-161).
+    cancelCountdown('read-aloud started')
     clearTTSError()
     phoneLog(`toggleTTS state=${ttsPlaybackState} initialized=${ttsInitialized} engine=${settings.ttsEngine}`)
     // Starting from idle also picks up a voice, model or engine changed in settings
