@@ -2,6 +2,8 @@ import { describe, expect, test } from 'bun:test'
 import { readFileSync } from 'fs'
 import { join } from 'path'
 import { isLoopbackAddress, remoteKeyFromUrl } from './websocket-server'
+import { parseCommand } from './commands'
+import { commandHandlerSource } from './test-support/command-handler-source'
 
 describe('ISC-158: remote key for clients off this computer', () => {
 	test('loopback addresses are this computer; network addresses are not', () => {
@@ -40,8 +42,9 @@ describe('ISC-159: the phone remote speed slider and section highlight', () => {
 	test('set-speed uses the slider range, not 1 to 50', () => {
 		// The range itself (0.5x kept, 50 capped at 10) is a behaviour test in playback.test.ts.
 		expect(app).not.toContain('Math.max(1, Math.min(50, customEvent.detail.speed))')
-		const setSpeed = app.slice(app.indexOf("case 'teleprompter:set-speed':"), app.indexOf("case 'teleprompter:cycle-speed-preset':"))
-		expect(setSpeed).toContain('applySpeed(requested)')
+		// The remote's 0.5x reaches the view as 0.5x, and the view applies it through applySpeed.
+		expect(parseCommand('teleprompter:set-speed', { speed: 0.5 })).toEqual({ kind: 'setSpeed', speed: 0.5 })
+		expect(commandHandlerSource(app, 'set-speed', { speed: 0.5 })).toContain('applySpeed(requested)')
 		const apply = app.slice(app.indexOf('function applySpeed('), app.indexOf('function togglePlay('))
 		expect(apply).toContain('speed = clampSpeed(next, speedLimits(settings))')
 		expect(app).toContain('min={speedLimits(settings).min}')

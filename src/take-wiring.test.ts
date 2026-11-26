@@ -2,6 +2,8 @@ import { describe, expect, mock, test } from 'bun:test'
 import { readFileSync } from 'fs'
 import { join } from 'path'
 import { obsidianStub } from './test-support/obsidian-stub'
+import { commandHandlerSource } from './test-support/command-handler-source'
+import { LISTENED_COMMAND_EVENTS, parseCommand } from './commands'
 
 void mock.module('obsidian', () => obsidianStub)
 
@@ -113,8 +115,9 @@ describe('fit to target and words per minute', () => {
 
 	test('the command reaches the view as an event the view listens for', () => {
 		expect(read('main.ts')).toContain("window.dispatchEvent(new CustomEvent('teleprompter:fit-speed-to-target'))")
-		expect(app).toContain("'teleprompter:fit-speed-to-target',")
-		expect(app).toContain("case 'teleprompter:fit-speed-to-target':")
+		expect(LISTENED_COMMAND_EVENTS).toContain('teleprompter:fit-speed-to-target')
+		expect(parseCommand('teleprompter:fit-speed-to-target', undefined)).toEqual({ kind: 'fitSpeedToTarget' })
+		expect(commandHandlerSource(app, 'fit-speed-to-target')).toContain('fitSpeedToTarget()')
 	})
 })
 

@@ -1,6 +1,7 @@
 import { describe, expect, test } from 'bun:test'
 import { readFileSync } from 'fs'
 import { join } from 'path'
+import { commandHandlerSource } from './test-support/command-handler-source'
 
 /**
  * Source-text guards that TeleprompterApp.svelte (which bun cannot mount) routes playback through
@@ -17,12 +18,8 @@ function functionBody(name: string): string {
 	return end === -1 ? rest : rest.slice(0, end)
 }
 
-function eventCase(type: string): string {
-	const start = app.indexOf(`case 'teleprompter:${type}':`)
-	expect(start).toBeGreaterThan(-1)
-	const rest = app.slice(start + 1)
-	return rest.slice(0, rest.search(/\n {6}case '/))
-}
+/** The code a command event runs: its intent comes from commands.ts, its handler from the component. */
+const eventCase = (type: string, detail?: unknown): string => commandHandlerSource(app, type, detail)
 
 describe('B1: one cancellable countdown', () => {
 	test('the countdown is the playback Countdown on this view\'s window, not a local interval', () => {
@@ -45,7 +42,7 @@ describe('B1: one cancellable countdown', () => {
 		expect(functionBody('handleProgressBarClick')).toContain("seekToFraction(fraction, 'ProgressBar')")
 		expect(functionBody('resetToTop')).toContain("stopPlayback('reset to top')")
 		expect(eventCase('pause')).toContain("stopPlayback('pause command')")
-		expect(eventCase('set-scroll-percentage')).toContain("seekToFraction(customEvent.detail.percentage / 100, 'Forwarded')")
+		expect(eventCase('set-scroll-percentage', { percentage: 30, seek: true })).toContain("seekToFraction(fraction, 'Forwarded')")
 		expect(app).not.toContain('Cancelled countdown due to manual')
 	})
 
@@ -76,8 +73,8 @@ describe('B2: one speed rule', () => {
 		const hotkeys = functionBody('executeHotkeyAction')
 		expect(hotkeys).toContain("case 'speedUp':\n        increaseSpeed()")
 		expect(hotkeys).toContain("case 'speedDown':\n        decreaseSpeed()")
-		expect(eventCase('increase-speed')).toContain('increaseSpeed()')
-		expect(eventCase('decrease-speed')).toContain('decreaseSpeed()')
+		expect(eventCase('increase-speed')).toContain('if (direction > 0) increaseSpeed()\n      else decreaseSpeed()')
+		expect(eventCase('decrease-speed')).toBe(eventCase('increase-speed'))
 	})
 
 	test('every speed change is sent to the other window', () => {
