@@ -13,6 +13,7 @@ import { WhatsNewModal } from './whats-new-modal'
 import { describeRemoteServerStartFailure } from './remote-server-errors'
 import { canRunDesktopMachinery, showsMobileInterface } from './platform/device'
 import { installPhoneLog } from './platform/phone-log'
+import { megabytesToBytes, sharedSpeechAudioStore } from './tts/speech-audio-store'
 import './styles.css'
 
 // Extended state type for broadcast updates that include additional properties
@@ -201,6 +202,15 @@ export default class TeleprompterPlusPlugin extends Plugin {
 			name: 'Open teleprompter',
 			callback: () => {
 				void this.activateView()
+			},
+		})
+
+		// Saved read-aloud audio lives on this device; this empties it.
+		this.addCommand({
+			id: 'clear-read-aloud-audio-cache',
+			name: 'Clear read-aloud audio cache',
+			callback: () => {
+				void this.clearReadAloudAudioCache()
 			},
 		})
 
@@ -1440,6 +1450,7 @@ Use this address to connect from external devices.`
 
 		// Validate and sanitize loaded settings
 		this.validateSettings()
+		this.applyAudioCacheCap()
 
 		// Migrate: add TTS toolbar control if not present in any layout section
 		this.migrateToolbarControls()
@@ -1483,6 +1494,7 @@ Use this address to connect from external devices.`
 
 		// Validate numeric ranges
 		s.wsPort = this.clamp(s.wsPort, 1024, 65535)
+		s.elevenLabsAudioCacheMb = this.clamp(s.elevenLabsAudioCacheMb, 50, 1000)
 		s.fontSize = this.clamp(s.fontSize, 8, 200)
 		s.minFontSize = this.clamp(s.minFontSize, 8, 100)
 		s.maxFontSize = this.clamp(s.maxFontSize, 20, 200)
@@ -1545,7 +1557,27 @@ Use this address to connect from external devices.`
 	 * Save settings to disk
 	 */
 	async saveSettings(): Promise<void> {
+		this.applyAudioCacheCap()
 		await this.saveData(this.settings)
+	}
+
+	/** The saved read-aloud audio stays within the size the reader chose. */
+	private applyAudioCacheCap(): void {
+		sharedSpeechAudioStore()?.setMaxBytes(megabytesToBytes(this.settings.elevenLabsAudioCacheMb))
+	}
+
+	private async clearReadAloudAudioCache(): Promise<void> {
+		const store = sharedSpeechAudioStore()
+		if (!store) {
+			new Notice('Read-aloud audio cache: nothing is saved on this device.')
+			return
+		}
+		const { bytes, entries } = await store.usage()
+		await store.clear()
+		const megabytes = (bytes / (1024 * 1024)).toFixed(1)
+		new Notice(entries > 0
+			? `Read-aloud audio cache cleared: ${entries} clips, ${megabytes} MB.`
+			: 'Read-aloud audio cache was already empty.')
 	}
 
 	/**

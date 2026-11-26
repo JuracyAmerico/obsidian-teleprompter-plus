@@ -8,9 +8,11 @@
  * a key is configured. Offline engines (Kokoro / macOS Say / Web Speech) remain the defaults.
  *
  * Audio is fetched as MP3 via Obsidian's requestUrl (CORS-safe) and played through an
- * HTMLAudioElement. Per-sentence audio is cached (keyed by text+voice+model) so re-reads and
- * hintNext pregeneration never re-bill the same sentence, and a request already in flight is
- * shared rather than sent twice.
+ * HTMLAudioElement. Per-sentence audio is cached in two layers so re-reads and hintNext
+ * pregeneration never re-bill the same sentence: a Map in this engine (first), and a persistent
+ * IndexedDB store shared across engine instances and reloads (second, see speech-audio-store.ts).
+ * A request already in flight is shared rather than sent twice. A missing, damaged or unreadable
+ * persistent entry is a miss: the sentence is fetched as if it had never been cached.
  *
  * Every speak() takes a turn. stop() or a newer speak() ends that turn: a fetch that returns
  * afterwards is dropped unplayed, its failure is not reported, and its clip can never fire the
@@ -26,6 +28,8 @@ import type { RequestUrlParam } from 'obsidian'
 import type { TTSEngine, TTSVoice, SpeakOptions } from './tts-types'
 import { buildSpeechBody, speechCacheKey } from './elevenlabs-request'
 import type { SpeechContext } from './elevenlabs-request'
+import { sharedSpeechAudioStore } from './speech-audio-store'
+import type { SpeechAudioStore } from './speech-audio-store'
 
 const API_BASE = 'https://api.elevenlabs.io/v1'
 const OUTPUT_FORMAT = 'mp3_44100_128'
@@ -129,6 +133,7 @@ export class ElevenLabsEngine implements TTSEngine {
 	private stability: number
 	private similarity: number
 	private io: ElevenLabsIO
+	private store: SpeechAudioStore | null
 
 	private endCallback: (() => void) | null = null
 	/** The clip of the current turn, from the moment its bytes arrive until it ends or is stopped. */
@@ -138,19 +143,24 @@ export class ElevenLabsEngine implements TTSEngine {
 	private paused = false
 	private rate = 1
 
-	/** Per-sentence audio cache: key -> MP3 bytes. Avoids re-billing identical text. */
+	/** First cache layer: key -> MP3 bytes. Gone with the engine; the persistent store outlives it. */
 	private cache: Map<string, ArrayBuffer> = new Map()
 	/** Requests on the wire, so hintNext and speak for the same sentence send one request, not two. */
 	private inflight: Map<string, Promise<ArrayBuffer>> = new Map()
 	private voicesCache: TTSVoice[] | null = null
 
-	constructor(config: ElevenLabsConfig, io: ElevenLabsIO = BROWSER_IO) {
+	constructor(
+		config: ElevenLabsConfig,
+		io: ElevenLabsIO = BROWSER_IO,
+		store: SpeechAudioStore | null = sharedSpeechAudioStore()
+	) {
 		this.apiKey = (config.apiKey || '').trim()
 		this.voiceId = (config.voiceId || '').trim()
 		this.modelId = config.modelId || 'eleven_flash_v2_5'
 		this.stability = config.stability ?? 0.5
 		this.similarity = config.similarity ?? 0.75
 		this.io = io
+		this.store = store
 	}
 
 	get currentVoiceId(): string {
@@ -299,7 +309,7 @@ export class ElevenLabsEngine implements TTSEngine {
 		const pending = this.inflight.get(key)
 		if (pending) return pending
 
-		const request = this.fetchSpeech(text, context)
+		const request = this.storedOrFetched(key, text, context)
 			.then((bytes) => {
 				this.cache.set(key, bytes)
 				return bytes
@@ -309,6 +319,25 @@ export class ElevenLabsEngine implements TTSEngine {
 			})
 		this.inflight.set(key, request)
 		return request
+	}
+
+	/** The persistent store first; on a miss the network, and what it returns is saved for next time. */
+	private async storedOrFetched(key: string, text: string, context: SpeechContext): Promise<ArrayBuffer> {
+		const store = this.store
+		if (!store) return this.fetchSpeech(text, context)
+		const stored = await this.readStored(store, key)
+		if (stored) return stored
+		const bytes = await this.fetchSpeech(text, context)
+		void store.put(key, bytes).catch(() => { /* a clip that was not kept is fetched again */ })
+		return bytes
+	}
+
+	private async readStored(store: SpeechAudioStore, key: string): Promise<ArrayBuffer | null> {
+		try {
+			return await store.get(key)
+		} catch {
+			return null
+		}
 	}
 
 	private async fetchSpeech(text: string, context: SpeechContext): Promise<ArrayBuffer> {
