@@ -12,6 +12,7 @@ import type {
   VoiceTrackingStatus,
   VoiceTrackingError,
   VoiceTrackingConfig,
+  VoiceReadingMove,
   WordPosition
 } from './types'
 import { tokenize, cleanWord } from './word-tokenizer'
@@ -186,6 +187,8 @@ export class VoiceTrackingService {
   onDiagnostic?: (_event: string, _data: Record<string, unknown>) => void
   onPauseChange?: (_isPaused: boolean) => void
   onWordMatch?: (_wordIndex: number, _scrollPosition: number) => void
+  /** Every commit of the reader's place, for timing takes against the script's headings. */
+  onReadingMove?: (_move: VoiceReadingMove) => void
   onStatusChange?: (_status: VoiceTrackingStatus) => void
   onRecognizedText?: (_text: string, _isFinal: boolean) => void
   onError?: (_error: VoiceTrackingError, _message: string) => void
@@ -1133,6 +1136,14 @@ export class VoiceTrackingService {
    * @param jumpDistance - Number of words being jumped (for animation timing)
    */
   private scrollToWord(wordIndex: number): void {
+    // Every commit lands here. The place is reported before anything below can return early: a word
+    // on the line already shown, or a hand scroll holding the page, is still where the reader is.
+    this.onReadingMove?.({
+      wordIndex,
+      totalWords: this.wordTokens.length,
+      span: this.wordSpans.get(wordIndex) ?? null,
+    })
+
     // Lead the highlight slightly to offset recognition latency (the matched word trails your
     // actual reading by a word or two). HIGHLIGHT_LEAD is the knob for "behind" vs "ahead".
     const ledIndex = Math.max(0, Math.min(this.wordTokens.length - 1, wordIndex + this.HIGHLIGHT_LEAD))

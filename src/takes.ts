@@ -4,13 +4,18 @@
  * Pure, like ./playback: geometry comes in as numbers (content y of each heading, the reading line,
  * the top of the view) and time as the rehearsal clock's elapsed milliseconds, so every rule here
  * is tested without a DOM. TeleprompterApp.svelte measures the page, calls the tracker on every
- * scroll frame, and does the side effects (pause, card, broadcast, log).
+ * scroll frame and on every place voice tracking or read-aloud reports, and does the side effects
+ * (pause, card, broadcast, log).
  *
  * The model is laps. Each section read whole while playing is a take of that section: it starts
  * where the section's heading is (the play start, or the moment its heading reaches the reading
  * line) and ends when the next heading reaches the reading line. A run that started at the very
  * top and reached the end of the script is also a take of the whole script. Pauses inside a take
  * cost nothing, because the rehearsal clock does not count while paused.
+ *
+ * Auto-scroll moves the reading line a few pixels a frame. Voice and read-aloud move it in steps:
+ * a matched line, a re-sync, a whole sentence. `readingFrame` and `TakeTracker.follow` are the
+ * same rules for those steps (see "Reading positions" below).
  */
 
 import { PIXELS_PER_SECOND_AT_SPEED_1, clampSpeed, type SpeedLimits } from './playback'
@@ -141,6 +146,11 @@ export interface TakeFrame extends ReadingGeometry {
 	sections: readonly TakeSection[]
 	/** The rehearsal clock, in ms. It does not count while paused, so neither does a take. */
 	elapsedMs: number
+	/**
+	 * How far past its line a heading may be found and still have been read into rather than jumped
+	 * past. Unset for a scroll frame (LIVE_CROSSING_PX); a reading position sets its own (readingFrame).
+	 */
+	liveCrossingPx?: number
 }
 
 /**
@@ -153,9 +163,10 @@ const LIVE_CROSSING_PX = 40
 const RESUME_TOLERANCE_PX = 2
 
 /**
- * Follows one rehearsal through its section boundaries. `begin` on every play start, `step` on
- * every scroll frame, `finish` at the end of the script, `discard` whenever the position jumps
- * (section jump, seek, reset, a different note).
+ * Follows one rehearsal through its section boundaries. Auto-scroll calls `begin` on every play
+ * start and `step` on every scroll frame; voice and read-aloud call `follow` with every place they
+ * report. `finish` at the end of the script, `discard` whenever the position jumps (section jump,
+ * seek, reset, re-sync on R, a different note).
  */
 export class TakeTracker {
 	private active = false
@@ -239,7 +250,7 @@ export class TakeTracker {
 			// the scroller adopted), so the section it lands in was not read from its top. A second
 			// boundary on the same frame means the section between them was skipped: it is never
 			// reported, because only the first boundary of a frame is.
-			this.sectionComplete = line - next.top <= LIVE_CROSSING_PX
+			this.sectionComplete = line - next.top <= (frame.liveCrossingPx ?? LIVE_CROSSING_PX)
 			this.section += 1
 			this.sectionStartMs = frame.elapsedMs
 			// Crossed at the eyeline, the next heading can only be above the eyeline already if the
@@ -248,6 +259,21 @@ export class TakeTracker {
 			if (this.endLine === 'top') this.endLine = endLineFor(frame.sections, this.section, frame)
 		}
 		return ended
+	}
+
+	/**
+	 * A place reported by voice tracking or read-aloud. Nothing marks a play start there, so the
+	 * first place opens the take where the reader is, and every later one steps it. A place behind
+	 * the last one (a re-sync back, a sentence read again) never ends or reopens a section: only a
+	 * heading reached going forward does, so the heading crossed again after going back is not a
+	 * second take, and the time spent going back belongs to the take that is open.
+	 */
+	follow(frame: TakeFrame, mode: SectionStopMode): SectionEnd | null {
+		if (!this.active) {
+			this.begin(frame)
+			return null
+		}
+		return this.step(frame, mode)
 	}
 
 	/** The script reached its end. Closes the run; the next play starts fresh. */
@@ -286,6 +312,57 @@ export class TakeTracker {
 		this.scriptStartMs = null
 		this.lastViewTop = null
 	}
+}
+
+// ===== Reading positions: voice tracking and read-aloud =====
+
+/**
+ * The share of the view a heading may lie past a reported place and still have been read into.
+ * Voice reports a place each time the matcher commits (up to ten words, or a re-sync further on),
+ * and the heading itself is usually not spoken, so the first place reported in a new section is a
+ * heading's height and a line or two below its top: well past the 40 px a scroll frame allows.
+ * Read-aloud reports the heading itself, as a sentence. Half the view takes those steps as reading;
+ * a section jump, seek, reset or R re-sync discards the take before a place could look like one.
+ */
+export const READING_STEP_VIEW_SHARE = 0.5
+
+export interface ReadingPosition {
+	sections: readonly TakeSection[]
+	/** Content y of the reader's place: the top of the word just heard or the sentence being read. */
+	readingLine: number
+	/**
+	 * Content y of the top of the view the reader sees at that place. It decides, when a take opens,
+	 * whether the section's heading is on screen above the place (a whole take) and whether the run
+	 * starts at the very top of the script (a take of the whole script).
+	 */
+	viewTop: number
+	/** Height of the view, in pixels. */
+	viewHeight: number
+	/** The rehearsal clock, in ms. */
+	elapsedMs: number
+}
+
+/**
+ * The frame for a reported place. The reading line is the place itself, not the page's eyeline: the
+ * page glides toward the place for a while after each report, and a take ends when the reader
+ * reaches a heading, not when the glide catches up with him.
+ */
+export function readingFrame(position: ReadingPosition): TakeFrame {
+	return {
+		sections: position.sections,
+		readingLine: position.readingLine,
+		viewTop: position.viewTop,
+		elapsedMs: position.elapsedMs,
+		liveCrossingPx: Math.max(LIVE_CROSSING_PX, position.viewHeight * READING_STEP_VIEW_SHARE),
+	}
+}
+
+/**
+ * Voice has heard the end of the script: the last word, or the one before it. The matcher trails
+ * the voice by about a word (ISC-164) and nothing comes after the last word to pull it level.
+ */
+export function voiceReachedScriptEnd(wordIndex: number, totalWords: number): boolean {
+	return totalWords > 0 && wordIndex >= totalWords - 2
 }
 
 /** What the card shows at the end of the script: the whole script when it was timed, else the last section. */

@@ -13,6 +13,7 @@ export type {
   VoiceTrackingError,
   VoiceTrackingConfig,
   VoiceTrackingEvents,
+  VoiceReadingMove,
   VoiceLanguage,
   ModelDownloadProgress,
   WordPosition
