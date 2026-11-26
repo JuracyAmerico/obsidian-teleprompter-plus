@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.12.12] - 2026-11-26
+
+### Added
+- **Repeat and loop the sentence being read aloud.** Two commands and two buttons in the Read-aloud panel; they work from the main window while the script floats. Built for pronunciation drills.
+- **What's New shows everything you skipped.** Updating across several versions now lists all of them, with security notes first.
+
+### Fixed
+- **Voice tracking keeps up when you're ahead.** The prompter finds you by the last words you said, even several words past where it was, and a re-sync (or R) lands on the word you just said instead of the start of the sentence. Rare words and names are now favoured as recognition hints.
+- **The countdown can be cancelled.** A section jump, a minimap or progress-bar click, Reset or Space now stops it for good, and starting voice or read-aloud cancels it too.
+- **Smooth scrolling that stops at the end.** Scrolling moves a little every frame instead of stalling and jumping, and at the end of the script it stops and the clock freezes on your time.
+- **Speed keys stay in range.** Hotkeys, presets, the toolbar and remotes all use your speed limits (0.5 to 10 by default).
+- **Next section stops at the last section** instead of jumping back to the top.
+- **Read-aloud errors are visible.** An ElevenLabs failure (no credits, bad key) pauses on that sentence and says why, in the main window and on the floating script. Quick Next/Previous presses no longer play two voices or skip a sentence, and Pause during a download holds.
+- **Read-aloud speed is remembered** and changes the sentence already playing.
+- **Stream Deck keys that did nothing now work:** speed presets, alignment, progress indicator and auto-pause.
+
 ## [0.12.11] - 2026-11-26
 
 ### Fixed
