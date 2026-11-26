@@ -1,4 +1,5 @@
 import type { PassageAnchor } from '../passage-anchor'
+import { sameSection, type SectionRef } from '../sections'
 /**
  * The floating teleprompter's window behaviour, kept apart from Obsidian and Svelte so it can be
  * tested with a fake window. Design: vault note 2026-10-30-18-10-fable-janela-flutuante-design.md.
@@ -321,22 +322,23 @@ export class FloatingSession {
 	private deliver: ((type: string, detail: unknown) => void) | null = null
 	private forwarding = false
 	private readonly listeners = new Set<() => void>()
-	private section: string | null = null
-	private readonly sectionListeners = new Set<(title: string) => void>()
+	private section: SectionRef | null = null
+	private readonly sectionListeners = new Set<(section: SectionRef) => void>()
 
 	/**
 	 * The floating view reports the section it is reading, so the main view's Jump to Section
-	 * list and note pane can follow the Prompter (ISC-139). Titles, not ids: ids are per-view
-	 * render ordinals and can differ between the two views.
+	 * list and note pane can follow the Prompter (ISC-139). A section reference (line, title and
+	 * occurrence), not an id: ids are per-view render ordinals; and not a bare title, which named the
+	 * first of every repeated "Situation" in a STAR answer bank.
 	 */
-	reportSection(title: string): void {
-		if (!this.controller || this.section === title) return
-		this.section = title
-		this.sectionListeners.forEach(listener => listener(title))
+	reportSection(section: SectionRef): void {
+		if (!this.controller || sameSection(this.section, section)) return
+		this.section = section
+		this.sectionListeners.forEach(listener => listener(section))
 	}
 
 	/** Returns the function that stops listening. */
-	onSection(listener: (title: string) => void): () => void {
+	onSection(listener: (section: SectionRef) => void): () => void {
 		this.sectionListeners.add(listener)
 		return () => this.sectionListeners.delete(listener)
 	}
