@@ -69,6 +69,9 @@
   import { extractBibPath, extractTargetTime, splitSentences, stripRawLatexCommands, stripFencedDivs, stripBareUrls } from './parser/text-cleaner'
   import { SpeechClock, computePaceState, formatClock, resolveTarget, type ClockSnapshot, type PaceStatus, type TargetSource } from './timing/speech-timer'
   import { removeYAMLFrontmatter, createHeadingLineMapper, type HeadingLineMapper } from './parser/heading-source-map'
+  import { assignSectionTargets, parseSectionTargets, stripHeadingTargets } from './parser/section-targets'
+  import { TakeTracker, loggableTakes, planFit, scriptEndCard, speedForPlan, takeCard, type FitPlan, type SectionEnd, type TakeCard, type TakeFrame, type TakeResult, type TakeSection } from './takes'
+  import { densityOfLines, formatWordsPerMinute, speedToWordsPerMinute, wordsInDistance } from './reading-rate'
   import type { TTSDocument, TTSSection } from './tts/tts-types'
   import hljs from 'highlight.js/lib/core'
   // Import common languages for syntax highlighting
@@ -300,6 +303,8 @@
     targetSeconds?: number | null
     targetSource?: TargetSource
     voiceTrackingActive?: boolean
+    // The take that just ended, shown on both windows; null once reading moves on
+    takeCard?: TakeCard | null
   }
 
   function broadcastState(partialState: SyncState) {
@@ -1020,6 +1025,10 @@
   // voiceTrackingActive=false) — a derived clock would reset itself mid-rehearsal.
   type SessionState = 'idle' | 'running' | 'paused' | 'finished'
   const rehearsalClock = new SpeechClock()
+  // Takes (./takes): one read of a section, or of the whole script, against its target. Timed on
+  // the rehearsal clock, so they share its pauses; reset whenever the clock or the position resets.
+  const takeTracker = new TakeTracker()
+  let takeCardShown = $state<TakeCard | null>(null)
   let sessionState = $state<SessionState>('idle')
   let targetSeconds = $state<number | null>(null)          // resolved: override > frontmatter > default
   let targetSource = $state<TargetSource>('none')
@@ -1411,6 +1420,8 @@
     if (sessionState === 'idle' || sessionState === 'finished') {
       rehearsalClock.start()
       progressHighWater = 0
+      // The clock starts again from zero: a take timed on the old clock cannot go on.
+      takeTracker.discard()
     } else {
       rehearsalClock.resume()
     }
@@ -1459,6 +1470,8 @@
     paceStatus = 'unknown'
     updatePaceState()
     broadcastClockState()
+    takeTracker.discard()
+    showTake(null)
   }
 
   /**
@@ -1468,6 +1481,9 @@
    * than showing none.
    */
   function bumpProgressEpoch(): void {
+    // Whatever take was open is not a read of one section any more, and its card is out of date.
+    takeTracker.discard()
+    showTake(null)
     progressEpoch++
     progressHighWater = 0
     progressValid = false
@@ -1603,6 +1619,10 @@
       // a pinned note's images live in the pinned note's folder.
       const sourcePath = currentSourcePath() || ''
       let processedContent = convertObsidianWikiLinks(content, sourcePath)
+
+      // Section targets ({1:30} at the end of a heading) are for the clock, never shown. Only the
+      // braces go, so each heading's raw text stays a prefix of its source line for the line map.
+      processedContent = stripHeadingTargets(processedContent)
 
       // Strip HTML comments (<!-- ... -->) from content
       processedContent = processedContent.replace(/<!--[\s\S]*?-->/g, '')
@@ -1765,6 +1785,7 @@
 
         currentFileName = activeFile.basename
         currentNotePath = newPath
+        plugin.promptedNotePath = newPath
 
         if (!isSameFile) {
           hasUsedCountdown = false
@@ -1925,7 +1946,7 @@
 
   // Update word count when content changes
   function updateWordCount() {
-    totalWordCount = countWords(content)
+    totalWordCount = countWords(stripHeadingTargets(content))
     wordsRemaining = totalWordCount
     debugLog('[Time] Total word count:', totalWordCount)
   }
@@ -2092,6 +2113,83 @@
   const countdown = new Countdown(() => getActualWindow())
   const autoScroller = new AutoScroller()
 
+  // ===== Takes (decisions live in ./takes; this measures the page and does the side effects) =====
+
+  /** Each heading's target, matched to the rendered headings by title (./parser/section-targets). */
+  const headingTargets = $derived(assignSectionTargets(headersList.map(h => h.text), parseSectionTargets(content)))
+
+  let takeSectionCache: { key: string; sections: TakeSection[] } | null = null
+
+  /**
+   * A heading's y in the script's scroll coordinates. Offsets, not bounding rects: the prompter flip
+   * is a transform on the content area, which mirrors every rect but no offset. .content-area is
+   * positioned, so the offsets are summed up to it, whatever positioned box (a callout) is between.
+   */
+  function contentTopOf(element: HTMLElement, area: HTMLElement): number {
+    let top = 0
+    let node: HTMLElement | null = element
+    while (node && node !== area) {
+      top += node.offsetTop
+      node = node.offsetParent as HTMLElement | null
+    }
+    return node === area ? top : element.offsetTop - area.offsetTop
+  }
+
+  /**
+   * The sections as the tracker needs them: title, target and the heading's content y. Measured
+   * again only when the headings, the targets or the layout change, not on every frame.
+   */
+  function takeSections(area: HTMLElement): TakeSection[] {
+    const list = headersList
+    const targets = headingTargets
+    const key = `${list.map(h => h.id).join('|')}#${targets.join(',')}#${area.scrollHeight}x${area.clientWidth}`
+    if (takeSectionCache?.key === key) return takeSectionCache.sections
+    const sections: TakeSection[] = []
+    list.forEach((header, index) => {
+      const element = headerElements.get(header.id)
+      if (!element) return
+      sections.push({ title: header.text.trim(), top: contentTopOf(element, area), targetSeconds: targets[index] ?? null })
+    })
+    takeSectionCache = { key, sections }
+    return sections
+  }
+
+  function takeFrame(area: HTMLElement): TakeFrame {
+    return {
+      sections: takeSections(area),
+      viewTop: area.scrollTop,
+      readingLine: area.scrollTop + readingOffset(),
+      elapsedMs: rehearsalClock.elapsedMs,
+    }
+  }
+
+  /** Show a take's result here and on the other window, or clear it (null). */
+  function showTake(card: TakeCard | null): void {
+    if (card === null && takeCardShown === null) return
+    takeCardShown = card
+    broadcastState({ takeCard: card })
+  }
+
+  /** Whole takes go to the log, once: only the view that scrolled and timed them gets here. */
+  function keepTakes(results: readonly (TakeResult | null)[]): void {
+    const notePath = currentSourcePath()
+    if (!notePath) return
+    for (const take of loggableTakes(results)) plugin.recordTake(notePath, take)
+  }
+
+  /**
+   * A section ended while playing. Its take is kept; when the stop mode says so, playback pauses
+   * here with the clock frozen and the card shows the time. Returns whether playback stopped.
+   */
+  function endSectionTake(end: SectionEnd): boolean {
+    keepTakes([end.result])
+    if (!end.stop || !end.result) return false
+    stopPlayback('section end')
+    showTake(takeCard(end.result))
+    debugLog('[Takes] Section end:', takeCardShown?.text)
+    return true
+  }
+
   /** Stop a running countdown so it never starts playback. Returns whether one was running. */
   function cancelCountdown(reason: string): boolean {
     const wasRunning = countdown.cancel()
@@ -2133,12 +2231,21 @@
     return true
   }
 
-  /** The scroll loop reached the bottom: stop scrolling and freeze the clock on the final time. */
-  function finishPlayback(): void {
+  /**
+   * The scroll loop reached the bottom: stop scrolling and freeze the clock on the final time. The
+   * open take closes here: the whole script when it was played from the top, else the last section.
+   * `crossed` is a section boundary passed on the same last frame, kept before the run closes.
+   */
+  function finishPlayback(crossed: SectionEnd | null = null): void {
     isPlaying = false
     finishSession()
     broadcastState({ isPlaying: false })
-    debugLog('[Playback] Reached the end of the script')
+    if (crossed) keepTakes([crossed.result])
+    const end = contentArea ? takeTracker.finish(takeFrame(contentArea), targetSeconds) : null
+    if (end) keepTakes([end.section, end.script])
+    const card = (end ? scriptEndCard(end) : null) ?? crossed?.result ?? null
+    if (card) showTake(takeCard(card))
+    debugLog('[Playback] Reached the end of the script', card ? `— ${takeCard(card).text}` : '')
   }
 
   /** Jump to a share of the script (minimap, progress bar, forwarded clicks): a seek pauses. */
@@ -2295,7 +2402,85 @@
 
   function toggleSpeedSlider() {
     showSpeedSlider = !showSpeedSlider
-    if (showSpeedSlider) closeOtherPopups('speed')
+    if (showSpeedSlider) {
+      closeOtherPopups('speed')
+      measureWordsPerPixel()
+    }
+  }
+
+  // ===== Speed in words per minute (./reading-rate) and fit to target (./takes planFit) =====
+
+  /** Words per pixel of this view's rendered script; null until measured. Internal speed units are unchanged. */
+  let wordsPerPx = $state<number | null>(null)
+  const speedWordsPerMinute = $derived(speedToWordsPerMinute(speed, wordsPerPx))
+
+  function measureWordsPerPixel(): void {
+    const layout = passageLayout()
+    wordsPerPx = layout ? densityOfLines(layout.table) : null
+  }
+
+  // Density follows what changes the layout: the script, the type, the spacing and the width.
+  $effect(() => {
+    void renderedHTML
+    void fontSize
+    void lineHeight
+    void letterSpacing
+    void fontFamily
+    void navigationWidth
+    void showNavigation
+    const measureWindow = getActualWindow()
+    // Two frames: the render effect places the new HTML on the first.
+    let inner = 0
+    const outer = measureWindow.requestAnimationFrame(() => {
+      inner = measureWindow.requestAnimationFrame(() => untrack(measureWordsPerPixel))
+    })
+    return () => {
+      measureWindow.cancelAnimationFrame(outer)
+      measureWindow.cancelAnimationFrame(inner)
+    }
+  })
+
+  /** Why a fit could not be made, in the reader's words. */
+  function fitFailureText(reason: Extract<FitPlan, { ok: false }>['reason']): string {
+    if (reason === 'no-target') return 'No target to fit. Put one on the heading, like "## Why us {1:30}", or set target-time in the note.'
+    if (reason === 'over-target') return 'Already past the target here: nothing left to fit.'
+    return 'Nothing left to read here.'
+  }
+
+  /**
+   * Set the speed so what is left of this section (or of the script, when the section has no
+   * target) reaches the eyeline exactly when its target runs out. Only the speed changes.
+   */
+  function fitSpeedToTarget(): void {
+    if (forwardToFloating('teleprompter:fit-speed-to-target')) return
+    const area = contentArea
+    if (!area) return
+    measureWordsPerPixel()
+    const frame = takeFrame(area)
+    const resumable = takeTracker.resumesAt(frame.viewTop)
+    const plan = planFit({
+      ...frame,
+      maxScrollTop: maxScrollOf(area),
+      scriptTargetSeconds: targetSeconds,
+      openSection: resumable ? takeTracker.currentSection : -1,
+      openSectionElapsedSeconds: resumable ? takeTracker.sectionElapsedSeconds(frame.elapsedMs) : null,
+    })
+    if (!plan.ok) {
+      new Notice(fitFailureText(plan.reason), 5000)
+      return
+    }
+    const fitted = speedForPlan(plan.pixelsPerSecond, speedLimits(settings))
+    applySpeed(fitted.speed)
+    const wpm = formatWordsPerMinute(speedToWordsPerMinute(fitted.speed, wordsPerPx))
+    const words = wordsInDistance(plan.distancePx, wordsPerPx)
+    const what = `${plan.title}: ${words !== null ? `${words} words` : 'the rest'} in ${formatClock(plan.secondsLeft)}`
+    if (fitted.clamped) {
+      const limit = fitted.clamped === 'max' ? 'fastest' : 'slowest'
+      new Notice(`Fit to target needs ${fitted.wanted.toFixed(1)}x. Held at the ${limit} speed, ${fitted.speed}x${wpm ? ` (${wpm})` : ''}. ${what}.`, 6000)
+    } else {
+      new Notice(`Speed ${fitted.speed}x${wpm ? ` (${wpm})` : ''}. ${what}.`, 4000)
+    }
+    debugLog('[Takes] Fit to target:', plan, fitted)
   }
 
   function toggleCountdownSlider() {
@@ -4704,6 +4889,9 @@
       case 'teleprompter:reset-to-top':
         resetToTop()
         break
+      case 'teleprompter:fit-speed-to-target':
+        fitSpeedToTarget()
+        break
       case 'teleprompter:apply-voice-preset':
         if (typeof customEvent.detail?.preset === 'string' && customEvent.detail.preset in VOICE_TRACKING_PRESETS) {
           applyVoicePreset(customEvent.detail.preset as Exclude<VoiceTrackingPacePreset, 'custom'>)
@@ -5247,6 +5435,9 @@
       textAlignment,
       speedPresets: [...SPEED_PRESETS],
       currentSpeedPresetIndex: currentPresetIndex,
+      // The take that just ended, as the card shows it; null once reading moves on
+      lastTake: takeCardShown,
+      wordsPerMinute: speedWordsPerMinute === null ? null : Math.round(speedWordsPerMinute),
     })
   }
 
@@ -5266,6 +5457,8 @@
       // state once a second. Deliberate: without it the remote clock would sit stale until
       // some other value happened to change.
       elapsed: elapsedSeconds,
+      // A take ending (or its card clearing) pushes state, so the phone shows it at once.
+      take: takeCardShown,
     }
 
     // Broadcast after a short debounce
@@ -5476,6 +5669,7 @@
       'teleprompter:speed-preset-3',
       'teleprompter:speed-preset-5',
       'teleprompter:reset-to-top',
+      'teleprompter:fit-speed-to-target',
       'teleprompter:scroll',
       'teleprompter:hotkey-action',
       'teleprompter:apply-voice-preset',
@@ -5617,6 +5811,7 @@
           updatePaceState()
         }
         if (data.speed !== undefined) speed = data.speed
+        if (data.takeCard !== undefined) takeCardShown = data.takeCard
         if (data.fontSize !== undefined) fontSize = data.fontSize
         if (data.showEyeline !== undefined) showEyeline = data.showEyeline
         if (data.eyelinePosition !== undefined) eyelinePosition = data.eyelinePosition
@@ -6317,6 +6512,12 @@
       const frameWindow = getActualWindow()
       let animationFrameId = 0
       autoScroller.start()
+      // A take starts (or, resumed where it paused, goes on) with the scroll. untrack: the tracker
+      // reads layout and the clock, and none of it may make this effect run again.
+      untrack(() => {
+        takeTracker.begin(takeFrame(area))
+        showTake(null)
+      })
 
       const scroll = (timestamp: number) => {
         const frame = autoScroller.step(timestamp, area, speed)
@@ -6325,11 +6526,15 @@
         scrollPosition = area.scrollTop
         scrollPercentage = Math.round(scrollFraction(area.scrollTop, maxScrollOf(area)) * 100)
 
+        // A heading reaching the eyeline ends that section's take (./takes)
+        const crossed = takeTracker.step(takeFrame(area), plugin.settings.sectionStopMode ?? 'targeted')
+
         if (frame.finished) {
           // The end of the script: scrolling stops and the clock freezes on the final time.
-          finishPlayback()
+          finishPlayback(crossed)
           return
         }
+        if (crossed && endSectionTake(crossed)) return
         if (isPlaying) {
           animationFrameId = frameWindow.requestAnimationFrame(scroll)
         }
@@ -6810,12 +7015,12 @@
             onclick={toggleSpeedSlider}
             class="icon-btn"
             class:active={showSpeedSlider}
-            title="Speed: {speed} (click to adjust)"
+            title="Speed: {speed}{speedWordsPerMinute !== null ? ` · ${formatWordsPerMinute(speedWordsPerMinute)}` : ''} (click to adjust)"
           ></button>
           {#if showSpeedSlider}
             <div class="popup-slider">
               <label class="slider-label">
-                <span>Speed: {speed}</span>
+                <span>Speed: {speed}{#if speedWordsPerMinute !== null}<span class="speed-wpm"> · {formatWordsPerMinute(speedWordsPerMinute)}</span>{/if}</span>
                 <input
                   type="range"
                   bind:value={speed}
@@ -6825,6 +7030,11 @@
                   step={speedLimits(settings).step}
                 />
               </label>
+              <button
+                class="btn-fit-target"
+                onclick={fitSpeedToTarget}
+                title="Set the speed so the rest of this section (or the script) ends on its target"
+              >Fit to target</button>
             </div>
           {/if}
         </div>
@@ -7399,6 +7609,27 @@
           {formatClock(elapsedSeconds)} / {formatClock(targetSeconds)}
           {#if sessionState === 'paused'}· pausado{/if}
         </span>
+      </div>
+    {/if}
+    <!-- The take that just ended: one line, the same text the other window and the phone show.
+         Mirrored with the script, like the clock, because this screen feeds the prompter glass. -->
+    {#if takeCardShown}
+      <div
+        class="take-card"
+        class:on-target={takeCardShown.verdict === 'on-target'}
+        class:over={takeCardShown.verdict === 'over'}
+        class:under={takeCardShown.verdict === 'under'}
+        class:partial={!takeCardShown.complete}
+        role="status"
+        style={`top: ${targetSeconds !== null && sessionState !== 'idle' && showTimeOverlay ? 88 : 12}px; transform: translateX(-50%)${flipHorizontal ? ' scaleX(-1)' : ''}${flipVertical ? ' scaleY(-1)' : ''};`}
+      >
+        <span class="take-card-line">{takeCardShown.text}</span>
+        <button
+          class="take-card-close clickable-icon"
+          use:setIconAction={'x'}
+          onclick={() => showTake(null)}
+          aria-label="Dismiss the take"
+        ></button>
       </div>
     {/if}
     <div
@@ -8372,6 +8603,66 @@
 
   .rehearsal-overlay.paused {
     opacity: 0.6;
+  }
+
+  /* The take that just ended: centred at the top of the reading area, below the clock when the
+     clock shows (top comes from the style attribute), so a narrow window never stacks the two. */
+  .take-card {
+    position: absolute;
+    left: 50%;
+    z-index: 41;
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    max-width: calc(100% - 32px);
+    padding: 0.45rem 0.5rem 0.45rem 0.9rem;
+    border-radius: 12px;
+    background: rgba(0, 0, 0, 0.7);
+    border: 1px solid rgba(255, 255, 255, 0.18);
+    backdrop-filter: blur(4px);
+    color: #ffffff;
+    font-size: 1.1rem;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .take-card.on-target {
+    background: rgba(20, 90, 50, 0.75);
+    border-color: rgba(90, 220, 140, 0.55);
+  }
+
+  .take-card.over {
+    background: rgba(120, 20, 20, 0.7);
+    border-color: rgba(255, 90, 90, 0.5);
+  }
+
+  .take-card.under {
+    background: rgba(25, 55, 110, 0.72);
+    border-color: rgba(120, 170, 255, 0.5);
+  }
+
+  .take-card.partial {
+    opacity: 0.8;
+  }
+
+  .take-card-line {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .take-card-close {
+    flex: 0 0 auto;
+    color: rgba(255, 255, 255, 0.8);
+  }
+
+  .speed-wpm {
+    color: var(--text-muted);
+  }
+
+  .btn-fit-target {
+    width: 100%;
+    margin-top: 0.4rem;
   }
 
   .btn-set-target {
