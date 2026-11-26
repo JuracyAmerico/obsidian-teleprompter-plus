@@ -32,8 +32,9 @@ Teleprompter Plus turns any Obsidian note into a professional teleprompter. Auto
 - **English and Portuguese voice** — the prompter listens in the language of each script, or set `voice-language` in a note's properties. Recognition stays on your computer: Apple's on-device speech when macOS offers it for that language, otherwise an offline Vosk model, downloaded once.
 - **Floating window** — keep the script on top of a video call, with adjustable see-through and a lock that lets clicks pass to the app underneath. With an Elgato Prompter connected, it opens there and fills the screen with just the script. **Check what you share:** in a Zoom test on macOS, the script showed when sharing the entire screen it was on and when sharing an Obsidian window. It did not show when sharing another app's window, or a screen it was not on. Share another app's window, or keep the script on a Prompter or second display.
 - **Hierarchical navigation** — collapsible header tree, abstract-scrollbar minimap, click-to-jump, active-section highlighting
-- **Stream Deck integration** — 55+ actions across 8 categories with real-time bidirectional state sync ([catalog](docs/stream-deck-actions.md))
-- **Mobile remote control** — touch-friendly web interface, control from any device on your network
+- **Stream Deck integration** — 60 keys with real-time bidirectional state sync, including a rehearsal clock and voice tracking ([catalog](docs/stream-deck-actions.md))
+- **Mobile remote control** — touch-friendly web interface, control from any device on your network, protected by a remote key ([setup](#phone-remote))
+- **Rehearsal takes** — give a section a target time, `## Why us {1:30}`, and get your time against it when you finish ([how it works](#takes-and-targets))
 - **Neural text-to-speech** — ElevenLabs (cloud, opt-in, bring-your-own-key), Kokoro MLX (22 local voices, Apple Silicon), macOS `say`, Web Speech fallback, sentence-by-sentence highlighting
 - **Citation resolution** — `[@ries2011]` spoken as *"(Ries, 2011)"* using your `.bib` files
 - **Full Markdown support** — Obsidian syntax, math, callouts, code with syntax highlighting, tables, images, internal links
@@ -67,7 +68,7 @@ Teleprompter Plus turns any Obsidian note into a professional teleprompter. Auto
   <img src="docs/screenshots/stream-deck.png" alt="Stream Deck integration" width="600">
 </p>
 
-*55+ hardware actions with live state synchronization across all controls.*
+*60 hardware keys with live state synchronization across all controls.*
 
 ### Settings
 
@@ -75,7 +76,7 @@ Teleprompter Plus turns any Obsidian note into a professional teleprompter. Auto
   <img src="docs/screenshots/settings-dashboard.png" alt="Settings dashboard" width="600">
 </p>
 
-*Six-tab settings: Dashboard, Toolbar, Features, Profiles, Connection, About.*
+*Seven-tab settings: Dashboard, Toolbar, Features, Profiles, Connection, Streaming, About.*
 
 ---
 
@@ -123,6 +124,31 @@ For 25+ keyboard commands, see Obsidian → Settings → Hotkeys → Teleprompte
 
 ---
 
+## Takes and targets
+
+Rehearse a script against the clock, section by section.
+
+- **Give a section a target** in its heading: `## Why us {1:30}`. `{90s}` and `{2m}` work too. The braces never show on the prompter and are never read aloud.
+- **Finish the section and read your take.** Playback pauses and a card shows your time against the target, like "Why us · 1:42 · target 1:30 · +0:12". It appears in the main window, on the floating script and on the phone remote. Settings → Features → Display → *Stop at the end of a section* chooses when playback pauses: only at sections with a target (the default), at every section, or never.
+- **Show recent takes** (command palette) lists your last 20 takes of the note, newest first, with the best one for each section marked.
+- **Fit to target** sits next to the speed control, which also shows your speed in words per minute. One click sets the speed so the rest of the section, or the script, ends on its target. If that speed is outside your speed limits it stops at the limit and says so.
+
+Takes are kept in `takes.json` in the plugin's own folder, up to 5,000 of them. The plugin sends the file nowhere, but it sits inside the vault's `.obsidian` folder, so a vault sync carries it too.
+
+---
+
+## Phone remote
+
+Control the prompter from a phone or tablet on the same Wi-Fi.
+
+1. In Obsidian, Settings → Teleprompter Plus → Connection → Server, set **Host** to `0.0.0.0`, then click **Restart**. The default, `127.0.0.1`, reaches only this computer.
+2. Under **Remote interface**, copy the link. It ends in `?key=…`: that is the **remote key**, made for your install on first start. Open the whole link in the phone's browser.
+3. Anything on your network without the key gets `401` and cannot send commands; the Stream Deck on this computer needs no key. Updating from before 0.12.10: open the new link once.
+
+The link is plain `http://`, not encrypted: use it on a network you trust. If the link shows an address that is not your Wi-Fi address (a VPN or Tailscale address), swap in your computer's LAN address and keep `?key=`: Tailscale (`100.x`), `.local` and MagicDNS names are refused. What the server accepts and what protects it: [ATTACKSURFACE.md](ATTACKSURFACE.md).
+
+---
+
 ## Settings overview
 
 | Tab | What's there |
@@ -131,19 +157,20 @@ For 25+ keyboard commands, see Obsidian → Settings → Hotkeys → Teleprompte
 | **Toolbar** | Choose which controls appear in the teleprompter toolbar |
 | **Features** | Collapsible cards by category — appearance, playback, navigation, voice, OBS, WebSocket |
 | **Profiles** | 6 built-in profiles + your own saved configurations |
-| **Connection** | Optional local WebSocket server for Stream Deck + mobile remote |
+| **Connection** | Optional local WebSocket server for Stream Deck + mobile remote; the remote link and key |
+| **Streaming** | OBS connection and recording sync |
 | **About** | Plugin info, shortcuts, credits |
 
 ---
 
 ## Stream Deck
 
-55+ actions across 8 categories — Playback, Speed, Font, Navigation, Display, Utility, Countdown, Flip. Real-time bidirectional state sync: the Stream Deck button updates live when you change the teleprompter from any source.
+60 keys in 10 groups — Playback, Speed, Text size and spacing, Colors and fonts, Navigation, Display and window, Countdown, Rehearsal clock, Voice tracking, OBS. Real-time bidirectional state sync: the Stream Deck button updates live when you change the teleprompter from any source.
 
 ```json
 { "command": "toggle-play" }
-{ "command": "set-speed", "value": 3 }
-{ "command": "jump-to-header", "value": 1 }
+{ "command": "set-speed", "speed": 3 }
+{ "command": "jump-to-header", "index": 1 }
 ```
 
 Full action catalog, configuration steps, and Stream Deck plugin setup: **[docs/stream-deck-actions.md](docs/stream-deck-actions.md)**.
@@ -165,9 +192,9 @@ ws.onmessage = (e) => {
 }
 ```
 
-Full command list, state shape, and integration examples: **[docs/websocket-api.md](docs/websocket-api.md)**.
+Every command with its parameters, the state shape, and integration examples: **[docs/websocket-api.md](docs/websocket-api.md)**.
 
-> **Privacy** — the server binds to `127.0.0.1` only. No LAN or internet exposure by default. The mobile remote piggy-backs on your existing Obsidian session over the same loopback bridge.
+> **Privacy** — by default the server binds to `127.0.0.1`, so only this computer can reach it. The phone remote needs the host set to `0.0.0.0` ([Phone remote](#phone-remote)): from then on any device on your network can reach the port, everything except `/health` needs the remote key, and the traffic is not encrypted. See [ATTACKSURFACE.md](ATTACKSURFACE.md).
 
 ---
 
@@ -194,8 +221,8 @@ Most common issues:
 
 | Issue | Fix |
 |-------|-----|
-| **WebSocket port already in use** | Settings → Connection → change port (default `8765`). Click *Restart server*. |
-| **Stream Deck not connecting** | Settings → Connection → *Restart server*. Confirm the Stream Deck plugin is installed and points at the same port. |
+| **WebSocket port already in use** | Settings → Connection → change port (default `8765`), then click *Restart*. The Stream Deck plugin only connects to `8765`, so keep it if you use the deck. |
+| **Stream Deck not connecting** | Settings → Connection → *Restart*. Confirm the Stream Deck plugin is installed and the port is `8765`. |
 | **Plugin doesn't appear after install** | Verify `<vault>/.obsidian/plugins/teleprompter-plus/` contains `main.js`, `styles.css`, `manifest.json`. Reload Obsidian (`Cmd/Ctrl + R`). |
 | **Content not updating when switching notes** | Close and reopen the teleprompter view. |
 | **Fullscreen looks wrong** | Plugin fullscreen is in-window. For true OS fullscreen, use Obsidian's *View → Toggle Fullscreen* first. |
@@ -220,14 +247,14 @@ Full troubleshooting guide: **[docs/troubleshooting.md](docs/troubleshooting.md)
 flowchart LR
     subgraph Clients["🎮 EXTERNAL CLIENTS"]
         direction TB
-        StreamDeck["Stream Deck<br/>55+ actions"]
+        StreamDeck["Stream Deck<br/>60 keys"]
         Mobile["Mobile Remote<br/>touch web UI"]
         Custom["Custom Scripts<br/>TS · Node · Python"]
     end
 
     subgraph Bridge["🔌 WEBSOCKET BRIDGE"]
         direction TB
-        WS["ws://127.0.0.1:8765<br/><i>loopback only</i>"]
+        WS["ws://127.0.0.1:8765<br/><i>loopback by default</i>"]
         Commands["Command Router"]
         Broadcast["State Broadcaster"]
         WS --> Commands
@@ -277,7 +304,7 @@ flowchart LR
     class TTS,Cite,OBS branch
 ```
 
-> Orange = command sent from a client. Cyan = state update broadcast back. All traffic stays on `127.0.0.1` — never on LAN.
+> Orange = command sent from a client. Cyan = state update broadcast back. By default all traffic stays on `127.0.0.1`; with the host set to `0.0.0.0` for the phone remote, the phone connects over your LAN with the remote key.
 
 A richer Excalidraw version of this diagram is in **[docs/architecture.excalidraw](docs/architecture.excalidraw)** — open it in Obsidian (with the Excalidraw plugin) to view, edit, or export to PNG/SVG for slides and presentations.
 
