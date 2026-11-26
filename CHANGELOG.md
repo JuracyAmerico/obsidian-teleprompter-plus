@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.12.11] - 2026-11-26
+
+### Fixed
+- **Phone remote: the speed slider drags smoothly.** It no longer jumps back while your finger is on it, moves in steps of 0.1, and the prompter follows as you drag. 0.5x now stays 0.5x.
+- **Phone remote: sections.** The list highlights the section being read and keeps it in view. Tapping a section while the script plays now jumps there, and the list no longer blinks.
+
 ## [0.12.10] - 2026-11-26
 
 ### Security
