@@ -2728,6 +2728,12 @@
   function applyVoicePreset(presetName: Exclude<VoiceTrackingPacePreset, 'custom'>) {
     const preset = VOICE_TRACKING_PRESETS[presetName]
     if (!preset || !plugin) return
+    // While a script floats its voice runs in the floating view: apply the preset there, live
+    // (list item #7, ISC-154). That view saves the settings.
+    if (forwardToFloating('teleprompter:apply-voice-preset', { preset: presetName })) {
+      showVoiceSettings = false
+      return
+    }
 
     // Update settings with preset values
     plugin.settings.voiceTrackingPacePreset = presetName
@@ -3274,6 +3280,9 @@
 
   function toggleTTSControls(): void {
     showTTSControls = !showTTSControls
+    // While a script floats this view never started its own engine, so the panel had no voice list to
+    // choose from. initTTS is idempotent: opening the panel loads the voices (list item #7, ISC-154).
+    if (showTTSControls) void initTTS()
   }
 
   function highlightTTSSentence(index: number): void {
@@ -4572,6 +4581,11 @@
       case 'teleprompter:reset-to-top':
         resetToTop()
         break
+      case 'teleprompter:apply-voice-preset':
+        if (typeof customEvent.detail?.preset === 'string' && customEvent.detail.preset in VOICE_TRACKING_PRESETS) {
+          applyVoicePreset(customEvent.detail.preset as Exclude<VoiceTrackingPacePreset, 'custom'>)
+        }
+        break
       case 'teleprompter:hotkey-action':
         if (typeof customEvent.detail?.action === 'string') executeHotkeyAction(customEvent.detail.action)
         break
@@ -5146,6 +5160,13 @@
       if (!plugin.floatingSession.active) stopMirror()
       // It held the main view on its note (ISC-148); now the main view follows the active note again.
       if (wasFloating && !plugin.floatingSession.active && !isFloating) loadActiveNote()
+      // The read-aloud state shown here mirrored the floating reading. Once that window is gone, nothing
+      // reads, so "Reading aloud 5/27" and the Pause button must not stay on screen (list item #7, ISC-154).
+      if (wasFloating && !plugin.floatingSession.active && !isFloating && (ttsService?.getState().playbackState ?? "idle") === "idle") {
+        ttsPlaybackState = "idle"
+        ttsCurrentSentence = 0
+        clearTTSHighlight()
+      }
       // A script started floating: the main view moves onto that note so its controls drive it.
       if (!wasFloating && plugin.floatingSession.active && !isFloating) loadActiveNote()
       wasFloating = plugin.floatingSession.active
@@ -5312,6 +5333,7 @@
       'teleprompter:reset-to-top',
       'teleprompter:scroll',
       'teleprompter:hotkey-action',
+      'teleprompter:apply-voice-preset',
       'teleprompter:set-scroll-position',
       'teleprompter:set-scroll-percentage',
       'teleprompter:jump-to-header',
@@ -7677,6 +7699,14 @@
 
   .tp-more {
     flex: 0 0 auto;
+  }
+
+  /* The first zone sits at the bar's left edge: its popups (speed, countdown) open left-aligned, or a
+     centred popup is cut off by the pane edge (list item #7, ISC-154). */
+  .tp-zone[data-zone="playback"] :global(.popup-slider),
+  .tp-zone[data-zone="playback"] :global(.popup-panel) {
+    left: 0;
+    transform: none;
   }
 
   /* Appearance panel: no overflow clipping, so each control's own popup can open below it. */
