@@ -729,7 +729,7 @@ export class TeleprompterSettingTab extends PluginSettingTab {
 
 			chip.addEventListener('click', () => {
 				// Apply profile settings
-				Object.assign(this.plugin.settings, profile.settings)
+				Object.assign(this.plugin.settings, redactSecrets(profile.settings))
 				this.plugin.settings.profiles.active = profile.id
 				void this.plugin.saveSettings()
 				this.plugin.applyAllSettings()
@@ -843,7 +843,7 @@ export class TeleprompterSettingTab extends PluginSettingTab {
 								(importedFiltered as Record<string, unknown>)[key] = imported[key]
 							}
 						}
-						Object.assign(this.plugin.settings, importedFiltered)
+						Object.assign(this.plugin.settings, redactSecrets(importedFiltered))
 						void this.plugin.saveSettings()
 						new Notice('Settings imported')
 						this.display()
@@ -2301,7 +2301,7 @@ export class TeleprompterSettingTab extends PluginSettingTab {
 			setIcon(applyBtn, 'check')
 			applyBtn.title = 'Apply profile'
 			applyBtn.addEventListener('click', () => {
-				Object.assign(this.plugin.settings, profile.settings)
+				Object.assign(this.plugin.settings, redactSecrets(profile.settings))
 				this.plugin.settings.profiles.active = profile.id
 				void this.plugin.saveSettings()
 				this.plugin.applyAllSettings()
@@ -2347,7 +2347,7 @@ export class TeleprompterSettingTab extends PluginSettingTab {
 				setIcon(applyBtn, 'check')
 				applyBtn.title = 'Apply profile'
 				applyBtn.addEventListener('click', () => {
-					Object.assign(this.plugin.settings, profile.settings)
+					Object.assign(this.plugin.settings, redactSecrets(profile.settings))
 					this.plugin.settings.profiles.active = profile.id
 					void this.plugin.saveSettings()
 					this.plugin.applyAllSettings()
