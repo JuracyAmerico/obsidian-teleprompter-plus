@@ -31,7 +31,7 @@ describe('number-dense speech against a spelled-out script', () => {
 		expect(track(raw)).toBeLessThan(10)
 	})
 
-	test('reading the passage aloud: digits stall the matcher, normalised speech follows to the end', () => {
+	test('reading the passage aloud: digits hold the place behind the number, normalised speech keeps up through it', () => {
 		// Partial transcripts as a recognizer emits them while the line is being read.
 		const partials = [
 			'here is the answer',
@@ -44,19 +44,19 @@ describe('number-dense speech against a spelled-out script', () => {
 			'a CAC ceiling the most the company can spend',
 			'the company can spend to acquire one customer',
 		]
-		const follow = (normalise: boolean) => partials.reduce(
+		const follow = (normalise: boolean, count = partials.length) => partials.slice(0, count).reduce(
 			(index, partial) => findNextPosition(normalise ? normalizeForSpeech(partial) : partial, reference, index),
 			0,
 		)
 
 		const total = reference.length
-		const stalled = follow(false)
-		const tracked = follow(true)
-
-		// Raw digits: the matcher gets stuck well before the end and never recovers.
-		expect(stalled).toBeLessThan(total / 2)
-		// Normalised: it follows the speaker to the last words of the passage.
-		expect(tracked).toBeGreaterThan(total - 3)
+		const dollars = reference.findIndex(t => t.value === 'dollars')
+		// While "$759" is being said (partial 3), raw digits leave the place on "Yes", before the number...
+		expect(follow(false, 3)).toBeLessThan(dollars - 3)
+		// ...and normalised speech is already on the spoken number.
+		expect(follow(true, 3)).toBe(dollars)
+		// The tail-aligned matcher picks raw speech up again after the number; normalised follows to the end.
+		expect(follow(true)).toBeGreaterThan(total - 3)
 	})
 
 	test('percentages and thousands separators normalise into script form', () => {

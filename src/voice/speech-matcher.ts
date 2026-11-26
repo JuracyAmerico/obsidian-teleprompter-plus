@@ -20,35 +20,96 @@ function foldAccents(text: string): string {
  * These values control how aggressively the matcher follows speech.
  */
 export interface SpeechMatcherConfig {
-  windowSize: number           // Look-ahead window (default: 6)
-  maxJumpDistance: number      // Max words to jump at once (default: 3)
+  windowSize: number           // Global re-sync window, and the floor of the local look-ahead (default: 6)
   confidenceThreshold: number  // Min confidence to accept match (default: 0.2)
 }
 
 /** Default configuration - balanced preset */
 export const DEFAULT_MATCHER_CONFIG: SpeechMatcherConfig = {
   windowSize: 6,
-  maxJumpDistance: 3,
   confidenceThreshold: 0.20
 }
 
+/** How many of the last words heard locate the reader. Enough to tell repeats apart, few enough to stay current. */
+const TAIL_WORDS = 5
+/** How far past the current place the reader can be found: a full clause, for a reader who surged ahead. */
+const LOCAL_LOOK_AHEAD = TAIL_WORDS + 18
 /**
- * Find the best matching position in the reference text for recognized speech.
+ * Places just behind the current one are scored too, but never chosen. Without them a partial that only
+ * repeats words already matched would have to land on the best lookalike AHEAD, and push the place on.
+ */
+const LOCAL_LOOK_BEHIND = 3
+/**
+ * A farther candidate pays this much per word of distance (in word-edit units). It breaks ties toward
+ * the nearer copy of a repeated phrase without pinning the place behind a reader who moved on.
+ */
+const PROXIMITY_PENALTY = 0.04
+/** Two words this close (edit distance over length) are the same word said with an accent: "tablo"/"tableau". */
+const SAME_WORD_MAX_DISTANCE = 0.5
+/** Skipping or adding a word this short costs half: recognizers drop and insert "a", "o", "the" freely. */
+const SHORT_WORD_LENGTH = 3
+
+/** One word compared with another: 0 identical, up to SAME_WORD_MAX_DISTANCE for an accent, 1 a different word. */
+function wordCost(heard: string, script: string): number {
+  if (heard === script) return 0
+  const distance = levenshteinDistance(heard, script) / Math.max(heard.length, script.length)
+  return distance <= SAME_WORD_MAX_DISTANCE ? distance : 1
+}
+
+function gapCost(word: string): number {
+  return word.length <= SHORT_WORD_LENGTH ? 0.5 : 1
+}
+
+function matchKey(word: string): string {
+  return foldAccents(word.toLowerCase())
+}
+
+/**
+ * The cost of the heard words ending exactly at each script word in [from, to], by word-level
+ * approximate matching with a free start (Sellers): the heard tail may begin anywhere, but it is
+ * scored against the words that END at the candidate. That is what the old prefix match got wrong —
+ * it always began at the current place, so every word between the place and the voice counted as
+ * an edit, and a reader a few words ahead lost to a nearer, worse alignment.
+ */
+function tailCostsEndingAt(tail: string[], reference: TextElement[], from: number, to: number): number[] {
+  // Room for the tail (and a dropped word or two) to sit wholly before the first candidate
+  const start = Math.max(0, from - tail.length - 2)
+  const script = reference.slice(start, to + 1).map(t => matchKey(t.value))
+  // previous[j]: cost of the first i heard words ending at script[j - 1]; column 0 is "before the window"
+  let previous = new Array<number>(script.length + 1).fill(0)
+  for (const heard of tail) {
+    const current = new Array<number>(script.length + 1)
+    current[0] = previous[0] + gapCost(heard)
+    for (let j = 1; j <= script.length; j++) {
+      current[j] = Math.min(
+        previous[j - 1] + wordCost(heard, script[j - 1]), // heard word is this script word
+        previous[j] + gapCost(heard),                     // heard word is not in the script
+        current[j - 1] + gapCost(script[j - 1]),          // script word was not heard
+      )
+    }
+    previous = current
+  }
+  // Candidate index k sits at column k - start + 1
+  return Array.from({ length: to - from + 1 }, (_, i) => previous[from + i - start + 1])
+}
+
+/**
+ * Find where the reader is, near the current place, from what was just heard.
  *
- * Algorithm:
- * 1. Tokenize the recognized speech
- * 2. Create a look-ahead window from the current position
- * 3. Calculate Levenshtein distance for each possible match position
- * 4. Return the position with minimum distance
+ * The last TAIL_WORDS heard words are aligned against the script ending at each candidate word from a
+ * little behind the place to LOCAL_LOOK_AHEAD past it. The cheapest alignment wins, with a small
+ * penalty per word of distance so the nearer copy of a repeated phrase wins a tie. Case and accents
+ * never count, and a word said with an accent ("brasil", "tablo") costs only a fraction of a miss.
  *
  * IMPORTANT: This function expects reference to be WORD-ONLY tokens (no delimiters).
- * The returned matchedWordIndex is the position in this word-only array.
+ * The returned matchedWordIndex is the position in this word-only array, and may be BEHIND the
+ * current place: that means the voice has not moved on, and callers must not go back for it.
  *
- * @param recognized - The recognized speech text
+ * @param recognized - The recognized speech text (a whole cumulative partial is fine)
  * @param reference - Array of WORD-ONLY TextElements from the reference script
- * @param lastRecognizedTokenIndex - The last matched position (start of look-ahead)
- * @param windowSize - Look-ahead window size (from config)
- * @returns MatchResult with the new matched position, or null if no match
+ * @param lastRecognizedTokenIndex - The current place
+ * @param windowSize - Floor for the look-ahead (from config); the look-ahead is never shorter than LOCAL_LOOK_AHEAD
+ * @returns MatchResult with the best place and its confidence, or null if nothing was heard
  */
 export function computeSpeechRecognitionTokenIndex(
   recognized: string,
@@ -56,96 +117,68 @@ export function computeSpeechRecognitionTokenIndex(
   lastRecognizedTokenIndex: number,
   windowSize: number = DEFAULT_MATCHER_CONFIG.windowSize
 ): MatchResult | null {
-  // Tokenize the recognized input and filter to words only
-  const recognizedTokens = tokenize(recognized).filter(
-    element => element.type === 'TOKEN'
-  )
+  if (reference.length === 0) return null
+  const place = Math.min(Math.max(0, lastRecognizedTokenIndex), reference.length - 1)
+  return bestTailAlignment(recognized, reference, place, place - LOCAL_LOOK_BEHIND, place + Math.max(windowSize, LOCAL_LOOK_AHEAD))
+}
 
-  // If nothing recognized, return null
-  if (recognizedTokens.length === 0) {
-    return null
-  }
+/** How far either side of an estimated end the heard words are re-aligned. A recognizer drops or adds a word or two. */
+const END_ALIGN_RADIUS = 3
 
-  if (lastRecognizedTokenIndex < 0) {
-    lastRecognizedTokenIndex = 0
-  }
+/**
+ * Where, near `approxEnd`, the last heard words end, with the same alignment and confidence as local
+ * matching. A re-sync uses this to land on the last heard word, and to reject a match whose last words
+ * do not actually line up with the script there (an off-script aside that happens to share letters).
+ */
+export function alignHeardEnd(recognized: string, reference: TextElement[], approxEnd: number): MatchResult | null {
+  if (reference.length === 0) return null
+  const place = Math.min(Math.max(0, approxEnd), reference.length - 1)
+  return bestTailAlignment(recognized, reference, place, place - END_ALIGN_RADIUS, place + END_ALIGN_RADIUS)
+}
 
-  // Match only the RECENT TAIL of the recognized speech, not the whole cumulative partial.
-  // Apple keeps growing one long partial from the start of the utterance, but we match forward
-  // from the current position — so the partial's beginning (words already read) misaligns the
-  // match and pushes it noisily ahead. The last few spoken words anchor the match where the
-  // voice actually is. The window is kept just big enough to locate that short tail.
-  const TAIL_WORDS = 5
-  const tailTokens = recognizedTokens.slice(-TAIL_WORDS)
-  const comparisonString = tokensToString(tailTokens)
+/**
+ * Added to the preset's threshold (0.15-0.25, set for the old letter-level score) before a tail
+ * alignment may move the place. Measured on the interview fixture: off-script phrases align at
+ * 0.3-0.5 and words actually read (every seventh one accented) at 0.8 and above. At 0.4, off-script
+ * phrases move the matcher 1% of the time (0.3: 10%, none: 44%), and the gap test's reader, who says
+ * something off-script after every second sentence, never has the place pulled ahead of them; the
+ * cost is a slower follow when every third word is paraphrased.
+ */
+export const EVIDENCE_FLOOR = 0.4
 
-  // Wide enough to SEE a reader who surged a full clause ahead. A narrow window (tail+8) can't
-  // reach a word ~14 tokens out ("...international mover"), so the matcher stalls on the nearest
-  // copy and the highlight falls behind. With the index-alignment bug fixed there is no longer a
-  // drift to guard against, so we can afford to look further ahead for the true position.
-  const lookAhead = Math.max(windowSize, tailTokens.length + 18)
-  const referenceTokens = reference
-    .slice(lastRecognizedTokenIndex, lastRecognizedTokenIndex + lookAhead)
+/** Whether a tail alignment is strong enough to move the place. */
+export function isConfidentMatch(confidence: number, config: SpeechMatcherConfig): boolean {
+  return confidence >= EVIDENCE_FLOOR + config.confidenceThreshold
+}
+
+/** The cheapest place in [from, to] for the heard tail to end, nearer `place` winning ties. */
+function bestTailAlignment(recognized: string, reference: TextElement[], place: number, from: number, to: number): MatchResult | null {
+  const tail = tokenize(recognized)
     .filter(element => element.type === 'TOKEN')
+    .slice(-TAIL_WORDS)
+    .map(t => matchKey(t.value))
+  if (tail.length === 0) return null
 
-  // If no reference tokens in window, no match possible
-  if (referenceTokens.length === 0) {
-    return null
-  }
+  const first = Math.max(0, from)
+  const last = Math.min(reference.length - 1, to)
+  const costs = tailCostsEndingAt(tail, reference, first, last)
 
-  // Calculate Levenshtein distances for each possible ending position
-  const distances: number[] = []
-  let i = 0
-
-  while (++i <= referenceTokens.length) {
-    // Build reference substring from first i tokens
-    const referenceSubstring = referenceTokens
-      .slice(0, i)
-      .reduce(
-        (accumulator, currentToken) => accumulator + ' ' + currentToken.value,
-        ''
-      )
-      .replace(/\s+/g, ' ')
-      .trim()
-
-    // Calculate distance
-    distances.push(levenshteinDistance(foldAccents(comparisonString), foldAccents(referenceSubstring)))
-  }
-
-  // Prefer the NEAREST good alignment, not the raw global minimum. In repeat-heavy text the same
-  // spoken tail ("...the cross-border friction") aligns to a LATER copy of a repeated word/phrase
-  // with an equal or near-equal edit distance; taking the bare minimum makes the highlight leap to
-  // that second occurrence (the "30 words ahead" jump). A small per-position penalty means a farther
-  // candidate only wins when it is DISTINCTLY better, so the matcher stays locked to the copy the
-  // reader is actually on. Index 0 (closest to current) carries no penalty.
-  // Gentle tie-break toward the nearer copy. This was 0.6 to fight the highlight "leaping" to a
-  // later repeat — but that leap was the index-misalignment bug, not a matching error. With that
-  // fixed, a high penalty just PINS the matcher behind a faster reader. Keep it small: break true
-  // ties toward the near copy, but let a clearly-better forward match (the reader moved on) win.
-  const PROXIMITY_PENALTY = 0.2
-  let localIndex = 0
-  let bestScore = distances[0]
-  for (let k = 1; k < distances.length; k++) {
-    const score = distances[k] + PROXIMITY_PENALTY * k
+  let best = 0
+  let bestScore = Infinity
+  for (let i = 0; i < costs.length; i++) {
+    const score = costs[i] + PROXIMITY_PENALTY * Math.abs(first + i - place)
     if (score < bestScore) {
       bestScore = score
-      localIndex = k
+      best = i
     }
   }
 
-  // Get the corresponding token
-  const token = referenceTokens[localIndex]
-
-  if (token) {
-    // Return the GLOBAL word index (lastRecognizedTokenIndex + local position)
-    // This is the index in the word-only array, matching wordPositions keys
-    return {
-      matchedWordIndex: lastRecognizedTokenIndex + localIndex,
-      token: token
-    }
+  const matchedWordIndex = first + best
+  return {
+    matchedWordIndex,
+    token: reference[matchedWordIndex],
+    confidence: Math.max(0, 1 - costs[best] / tail.length),
   }
-
-  return null
 }
 
 /**
@@ -393,32 +426,15 @@ export function findNextPosition(
     return currentIndex
   }
 
-  // Allow matching at current position (for first word) or moving forward
-  if (result.matchedWordIndex < currentIndex) {
+  // The best alignment is at or behind the place: the voice has not moved on
+  if (result.matchedWordIndex <= currentIndex) {
     return currentIndex
   }
 
-  // Check confidence by comparing LAST few words of recognized text
-  // against words AROUND the matched position
-  const recognizedTokens = tokenize(recognized).filter(t => t.type === 'TOKEN')
-
-  // Take only the last 5 words of recognized text for comparison
-  const lastRecognizedTokens = recognizedTokens.slice(-5)
-  const recognizedString = tokensToString(lastRecognizedTokens)
-
-  // Get reference words around the matched position (3 before, matched word, 3 after)
-  // reference is already word-only, so no need to filter
-  const matchStart = Math.max(0, result.matchedWordIndex - 3)
-  const matchEnd = Math.min(reference.length, result.matchedWordIndex + 4)
-  const referenceTokens = reference.slice(matchStart, matchEnd)
-  const referenceString = tokensToString(referenceTokens)
-
-  const confidence = calculateMatchConfidence(recognizedString, referenceString)
-
-  // Use confidence threshold from config (set by user's preset)
-  const effectiveThreshold = config.confidenceThreshold
-
-  if (confidence < effectiveThreshold) {
+  // The confidence is that of the alignment that chose the place: the heard tail against the words
+  // ending there. (It used to be measured against a window centred on the match, which a correct
+  // match ending at that word could fail.)
+  if (!isConfidentMatch(result.confidence, config)) {
     return currentIndex
   }
 
