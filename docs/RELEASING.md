@@ -23,29 +23,33 @@ the community store. **No re-submission, no PR to `obsidianmd/obsidian-releases`
 ## Release checklist
 
 1. **Land all work on `main`** (merge the PR first).
-2. **Pick the new version (semver).** New user-facing features → **minor** (`0.10.x → 0.11.0`).
+2. **Write the release notes for people, under `## [Unreleased]` in `CHANGELOG.md`.** They are the
+   "What's new" window: after an update the dialog shows every version the user skipped, newest
+   first, built from the `CHANGELOG.md` sections at build time (`src/release-notes.ts`). Items under
+   `### Security` are shown first. Write each bullet as `- **Title.** What it does`, most useful
+   first: the window shows the first 8 (never fewer than every Security item) and links to the rest.
+3. **Pick the new version (semver).** New user-facing features → **minor** (`0.10.x → 0.11.0`).
    Bug-fixes only → **patch** (`0.11.0 → 0.11.1`).
    ⚠️ **Never reuse a published version number.** Check the
    [Releases page](https://github.com/JuracyAmerico/obsidian-teleprompter-plus/releases)
    and `versions.json` first.
-3. **Bump four files** so they all agree:
-   - `manifest.json` → `"version": "X.Y.Z"`
-   - `package.json` → `"version": "X.Y.Z"`
-   - `versions.json` → add `"X.Y.Z": "<minAppVersion>"` at the top
-   - `CHANGELOG.md` → promote `## [Unreleased]` to `## [X.Y.Z] - YYYY-MM-DD`
-4. **Write the release notes for people, because they are the "What's new" window.** The dialog
-   shown after an update is built from this version's section of `CHANGELOG.md` at build time
-   (`src/release-notes.ts`), so write each bullet as `- **Title.** What it does`, most useful
-   first: the window shows the first 8 and links to the rest. `bun test` fails when the version has no notes. Check the
-   window on a real update before tagging: deploy to the vault with the new `manifest.json`.
-5. **Refresh public-facing surfaces if they changed this release** — `README.md` (feature
+4. **Run the release script:**
+   ```
+   bun scripts/release.ts X.Y.Z
+   ```
+   It moves `## [Unreleased]` under `## [X.Y.Z] - <today>` (`--date YYYY-MM-DD` to override),
+   bumps `manifest.json`, `package.json` and `versions.json` (new key first, same `minAppVersion`
+   as the previous entry), asserts that all four files agree, then runs `bun run check`,
+   `bun test`, `bun run lint` and `bun run build`. Any failure puts the four files back as they
+   were. It refuses an empty `[Unreleased]`, a version that is not newer than the current one, and
+   a version already in `versions.json`. `--dry-run` checks everything and writes nothing.
+   It never commits, tags or pushes.
+5. **Check the What's New window on a real update before tagging:** deploy to the vault with the
+   new `manifest.json` and open the dialog. `bun test` already fails when the version has no notes.
+6. **Refresh public-facing surfaces if they changed this release** — `README.md` (feature
    bullets, screenshots in `docs/screenshots/`, credits), `docs/logo.png`. The community store
    re-renders the README live; the version/downloads stats lag behind on Obsidian's bot.
-6. **Verify the build locally — must be 0 errors** (a broken build = a *failed* release, like 0.10.0):
-   ```
-   bun run check && bun run build
-   ```
-7. **Commit + push `main`:**
+7. **Commit + push `main`** (the script prints these lines for you):
    ```
    git add manifest.json package.json versions.json CHANGELOG.md README.md docs/
    git commit -m "release: X.Y.Z — <summary>"
@@ -62,6 +66,9 @@ the community store. **No re-submission, no PR to `obsidianmd/obsidian-releases`
 10. **Confirm:** `gh release view X.Y.Z` — expect assets `main.js`, `manifest.json`,
     `styles.css`, `isDraft: false`. The store updates within a short while.
 
+CI (`.github/workflows/ci.yml`) runs check, test, lint and build on every push and pull request;
+the release workflow repeats check, test and lint before it builds.
+
 ## Common mistakes (the ones we've actually hit)
 
 - **Reusing a published version** (e.g. trying to re-ship `0.10.2`). The store already
@@ -70,11 +77,11 @@ the community store. **No re-submission, no PR to `obsidianmd/obsidian-releases`
   bare-number glob). Use `0.11.0`.
 - **Tag ≠ manifest version.** Obsidian matches the release tag to `manifest.json`; a mismatch
   is rejected. Bump the manifest *before* tagging.
-- **Skipping the local build check.** CI builds the same way; if `bun run build` fails locally
-  it fails in CI and you get a *Failed* release. Always run the build step first.
-- **Forgetting the What's-new modal.** `src/whats-new-modal.ts` has a hardcoded feature list
-  that does **not** read the CHANGELOG; if you don't refresh it, every user who updates sees
-  stale release notes. *(Hit 0.11.0 — shipped with the old pre-redesign list.)*
+- **Skipping the release script.** CI builds the same way; if check, test, lint or build fails it
+  fails in CI and you get a *Failed* release. `bun scripts/release.ts X.Y.Z` runs all four first.
+- **Empty or thin `[Unreleased]`.** The What's-new window is built from `CHANGELOG.md`, so a
+  release with no notes shows nothing useful. The script refuses an empty `[Unreleased]`.
+  *(The old hardcoded list, hit at 0.11.0, is gone; the window reads the CHANGELOG now.)*
 
 ## What the store will reflect (and known non-blocking warnings)
 
