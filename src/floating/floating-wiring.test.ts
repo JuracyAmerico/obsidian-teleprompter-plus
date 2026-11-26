@@ -287,4 +287,17 @@ describe('read-aloud runs in the floating view while a script floats (ISC-144)',
 		expect(app).toContain('if (!wasFloating && plugin.floatingSession.active && !isFloating) loadActiveNote()')
 		expect(app).toContain('plugin.floatingSession.renamed(oldPath, file.path)')
 	})
+
+	test('ISC-149: an edit pause comes back with the next words heard or the next sentence read', () => {
+		const blur = functionBody('handleTeleprompterBlur')
+		expect(blur).toContain("pausedForEdit = sessionState === 'running' && (voiceTrackingActive || ttsPlaybackState === 'playing')")
+		expect(blur.indexOf('pausedForEdit =')).toBeLessThan(blur.indexOf('pauseSession()'))
+		const resume = functionBody('resumeAfterEditPause')
+		expect(resume).toContain('if (!pausedForEdit) return')
+		expect(resume).toContain("if (sessionState === 'paused') startSession()")
+		expect(app).toMatch(/onRecognizedText = \(text: string, isFinal: boolean\) => \{\s+lastRecognizedText = text\s+resumeAfterEditPause\(\)/)
+		expect(app).toMatch(/onSentenceStartEvent\(\(\{ index \}\) => \{\s+ttsCurrentSentence = index\s+resumeAfterEditPause\(\)/)
+		expect(app).toContain("if (state.playbackState !== 'playing') pausedForEdit = false")
+		expect(functionBody('startSession')).toContain('pausedForEdit = false')
+	})
 })
