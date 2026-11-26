@@ -8,6 +8,7 @@ import type {
 	TTSEngineType, TTSDocument, SpeakOptions,
 } from './tts-types'
 import { createTTSEngine } from './engine-factory'
+import type { TTSEngineConfig } from './engine-factory'
 import { cleanDocument, extractBibPath } from '../parser/text-cleaner'
 import { resolveCitations, loadBibliography, clearBibCache } from '../parser/citation-resolver'
 import { applyPronunciations, normalizeForSpeech, parsePronunciations, spokenSeparators } from '../parser/speech-normalizer'
@@ -47,14 +48,27 @@ const DEFAULT_CONFIG: TTSServiceConfig = {
 	elevenLabsModelId: 'eleven_flash_v2_5',
 }
 
+/** Builds the engine for a service. Tests pass a fake; the plugin uses the real factory. */
+export type TTSEngineFactory = (type: TTSEngineType, config: TTSEngineConfig) => TTSEngine | null
+
 export class TTSService {
 	private engine: TTSEngine | null = null
 	private config: TTSServiceConfig
+	private createEngine: TTSEngineFactory
 	private document: TTSDocument | null = null
 	private currentIndex = 0
 	private playbackState: TTSPlaybackState = 'idle'
 	private isDestroyed = false
 	private pronunciations: Array<[string, string]> = []
+	/** Read the current sentence again instead of moving on when it ends. */
+	private loop = false
+	/** Bumped whenever the sentence being spoken is abandoned, so its late failure is not reported. */
+	private speechTurn = 0
+	/**
+	 * The engine holds nothing to resume: the sentence was stopped, skipped or failed. Play then
+	 * speaks the current sentence again; resume() would sit on "playing" in silence.
+	 */
+	private resumeFresh = false
 
 	// Event listeners
 	private sentenceStartListeners: TTSListener<{ index: number; text: string }>[] = []
@@ -63,8 +77,9 @@ export class TTSService {
 	private errorListeners: TTSListener<{ message: string }>[] = []
 	private voicesLoadedListeners: TTSListener<TTSVoice[]>[] = []
 
-	constructor(config: Partial<TTSServiceConfig> = {}) {
+	constructor(config: Partial<TTSServiceConfig> = {}, createEngine: TTSEngineFactory = createTTSEngine) {
 		this.config = { ...DEFAULT_CONFIG, ...config }
+		this.createEngine = createEngine
 	}
 
 	/** Initialize the TTS engine */
@@ -73,7 +88,7 @@ export class TTSService {
 			this.engine.destroy()
 		}
 
-		this.engine = createTTSEngine(this.config.engineType, {
+		this.engine = this.createEngine(this.config.engineType, {
 			elevenLabsApiKey: this.config.elevenLabsApiKey,
 			elevenLabsVoiceId: this.config.elevenLabsVoiceId,
 			elevenLabsModelId: this.config.elevenLabsModelId,
@@ -145,6 +160,10 @@ export class TTSService {
 			// synchronously fire endCallback if the process died while paused,
 			// and onSentenceEnd requires playbackState === 'playing'
 			this.setPlaybackState('playing')
+			if (this.resumeFresh) {
+				await this.speakCurrentSentence()
+				return
+			}
 			this.engine.resume()
 			// Re-emit sentenceStart so highlight/scroll re-sync after pause
 			this.emitSentenceStart()
@@ -167,7 +186,7 @@ export class TTSService {
 	/** Stop TTS playback and reset to beginning */
 	stop(): void {
 		if (!this.engine) return
-		this.engine.stop()
+		this.halt()
 		this.currentIndex = 0
 		this.setPlaybackState('idle')
 	}
@@ -186,7 +205,7 @@ export class TTSService {
 		if (!this.document) return
 
 		const wasPlaying = this.playbackState === 'playing'
-		this.engine?.stop()
+		this.halt()
 
 		if (this.currentIndex < this.document.allSentences.length - 1) {
 			this.currentIndex++
@@ -206,7 +225,7 @@ export class TTSService {
 		if (!this.document) return
 
 		const wasPlaying = this.playbackState === 'playing'
-		this.engine?.stop()
+		this.halt()
 
 		if (this.currentIndex > 0) {
 			this.currentIndex--
@@ -229,7 +248,7 @@ export class TTSService {
 		if (sectionIndex === -1) return
 
 		const wasPlaying = this.playbackState === 'playing'
-		this.engine?.stop()
+		this.halt()
 
 		// Find the first sentence in this section
 		const sentenceIndex = this.document.sectionMap.indexOf(sectionIndex)
@@ -257,7 +276,7 @@ export class TTSService {
 		if (nextSectionStart === -1) return
 
 		const wasPlaying = this.playbackState === 'playing'
-		this.engine?.stop()
+		this.halt()
 		this.currentIndex = nextSectionStart
 
 		if (wasPlaying) {
@@ -280,7 +299,7 @@ export class TTSService {
 		if (prevSectionStart === -1) return
 
 		const wasPlaying = this.playbackState === 'playing'
-		this.engine?.stop()
+		this.halt()
 		this.currentIndex = prevSectionStart
 
 		if (wasPlaying) {
@@ -292,9 +311,34 @@ export class TTSService {
 		}
 	}
 
-	/** Update playback rate */
+	/**
+	 * Read the current sentence again from its start. Paused reading resumes with it; with nothing
+	 * being read (idle) there is no current sentence, so nothing happens.
+	 */
+	async repeatCurrent(): Promise<void> {
+		if (!this.engine || !this.document || this.playbackState === 'idle') return
+		this.halt()
+		this.setPlaybackState('playing')
+		await this.speakCurrentSentence()
+	}
+
+	/** Loop on: the current sentence is read again each time it ends, until loop is turned off. */
+	setLoop(on: boolean): void {
+		if (this.loop === on) return
+		this.loop = on
+		this.emitStateChange()
+	}
+
+	/** Returns the new setting */
+	toggleLoop(): boolean {
+		this.setLoop(!this.loop)
+		return this.loop
+	}
+
+	/** Update playback rate. Engines that can change a sentence already playing do so at once. */
 	setRate(rate: number): void {
 		this.config.rate = Math.max(0.5, Math.min(2.0, rate))
+		this.engine?.setRate?.(this.config.rate)
 		this.emitStateChange()
 	}
 
@@ -331,6 +375,7 @@ export class TTSService {
 			rate: this.config.rate,
 			engineName: this.engine?.name || 'none',
 			voiceId: this.config.voice,
+			loop: this.loop,
 		}
 	}
 
@@ -432,10 +477,13 @@ export class TTSService {
 		this.emitSentenceStart()
 
 		const options = this.optionsFor(this.currentIndex)
+		const turn = ++this.speechTurn
+		this.resumeFresh = false
 
-		// Hint the engine about the next sentence for pregeneration
+		// Hint the engine about the next sentence for pregeneration. A loop reads this one again, and a
+		// pregenerated next sentence would be a paid request for nothing.
 		const nextIndex = this.currentIndex + 1
-		if (nextIndex < this.document.allSentences.length && this.engine.hintNext) {
+		if (!this.loop && nextIndex < this.document.allSentences.length && this.engine.hintNext) {
 			// Same spoken form as speak(), or the engine's pregenerated cache key never hits.
 			this.engine.hintNext(this.spokenForm(this.document.allSentences[nextIndex]), this.optionsFor(nextIndex))
 		}
@@ -443,11 +491,27 @@ export class TTSService {
 		try {
 			await this.engine.speak(text, options)
 		} catch (err) {
-			if (!this.isDestroyed) {
-				const message = err instanceof Error ? err.message : 'Speech failed'
-				this.emitError(message)
-			}
+			// A sentence that was stopped or skipped may fail on its way out; that is not the reader's problem.
+			if (this.isDestroyed || turn !== this.speechTurn) return
+			this.failSpeech(err instanceof Error ? err.message : 'Speech failed')
 		}
+	}
+
+	/**
+	 * The current sentence could not be spoken. Reading pauses on it, so the Play button shows and
+	 * pressing it tries the same sentence again, and the listeners hear why.
+	 */
+	private failSpeech(message: string): void {
+		this.resumeFresh = true
+		if (this.playbackState === 'playing') this.setPlaybackState('paused')
+		this.emitError(message)
+	}
+
+	/** Abandons the sentence in the engine. Whatever it was doing, play must speak afresh. */
+	private halt(): void {
+		this.speechTurn++
+		this.resumeFresh = true
+		this.engine?.stop()
 	}
 
 	private onSentenceEnd(): void {
@@ -457,8 +521,8 @@ export class TTSService {
 			listener({ index: this.currentIndex })
 		}
 
-		// Advance to next sentence
-		this.currentIndex++
+		// Advance to next sentence, or stay on this one while looping
+		if (!this.loop) this.currentIndex++
 
 		if (this.currentIndex >= (this.document?.allSentences.length || 0)) {
 			// End of document
