@@ -14,6 +14,10 @@ import { describeRemoteServerStartFailure } from './remote-server-errors'
 import { canRunDesktopMachinery, showsMobileInterface } from './platform/device'
 import { installPhoneLog } from './platform/phone-log'
 import { megabytesToBytes, sharedSpeechAudioStore } from './tts/speech-audio-store'
+import { TakeStore } from './take-store'
+import { TAKE_LOG_FILE, type TakeLogEntry } from './take-log'
+import { RecentTakesModal } from './takes-modal'
+import { isSectionStopMode, type TakeResult } from './takes'
 import './styles.css'
 
 // Extended state type for broadcast updates that include additional properties
@@ -32,6 +36,9 @@ export default class TeleprompterPlusPlugin extends Plugin {
 	wsServer: TeleprompterWebSocketServer | null = null
 	readonly floatingSession = new FloatingSession()
 	private obsService: OBSService | null = null
+	private takeStore: TakeStore | null = null
+	/** The note the teleprompter last loaded: "Show recent takes" lists this note's takes. */
+	promptedNotePath: string | null = null
 
 	async onload(): Promise<void> {
 		installPhoneLog(this.app)
@@ -148,6 +155,9 @@ export default class TeleprompterPlusPlugin extends Plugin {
 		// A remembered position follows its note, and goes when the note goes
 		this.registerEvent(this.app.vault.on('rename', (file, oldPath) => {
 			if (renamePosition(this.settings.notePositions, oldPath, file.path)) void this.saveSettings()
+			// Takes follow their note too
+			if (this.promptedNotePath === oldPath) this.promptedNotePath = file.path
+			void this.takes().renameNote(oldPath, file.path).catch(error => console.error('[Takes] Rename failed:', error))
 		}))
 		this.registerEvent(this.app.vault.on('delete', (file) => {
 			if (forgetPosition(this.settings.notePositions, file.path)) void this.saveSettings()
@@ -567,6 +577,23 @@ export default class TeleprompterPlusPlugin extends Plugin {
 			name: 'Increase speech speed',
 			callback: () => {
 				window.dispatchEvent(new CustomEvent('teleprompter:tts-speed-up'))
+			},
+		})
+
+		// ===== Takes =====
+		this.addCommand({
+			id: 'show-recent-takes',
+			name: 'Show recent takes',
+			callback: () => {
+				void this.showRecentTakes()
+			},
+		})
+
+		this.addCommand({
+			id: 'fit-speed-to-target',
+			name: 'Fit speed to target',
+			callback: () => {
+				window.dispatchEvent(new CustomEvent('teleprompter:fit-speed-to-target'))
 			},
 		})
 
@@ -1510,6 +1537,7 @@ Use this address to connect from external devices.`
 		s.speedIncrement = this.clamp(s.speedIncrement, 0.1, 10)
 		s.backgroundOpacity = this.clamp(s.backgroundOpacity, 0, 100)
 		s.speakingPaceWPM = this.clamp(s.speakingPaceWPM, 50, 500)
+		if (!isSectionStopMode(s.sectionStopMode)) s.sectionStopMode = d.sectionStopMode
 		s.networkBroadcastInterval = this.clamp(s.networkBroadcastInterval, 50, 1000)
 
 		// Validate host - must be valid IP or localhost
@@ -1544,6 +1572,42 @@ Use this address to connect from external devices.`
 		if (s.iconStyle !== 'native' && s.iconStyle !== 'custom') {
 			s.iconStyle = d.iconStyle
 		}
+	}
+
+	/** The take log in this plugin's own folder, created on first use. */
+	private takes(): TakeStore {
+		if (!this.takeStore) {
+			const dir = this.manifest.dir ?? `${this.app.vault.configDir}/plugins/${this.manifest.id}`
+			this.takeStore = new TakeStore(this.app.vault.adapter, `${dir}/${TAKE_LOG_FILE}`)
+		}
+		return this.takeStore
+	}
+
+	/** Keep one whole take of a note. A failure is logged and never interrupts the rehearsal. */
+	recordTake(notePath: string, take: TakeResult): void {
+		if (!notePath || !take.complete) return
+		const entry: TakeLogEntry = {
+			notePath,
+			kind: take.kind,
+			section: take.title,
+			durationSeconds: take.durationSeconds,
+			targetSeconds: take.targetSeconds,
+			date: new Date().toISOString(),
+		}
+		void this.takes().record(entry).catch(error => {
+			console.error('[Takes] Could not save the take:', error)
+			new Notice('Teleprompter: could not save this take to the take log.', 4000)
+		})
+	}
+
+	/** The last takes of the note on the teleprompter (or, with none open, the active note). */
+	async showRecentTakes(): Promise<void> {
+		const notePath = this.promptedNotePath ?? this.app.workspace.getActiveFile()?.path ?? null
+		if (!notePath) {
+			new Notice('Open a script in the teleprompter first.', 3000)
+			return
+		}
+		new RecentTakesModal(this.app, notePath, await this.takes().load()).open()
 	}
 
 	/**

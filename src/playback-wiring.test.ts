@@ -122,7 +122,7 @@ describe('sections stop at the ends', () => {
 
 describe('B7: word count', () => {
 	test('the component counts with countWords and guards the 0/0 share', () => {
-		expect(functionBody('updateWordCount')).toContain('countWords(content)')
+		expect(functionBody('updateWordCount')).toContain('countWords(stripHeadingTargets(content))')
 		expect(functionBody('calculateWordsRemaining')).toContain('scrollFraction(contentArea.scrollTop, maxScrollOf(contentArea))')
 		expect(app).not.toContain(".replace(/\\[.*?\\]\\(.*?\\)/g, '$1')")
 	})
