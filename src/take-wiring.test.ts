@@ -56,9 +56,12 @@ describe('a take runs with the scroll', () => {
 	test('the end of the script closes the take: whole script or last section, logged and shown', () => {
 		const finish = functionBody('finishPlayback')
 		expect(finish).toContain('finishSession()')
-		expect(finish).toContain('takeTracker.finish(takeFrame(contentArea), targetSeconds)')
-		expect(finish).toContain('keepTakes([end.section, end.script])')
-		expect(finish).toContain('scriptEndCard(end)')
+		expect(finish).toContain('closeScriptTake(crossed)')
+		const close = functionBody('closeScriptTake')
+		expect(close).toContain('if (crossed) keepTakes([crossed.result])')
+		expect(close).toContain('takeTracker.finish(takeFrame(contentArea), targetSeconds)')
+		expect(close).toContain('keepTakes([end.section, end.script])')
+		expect(close).toContain('scriptEndCard(end)')
 	})
 
 	test('jumps, seeks, resets and a restarted clock drop the open take', () => {
@@ -72,6 +75,88 @@ describe('a take runs with the scroll', () => {
 		expect(keep).toContain('currentSourcePath()')
 		expect(keep).toContain('loggableTakes(results)')
 		expect(keep).toContain('plugin.recordTake(notePath, take)')
+	})
+})
+
+/**
+ * Voice tracking and read-aloud never run the scroll loop, so a take under them is fed by the place
+ * each reports. The tracker rules for those places are behaviour-tested in takes.test.ts
+ * (TakeTracker.follow), the reports themselves in voice/reading-move.test.ts and
+ * tts/tts-service.test.ts; these guards hold the two call sites to them.
+ */
+describe('a take runs under voice tracking', () => {
+	test('every committed place reaches the tracker, measured at the word heard', () => {
+		expect(functionBody('toggleVoiceTracking')).toContain('voiceTrackingService.onReadingMove = (move: VoiceReadingMove) => followVoiceTake(move)')
+		const follow = functionBody('followVoiceTake')
+		expect(follow).toContain('if (!area || !move.span || !ownsVoice() || !voiceTrackingActive) return')
+		expect(follow).toContain('takeTracker.follow(readingFrame({')
+		expect(follow).toContain('readingLine: takeContentTopOf(move.span, area)')
+		expect(follow).toContain('viewTop: area.scrollTop')
+		expect(follow).toContain('elapsedMs: rehearsalClock.elapsedMs')
+		expect(follow).toContain("plugin.settings.sectionStopMode ?? 'targeted'")
+		expect(follow).toContain('if (crossed) endVoiceSectionTake(crossed)')
+	})
+
+	test('his words run the rehearsal clock, idle after a jump or stopped on a card, before the place is timed', () => {
+		const follow = functionBody('followVoiceTake')
+		expect(follow).toContain("if (sessionState !== 'running') startSession()")
+		expect(follow.indexOf('startSession()')).toBeLessThan(follow.indexOf('takeTracker.follow('))
+	})
+
+	test('his last words close the run as the end of a scroll does, once', () => {
+		const follow = functionBody('followVoiceTake')
+		expect(follow).toContain('const atEnd = voiceReachedScriptEnd(move.wordIndex, move.totalWords)')
+		expect(follow).toContain("if (sessionState === 'finished' && atEnd) return")
+		expect(follow).toMatch(/if \(atEnd\) \{\s+finishSession\(\)\s+closeScriptTake\(crossed\)\s+return\s+\}/)
+	})
+
+	test('a section end pauses the clock and shows the card, and never stops the microphone', () => {
+		const end = functionBody('endVoiceSectionTake')
+		expect(end).toContain('keepTakes([end.result])')
+		expect(end).toContain('pauseSession()')
+		expect(end).toContain('showTake(takeCard(end.result))')
+		for (const stops of ['toggleVoiceTracking', 'voiceTrackingService', '.stop(', 'stopPlayback']) expect(end).not.toContain(stops)
+	})
+})
+
+describe('a take runs while reading aloud', () => {
+	test('every sentence started reaches the tracker, after the page has been sent to it', () => {
+		const start = app.indexOf('ttsService.onSentenceStartEvent(')
+		const handler = app.slice(start, app.indexOf('\n    })', start))
+		expect(handler).toContain('followReadAloudTake(index)')
+		expect(handler.indexOf('scrollToTTSSentence(index)')).toBeLessThan(handler.indexOf('followReadAloudTake(index)'))
+		const follow = functionBody('followReadAloudTake')
+		expect(follow).toContain("ttsService?.getState().playbackState !== 'playing') return")
+		expect(follow).toContain("if (sessionState !== 'running') startSession()")
+		expect(follow).toContain('const readingLine = takeContentTopOf(sentence, area)')
+		expect(follow).toContain('takeTracker.follow(readingFrame({')
+		expect(follow).toContain('viewTop: index === 0 ? 0 : Math.max(0, readingLine - readingOffset())')
+		expect(follow).toContain('if (crossed) endReadAloudSectionTake(crossed)')
+	})
+
+	test('a section end pauses the reading before the next heading is spoken, with the clock, and shows the card', () => {
+		const end = functionBody('endReadAloudSectionTake')
+		expect(end).toContain('keepTakes([end.result])')
+		expect(end).toContain('ttsService?.pauseBeforeSentence()')
+		expect(end).toContain('pauseSession()')
+		expect(end).toContain('showTake(takeCard(end.result))')
+	})
+
+	test('the last sentence read to its end closes the take; a loop never does', () => {
+		expect(app).toContain('ttsService.onSentenceEndEvent(({ index }) => finishReadAloudTake(index))')
+		const finish = functionBody('finishReadAloudTake')
+		expect(finish).toContain('if (!ownsTTS() || ttsLoop || !ttsService) return')
+		expect(finish).toContain('finishSession()')
+		expect(finish).toContain('closeScriptTake(null)')
+	})
+
+	test('starting to read from the top or from a section drops the take open elsewhere', () => {
+		const toggle = functionBody('toggleTTS')
+		expect(toggle.indexOf('takeTracker.discard()')).toBeGreaterThan(-1)
+		expect(toggle.indexOf('takeTracker.discard()')).toBeLessThan(toggle.indexOf('await ttsService.play()'))
+		const fromSection = functionBody('startTTSFromSection')
+		expect(fromSection.indexOf('takeTracker.discard()')).toBeGreaterThan(-1)
+		expect(fromSection.indexOf('takeTracker.discard()')).toBeLessThan(fromSection.indexOf('await ttsService.jumpToSection(headerId)'))
 	})
 })
 
