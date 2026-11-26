@@ -109,6 +109,19 @@ export interface VoiceTrackingConfig {
 }
 
 /**
+ * The reader's place moved: the matcher committed a word as where the reader is. Reported on every
+ * commit, also when the word is on the line the page already shows (onWordMatch reports only a new
+ * scroll target) and while a hand scroll holds the page still.
+ */
+export interface VoiceReadingMove {
+  /** The committed word, the one heard: not the highlight, which may lead it. */
+  wordIndex: number
+  totalWords: number
+  /** That word's span, to measure where the reader is; null before the spans are built. */
+  span: HTMLElement | null
+}
+
+/**
  * Events emitted by the voice tracking service.
  */
 export interface VoiceTrackingEvents {
