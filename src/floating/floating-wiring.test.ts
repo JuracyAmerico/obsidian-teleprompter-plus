@@ -176,8 +176,9 @@ describe('commands while floating', () => {
 		expect(app).toContain('onclick={() => jumpFromNavigation(header.id)}')
 		const body = app.slice(app.indexOf('function jumpFromNavigation('), app.indexOf('function jumpToHeader('))
 		expect(body).toContain('!isFloating && plugin.floatingSession.active')
-		expect(body).toContain("plugin.floatingSession.forward('teleprompter:jump-to-header-by-id', { headerId, text })")
-		expect(app).toContain('headers().find(h => h.text === customEvent.detail.text)')
+		expect(body).toContain("plugin.floatingSession.forward('teleprompter:jump-to-header-by-id', { headerId, section: sectionOfHeader(headerId) })")
+		expect(app.includes('h.text === customEvent.detail.text')).toBe(false)
+		expect(app.slice(app.indexOf("case 'teleprompter:jump-to-header-by-id'"), app.indexOf("case 'teleprompter:toggle-navigation'"))).toContain('headerIdForSection(customEvent.detail)')
 		expect(body).toContain('jumpToHeader(headerId)')
 		// The header map must fill in a pop-out too: a main-window instanceof drops pop-out headings.
 		const fill = app.slice(app.indexOf("contentArea.querySelectorAll<HTMLElement>('[data-header-id]')"), app.indexOf('headerElements = newHeaderElements'))
@@ -264,11 +265,11 @@ describe('read-aloud runs in the floating view while a script floats (ISC-144)',
 		expect(functionBody('toggleTTS')).toContain("sendTTSToFloating('teleprompter:tts-toggle')")
 		expect(functionBody('ttsNextSentence')).toContain("sendTTSToFloating('teleprompter:tts-next-sentence')")
 		expect(functionBody('ttsPrevSentence')).toContain("sendTTSToFloating('teleprompter:tts-prev-sentence')")
-		expect(functionBody('startTTSFromSection')).toContain("sendTTSToFloating('teleprompter:tts-from-section', { headerId, text })")
+		expect(functionBody('startTTSFromSection')).toContain("sendTTSToFloating('teleprompter:tts-from-section', { headerId, section: sectionOfHeader(headerId) })")
 		expect(functionBody('stopTTS')).toContain("plugin.floatingSession.forward('teleprompter:tts-stop')")
 	})
 
-	test('only the main view forwards, and the floating view resolves a section by its title', () => {
+	test('only the main view forwards, and the floating view resolves a section by its line and title', () => {
 		const send = functionBody('sendTTSToFloating')
 		expect(send).toContain('if (isFloating || !plugin.floatingSession.active) return false')
 		// A forwarded stop would reset the floating reading before pause or next arrives

@@ -75,3 +75,14 @@ describe('ReDoS — parseBibFile entry lookahead', () => {
 test('text-cleaner exports are wired', () => {
   expect(typeof splitSentences).toBe('function');
 });
+
+describe('ReDoS — callout header and quote markers', () => {
+  test('a callout first line of 100k spaces and a 100k-deep quote finish in linear time', async () => {
+    const { parseCalloutHeader } = await import('./callout');
+    const { createHeadingLineMapper } = await import('./heading-source-map');
+    expect(elapsed(() => parseCalloutHeader('[!info]-' + ' \t'.repeat(N) + 'x'))).toBeLessThan(BUDGET_MS);
+    expect(elapsed(() => parseCalloutHeader('[!' + 'a'.repeat(N)))).toBeLessThan(BUDGET_MS);
+    const deep = '> '.repeat(N) + '# H\n' + '>'.repeat(N) + '\n';
+    expect(elapsed(() => createHeadingLineMapper(deep).resolve('# H'))).toBeLessThan(BUDGET_MS);
+  });
+});

@@ -284,16 +284,28 @@ describe('FloatingSession', () => {
 		const session = new FloatingSession()
 		const controller = new FloatingWindowController(fakeWindow(), { isMac: true })
 		const seen: string[] = []
-		const stop = session.onSection(title => seen.push(title))
-		session.reportSection('Opening')
+		const stop = session.onSection(section => seen.push(section.text))
+		const at = (text: string, line: number, occurrence = 0) => ({ text, line, occurrence })
+		session.reportSection(at('Opening', 0))
 		session.attach(controller, () => {})
-		session.reportSection('Cloud')
-		session.reportSection('Cloud')
-		session.reportSection('SQL')
+		session.reportSection(at('Cloud', 4))
+		session.reportSection(at('Cloud', 4))
+		session.reportSection(at('SQL', 9))
 		session.detach(controller)
-		session.reportSection('Close')
+		session.reportSection(at('Close', 20))
 		stop()
 		expect(seen).toEqual(['Cloud', 'SQL'])
+	})
+
+	test('a repeated title is a new section: the second "Situation" reaches the main view', () => {
+		const session = new FloatingSession()
+		session.attach(new FloatingWindowController(fakeWindow(), { isMac: true }), () => {})
+		const seen: number[] = []
+		session.onSection(section => seen.push(section.line))
+		session.reportSection({ text: 'Situation', line: 4, occurrence: 0 })
+		session.reportSection({ text: 'Situation', line: 14, occurrence: 1 })
+		session.reportSection({ text: 'Situation', line: 14, occurrence: 1 })
+		expect(seen).toEqual([4, 14])
 	})
 
 	test('ISC-141/142: reportPosition reaches listeners only while floating, with the share toward the next word', () => {
