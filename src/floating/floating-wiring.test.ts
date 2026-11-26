@@ -300,4 +300,17 @@ describe('read-aloud runs in the floating view while a script floats (ISC-144)',
 		expect(app).toContain("if (state.playbackState !== 'playing') pausedForEdit = false")
 		expect(functionBody('startSession')).toContain('pausedForEdit = false')
 	})
+
+	test('ISC-150: toolbar review: one Appearance panel, clock on the bar while it fits, English labels, no emoji', () => {
+		expect(app).toContain("{#if group.zone === 'display' && !showsMobileInterface()}")
+		expect(app).toContain('class="popup-panel tp-appearance-panel"')
+		expect(app).toContain("if (except !== 'appearance' && !exceptInAppearance) showAppearance = false")
+		expect(functionBody('fitReadout')).toContain('readoutInBar = false')
+		expect(functionBody('fitReadout')).toContain('barWidth >= readoutReturnWidth')
+		expect(app).toContain("&& (!readoutInBar || showsMobileInterface())}")
+		expect(app).toContain("use:setIconAction={'alarm-clock-plus'}")
+		for (const pt of ['atrasado', 'adiantado', 'Tempo alvo', 'Definir tempo', '>Fechar<', 'Voltar ao da nota']) expect(app).not.toContain(pt)
+		expect(app).not.toContain('⏱')
+		expect(app).toMatch(/\.controls \{[^}]*z-index: 250;/)
+	})
 })

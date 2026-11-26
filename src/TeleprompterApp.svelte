@@ -832,6 +832,41 @@
     mainBarControls.find((def) => def.zone === 'readout')
   )
 
+  // The clock rides on the button bar while the bar has room for it, and drops to its own row when a
+  // narrow window squeezes the bar (it used to be clipped off the right edge there). A whole row for
+  // two items cost the script a line on a normal window (toolbar review, 2026-11-26).
+  let controlsEl: HTMLElement | null = $state(null)
+  let readoutSpacerEl: HTMLElement | null = $state(null)
+  let readoutInBar = $state(true)
+  /** Bar width at which the clock last left it, plus the clock's width: the width it needs to come back. */
+  let readoutReturnWidth = 0
+
+  function fitReadout(): void {
+    if (!controlsEl || !readoutSpacerEl) return
+    const barWidth = controlsEl.clientWidth
+    if (readoutInBar) {
+      // The spacer is the bar's free space; at its minimum the bar is full and the clock would clip.
+      const free = readoutSpacerEl.getBoundingClientRect().width
+      const clock = controlsEl.querySelector<HTMLElement>('.tp-readout-zone')
+      if (free <= 6 && clock) {
+        readoutReturnWidth = barWidth + clock.getBoundingClientRect().width + 16
+        readoutInBar = false
+      }
+    } else if (readoutReturnWidth > 0 && barWidth >= readoutReturnWidth) {
+      readoutInBar = true
+    }
+  }
+
+  $effect(() => {
+    const bar = controlsEl
+    if (!bar) return
+    const Observer = bar.ownerDocument.defaultView?.ResizeObserver
+    if (!Observer) return
+    const observer = new Observer(() => fitReadout())
+    observer.observe(bar)
+    return () => observer.disconnect()
+  })
+
   // Button controls grouped by zone for the main bar, in canonical zone order,
   // skipping the readout zone (rendered separately) and any empty zone (so a
   // divider only ever sits between two non-empty zones).
@@ -1131,6 +1166,9 @@
   let showBgColorPicker = $state(false)
   let showQuickPresetsMenu = $state(false)
   let showMoreMenu = $state(false)  // ⋯ More overflow popover
+  // The Appearance panel holds the display zone's controls on desktop: set once, not while rehearsing
+  // (toolbar review, 2026-11-26). Their own popups open inside it.
+  let showAppearance = $state(false)
 
   // Additional style states
   let letterSpacing = $state(0) // Letter spacing in pixels
@@ -2530,6 +2568,14 @@
     const exceptId = POPUP_KEY_TO_CONTROL_ID[except]
     const exceptInMore = exceptId ? moreControls.some((def) => def.id === exceptId) : false
     if (except !== 'more' && !exceptInMore) showMoreMenu = false
+    // Same rule for the Appearance panel: a popup of a control inside it keeps it open.
+    const exceptInAppearance = exceptId ? mainBarControls.some((def) => def.id === exceptId && def.zone === 'display') : false
+    if (except !== 'appearance' && !exceptInAppearance) showAppearance = false
+  }
+
+  function toggleAppearance() {
+    showAppearance = !showAppearance
+    if (showAppearance) closeOtherPopups('appearance')
   }
 
   // Toggle the ⋯ More overflow menu, closing any other open popup first.
@@ -6345,7 +6391,7 @@
             <button
               use:setIconAction={'settings'}
               onclick={toggleVoiceSettings}
-              class="btn-voice-settings icon-btn-small"
+              class="btn-voice-settings icon-btn"
               class:active={showVoiceSettings}
               title="Voice pace settings"
             >
@@ -6905,12 +6951,12 @@
               <span class="time-separator">/</span>
               <span class="time-value remaining">{formatClock(remainingSeconds, { signed: true })}</span>
               {#if paceStatus === 'behind' || paceStatus === 'ahead'}
-                <span class="pace-badge">{paceStatus === 'behind' ? 'atrasado' : 'adiantado'}</span>
+                <span class="pace-badge">{paceStatus === 'behind' ? 'behind' : 'ahead'}</span>
               {/if}
             </button>
             {#if showTargetPopup}
               <div class="popup-slider popup-target">
-                <div class="color-picker-header">Tempo alvo</div>
+                <div class="color-picker-header">Target time</div>
                 <div class="target-value">{formatClock(targetSeconds)}</div>
                 <div class="target-steps">
                   <button onclick={() => nudgeTarget(-300)} title="−5 min">−5m</button>
@@ -6921,13 +6967,13 @@
                   <button onclick={() => nudgeTarget(300)} title="+5 min">+5m</button>
                 </div>
                 <div class="target-source">
-                  {targetSource === 'override' ? 'Ajustado agora' : targetSource === 'frontmatter' ? 'Definido na nota' : 'Padrão das configurações'}
+                  {targetSource === 'override' ? 'Set just now' : targetSource === 'frontmatter' ? 'Set in the note' : 'Default from settings'}
                 </div>
                 <div class="popup-buttons">
                   {#if targetOverrideSeconds !== null}
-                    <button onclick={() => setTargetOverride(null)} class="btn-close-popup">Voltar ao da nota</button>
+                    <button onclick={() => setTargetOverride(null)} class="btn-close-popup">Use the note's target</button>
                   {/if}
-                  <button onclick={toggleTargetPopup} class="btn-close-popup">Fechar</button>
+                  <button onclick={toggleTargetPopup} class="btn-close-popup">Close</button>
                 </div>
               </div>
             {/if}
@@ -6938,10 +6984,11 @@
           <div class="control-with-popup">
             <button
               class="btn-set-target icon-btn"
+              use:setIconAction={'alarm-clock-plus'}
               onclick={() => setTargetOverride(120)}
-              title="Definir tempo alvo para este ensaio (começa em 2:00)"
-              aria-label="Definir tempo alvo"
-            >⏱＋</button>
+              title="Set a target time for this rehearsal (starts at 2:00)"
+              aria-label="Set target time"
+            ></button>
           </div>
           {#if timeDisplayStyle === 'compact'}
             <!-- Compact: Click to toggle between elapsed/remaining -->
@@ -6980,6 +7027,7 @@
   <!-- Controls visibility and order is configurable via Settings > Toolbar -->
   <div
     class="controls"
+    bind:this={controlsEl}
     class:fullscreen-controls={isFullScreen}
     class:density-comfortable={toolbarDensity === 'comfortable'}
     class:show-zone-labels={showZoneLabels}
@@ -6995,6 +7043,30 @@
           <span class="tp-zone-label">{group.label}</span>
         {/if}
         <div class="tp-zone-controls">
+          {#if group.zone === 'display' && !showsMobileInterface()}
+            <div class="control-with-popup tp-appearance">
+              <button
+                use:setIconAction={'palette'}
+                onclick={toggleAppearance}
+                class="btn-appearance icon-btn"
+                class:active={showAppearance}
+                aria-label="Appearance"
+                aria-haspopup="true"
+                aria-expanded={showAppearance}
+                title="Appearance: font size, font, spacing, colors, opacity"
+              ></button>
+              {#if showAppearance}
+                <div class="popup-panel tp-appearance-panel">
+                  {#each group.controls as control (control.id)}
+                    <div class="tp-appearance-item">
+                      {@render renderControl(control)}
+                      <span class="tp-appearance-name">{control.name}</span>
+                    </div>
+                  {/each}
+                </div>
+              {/if}
+            </div>
+          {:else}
           {#each group.controls as control (control.id)}
             <!-- Slot wraps each control so comfortable density can show a label under it -->
             <span class="tp-control-slot" data-control-label={control.name}>
@@ -7004,6 +7076,7 @@
               {/if}
             </span>
           {/each}
+          {/if}
         </div>
       </div>
     {/each}
@@ -7020,7 +7093,14 @@
     {/if}
 
     <!-- Flex spacer separates the button stream from the right-aligned readout -->
-    <div class="tp-spacer"></div>
+    <div class="tp-spacer" bind:this={readoutSpacerEl}></div>
+
+    <!-- The clock, on the bar while it fits (fitReadout) -->
+    {#if readoutControl && (showElapsedTime || showTimeEstimation || targetSeconds !== null) && readoutInBar && !showsMobileInterface()}
+      <div class="tp-readout-zone" data-zone="readout">
+        {@render renderControl(readoutControl)}
+      </div>
+    {/if}
 
     <!-- ⋯ More overflow menu: progressive disclosure for low-frequency controls -->
     {#if moreMenuGroups.length > 0}
@@ -7055,7 +7135,7 @@
 
   <!-- Readout row: its own strip under the buttons. Inside the button bar it competed for
        width with every pinned icon and got clipped off the right edge in a narrow window. -->
-  {#if readoutControl && (showElapsedTime || showTimeEstimation || targetSeconds !== null)}
+  {#if readoutControl && (showElapsedTime || showTimeEstimation || targetSeconds !== null) && (!readoutInBar || showsMobileInterface())}
     <div class="tp-readout-row" data-zone="readout">
       {@render renderControl(readoutControl)}
     </div>
@@ -7489,7 +7569,8 @@
     flex-wrap: nowrap;
     background: var(--background-primary);
     position: relative;
-    z-index: 10;
+    /* Above the fixed eyeline arrow (200): a toolbar popup used to open underneath it. */
+    z-index: 250;
     flex-shrink: 0;
     min-width: 0;
   }
@@ -7518,6 +7599,9 @@
 
   .tp-readout-zone {
     flex: 0 0 auto;
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
   }
 
   /* Its own strip under the buttons: the clock stays fully visible however many icons are
@@ -7536,6 +7620,36 @@
 
   .tp-more {
     flex: 0 0 auto;
+  }
+
+  /* Appearance panel: no overflow clipping, so each control's own popup can open below it. */
+  .tp-appearance-panel {
+    left: 0;
+    transform: none;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(150px, auto));
+    gap: 0.35rem 0.75rem;
+    padding: 0.6rem;
+  }
+
+  .tp-appearance-item {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    position: relative;
+  }
+
+  /* A control opened from the panel drops its own popup left-aligned under it, not centred off the pane edge. */
+  .tp-appearance-item :global(.popup-slider),
+  .tp-appearance-item :global(.popup-panel) {
+    left: 0;
+    transform: none;
+  }
+
+  .tp-appearance-name {
+    font-size: 0.8rem;
+    color: var(--text-muted);
+    white-space: nowrap;
   }
 
   /* Per-control slot — base layout is just the control; comfortable density
