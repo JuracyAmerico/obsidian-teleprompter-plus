@@ -213,6 +213,8 @@ Pause/resume from the toolbar or keyboard. Citations are resolved from your bibl
 
 All default engines run **fully offline** — no audio or text leaves your machine. The **ElevenLabs** engine is the one exception and is strictly opt-in: when you explicitly select it and provide your own API key, the text of the script you are reading is sent to ElevenLabs' servers to synthesize audio, and playback consumes credits on **your** ElevenLabs account. No key is bundled with the plugin, and nothing is sent to ElevenLabs unless you turn the engine on. Prefer to keep everything local and free? Use Kokoro, macOS `say`, or Web Speech.
 
+**Files and programs outside your vault** — on desktop only, the plugin reads and writes files outside the vault (the Kokoro voice cache and Python environment, a temporary file for the speech helper's word hints) and runs local programs: the Kokoro and macOS `say` text-to-speech engines, `afplay` to play their audio, and the Apple speech-recognition helper that follows your reading. It needs this because those engines and the recognizer are separate programs that cannot run inside Obsidian's sandbox; all of it stays on your computer, and none of it runs on mobile.
+
 ---
 
 ## Troubleshooting

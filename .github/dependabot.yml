@@ -1,0 +1,12 @@
+# Weekly version updates. CI (ci.yml) runs on every pull request, so a lint plugin update shows
+# its new findings here, days before a release. Dependabot security updates do not cover bun.
+version: 2
+updates:
+  - package-ecosystem: "bun"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
