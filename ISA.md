@@ -4,7 +4,7 @@ slug: teleprompter-plus
 project: Teleprompter Plus
 effort: E3
 phase: climbing
-progress: 196/202
+progress: 198/206
 mode: algorithm
 started: 2026-10-29
 updated: 2026-11-27
@@ -293,8 +293,9 @@ Source: vault `01-projects/obsidian-teleprompter-plus/2026-11-27-12-40-github-pa
 Numbered ISC-206 to ISC-208: integrate already used ISC-183 to ISC-205 when this branch was brought over.
 
 - [x] ISC-206: every toggle has an "on" picture that is not its "off" picture in another colour: `src/action-icons.ts` names it for each control (`on`, and `onSolid` when the on form is the same symbol drawn solid). Before: View Mode showed one picture in both states (`tp-toggle-view-mode` twice); eyeline, focus, full screen, keep awake, pin and auto-pause changed only the key colour; Stream changed only the glyph colour; Sections, Minimap, Mirror, Upside Down, Float and Scroll Sync had no on picture. After: Lucide on forms where they exist (scan-eye, focus, minimize, panel-left-close, picture-in-picture, link), the solid form otherwise (pin, coffee, circle-pause, map, both flips), a plain-text view-mode picture and an on-air stream picture in the family. Evidence: scripts/streamdeck-profile.test.ts "the on picture is not a colour change" over all 17 toggles, which failed on Stream until `tp-stream-live`.
-- [x] ISC-207: the Stream Deck's lit state draws the on picture (green, the family's colour for on) on the purple tint, the T+ ring and the green dot; a solid picture's strokes inside an area are cut out in the lit tint (src/solid-icon.ts, one rule for deck and toolbar). The six toggles the deck plugin gives one state have their lit picture exported and listed as such in docs/stream-deck-profile.md, and a test holds that list to the plugin patch's two-state list. Evidence: scripts/streamdeck-profile.test.ts and src/solid-icon.test.ts; streamdeck-xl-states.png read at key size.
+- [x] ISC-207: the Stream Deck's lit state draws the on picture (green, the family's colour for on) on the purple tint, the T+ ring and the green dot; a solid picture's strokes inside an area are cut out in the lit tint (src/solid-icon.ts, one rule for deck and toolbar). Evidence: scripts/streamdeck-profile.test.ts and src/solid-icon.test.ts; streamdeck-xl-states.png read at key size.
 - [ ] ISC-208: the toolbar shows the same on symbol while a toggle button is lit (eleven buttons pass `toggleIcon(name, litState)`; the custom icon style keeps its one picture), the solid forms coming from Obsidian's own drawing by the same rule. Evidence so far: src/action-icons.test.ts (every lit toolbar toggle, and a mutation that wires the pin to the wrong state fails it), src/solid-icon.test.ts (each solid symbol gets the same fill and cut roles from Obsidian 1.x's bundled drawing as from lucide-static). Open until the toolbar is seen live in Obsidian with each toggle on.
+- [ ] ISC-209: every toggle on the deck is a two-state key showing its on picture: Sections, Minimap, Mirror, Upside Down, Float and Scroll Sync get a second manifest state (`--plugin-overlay` adds it) and join the deck plugin's TPLUS_TWO_STATE; Sections follows `navigationVisible`, the other five and View Mode flip per press, because the teleprompter does not send those settings over the WebSocket (View Mode's `broadcastState({ viewMode })` is the app's cross-window channel; `broadcastStateToWebSocket` omits it). Built and tested in a clone of the deck plugin, commit 426ac4a (protocol test 32 pass, connection test 6 pass); docs/icons/streamdeck/deck-plugin/tplus-theme.patch regenerated from fa08131..426ac4a and applies cleanly to fa08131; scripts/streamdeck-profile.test.ts holds the layout's two-state keys equal to the patch's list. Open until installed: the fast-forward of the installed plugin to 426ac4a was refused by the permission system on 2026-11-27, and the deck was restarted unchanged (ProfilesV3 1181 files byte-identical, plugin reconnected).
 
 ## Anti-criteria
 
@@ -475,9 +476,11 @@ Numbered ISC-206 to ISC-208: integrate already used ISC-183 to ISC-205 when this
 | ISC-186 | bun-test | the panel highlight follows the current section; collapsed parents open once | pass (logic and source): nav-follow.test.ts (20); live phone jump open | bun test, 2026-11-27 |
 | ISC-187 | verify | all five gates green with the four fixes | pass: freshness (0.6.0 current), check 0 errors, 1138 tests pass, lint 0 errors (64 warnings, the same 64 as origin/main b24639c), build ok | bun scripts/verify.ts, 2026-11-27 |
 | ISC-206 | bun-test | no toggle's on picture is a colour change | pass | bun test scripts/streamdeck-profile.test.ts -t "not a colour change" |
-| ISC-207 | bun-test | lit state draws the on symbol, solid and cut where the map says; one-state list matches the plugin patch | pass | bun test scripts/streamdeck-profile.test.ts src/solid-icon.test.ts |
+| ISC-207 | bun-test | lit state draws the on symbol, solid and cut where the map says | pass | bun test scripts/streamdeck-profile.test.ts src/solid-icon.test.ts |
 | ISC-208 | bun-test | each lit toolbar toggle passes toggleIcon with its lit state; solid roles match Obsidian's drawing | pass | bun test src/action-icons.test.ts src/solid-icon.test.ts |
 | ISC-208 | manual | toolbar toggles show the on symbol while lit | Américo sees each toggle's on symbol | Obsidian, each toolbar toggle switched on |
+| ISC-209 | bun-test | layout's two-state keys equal the plugin patch's list; overlay adds the second manifest state | pass | bun test scripts/streamdeck-profile.test.ts |
+| ISC-209 | manual | the six keys show their on picture on the deck | open: install refused | Stream Deck XL, each key pressed |
 | ISC-169 | bun-test | voice and read-aloud takes | pass: takes, reading-move, tts-service, take-wiring | bun test, 2026-11-26 |
 | ISC-170 | bun-test + live | command table, ten dead keys | pass: commands.test.ts (292); live WebSocket probe on the main view | 2026-11-26 |
 | ISC-171 | bun-test | voice benchmark gate | pass: bench.test.ts; bench:voice run on real traces | 2026-11-26 |
@@ -658,6 +661,7 @@ acceptance: pass 2026-10-30 (all four runtime checks; mic-blocked Notice + Retry
 - 2026-11-27: ISC-190 to ISC-194 added and ticked, ISC-195 added open: voice matcher against its benchmark (branch voice-matcher). A word-level wide re-sync search was tried with ISC-193 and dropped: better on tune (off>5 7.4%), worse on held-out (p95 156, off>5 23.7%). Fuzzier re-read matching changed nothing on tune and was not kept.
 
 - 2026-11-27: ISC-206 and ISC-207 added and ticked, ISC-208 added open (live toolbar check owed): every toggle has an on picture of its own, on the deck's lit state and in the toolbar. Branch streamdeck-profile, not pushed, not installed into the Stream Deck.
+- 2026-11-27: streamdeck-profile brought onto integrate by cherry-pick (fddafd0, 3159ff1, 57ba87b, dc7ed54), because the two branches share no history since the cleaned-history rebuild; the toggle criteria renumbered ISC-206 to ISC-208 (integrate's ISC-205 is the architecture diagram); ISC-209 added open: the six one-state deck keys made two-state in the deck plugin (clone commit 426ac4a), install refused by the permission system.
 - 2026-11-27: 0.12.15 released and Completed in the community directory (09:19 ET, 0 errors); ISC-179 ticked. The freshness gate stopped the first release run because this checkout still had 0.1.9 installed.
 - 2026-11-27: ISC-173 to ISC-178 added and ticked; ISC-179, ISC-180 and ISC-182 added open; ISC-181 deferred to 0.12.16; ISC-161 amended to point at ISC-174. Built from the 0.12.15 plan (vault 2026-11-27-07-40-plan-0-12-15-review-bot-fix): 0.12.14 failed the directory review with 2 errors our lint called clean (installed plugin 0.1.9, the bot runs 0.6.0). Branch review-fix, not merged, not released; 1114 tests pass.
 - 2026-11-26: ISC-169 to ISC-172 added and ticked: Waves 3 and 4 (takes by voice and read-aloud, command table and ten dead keys, voice benchmark, remote key secret and docs), merged on integrate; 1093 tests pass. Not released.
