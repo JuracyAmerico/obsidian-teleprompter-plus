@@ -144,7 +144,7 @@ export function applyPronunciations(text: string, pairs: Array<[string, string]>
 export function normalizeForSpeech(text: string): string {
 	let out = text
 
-	// 555$1012$23456 is read digit by digit, in its groups
+	// (555) 012-3456 is read digit by digit, in its groups
 	out = out.replace(/(?<![\w\-/:.,])(?:\+?1[\s.-])?\(?(\d{3})\)?[\s.-](\d{3})[\s.-](\d{4})(?![\w\-/:]|[.,]\d)/g,
 		(_m, area: string, first: string, last: string) => `${spellDigits(area)}, ${spellDigits(first)}, ${spellDigits(last)}`)
 

@@ -96,8 +96,8 @@ describe('normalizeForSpeech: found reading a real resume aloud', () => {
 	test('contact details', () => {
 		expect(spokenSeparators('jane.doe@example.com', 'en')).toBe('jane dot doe at example dot com')
 		expect(spokenSeparators('jane.doe@example.com', 'pt')).toBe('jane ponto doe arroba example ponto com')
-		expect(normalizeForSpeech('555$1012$23456')).toBe('five five five, zero one two, three four five six')
-		expect(normalizeForSpeech('+1 555$1012$23456')).toBe('five five five, zero one two, three four five six')
+		expect(normalizeForSpeech('(555) 012-3456')).toBe('five five five, zero one two, three four five six')
+		expect(normalizeForSpeech('+1 555-012-3456')).toBe('five five five, zero one two, three four five six')
 		expect(normalizeForSpeech('Job Posting #32250, role')).toBe('Job Posting number three two two five zero, role')
 		expect(normalizeForSpeech('code 32-10-0231')).toBe('code 32-10-0231')
 	})
