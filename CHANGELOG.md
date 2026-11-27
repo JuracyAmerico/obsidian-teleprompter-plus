@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- **The lint error that failed 0.12.14's directory review is fixed.** Version 0.12.14 was marked Failed for a lint-suppression comment next to the touch-to-word lookup. The comment is gone; the older-Chromium fallback it sat on stays, so word lookup behaves as before. Two unused type imports and four unnecessary type assertions are gone too. Nothing you can see changes.
+
+### Changed
+- **README:** the desktop plugin now says plainly that it reads and writes files outside your vault and runs local programs (the text-to-speech engines and speech recognition), and why.
+- For contributors: `bun run lint` now runs the review bot's published scanner configuration, and shipped source may not contain suppression comments. One script, `bun scripts/verify.ts`, holds every gate; CI, the release workflow and `scripts/release.ts` all call it. A release is refused when the lint plugin is behind npm, and the tag commands are printed only after a clean directory preview scan of the candidate commit. Dependabot proposes weekly updates.
+
 ## [0.12.14] - 2026-11-26
 
 ### Added
