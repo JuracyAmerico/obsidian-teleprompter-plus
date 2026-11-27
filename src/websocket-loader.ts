@@ -1,230 +1,59 @@
 /**
- * WebSocket Module Loader for Obsidian
+ * The `ws` module for the remote server (Stream Deck, phone remote).
  *
- * This module attempts to load the ws library using various strategies
- * that work in Obsidian's Electron environment.
+ * `ws` is bundled into main.js (vite.config.ts) and required on first use through load-ws.cjs, so
+ * a directory install, which ships only main.js, styles.css and manifest.json, has it. Nothing is
+ * read from disk: before 0.12.18 this loader searched the vault's plugin folder, the working
+ * directory and Obsidian's app.asar for a `node_modules/ws` that a clean install never has.
  */
+import loadBundledWs from './load-ws.cjs'
 
-// Node.js module types for dynamic require
-declare function require(_name: string): unknown
-
-// Process module interface
-interface ProcessModule {
-	cwd: () => string
-	execPath: string
-	resourcesPath?: string
-	platform: string
-	arch: string
-	versions: Record<string, unknown>
-}
-
-// Path module interface
-interface PathModule {
-	join: (..._args: string[]) => string
-}
-
-// WS module interface
-interface WsModule {
-	WebSocketServer?: unknown
-	Server?: unknown
-	WebSocket?: unknown
-}
-
-// Electron remote interface
-interface ElectronRemote {
-	require: (_name: string) => unknown
-}
-
-// Electron module interface
-interface ElectronModule {
-	remote?: ElectronRemote
-}
-
-// WebSocket Server and WebSocket constructor types (from ws package)
-// Using generic constructor types since we're loading dynamically
+// Constructor types for the parts of `ws` the server uses.
 type WebSocketServerConstructor = new (_options: { server: unknown }) => {
 	on: (_event: string, _handler: (..._args: unknown[]) => void) => void
 	close: (_callback?: () => void) => void
 }
-type WebSocketConstructor = new (_url: string) => {
-	on: (_event: string, _handler: (..._args: unknown[]) => void) => void
-	send: (_data: string) => void
-	close: () => void
-	readyState: number
-}
 
 export interface WebSocketModule {
 	WebSocketServer: WebSocketServerConstructor | null
-	WebSocket: WebSocketConstructor | null
 	loaded: boolean
 	error?: string
 }
 
-interface ObsidianApp {
-	vault?: {
-		adapter?: { basePath?: string }
-		configDir?: string
-	}
-}
-
-function applyWsModule(result: WebSocketModule, ws: WsModule | undefined): boolean {
-	if (!ws) {
-		return false
-	}
-
-	result.WebSocketServer = (ws.WebSocketServer || ws.Server) as WebSocketServerConstructor
-	result.WebSocket = (ws.WebSocket || ws) as WebSocketConstructor
-	result.loaded = true
-	return true
+/** What `require('ws')` is expected to hand back; checked before it is trusted. */
+interface WsExports {
+	WebSocketServer?: unknown
+	Server?: unknown
 }
 
 /**
- * Load the ws module using multiple fallback strategies
- * @param app - The Obsidian app instance (avoids using window.app)
+ * Loads the bundled `ws`. Never throws: a failure comes back as `loaded: false` with the reason,
+ * so the caller can tell the user the remote server is off and why.
+ * @param load - how `ws` is required; tests pass their own.
  */
-export function loadWebSocketModule(app?: ObsidianApp): WebSocketModule {
-	const result: WebSocketModule = {
-		WebSocketServer: null,
-		WebSocket: null,
-		loaded: false
-	}
-
-	// Strategy 1: Try to use Electron's built-in WebSocket APIs via remote
+export function loadWebSocketModule(load: () => unknown = loadBundledWs): WebSocketModule {
+	let ws: WsExports | undefined
 	try {
-		const electron = require('electron') as ElectronModule | undefined
-
-		if (electron && electron.remote) {
-			const remote = electron.remote
-			const ws = remote.require('ws') as WsModule | undefined
-
-			if (applyWsModule(result, ws)) {
-				return result
-			}
+		ws = load() as WsExports | undefined
+	} catch (error) {
+		return {
+			WebSocketServer: null,
+			loaded: false,
+			error: `Could not load the bundled ws module: ${error instanceof Error ? error.message : String(error)}`,
 		}
-	} catch {
-		// Continue to next strategy
 	}
 
-	// Strategy 2: Try standard require with full module path
-	try {
-		const path = require('path') as PathModule
-
-		// Get Obsidian's app path - use configDir instead of hardcoded .obsidian
-		if (app?.vault?.adapter?.basePath && app.vault.configDir) {
-			const vaultPath = app.vault.adapter.basePath
-			const configDir = app.vault.configDir
-			const wsPath = path.join(vaultPath, configDir, 'plugins', 'teleprompter-plus', 'node_modules', 'ws')
-
-			const ws = require(wsPath) as WsModule | undefined
-
-			if (applyWsModule(result, ws)) {
-				return result
-			}
-		}
-	} catch {
-		// Continue to next strategy
+	const server = ws?.WebSocketServer ?? ws?.Server
+	if (typeof server !== 'function') {
+		return { WebSocketServer: null, loaded: false, error: 'The bundled ws module has no WebSocketServer' }
 	}
-
-	// Strategy 3: Try using process.cwd() to build path
-	try {
-		const path = require('path') as PathModule
-		const process = require('process') as ProcessModule
-
-		const cwd = process.cwd()
-		// Get configDir from app if available
-		const configDir = app?.vault?.configDir
-
-		// Try various possible paths
-		const possiblePaths = configDir
-			? [
-				path.join(cwd, 'node_modules', 'ws'),
-				path.join(cwd, configDir, 'plugins', 'teleprompter-plus', 'node_modules', 'ws'),
-			]
-			: [path.join(cwd, 'node_modules', 'ws')]
-
-		for (const wsPath of possiblePaths) {
-			try {
-				const ws = require(wsPath) as WsModule | undefined
-
-				if (applyWsModule(result, ws)) {
-					return result
-				}
-			} catch {
-				// Continue to next path
-			}
-		}
-	} catch {
-		// Continue to next strategy
-	}
-
-	// Strategy 4: Try to load from Obsidian's app resources
-	try {
-		const path = require('path') as PathModule
-		const process = require('process') as ProcessModule
-
-		// Electron apps often have resources in app.asar
-		const appPath = process.resourcesPath || ''
-		const wsPath = path.join(appPath, 'app.asar', 'node_modules', 'ws')
-
-		const ws = require(wsPath) as WsModule | undefined
-
-		if (applyWsModule(result, ws)) {
-			return result
-		}
-	} catch {
-		// Continue to next strategy
-	}
-
-	// Strategy 5: Last resort - try just 'ws'
-	try {
-		const ws = require('ws') as WsModule | undefined
-
-		if (applyWsModule(result, ws)) {
-			return result
-		}
-	} catch {
-		// All strategies failed
-	}
-
-	// All strategies failed
-	result.error = 'Could not load ws module using any strategy'
-	console.error('[Teleprompter] WebSocket module failed to load - Stream Deck integration unavailable')
-
-	return result
+	return { WebSocketServer: server as WebSocketServerConstructor, loaded: true }
 }
 
-/**
- * Get diagnostic information about the environment
- */
-export function getDiagnostics(app?: ObsidianApp): Record<string, unknown> {
-	const diagnostics: Record<string, unknown> = {}
-
-	try {
-		const process = require('process') as ProcessModule
-		diagnostics.cwd = process.cwd()
-		diagnostics.execPath = process.execPath
-		diagnostics.resourcesPath = process.resourcesPath
-		diagnostics.platform = process.platform
-		diagnostics.arch = process.arch
-		diagnostics.versions = process.versions
-	} catch (e) {
-		diagnostics.processError = e instanceof Error ? e.message : String(e)
+/** Environment facts logged when the module fails to load. */
+export function getDiagnostics(): Record<string, unknown> {
+	return {
+		platform: typeof process === 'undefined' ? 'unknown' : process.platform,
+		versions: typeof process === 'undefined' ? {} : process.versions,
 	}
-
-	try {
-		const path = require('path') as PathModule
-		if (app?.vault?.adapter?.basePath && app.vault.configDir) {
-			diagnostics.vaultPath = app.vault.adapter.basePath
-			diagnostics.pluginPath = path.join(
-				app.vault.adapter.basePath,
-				app.vault.configDir,
-				'plugins',
-				'teleprompter-plus'
-			)
-		}
-	} catch (e) {
-		diagnostics.pathError = e instanceof Error ? e.message : String(e)
-	}
-
-	return diagnostics
 }

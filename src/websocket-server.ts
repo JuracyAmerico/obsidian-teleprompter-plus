@@ -71,22 +71,20 @@ interface OsModule {
 	networkInterfaces: () => Record<string, OsNetworkInterface[]>
 }
 
-// WebSocket module loaded lazily when server starts (needs app instance)
-let wsModule: ReturnType<typeof loadWebSocketModule> | null = null
+// The bundled ws module, required the first time a server starts (never while the plugin loads)
 let WebSocketServerClass: ReturnType<typeof loadWebSocketModule>['WebSocketServer'] = null
 
 export function ensureWebSocketServerClass(
-	appSubset: Parameters<typeof loadWebSocketModule>[0],
 	loadModule: typeof loadWebSocketModule = loadWebSocketModule,
 	getModuleDiagnostics: typeof getDiagnostics = getDiagnostics,
 ): NonNullable<ReturnType<typeof loadWebSocketModule>['WebSocketServer']> {
-	const loadedModule = loadModule(appSubset)
+	const loadedModule = loadModule()
 	const serverClass = loadedModule.WebSocketServer
 
 	if (!loadedModule.loaded || !serverClass) {
 		console.error('[TeleprompterWS] WebSocket module failed to load')
 		console.error('[TeleprompterWS] Error:', loadedModule.error)
-		console.error('[TeleprompterWS] Diagnostics:', getModuleDiagnostics(appSubset))
+		console.error('[TeleprompterWS] Diagnostics:', getModuleDiagnostics())
 		console.error('[TeleprompterWS] Plugin will continue without WebSocket support')
 
 		throw new Error(
@@ -343,13 +341,8 @@ export class TeleprompterWebSocketServer {
 			return
 		}
 
-		// Lazy-load WebSocket module with app instance (avoids window.app).
-		// Cast: loadWebSocketModule expects a structural subset of App used only
-		// for vault.adapter.basePath + vault.configDir; FileSystemAdapter satisfies it.
-		if (!wsModule) {
-			const appSubset = this.plugin.app as unknown as Parameters<typeof loadWebSocketModule>[0]
-			WebSocketServerClass = ensureWebSocketServerClass(appSubset)
-			wsModule = { WebSocketServer: WebSocketServerClass, WebSocket: null, loaded: true }
+		if (!WebSocketServerClass) {
+			WebSocketServerClass = ensureWebSocketServerClass()
 		}
 
 		return new Promise((resolve, reject) => {

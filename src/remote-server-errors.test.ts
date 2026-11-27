@@ -27,8 +27,8 @@ describe('describeRemoteServerStartFailure', () => {
 	})
 
 	test('explains missing websocket module loads', () => {
-		expect(describeRemoteServerStartFailure(new Error(`${REMOTE_SERVER_MODULE_LOAD_ERROR_PREFIX}: Could not load ws module using any strategy`), 8765, '127.0.0.1'))
-			.toBe('The remote server could not load its WebSocket module. Rebuild and redeploy the plugin so `ws` is available in the installed plugin folder.')
+		expect(describeRemoteServerStartFailure(new Error(`${REMOTE_SERVER_MODULE_LOAD_ERROR_PREFIX}: Could not load the bundled ws module: boom`), 8765, '127.0.0.1'))
+			.toBe('The remote server could not load its WebSocket module. Reinstall the plugin, and if it happens again report it with the error from the Developer Console.')
 	})
 
 	test('falls back to a concise generic message', () => {

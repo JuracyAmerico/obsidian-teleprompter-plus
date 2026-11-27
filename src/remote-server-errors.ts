@@ -24,7 +24,7 @@ export function describeRemoteServerStartFailure(
 	}
 
 	if (isRemoteServerModuleLoadError(error)) {
-		return 'The remote server could not load its WebSocket module. Rebuild and redeploy the plugin so `ws` is available in the installed plugin folder.'
+		return 'The remote server could not load its WebSocket module. Reinstall the plugin, and if it happens again report it with the error from the Developer Console.'
 	}
 
 	return 'Failed to start remote server. Check Developer Console for the exact error.'

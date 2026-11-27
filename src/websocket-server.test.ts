@@ -5,15 +5,13 @@ import { REMOTE_SERVER_MODULE_LOAD_ERROR_PREFIX } from './remote-server-errors'
 describe('ensureWebSocketServerClass', () => {
 	test('throws a startup error when the ws module cannot be loaded', () => {
 		expect(() => ensureWebSocketServerClass(
-			{},
 			() => ({
 				WebSocketServer: null,
-				WebSocket: null,
 				loaded: false,
-				error: 'Could not load ws module using any strategy',
+				error: 'Could not load the bundled ws module: boom',
 			}),
-			() => ({ cwd: '/vault' }),
-		)).toThrow(`${REMOTE_SERVER_MODULE_LOAD_ERROR_PREFIX}: Could not load ws module using any strategy`)
+			() => ({ platform: 'test' }),
+		)).toThrow(`${REMOTE_SERVER_MODULE_LOAD_ERROR_PREFIX}: Could not load the bundled ws module: boom`)
 	})
 
 	test('returns the constructor when the module loads', () => {
@@ -23,13 +21,11 @@ describe('ensureWebSocketServerClass', () => {
 		}
 
 		expect(ensureWebSocketServerClass(
-			{},
 			() => ({
 				WebSocketServer: FakeServer,
-				WebSocket: null,
 				loaded: true,
 			}),
-			() => ({ cwd: '/vault' }),
+			() => ({ platform: 'test' }),
 		)).toBe(FakeServer)
 	})
 })

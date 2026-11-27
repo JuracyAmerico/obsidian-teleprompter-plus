@@ -18,9 +18,6 @@ function sourceFiles(dir: string): string[] {
 	})
 }
 
-// Used only by scripts/package-plugin-runtime.ts at build time, never by the plugin itself
-const BUILD_TIME_ONLY = ['plugin-package.ts']
-
 describe('mobile phase 1', () => {
 	test('ISC-131 phone toolbar choice: a reader can turn optional phone buttons off, play/pause stays, desktop untouched', async () => {
 		expect(phoneBarControls([])).toEqual([...PHONE_BAR_CONTROLS])
@@ -37,12 +34,12 @@ describe('mobile phase 1', () => {
 	test('ISC-117 no static import: plugin source imports no Node or Electron module except as a type', () => {
 		const native = /^\s*import\s+(?!type\b)[^;'"]*?from\s+['"](node:[\w/]+|fs|path|os|child_process|electron|ws|http|https|crypto|net)['"]/m
 		const offenders = sourceFiles(SRC)
-			.filter(file => !BUILD_TIME_ONLY.includes(relative(SRC, file)))
 			.filter(file => native.test(readFileSync(file, 'utf8')))
 			.map(file => relative(SRC, file))
 		expect(offenders).toEqual([])
-		const main = readFileSync(join(SRC, 'main.ts'), 'utf8')
-		expect(main).not.toContain('plugin-package')
+		// The bundled ws reaches Node only through a require inside a function (src/load-ws.cjs)
+		const loadWs = readFileSync(join(SRC, 'load-ws.cjs'), 'utf8')
+		expect(loadWs).toMatch(/module\.exports = function loadBundledWs\(\) \{\s*return require\('ws'\)\s*\}/)
 	})
 
 	test('ISC-118 no server on the phone: the start path and the auto start both ask the device first', () => {

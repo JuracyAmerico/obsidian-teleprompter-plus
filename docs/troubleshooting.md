@@ -139,16 +139,11 @@ The plugin's fullscreen mode expands within the Obsidian window, not the OS. For
 3. Obsidian → Settings → Community plugins → click *Reload plugins*.
 4. If still missing, reload Obsidian (`Cmd/Ctrl + R`).
 
-### "Module not found: ws" error
+### "The remote server could not load its WebSocket module"
 
-The WebSocket module didn't get bundled. If you built from source:
+Since 0.12.18 the `ws` module is inside `main.js`, so this means `main.js` is damaged or from an older build. Reinstall the plugin. If you built from source, run `bun install` and `bun run build`, then copy `dist/main.js` to your vault's plugin folder. A `node_modules` folder inside the plugin folder is no longer used and can be deleted.
 
-```bash
-bun install
-bun run build
-```
-
-Then redeploy the built `dist/main.js` to your vault's plugin folder.
+Before 0.12.18, a directory install never had `ws`, and the Stream Deck and phone remote could not connect unless `node_modules/ws` was copied into the plugin folder by hand.
 
 ### Plugin fails to load
 
