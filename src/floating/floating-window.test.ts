@@ -9,7 +9,10 @@ import {
 	placementAfterPrompterLost,
 	FloatingSession,
 	FloatingWindowController,
-	restorableBounds,
+	fitInside,
+	mainScreenBounds,
+	restoredBounds,
+	type DisplayInfo,
 	type ElectronWindowLike,
 	type WindowBounds,
 } from './floating-window'
@@ -139,25 +142,104 @@ describe('FloatingWindowController', () => {
 	})
 })
 
+/** A rectangle lies wholly inside an area. */
+function inside(bounds: WindowBounds, area: WindowBounds): boolean {
+	return bounds.x >= area.x && bounds.y >= area.y &&
+		bounds.x + bounds.width <= area.x + area.width && bounds.y + bounds.height <= area.y + area.height
+}
+
 describe('bounds', () => {
 	const display: WindowBounds = { x: 0, y: 0, width: 1512, height: 982 }
+	const laptop: DisplayInfo = { label: 'Built-in Retina Display', bounds: display }
 
 	test('bounds on a connected display are restored', () => {
 		const saved = { x: 100, y: 100, width: 600, height: 400 }
-		expect(restorableBounds(saved, [display])).toEqual(saved)
+		expect(restoredBounds([laptop], saved)).toEqual(saved)
 	})
 
-	test('bounds on a display that is gone are rejected', () => {
-		expect(restorableBounds({ x: 3000, y: 100, width: 600, height: 400 }, [display])).toBeNull()
+	test('bounds on a display that is gone land on the primary display, at their size', () => {
+		const bounds = restoredBounds([laptop], { x: 3000, y: 100, width: 600, height: 400 })
+		expect(inside(bounds!, display)).toBe(true)
+		expect(bounds!.width).toBe(600)
 	})
 
-	test('bounds with only a sliver showing are rejected', () => {
-		expect(restorableBounds({ x: 1500, y: 100, width: 600, height: 400 }, [display])).toBeNull()
+	test('bounds with only a sliver showing land wholly on the primary display', () => {
+		expect(inside(restoredBounds([laptop], { x: 1500, y: 100, width: 600, height: 400 })!, display)).toBe(true)
 	})
 
-	test('bounds with nothing saved or no display list fall back to the default', () => {
-		expect(restorableBounds(null, [display])).toBeNull()
-		expect(restorableBounds({ x: 1, y: 1, width: 600, height: 400 }, [])).toBeNull()
+	test('nothing saved gives the default size inside the primary display; no display list gives nothing', () => {
+		expect(inside(restoredBounds([laptop], null)!, display)).toBe(true)
+		expect(restoredBounds([], { x: 1, y: 1, width: 600, height: 400 })).toBeNull()
+		expect(mainScreenBounds([], { x: 1, y: 1, width: 600, height: 400 })).toBeNull()
+	})
+
+	test('a window larger than the work area is shrunk to it', () => {
+		expect(fitInside({ x: -50, y: 900, width: 3000, height: 2000 }, display)).toEqual(display)
+	})
+})
+
+describe('Move to main screen lands on the main screen (ISC-212)', () => {
+	// Américo's displays as Electron's screen.getAllDisplays() reported them live on 2026-11-27:
+	// the MacBook is primary at the origin with a 33 px menu bar, the Prompter sits above it and
+	// the EI491CR above that.
+	const laptop: DisplayInfo = {
+		label: 'Built-in Retina Display',
+		bounds: { x: 0, y: 0, width: 1512, height: 982 },
+		workArea: { x: 0, y: 33, width: 1512, height: 949 },
+	}
+	const prompter: DisplayInfo = {
+		label: 'Elgato Prom.',
+		bounds: { x: 312, y: -600, width: 1024, height: 600 },
+		workArea: { x: 312, y: -570, width: 1024, height: 570 },
+	}
+	const wide: DisplayInfo = {
+		label: 'EI491CR',
+		bounds: { x: -1045, y: -1680, width: 3840, height: 1080 },
+		workArea: { x: -1045, y: -1650, width: 3840, height: 960 },
+	}
+	const displays = [laptop, prompter, wide]
+	// The main-screen bounds the window was put back at on 2026-11-27: on the Prompter, 99 px off its left edge.
+	const savedOnPrompter = { x: 213, y: -570, width: 1000, height: 570 }
+	const moveToMain = (savedBounds: WindowBounds | null) =>
+		floatingPlacement(displays, { preferPrompter: false, savedBounds, seeThroughPercent: 60, toMainScreen: true })
+
+	test('the reported case: bounds saved on the Prompter land wholly inside the primary work area', () => {
+		const placement = moveToMain(savedOnPrompter)
+		expect(placement.onPrompter).toBe(false)
+		expect(inside(placement.bounds!, laptop.workArea!)).toBe(true)
+		expect(placement.bounds).toEqual({ x: 213, y: 33, width: 1000, height: 570 })
+	})
+
+	test('bounds saved on the other monitor still go to the primary display: the button says main screen', () => {
+		const bounds = moveToMain({ x: 990, y: -1400, width: 820, height: 570 }).bounds!
+		expect(inside(bounds, laptop.workArea!)).toBe(true)
+		expect(bounds).toEqual({ x: 692, y: 33, width: 820, height: 570 })
+	})
+
+	test('bounds already inside the primary work area are kept as they are; nothing saved gives the default there', () => {
+		const saved = { x: 200, y: 120, width: 900, height: 600 }
+		expect(moveToMain(saved).bounds).toEqual(saved)
+		expect(inside(moveToMain(null).bounds!, laptop.workArea!)).toBe(true)
+	})
+
+	test('the Prompter unplugged under the window lands inside the primary work area', () => {
+		const placement = placementAfterPrompterLost([laptop, wide], true, { savedBounds: { x: 990, y: -1400, width: 820, height: 570 }, seeThroughPercent: 60 })
+		expect(inside(placement!.bounds!, laptop.workArea!)).toBe(true)
+	})
+
+	test('reopening never restores bounds onto the Prompter when the main screen was chosen', () => {
+		const bounds = floatingPlacement(displays, { preferPrompter: false, savedBounds: savedOnPrompter, seeThroughPercent: 60 }).bounds!
+		expect(inside(bounds, laptop.workArea!)).toBe(true)
+	})
+
+	test('reopening keeps a window left over a call on the other monitor there, wholly inside its work area', () => {
+		const bounds = floatingPlacement(displays, { preferPrompter: false, savedBounds: { x: 1000, y: -1680, width: 800, height: 600 }, seeThroughPercent: 60 }).bounds!
+		expect(bounds).toEqual({ x: 1000, y: -1650, width: 800, height: 600 })
+	})
+
+	test('with no display at the origin the first display that is not the Prompter is the main screen', () => {
+		const shifted: DisplayInfo = { label: 'Studio Display', bounds: { x: 100, y: 50, width: 1000, height: 800 } }
+		expect(inside(mainScreenBounds([prompter, shifted], savedOnPrompter)!, shifted.bounds)).toBe(true)
 	})
 })
 

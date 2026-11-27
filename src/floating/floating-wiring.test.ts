@@ -95,6 +95,8 @@ describe('floating wiring', () => {
 		const body = functionBody('togglePrompterPlacement')
 		expect(body).toContain('plugin.settings.floatingPreferPrompter = ')
 		expect(body).toContain('floatingController.moveTo(')
+		// "Move to main screen" asks for the primary display, not wherever the window was left (ISC-212).
+		expect(body).toContain('toMainScreen: true,')
 		expect(functionBody('saveFloatingBounds')).toMatch(/floatingOnPrompter/)
 		expect(app).toContain('onclick={togglePrompterPlacement}')
 		expect(app).toMatch(/\{#if floatingHasPrompter\}/)

@@ -65,6 +65,8 @@ export function electronWindowOf(win: unknown): ElectronWindowLike | null {
 export interface DisplayInfo {
 	label?: string
 	bounds: WindowBounds
+	/** The bounds minus the menu bar and the Dock; Electron always sends it, a test may leave it out. */
+	workArea?: WindowBounds
 }
 
 /** macOS names it "Elgato Prom."; the name is the identity, because other small displays share its size. */
@@ -93,6 +95,11 @@ export function floatingPlacement(
 		seeThroughPercent: number
 		prompterSeeThroughPercent?: number
 		prompterSize?: { width: number; height: number } | null
+		/**
+		 * The reader asked for the main screen ("Move to main screen", or the Prompter unplugged under
+		 * the window): the primary display, not wherever the window was last left.
+		 */
+		toMainScreen?: boolean
 	}
 ): FloatingPlacement {
 	const prompter = preferences.preferPrompter ? findPrompterDisplay(displays) : null
@@ -104,7 +111,9 @@ export function floatingPlacement(
 		}
 	}
 	return {
-		bounds: restorableBounds(preferences.savedBounds, displays.map(display => display.bounds)),
+		bounds: preferences.toMainScreen
+			? mainScreenBounds(displays, preferences.savedBounds)
+			: restoredBounds(displays, preferences.savedBounds),
 		onPrompter: false,
 		seeThroughPercent: clampSeeThrough(preferences.seeThroughPercent),
 	}
@@ -140,21 +149,79 @@ export function placementAfterPrompterLost(
 	preferences: { savedBounds: WindowBounds | null | undefined; seeThroughPercent: number }
 ): FloatingPlacement | null {
 	if (!onPrompter || findPrompterDisplay(displays)) return null
-	return floatingPlacement(displays, { ...preferences, preferPrompter: false })
+	return floatingPlacement(displays, { ...preferences, preferPrompter: false, toMainScreen: true })
 }
 
-/** The saved bounds when enough of them lands on a connected display, otherwise null. */
-export function restorableBounds(
-	saved: WindowBounds | null | undefined,
-	displays: WindowBounds[]
+/**
+ * "Move to main screen": wholly inside the primary display's work area (the display at the origin,
+ * minus the menu bar and the Dock), at the saved size and as near the saved place as fits. On
+ * 2026-11-27 the button put the window back at saved bounds of (213,-570) 1000×570, on the Prompter
+ * and 99 px off its left edge, because any overlap with any display, the Prompter included, was
+ * enough to restore them (ISC-212). Null when Electron reported no display, so the caller keeps its
+ * default.
+ */
+export function mainScreenBounds(
+	displays: DisplayInfo[],
+	saved: WindowBounds | null | undefined
 ): WindowBounds | null {
-	if (!saved) return null
-	const fits = displays.some(display => {
-		const overlapWidth = Math.min(saved.x + saved.width, display.x + display.width) - Math.max(saved.x, display.x)
-		const overlapHeight = Math.min(saved.y + saved.height, display.y + display.height) - Math.max(saved.y, display.y)
-		return overlapWidth >= MIN_VISIBLE_PX && overlapHeight >= MIN_VISIBLE_PX
-	})
-	return fits ? saved : null
+	const primary = primaryDisplay(displays)
+	return primary ? fitInside(saved ?? DEFAULT_FLOATING_BOUNDS, workAreaOf(primary)) : null
+}
+
+/**
+ * Where a floating window reopens off the Prompter: where it was left, wholly inside the work area
+ * of the display it covered most (at least MIN_VISIBLE_PX each way), so a window kept over a call
+ * on a second monitor reopens there. Bounds on no display but the Prompter, or none saved, go to
+ * the main screen (mainScreenBounds). Null when Electron reported no display.
+ */
+export function restoredBounds(
+	displays: DisplayInfo[],
+	saved: WindowBounds | null | undefined
+): WindowBounds | null {
+	const prompter = findPrompterDisplay(displays)
+	const covered = saved ? largestOverlap(saved, displays.filter(display => display !== prompter)) : null
+	if (saved && covered) return fitInside(saved, workAreaOf(covered))
+	return mainScreenBounds(displays, saved)
+}
+
+/** The display at the origin; failing that the first that is not the Prompter, then any. */
+function primaryDisplay(displays: DisplayInfo[]): DisplayInfo | null {
+	const prompter = findPrompterDisplay(displays)
+	const screens = displays.filter(display => display !== prompter)
+	return screens.find(display => display.bounds.x === 0 && display.bounds.y === 0) ?? screens[0] ?? displays[0] ?? null
+}
+
+function workAreaOf(display: DisplayInfo): WindowBounds {
+	return display.workArea ?? display.bounds
+}
+
+/** The display the bounds cover most, counting only those where at least MIN_VISIBLE_PX shows each way. */
+function largestOverlap(bounds: WindowBounds, displays: DisplayInfo[]): DisplayInfo | null {
+	let best: DisplayInfo | null = null
+	let bestArea = 0
+	for (const display of displays) {
+		const area = display.bounds
+		const overlapWidth = Math.min(bounds.x + bounds.width, area.x + area.width) - Math.max(bounds.x, area.x)
+		const overlapHeight = Math.min(bounds.y + bounds.height, area.y + area.height) - Math.max(bounds.y, area.y)
+		if (overlapWidth < MIN_VISIBLE_PX || overlapHeight < MIN_VISIBLE_PX) continue
+		if (overlapWidth * overlapHeight > bestArea) {
+			best = display
+			bestArea = overlapWidth * overlapHeight
+		}
+	}
+	return best
+}
+
+/** The bounds moved, and shrunk where they are larger, so that they lie wholly inside the area. */
+export function fitInside(bounds: WindowBounds, area: WindowBounds): WindowBounds {
+	const width = Math.min(Math.round(bounds.width), area.width)
+	const height = Math.min(Math.round(bounds.height), area.height)
+	return {
+		x: Math.min(Math.max(Math.round(bounds.x), area.x), area.x + area.width - width),
+		y: Math.min(Math.max(Math.round(bounds.y), area.y), area.y + area.height - height),
+		width,
+		height,
+	}
 }
 
 /** Every connected display, or an empty list when Electron's screen module is out of reach. */

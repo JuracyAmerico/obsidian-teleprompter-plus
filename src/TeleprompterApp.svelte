@@ -4446,7 +4446,9 @@
       savedBounds: plugin.settings.floatingBounds,
       seeThroughPercent: floatingSeeThrough,
       prompterSeeThroughPercent: floatingPrompterSeeThrough,
-        prompterSize: plugin.settings.floatingPrompterSize,
+      prompterSize: plugin.settings.floatingPrompterSize,
+      // "Move to main screen" means the primary display, wholly inside it (ISC-212).
+      toMainScreen: true,
     })
     floatingOnPrompter = placement.onPrompter
     floatingController.setSeeThrough(placement.seeThroughPercent)
