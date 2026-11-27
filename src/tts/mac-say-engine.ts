@@ -9,7 +9,6 @@
 
 import type { TTSEngine, TTSVoice, SpeakOptions } from './tts-types'
 import type { ChildProcess } from 'child_process'
-import type * as ChildProcessTypes from "child_process"
 import * as native from "../platform/native"
 import { Platform } from 'obsidian'
 

@@ -176,7 +176,7 @@ export function parseSectionTarget(detail: unknown): SectionTarget | null {
 	const headerId = nonEmptyString(fields.headerId)
 	if (headerId) target.headerId = headerId
 	const section = record(fields.section)
-	if (section) target.section = section as Partial<SectionRef>
+	if (section) target.section = section
 	return target.headerId !== undefined || target.section !== undefined ? target : null
 }
 
@@ -225,7 +225,7 @@ export function speakerNotesTitle(slide: unknown, totalSlides: unknown): string 
 	return `Slide ${current}/${label(totalSlides) ?? '?'}`
 }
 
-const always = (intent: Intent) => () => ({ ...intent }) as Intent
+const always = (intent: Intent) => () => ({ ...intent })
 const script = (parse: (detail: unknown) => Intent | null): CommandSpec => ({ parse, scope: 'script' })
 const fixed = (intent: Intent): CommandSpec => script(always(intent))
 

@@ -1377,7 +1377,7 @@ export class TeleprompterSettingTab extends PluginSettingTab {
 						type: 'text',
 						value: formatTargetSetting(this.plugin.settings.defaultTargetSeconds),
 						onChange: (value) => {
-							this.plugin.settings.defaultTargetSeconds = parseTargetTime(value as string) ?? 0
+							this.plugin.settings.defaultTargetSeconds = parseTargetTime(value) ?? 0
 							void this.plugin.saveSettings()
 							document.dispatchEvent(new CustomEvent('teleprompter:timing-changed'))
 						}
@@ -2438,7 +2438,7 @@ export class TeleprompterSettingTab extends PluginSettingTab {
 								name: imported.name as string,
 								icon: (imported.icon as string) || '',
 								description: (imported.description as string) || '',
-								settings: imported.settings as Partial<TeleprompterSettings>,
+								settings: imported.settings,
 								createdAt: Date.now(),
 								isBuiltIn: false,
 							}

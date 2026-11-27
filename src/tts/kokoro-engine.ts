@@ -10,7 +10,6 @@
 import type { TTSEngine, TTSVoice, SpeakOptions } from './tts-types'
 import { resolveVoiceId, clampSpeed } from './kokoro-safety'
 import type { ChildProcess } from 'child_process'
-import type * as ChildProcessTypes from "child_process"
 import * as native from "../platform/native"
 import { Platform } from 'obsidian'
 // Node.js modules — externalized by Vite, available in Obsidian's CJS environment
