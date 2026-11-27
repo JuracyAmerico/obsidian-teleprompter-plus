@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.12.16] - 2026-11-27
+
 ### Fixed
 - **The keyboard button on the toolbar now opens the list of shortcuts.** Before, it only gave the prompter the keyboard, which shows nothing when it already had it, so it looked dead. The list reads your real keys (a remapped key shows under its new action, and the pedal arrow mode shows its page turns). Click the button again, press Escape or open another menu to close it.
 - **Start Countdown, pressed again while the countdown runs, cancels it.** The Stream Deck key, the phone's Countdown button and the command used to start a new countdown instead, so there was no way to stop it from the key that started it. It works the same when the script is on the floating window.
