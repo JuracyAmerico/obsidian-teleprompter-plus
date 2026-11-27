@@ -7,6 +7,7 @@ import { resolveControlIcon, type IconStyle } from './icon-vocabulary'
 import { CONTROL_ICONS } from './action-icons'
 import { redactSecrets } from './settings-secrets'
 import { describeNetworkChanges, pickImportableSettings, readImportedProfile, type ImportedProfile } from './settings-import'
+import { VOICE_TRACE_FILE, VOICE_TRACE_MAX_BYTES } from './voice/trace-file'
 import { showsMobileInterface } from './platform/device'
 import { DESKTOP_ONLY_ENGINES, DESKTOP_ONLY_SETTINGS_TABS, PHONE_OPTIONAL_CONTROLS, forPhone } from './platform/mobile-surface'
 import type { NotePositions } from './position-memory'
@@ -160,7 +161,9 @@ export interface TeleprompterSettings {
 	showTimeOverlay: boolean // Clock over the script itself, not only in the toolbar
 	// Where playback pauses when a section's take ends: see SectionStopMode in takes.ts
 	sectionStopMode: SectionStopMode
-	voiceTrace?: boolean // Write voice recognition + matcher decisions to voice-trace.jsonl (diagnostics)
+	// Diagnostics, off by default: writes the script and everything heard to voice-trace.jsonl
+	// (capped, src/voice/trace-file.ts). Never taken from an imported file or profile.
+	voiceTrace: boolean
 	// Transparency settings
 	backgroundOpacity: number // 0-100 (0 = fully transparent, 100 = opaque)
 	enableBackgroundTransparency: boolean
@@ -332,6 +335,7 @@ export const DEFAULT_SETTINGS: TeleprompterSettings = {
 	largeTimeDisplay: false,
 	showTimeOverlay: true,
 	sectionStopMode: 'targeted', // Pause at the end of a section only when it has a {1:30} target
+	voiceTrace: false,
 	// Transparency settings
 	backgroundOpacity: 100, // Fully opaque by default
 	enableBackgroundTransparency: false,
@@ -1807,6 +1811,16 @@ export class TeleprompterSettingTab extends PluginSettingTab {
 						value: this.plugin.settings.voiceTrackingShowIndicator,
 						onChange: (value) => {
 							this.plugin.settings.voiceTrackingShowIndicator = value as boolean
+							void this.plugin.saveSettings()
+						}
+					},
+					{
+						name: 'Write a voice trace (diagnostics)',
+						desc: `Off unless you turn it on. Saves the whole script and every word the recognizer hears to ${VOICE_TRACE_FILE} in this plugin's folder, which a vault sync copies like your notes. Kept to ${VOICE_TRACE_MAX_BYTES / (1024 * 1024)} MB plus one older file. Turn it on only to report a voice tracking problem, and delete the files afterwards.`,
+						type: 'toggle',
+						value: this.plugin.settings.voiceTrace,
+						onChange: (value) => {
+							this.plugin.settings.voiceTrace = value as boolean
 							void this.plugin.saveSettings()
 						}
 					}

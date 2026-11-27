@@ -7,10 +7,6 @@
     join: (..._args: string[]) => string
   }
 
-  interface FsModule {
-    appendFileSync: (_path: string, _data: string, _encoding: string) => void
-  }
-
   interface PowerSaveBlocker {
     start: (_type: string) => number
     stop: (_id: number) => void
@@ -62,6 +58,7 @@
   import { VOICE_TRACKING_PRESETS, type VoiceTrackingPacePreset } from './settings'
   import type { VoiceReadingMove, VoiceTrackingService } from './voice'
   import { applyPresetLive } from './voice/preset-apply'
+  import { appendCappedLine, VOICE_TRACE_FILE, VOICE_TRACE_PREVIOUS_FILE, type TraceFs } from './voice/trace-file'
   import { isVoiceEngaged, nextVoiceUiState, voiceFailureText } from './voice/voice-ui-state'
   import { resolveReadAloudLanguage, resolveVoiceLanguage } from './voice/voice-language'
   import { showsMobileInterface } from './platform/device'
@@ -981,9 +978,10 @@
   let showTargetPopup = $state(false)
   let largeTimeDisplay = $state(settings.largeTimeDisplay ?? false)
   let showTimeOverlay = $state(settings.showTimeOverlay !== false) // on by default when a target exists
-  // Voice diagnostics: writes every recognizer result and matcher decision to
-  // .obsidian/plugins/teleprompter-plus/voice-trace.jsonl. Off unless explicitly turned on.
-  const voiceTraceEnabled = settings.voiceTrace === true
+  // Voice diagnostics: writes the script, every recognizer result and every matcher decision to
+  // <configDir>/plugins/teleprompter-plus/voice-trace.jsonl. Off unless the reader turns on
+  // Settings → Voice tracking → Write a voice trace; read on every line, so the switch acts at once.
+  const voiceTraceEnabled = () => settings.voiceTrace === true
   const viewId = Math.random().toString(36).slice(2, 7)
   let scriptProgress = $state(0)                           // 0..1, voice word index when available
   let progressValid = $state(false)
@@ -1912,51 +1910,23 @@
   }
 
   /**
-   * Append one diagnostic line to a JSONL file in the plugin folder. Voice tracking failures
-   * are invisible from outside the app — this is how a stalled rehearsal gets traced after the
-   * fact instead of reasoned about.
+   * Append one line to voice-trace.jsonl in the plugin folder, capped and rotated
+   * (./voice/trace-file.ts). Voice tracking failures are invisible from outside the app; this is
+   * how a stalled rehearsal gets traced after the fact. Only called while the reader has turned
+   * the trace on.
    */
-  function writeTraceLine(fileName: string, type: string, data: Record<string, unknown>) {
+  function writeVoiceTrace(type: string, data: Record<string, unknown>) {
     try {
-      const fs = require('fs') as FsModule
+      const fs = require('fs') as TraceFs
       const path = require('path') as PathModule
       const adapter = app.vault.adapter as { basePath?: string }
       if (!adapter.basePath) return
-      const logFile = path.join(adapter.basePath, app.vault.configDir, 'plugins', 'teleprompter-plus', fileName)
+      const dir = path.join(adapter.basePath, app.vault.configDir, 'plugins', 'teleprompter-plus')
       // viewId distinguishes concurrent teleprompter views sharing one voice service.
-      fs.appendFileSync(logFile, JSON.stringify({ t: new Date().toISOString(), view: viewId, type, ...data }) + '\n', 'utf8')
+      const line = JSON.stringify({ t: new Date().toISOString(), view: viewId, type, ...data }) + '\n'
+      appendCappedLine(fs, path.join(dir, VOICE_TRACE_FILE), path.join(dir, VOICE_TRACE_PREVIOUS_FILE), line)
     } catch {
       /* diagnostics must never break a rehearsal */
-    }
-  }
-
-  // Write error log to file for debugging
-  function writeErrorLog(errorType: string, errorData: Record<string, unknown>) {
-    try {
-      const fs = require('fs') as FsModule
-      const path = require('path') as PathModule
-      // Cast to access basePath property that exists at runtime
-      const adapter = app.vault.adapter as { basePath?: string }
-      if (!adapter.basePath) return
-
-      // Use configDir instead of hardcoded .obsidian
-      const configDir = app.vault.configDir
-      const logDir = path.join(adapter.basePath, configDir, 'plugins', 'teleprompter-plus')
-      const logFile = path.join(logDir, 'error-log.jsonl')
-
-      // Format as JSON Lines (one JSON object per line)
-      const logEntry = JSON.stringify({
-        timestamp: new Date().toISOString(),
-        type: errorType,
-        data: errorData
-      }) + '\n'
-
-      // Append to log file
-      fs.appendFileSync(logFile, logEntry, 'utf8')
-
-      debugLog('[ErrorLog] Written to:', logFile)
-    } catch (err) {
-      console.error('[ErrorLog] Failed to write error log:', err)
     }
   }
 
@@ -3220,7 +3190,7 @@
 
         // Set up callbacks
         voiceTrackingService.onStatusChange = (status: string) => {
-          if (voiceTraceEnabled) writeTraceLine('voice-trace.jsonl', 'status', { status })
+          if (voiceTraceEnabled()) writeVoiceTrace('status', { status })
           // The clock follows the microphone itself, not the code path that turned it on, so a
           // stop/start cycle (or a pace-preset restart) resumes the rehearsal instead of leaving
           // it frozen at "pausado".
@@ -3244,13 +3214,13 @@
           lastRecognizedText = text
           resumeAfterEditPause()
           phoneLog(`voice heard ${isFinal ? 'final' : 'partial'} (${text.split(' ').length} words) "${text.split(' ').slice(-3).join(' ')}"`)
-          if (voiceTraceEnabled) writeTraceLine('voice-trace.jsonl', 'heard', { final: isFinal, text })
+          if (voiceTraceEnabled()) writeVoiceTrace('heard', { final: isFinal, text })
           debugLog(`[Voice] Recognized (${isFinal ? 'final' : 'partial'}): ${text}`)
         }
 
         // Matcher decisions, written to voice-trace.jsonl when tracing is on.
         voiceTrackingService.onDiagnostic = (event: string, data: Record<string, unknown>) => {
-          if (voiceTraceEnabled) writeTraceLine('voice-trace.jsonl', event, data)
+          if (voiceTraceEnabled()) writeVoiceTrace(event, data)
           if (event === 'match') phoneLog(`voice ${data.final ? 'FINAL' : 'part'} cur ${data.cur} -> ${data.proposed} (jump ${data.jump})`)
           else phoneLog(`voice ${event}`)
         }

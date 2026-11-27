@@ -9,8 +9,11 @@
  */
 import { SECRET_SETTING_KEYS } from './settings-secrets'
 
-/** Keys that are never taken from a file or profile: secrets, and the profile list itself. */
-const NEVER_IMPORTED = new Set<string>([...SECRET_SETTING_KEYS, 'profiles'])
+/**
+ * Keys never taken from a file or profile: secrets, the profile list itself, and the voice trace,
+ * which writes the script to disk and stays a choice made in the settings tab.
+ */
+const NEVER_IMPORTED = new Set<string>([...SECRET_SETTING_KEYS, 'profiles', 'voiceTrace'])
 
 function jsonKind(value: unknown): string {
 	if (value === null) return 'null'

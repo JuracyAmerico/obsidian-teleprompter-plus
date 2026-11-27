@@ -12,6 +12,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Security
 - **An imported settings file or profile can no longer change network settings without asking.** Applying a profile, or importing a settings or profile file, now takes only settings the plugin defines, with the right type and never a password or key, and runs them through the same checks as the settings saved on disk. If it would open the remote server to the network, move a port, connect to OBS on another computer, start recording or streaming on Play, or send your script to ElevenLabs, a dialog lists each change and nothing is applied unless you confirm. Before, a profile file was stored as it came and applied unchecked.
+- **The voice trace is a visible switch, off by default, and has a size limit.** Settings → Voice tracking → Write a voice trace says what it saves (the whole script and every word heard) and where. The file `voice-trace.jsonl` now stops at 5 MB and moves to `voice-trace.1.jsonl`, so at most about 10 MB is ever kept; before, it grew without limit. A profile or imported file can no longer turn it on. The never-written `error-log.jsonl` code is gone.
 
 ## [0.12.17] - 2026-11-27
 
