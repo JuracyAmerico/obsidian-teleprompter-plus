@@ -4,7 +4,7 @@ slug: teleprompter-plus
 project: Teleprompter Plus
 effort: E3
 phase: climbing
-progress: 195/201
+progress: 196/202
 mode: algorithm
 started: 2026-10-29
 updated: 2026-11-27
@@ -279,13 +279,14 @@ Source: vault `01-projects/obsidian-teleprompter-plus/2026-11-27-12-40-github-pa
 
 - [x] ISC-196: README.md opens with an image already in the repo (docs/screenshots/main-interface.png, the prompter beside its note) and then the one sentence, "A teleprompter inside Obsidian that follows your voice.", before any badge or feature list; the five lines under it (voice in English or Portuguese, on-device recognition, section targets, floating window and Elgato Prompter, phone and pedal, read-aloud with optional ElevenLabs) each match the code (VOICE_LANGUAGES en-US and pt-BR in src/voice/types.ts; `requiresOnDeviceRecognition = true` in native/teleprompter-stt.swift; ElevenLabs off unless chosen, src/tts/engine-factory.ts).
 - [x] ISC-197: manifest.json's description is the directory's one sentence, "Read any note as a teleprompter that follows your voice, with a phone remote, rehearsal timing and read-aloud." (110 characters, no "Obsidian", ends in a period; the obsidianmd validate-manifest rule passes it and flags the same line with "Obsidian" added). package.json says the same. Version and versions.json are unchanged.
-- [x] ISC-198: README.md has no mermaid block; the Architecture section is two short paragraphs and points at docs/architecture.excalidraw.
+- [x] ISC-198: README.md has no mermaid block; the Architecture section is two short paragraphs and points at docs/architecture.excalidraw. (ISC-205 later puts the rendered picture inline.)
 - [x] ISC-199: the first install path in README.md is the community directory listing (https://community.obsidian.md/plugins/teleprompter-plus, whose page shows "Add to Obsidian"; a made-up id on the same site answers "Plugin not found"); "recommended once published" is gone.
 - [x] ISC-200: every link in README.md, SECURITY.md, CONTRIBUTING.md, docs/README.md, docs/ICON-CATALOG.md, docs/stream-deck-actions.md and docs/troubleshooting.md resolves: relative files exist, anchors match a heading, external URLs answer 200. No link points at GitHub Discussions, which are off for the repository (`has_discussions` false).
 - [x] ISC-201: README.md and docs/stream-deck-actions.md say plainly that the Stream Deck plugin is not released yet, and nothing links to its repository (com.americo.obsidian-teleprompter.sdPlugin answers 404; docs/README.md and docs/ICON-CATALOG.md pointed at it by a path outside this repo). "55+" is gone from README.md and docs/, docs/architecture.excalidraw included (CHANGELOG.md history keeps it).
 - [x] ISC-202: README.md has a "What it touches" section, linked from the first screen, listing the programs the plugin starts, the files it reads or writes outside the vault and in its own folder, and every network host with when and what: 127.0.0.1:8765 (src/main.ts, src/settings.ts), alphacephei.com (src/voice/vosk-recognizer.ts; both model URLs answered 200), api.elevenlabs.io (src/tts/elevenlabs-engine.ts), the OBS WebSocket (src/settings.ts), and huggingface.co marked as taken from docs/tts-setup.md, not from code (mlx-audio downloads it, not the plugin).
 - [x] ISC-203: SECURITY.md says how to report privately (the Security tab's Report a vulnerability when it is on, otherwise an issue with no details asking for a private channel) and that only the latest release is supported.
 - [x] ISC-204: `bun scripts/verify.ts` passes all six gates with these changes, and PublicPushGuard's `scanPush` over branch integrate returns no hits (the same scanner finds 4 on a throwaway repo seeded with the protected values).
+- [x] ISC-205: the README Architecture section shows the architecture as a picture, and the picture matches the code. `docs/architecture.svg` is exported from `docs/architecture.excalidraw` with Excalidraw's own export code (`@excalidraw/utils` 0.1.8, `exportScene` type svg, light theme, the scene's own opaque #0a0a0a ground, so it reads on GitHub light and dark), with each text turned into outlines of Excalidraw's Cascadia Code so no viewer font is needed; README embeds it inline with alt text and keeps the one Source line. The source was stale and is fixed: the subtitle named v0.10.2 and "local-only bridge"; the bridge said "loopback only · no LAN exposure" and the legend "all transit stays on 127.0.0.1", while host 0.0.0.0 with a remote key serves the phone (src/websocket-server.ts 324, 644; src/settings.ts 266-268); voice tracking, the floating window and ElevenLabs were missing; the two bridge-to-plugin arrows had the legend's colours reversed. Text fit is measured, not eyeballed: every text's width and height in Cascadia Code against its box (no overflow in the old file either; one 1 px declared-width miss on "$state · $effect", widened). Evidence: render read as PNG on #ffffff and #0d1117 (byte-identical, the export is opaque) and in Chrome as an img on both grounds at 900 px; `bun scripts/verify.ts` passes all gates.
 
 ## Anti-criteria
 
@@ -483,6 +484,7 @@ Source: vault `01-projects/obsidian-teleprompter-plus/2026-11-27-12-40-github-pa
 | ISC-202 | bash | What it touches names the download hosts | exit 0 | rg -q "alphacephei.com" README.md && rg -q "api.elevenlabs.io" README.md |
 | ISC-203 | bash | SECURITY.md exists with a supported version | exit 0 | rg -q "Latest release" SECURITY.md |
 | ISC-204 | bash | gates and personal-data scan | verify passed; 0 hits | bun scripts/verify.ts; scanPush over integrate |
+| ISC-205 | bash | README embeds the rendered diagram and keeps the source line; the SVG has no live text | exit 0 | rg -q "\]\(docs/architecture.svg\)" README.md && rg -q "Source: .*docs/architecture.excalidraw" README.md && ! rg -q "<text" docs/architecture.svg |
 | ISC-172 | bun-test | remote key secret, docs current | pass: settings-secrets, gen-ws-docs, stream-deck-docs tests | 2026-11-26 |
 | ISC-166 | bun-test | takes, section targets, take log, WPM, fit | pass: section-targets, takes, take-log, reading-rate, take-wiring tests (108) | bun test, 2026-11-26 |
 | ISC-167 | bun-test | section identity by line, eyeline, callouts | pass: sections.test.ts, parser/callout.test.ts, heading-source-map (49) | bun test, 2026-11-26 |
@@ -637,6 +639,7 @@ acceptance: pass 2026-10-30 (all four runtime checks; mic-blocked Notice + Retry
 
 ## Changelog
 
+- 2026-11-27: ISC-205 added and ticked: the architecture diagram is a picture in the README (docs/architecture.svg rendered from docs/architecture.excalidraw) and the source is brought up to the code (bridge on LAN with the remote key, voice tracking, floating window, ElevenLabs, arrow colours). Frontmatter progress 196/202. Branch integrate, not pushed, not released.
 - 2026-11-27: ISC-196 to ISC-204 added and ticked: the "Quick wins" tier of Fable's GitHub page review (README top and install path, What it touches, no mermaid, Stream Deck "not released yet", dead links, manifest sentence, SECURITY.md). Branch integrate, not pushed, not released. Frontmatter progress recounted from the criteria lines: 195/201 (it read 174/181, behind the criteria added since).
 - 2026-11-27: ISC-183 to ISC-187 added from Américo's live test of 0.12.15 (test note Blocks 1, 4, 6): countdown cancel, voice pill position, keyboard button, section panel highlight. Branch fix-0.12.16-bugs, not pushed, not released. ISC-183 to ISC-186 stay open until seen on screen; ISC-187 ticked on the verify run.
 - 2026-11-27: ISC-190 to ISC-194 added and ticked, ISC-195 added open: voice matcher against its benchmark (branch voice-matcher). A word-level wide re-sync search was tried with ISC-193 and dropped: better on tune (off>5 7.4%), worse on held-out (p95 156, off>5 23.7%). Fuzzier re-read matching changed nothing on tune and was not kept.

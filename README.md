@@ -259,9 +259,11 @@ Full troubleshooting guide: **[docs/troubleshooting.md](docs/troubleshooting.md)
 
 ## Architecture
 
-The plugin is a Svelte 5 view inside Obsidian. Clients (the Stream Deck, the phone remote, your scripts) send commands to a local WebSocket bridge, and the plugin broadcasts its state back to all of them. By default all traffic stays on `127.0.0.1`; with the host set to `0.0.0.0` for the phone remote, the phone connects over your LAN with the remote key. Read-aloud, citation lookup and OBS recording sync hang off the view.
+The plugin is a Svelte 5 view inside Obsidian. Clients (the Stream Deck, the phone remote, your scripts) send commands to a local WebSocket bridge, and the plugin broadcasts its state back to all of them. By default all traffic stays on `127.0.0.1`; with the host set to `0.0.0.0` for the phone remote, the phone connects over your LAN with the remote key. Voice tracking, read-aloud, the floating window, citation lookup and OBS recording sync hang off the view.
 
-The diagram is in **[docs/architecture.excalidraw](docs/architecture.excalidraw)**: open it in Obsidian (with the Excalidraw plugin) to view, edit, or export it to PNG or SVG.
+![Teleprompter Plus architecture: the Stream Deck, the phone remote and your own scripts send commands to a WebSocket bridge on 127.0.0.1:8765, reachable only from this computer by default. The bridge hands them to the Obsidian plugin and broadcasts its state back. Hanging off the plugin: voice tracking (Apple on-device speech or Vosk), read-aloud (Kokoro, macOS say, Web Speech), the floating window, the citation resolver, and the optional ElevenLabs and OBS connections. A phone on your LAN needs host 0.0.0.0 and the remote key.](docs/architecture.svg)
+
+Source: [docs/architecture.excalidraw](docs/architecture.excalidraw) (open in Excalidraw or Obsidian's Excalidraw plugin to edit).
 
 Design system, component reference, and icon catalog: **[docs/](docs/)**.
 
