@@ -52,7 +52,7 @@
     "eslint-plugin-obsidianmd": "0.6.0",
     "lucide-static": "^1.17.0",
     "obsidian": "^1.10.0",
-    "postcss": "^8.5.6",
+    "postcss": "^8.5.33",
     "svelte": "^5.39.6",
     "svelte-check": "^4.3.2",
     "typescript": "~5.9.3",
