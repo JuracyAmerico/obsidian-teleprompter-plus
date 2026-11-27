@@ -47,7 +47,7 @@
     "@types/ws": "^8.18.1",
     "@typescript-eslint/eslint-plugin": "^8.51.0",
     "@typescript-eslint/parser": "^8.51.0",
-    "autoprefixer": "^10.4.21",
+    "autoprefixer": "^10.7.0",
     "eslint": "^9.39.2",
     "eslint-plugin-obsidianmd": "0.6.0",
     "lucide-static": "^1.17.0",
