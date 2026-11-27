@@ -49,6 +49,7 @@
   import { lineTable, positionAtY, renderedWords, scrollTopForWord, wordAtPoint, wordAtViewportOffset, yAtPosition, type LineTable } from './passage-dom'
   import { followShare, REFERENCE_FRAME_MS } from './voice/follow-easing'
   import { rememberPosition } from './position-memory'
+  import { isScriptFile, isTextScript } from './script-files'
   import { markStageCues } from './parser/stage-cues'
   import { calloutBlockquote } from './parser/callout'
   import { currentSection, findSection, holdAfterJump, scrollTopForHeading, sectionAtReadingLine, sectionRef, type JumpHold, type SectionRef } from './sections'
@@ -495,7 +496,8 @@
 
       try {
         const file = app.vault.getAbstractFileByPath(notePath)
-        if (file && 'extension' in file) {
+        // An embedded PDF, audio or video keeps its title only: its bytes are not text (ISC-211).
+        if (file && 'extension' in file && isTextScript((file as TFile).extension)) {
           const noteContent = await app.vault.cachedRead(file as TFile)
 
           // Strip YAML frontmatter from embedded content
@@ -1029,7 +1031,8 @@
   $effect(() => {
     content // re-run when the prompted note changes
     const sourceFile = currentSourceFile()
-    if (!sourceFile) {
+    // A PDF has no frontmatter to read, and its bytes are not text (ISC-211).
+    if (!sourceFile || !isTextScript(sourceFile.extension)) {
       noteTargetValue = null
       applyResolvedTarget()
       return
@@ -1048,7 +1051,7 @@
     // Read raw file to extract bib path from frontmatter (content has YAML already stripped).
     // Must be the prompted note — a pinned note's bibliography is declared in its own frontmatter.
     const activeFile = currentSourceFile()
-    if (!activeFile) return
+    if (!activeFile || !isTextScript(activeFile.extension)) return
 
     void app.vault.read(activeFile).then(rawFileContent => {
       const frontmatterBib = extractBibPath(rawFileContent)
@@ -1678,6 +1681,8 @@
    * view's own loader only took .md.
    */
   async function readScript(file: TFile): Promise<{ content: string; linesRemoved: number }> {
+    // An image or any other binary file read as text fills the prompter with its bytes (ISC-211).
+    if (!isScriptFile(file)) throw new Error(`Not a script file: ${file.path}`)
     if (file.extension === 'pdf') {
       const pdfText = await extractPDFText(file.path)
       if (pdfText) {
@@ -1711,6 +1716,12 @@
     }
     const floatingFile = floatingNote ? app.vault.getAbstractFileByPath(floatingNote) : null
     const activeFile = floatingFile && "extension" in floatingFile ? (floatingFile as TFile) : app.workspace.getActiveFile()
+    // An image, audio or other non-script file in the active pane leaves the current script on
+    // screen. It used to be read as text: a .jpg filled the prompter with its bytes (ISC-211).
+    if (activeFile && !isScriptFile(activeFile)) {
+      debugLog(`[Document] Not a script, keeping the current one: ${activeFile.path}`)
+      return
+    }
     if (activeFile) {
       // Check if this is actually a different file
       const newPath = activeFile.path
@@ -1804,7 +1815,10 @@
    */
   function currentSourcePath(): string | null {
     if (isPinned && pinnedNotePath) return pinnedNotePath
-    return currentNotePath || app.workspace.getActiveFile()?.path || null
+    if (currentNotePath) return currentNotePath
+    // Before any note has loaded: an image in the active pane is not the prompted note (ISC-211).
+    const active = app.workspace.getActiveFile()
+    return active && isScriptFile(active) ? active.path : null
   }
 
   /** The TFile for `currentSourcePath()`, or null when it is not a vault file. */
@@ -3897,7 +3911,7 @@
       return
     }
     const file = currentSourceFile()
-    if (!file || file.extension === 'pdf') return
+    if (!file || !isTextScript(file.extension)) return
     const path = file.path
     const fileContent = await app.vault.cachedRead(file)
     if (path !== currentSourcePath()) return
@@ -4519,7 +4533,9 @@
   async function openFile(filePath: string) {
     debugLog(`[OpenFile] Opening file: ${filePath}`)
     const file = app.vault.getAbstractFileByPath(filePath)
-    if (file && 'extension' in file) {
+    if (file && 'extension' in file && !isScriptFile(file as TFile)) {
+      debugLog(`[OpenFile] Not a script, keeping the current one: ${filePath}`)
+    } else if (file && 'extension' in file) {
       try {
         if (currentNotePath !== filePath) saveNotePosition()
         const script = await readScript(file as TFile)
