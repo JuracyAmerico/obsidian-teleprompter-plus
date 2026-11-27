@@ -5,14 +5,18 @@
  * 2. Bumps manifest.json, package.json and versions.json (newest key first, same minAppVersion as
  *    the previous entry).
  * 3. Asserts all four agree on X.Y.Z.
- * 4. Runs check, test, lint and build.
- * 5. Prints the git commands to commit and tag. It never commits, tags or pushes.
+ * 4. Runs scripts/verify.ts, which holds every gate (freshness of the lint plugin, check, test,
+ *    lint, build). This file lists none of them.
+ * 5. Looks for a scan receipt for the candidate commit (see checkReceipt). With one it prints the
+ *    git commands to commit and tag; without one it prints the command that pushes the candidate
+ *    to review/X.Y.Z and stops. It never commits, tags or pushes.
  *
- * Any failure after step 1 puts the four files back exactly as they were.
+ * Any failure after step 1, and a missing receipt, put the four files back exactly as they were.
  */
 import { readFileSync, writeFileSync } from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { verify } from './verify'
 
 export interface ReleaseFiles {
 	manifest: string
@@ -130,7 +134,78 @@ export function gitCommands(version: string): string[] {
 	]
 }
 
-const GATES: string[][] = [['bun', 'run', 'check'], ['bun', 'test'], ['bun', 'run', 'lint'], ['bun', 'run', 'build']]
+/** Where the receipt for a candidate commit lives. Committed, so the release can be audited later. */
+export const RECEIPT_DIR = '.review-receipts'
+export const RECEIPT_SOURCE = 'community.obsidian.md preview scan'
+
+export function receiptPath(sha: string): string {
+	return `${RECEIPT_DIR}/${sha}.json`
+}
+
+export type ReceiptCheck = { ok: true } | { ok: false; reason: string }
+
+/**
+ * A receipt says the directory's own Review branch scan ran on exactly this commit and found no
+ * errors: {sha, ref, date, status, errors, warnings, source}. `text` is the file's content, or null
+ * when there is no file. Anything short of status Completed with 0 errors is a refusal.
+ */
+export function checkReceipt(sha: string, text: string | null): ReceiptCheck {
+	if (!/^[0-9a-f]{40}$/.test(sha)) return { ok: false, reason: `"${sha}" is not a full commit SHA` }
+	if (text === null) return { ok: false, reason: `no receipt at ${receiptPath(sha)}` }
+	let receipt: Record<string, unknown>
+	try {
+		receipt = JSON.parse(text) as Record<string, unknown>
+	} catch {
+		return { ok: false, reason: `${receiptPath(sha)} is not valid JSON` }
+	}
+	if (typeof receipt !== 'object' || receipt === null) return { ok: false, reason: `${receiptPath(sha)} is not an object` }
+	if (receipt.sha !== sha) return { ok: false, reason: `the receipt is for ${String(receipt.sha)}, not ${sha}` }
+	if (receipt.source !== RECEIPT_SOURCE) return { ok: false, reason: `the receipt source is not "${RECEIPT_SOURCE}"` }
+	for (const key of ['ref', 'date'] as const) {
+		if (typeof receipt[key] !== 'string' || !receipt[key]) return { ok: false, reason: `the receipt has no ${key}` }
+	}
+	if (receipt.status !== 'Completed') return { ok: false, reason: `the scan status is "${String(receipt.status)}", not Completed` }
+	if (typeof receipt.warnings !== 'number') return { ok: false, reason: 'the receipt has no warnings count' }
+	if (receipt.errors !== 0) return { ok: false, reason: `the scan found ${String(receipt.errors)} errors, not 0` }
+	return { ok: true }
+}
+
+/** The command that sends the candidate to the directory's Review branch scan. */
+export function reviewBranchCommand(version: string, sha: string): string {
+	return `git push origin ${sha}:refs/heads/review/${version}`
+}
+
+/** Reads git: stdout, or null when git fails. Injected so the walk below is testable without a repository. */
+export type Git = (args: string[]) => string | null
+
+/**
+ * The commit that gets scanned: HEAD, or the nearest ancestor that is not only a receipt commit.
+ * Committing a receipt moves HEAD, and a receipt cannot sit in the commit it describes.
+ */
+export function candidateSha(git: Git): string {
+	const head = git(['rev-parse', 'HEAD'])?.trim()
+	if (!head) throw new Error('cannot read HEAD')
+	let sha: string = head
+	for (let steps = 0; steps < 20; steps++) {
+		const files = git(['show', '--name-only', '--pretty=format:', sha])
+			?.split('\n')
+			.map((line) => line.trim())
+			.filter(Boolean)
+		const receiptOnly = files && files.length > 0 && files.every((file) => file.startsWith(`${RECEIPT_DIR}/`))
+		if (!receiptOnly) return sha
+		const parent: string | undefined = git(['rev-parse', `${sha}^`])?.trim()
+		if (!parent) throw new Error(`cannot walk back from ${sha}`)
+		sha = parent
+	}
+	throw new Error('twenty receipt-only commits in a row: something is wrong')
+}
+
+function readGit(root: string): Git {
+	return (args) => {
+		const result = Bun.spawnSync(['git', ...args], { cwd: root, stdout: 'pipe', stderr: 'pipe' })
+		return result.exitCode === 0 ? result.stdout.toString() : null
+	}
+}
 
 function today(): string {
 	const now = new Date()
@@ -138,7 +213,7 @@ function today(): string {
 	return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`
 }
 
-function main(): void {
+async function main(): Promise<void> {
 	const args = process.argv.slice(2)
 	const dryRun = args.includes('--dry-run')
 	const dateAt = args.indexOf('--date')
@@ -173,6 +248,17 @@ function main(): void {
 	const restore = () => {
 		for (const key of Object.keys(paths) as Array<keyof ReleaseFiles>) writeFileSync(paths[key], original[key])
 	}
+	let candidate: string
+	let receipt: ReceiptCheck
+	try {
+		const git = readGit(root)
+		candidate = candidateSha(git)
+		// Read from HEAD's tree, so only a committed receipt counts.
+		receipt = checkReceipt(candidate, git(['show', `HEAD:${receiptPath(candidate)}`]))
+	} catch (error) {
+		console.error(`Not released: ${(error as Error).message}`)
+		process.exit(1)
+	}
 	try {
 		for (const key of Object.keys(paths) as Array<keyof ReleaseFiles>) writeFileSync(paths[key], next[key])
 		const written = Object.fromEntries(
@@ -181,18 +267,26 @@ function main(): void {
 		assertAgree(written, version)
 		console.log(`Bumped to ${version}: manifest.json, package.json, versions.json and CHANGELOG.md agree.`)
 
-		for (const gate of GATES) {
-			console.log(`\n$ ${gate.join(' ')}`)
-			const result = Bun.spawnSync(gate, { cwd: root, stdout: 'inherit', stderr: 'inherit' })
-			if (result.exitCode !== 0) throw new Error(`"${gate.join(' ')}" failed (exit ${result.exitCode})`)
-		}
+		const verdict = await verify(root)
+		if (!verdict.ok) throw new Error(`gate "${verdict.failed}": ${verdict.message}`)
 	} catch (error) {
 		restore()
 		console.error(`\nNot released: ${(error as Error).message}\nThe four files are back as they were.`)
 		process.exit(1)
 	}
 
-	console.log(`\nReady. Nothing was committed or pushed. Run:\n\n${gitCommands(version).join('\n')}`)
+	if (!receipt.ok) {
+		restore()
+		console.error(
+			`\nAll gates pass, but there is no clean scan receipt for the candidate ${candidate}: ${receipt.reason}.\n` +
+				`The four files are back as they were. To get one, push the candidate to the directory's Review branch scan:\n\n` +
+				`${reviewBranchCommand(version, candidate)}\n\n` +
+				`Run the scan on community.obsidian.md, write ${receiptPath(candidate)}, commit it, and run this again.`
+		)
+		process.exit(1)
+	}
+
+	console.log(`\nReady (scan receipt for ${candidate}: Completed, 0 errors). Nothing was committed or pushed. Run:\n\n${gitCommands(version).join('\n')}`)
 }
 
-if (import.meta.main) main()
+if (import.meta.main) await main()
