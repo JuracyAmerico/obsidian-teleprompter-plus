@@ -46,7 +46,7 @@
     "@types/node": "^26.6.6",
     "@types/ws": "^8.18.1",
     "@typescript-eslint/eslint-plugin": "^8.51.0",
-    "@typescript-eslint/parser": "^8.51.0",
+    "@typescript-eslint/parser": "^8.74.0",
     "autoprefixer": "^10.7.0",
     "eslint": "^9.39.2",
     "eslint-plugin-obsidianmd": "0.6.0",
