@@ -8,17 +8,26 @@
  * the toolbar name an action the same way. `badge` is a second, smaller Lucide icon the deck puts
  * beside the symbol for a key that is one step of a control the toolbar shows as one button (the
  * speed button is a gauge; the deck's Speed Up key is the gauge with an up arrow). `on` is the
- * symbol of the action's second state.
+ * symbol of the action's second state: every toggle has one, so a key or button that is on shows
+ * a different picture, not only a different colour. The toolbar draws it while the button is
+ * active, the deck on the key's lit state.
  */
 
 export interface ActionIcon {
 	/** Lucide icon name; for a two-state action, the picture of its first state (paused, off). */
 	readonly lucide: string
-	/** Lucide icon name of the second state, where the symbol changes with it. */
+	/** Lucide icon name of the second state (playing, on). */
 	readonly on?: string
+	/**
+	 * The second state draws `on` solid: its areas filled, the strokes inside them cut out
+	 * (src/solid-icon.ts). For a symbol that has no Lucide "on" form of its own: a pinned pin.
+	 */
+	readonly onSolid?: boolean
 	/** Lucide icon name drawn small beside the symbol on a Stream Deck key. */
 	readonly badge?: string
 }
+
+const solid = (lucide: string): ActionIcon => ({ lucide, on: lucide, onSolid: true })
 
 const step = (lucide: string, badge: string): ActionIcon => ({ lucide, badge })
 
@@ -33,19 +42,21 @@ export const CONTROL_ICONS = {
 	letterSpacing: { lucide: 'move-horizontal' },
 	opacity: { lucide: 'blend' },
 	padding: { lucide: 'square-dashed' },
-	flipHorizontal: { lucide: 'flip-horizontal-2' },
-	flipVertical: { lucide: 'flip-vertical-2' },
-	minimap: { lucide: 'map' },
-	float: { lucide: 'picture-in-picture-2' },
+	flipHorizontal: solid('flip-horizontal-2'),
+	flipVertical: solid('flip-vertical-2'),
+	minimap: solid('map'),
+	// Floating: the picture-in-picture that points back, the way a full screen shows "minimize".
+	float: { lucide: 'picture-in-picture-2', on: 'picture-in-picture' },
 	openInWindow: { lucide: 'app-window' },
-	autoPause: { lucide: 'circle-pause' },
+	autoPause: solid('circle-pause'),
 	refreshPinned: { lucide: 'refresh-cw' },
-	fullscreen: { lucide: 'maximize' },
-	navigationPanel: { lucide: 'panel-left' },
-	eyeline: { lucide: 'scan-line' },
-	focusMode: { lucide: 'scan-text' },
-	pin: { lucide: 'pin' },
-	keepAwake: { lucide: 'coffee' },
+	fullscreen: { lucide: 'maximize', on: 'minimize' },
+	navigationPanel: { lucide: 'panel-left', on: 'panel-left-close' },
+	// The eyeline shown: the same scan frame with an eye in it. Focus on: the frame closes on its centre.
+	eyeline: { lucide: 'scan-line', on: 'scan-eye' },
+	focusMode: { lucide: 'scan-text', on: 'focus' },
+	pin: solid('pin'),
+	keepAwake: solid('coffee'),
 	voice: { lucide: 'mic-off', on: 'mic' },
 	progressIndicator: { lucide: 'loader' },
 	alignment: { lucide: 'align-center' },
@@ -100,7 +111,7 @@ export const ACTION_ICONS = {
 	// The Clock key sends get-state; its live picture comes from the deck plugin, this is its resting symbol.
 	'get-state': C.timeDisplay,
 	// No toolbar twin; a symbol here so it no longer looks like Refresh Pinned (refresh-cw).
-	'toggle-scroll-sync': { lucide: 'link-2' },
+	'toggle-scroll-sync': { lucide: 'link-2', on: 'link' },
 	'next-section': C.nextSection,
 	'previous-section': C.previousSection,
 } as const satisfies Record<string, ActionIcon>

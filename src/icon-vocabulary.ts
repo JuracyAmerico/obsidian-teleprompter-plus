@@ -15,7 +15,7 @@
  * everywhere — rendered monochrome-native in Obsidian, as an accent key on Stream Deck.
  */
 
-import { CONTROL_ICONS as C } from './action-icons'
+import { CONTROL_ICONS as C, type ActionIcon } from './action-icons'
 
 export type IconStyle = 'native' | 'custom'
 
@@ -77,6 +77,44 @@ export const CUSTOM_TO_LUCIDE: Record<string, string> = {
  * no mapping); in 'custom' mode the original `tp-*` name is used. Non-`tp-*` names pass through.
  */
 export function resolveControlIcon(name: string, style: IconStyle = 'native'): string {
-  if (style === 'custom') return name
-  return CUSTOM_TO_LUCIDE[name] ?? name
+  return resolveToggleIcon(name, style).name
+}
+
+/** Marks a toolbar icon name as the control's second state: `toggleIcon('tp-pin', true)`. */
+const ON_MARK = '+on'
+
+/**
+ * The icon name a toggle button shows: its own name while off, the name marked as its second
+ * state while on. resolveToggleIcon turns the mark into the control's `on` symbol.
+ */
+export function toggleIcon(name: string, on: boolean): string {
+  return on ? `${name}${ON_MARK}` : name
+}
+
+/** The `on` form of every control symbol that has one, by the symbol's Lucide name. */
+const ON_FORMS: ReadonlyMap<string, ActionIcon> = new Map(
+  Object.values(C as Record<string, ActionIcon>).filter(icon => icon.on).map(icon => [icon.lucide, icon]),
+)
+
+export interface ResolvedIcon {
+  /** Icon name for Obsidian's setIcon. */
+  readonly name: string
+  /** Draw it solid (src/solid-icon.ts): the control is on and its on form is its own symbol filled. */
+  readonly solid: boolean
+}
+
+/**
+ * Resolve a toolbar icon name, with or without the second-state mark, for the active icon style.
+ * Native: the Lucide symbol, and for a marked name the control's `on` symbol (CONTROL_ICONS), solid
+ * where the map says so. Custom: the bespoke `tp-*` picture has one form per control, so a marked
+ * name shows the same picture; the button's active style still says it is on.
+ */
+export function resolveToggleIcon(name: string, style: IconStyle = 'native'): ResolvedIcon {
+  const on = name.endsWith(ON_MARK)
+  const base = on ? name.slice(0, -ON_MARK.length) : name
+  if (style === 'custom') return { name: base, solid: false }
+  const lucide = CUSTOM_TO_LUCIDE[base] ?? base
+  const form = on ? ON_FORMS.get(lucide) : undefined
+  if (!form?.on) return { name: lucide, solid: false }
+  return { name: form.on, solid: form.onSolid === true }
 }

@@ -1,5 +1,5 @@
 /* ============================================================
-   Teleprompter Plus (T+) — Stream Deck icon set  (90 icons)
+   Teleprompter Plus (T+) — Stream Deck icon set  (92 icons)
    Single source of truth. Loaded by the contact sheet AND read
    by the SVG exporter, so the family stays perfectly consistent.
 
@@ -135,6 +135,8 @@ var TP_GROUPS = [
         inner: `<line x1="24" y1="20" x2="48" y2="20"/><path d="M29 20 L31 33 L41 33 L43 20"/><line x1="36" y1="33" x2="36" y2="52"/>` },
       { id: 'tp-toggle-view-mode', color: N, note: 'Two overlapping panels = switch view mode. Neutral = toggle.',
         inner: `<rect x="14" y="24" width="28" height="26" rx="5"/><rect x="30" y="16" width="28" height="26" rx="5" fill="${BG}"/>` },
+      { id: 'tp-toggle-view-mode-plain', color: G, note: 'View mode, second state (plain text): the front panel solid, two text lines cut out of it. Green = on, the solid "on" form of the toggles.',
+        inner: `<rect x="14" y="24" width="28" height="26" rx="5"/><rect x="30" y="16" width="28" height="26" rx="5" fill="${G}"/><line x1="37" y1="25" x2="51" y2="25" stroke="${BG}" data-knockout="1"/><line x1="37" y1="33" x2="46" y2="33" stroke="${BG}" data-knockout="1"/>` },
       { id: 'tp-toggle-auto-pause', color: N, note: 'Pause bars inside a dashed (auto) ring = auto-pause toggle. Neutral.',
         inner: `<circle cx="36" cy="36" r="17" stroke-dasharray="2.5 5.5"/><rect x="29.5" y="27" width="5.5" height="18" rx="2.75" fill="${N}" stroke="none"/><rect x="38" y="27" width="5.5" height="18" rx="2.75" fill="${N}" stroke="none"/>` },
     ]
@@ -260,6 +262,8 @@ var TP_GROUPS = [
         inner: `<circle cx="36" cy="36" r="4" fill="${G}"/><path d="M27 27 A13 13 0 0 0 27 45"/><path d="M45 27 A13 13 0 0 1 45 45"/><path d="M21 21 A21 21 0 0 0 21 51"/><path d="M51 21 A21 21 0 0 1 51 51"/>` },
       { id: 'tp-stream-stop', color: R, note: 'Broadcast waves with a stop square = stop streaming. Red = stop.',
         inner: `<rect x="31" y="31" width="10" height="10" rx="2" fill="${R}"/><path d="M27 27 A13 13 0 0 0 27 45"/><path d="M45 27 A13 13 0 0 1 45 45"/><path d="M21 21 A21 21 0 0 0 21 51"/><path d="M51 21 A21 21 0 0 1 51 51"/>` },
+      { id: 'tp-stream-live', color: G, note: 'Streaming, second state of the stream toggle: the dot grown into a solid disc between the waves = on air. Green = on.',
+        inner: `<circle cx="36" cy="36" r="6.5" fill="${G}"/><path d="M26 27 A13 13 0 0 0 26 45"/><path d="M46 27 A13 13 0 0 1 46 45"/><path d="M20 21 A21 21 0 0 0 20 51"/><path d="M52 21 A21 21 0 0 1 52 51"/>` },
       { id: 'tp-stream-toggle', color: N, note: 'Broadcast waves, neutral = stream toggle.',
         inner: `<circle cx="36" cy="36" r="4" fill="${N}"/><path d="M27 27 A13 13 0 0 0 27 45"/><path d="M45 27 A13 13 0 0 1 45 45"/><path d="M21 21 A21 21 0 0 0 21 51"/><path d="M51 21 A21 21 0 0 1 51 51"/>` },
     ]

@@ -41,8 +41,9 @@
     placementAfterPrompterLost,
     type FloatRequest,
   } from './floating/floating-window'
-  import { resolveControlIcon } from './icon-vocabulary'
+  import { resolveControlIcon, resolveToggleIcon, toggleIcon } from './icon-vocabulary'
   import { CONTROL_ICONS } from './action-icons'
+  import { solidifySvg } from './solid-icon'
   import { onMount, tick, untrack } from 'svelte'
   import { alignWords, makeAnchor, mapWordIndex, resolveAnchor, sourceLineOfWord } from './passage-anchor'
   import { lineTable, positionAtY, renderedWords, scrollTopForWord, wordAtPoint, wordAtViewportOffset, yAtPosition, type LineTable } from './passage-dom'
@@ -2914,12 +2915,29 @@
     return resolveControlIcon(name, plugin?.settings?.iconStyle === 'custom' ? 'custom' : 'native')
   }
 
+  // A toggle passes toggleIcon(name, isOn): while on it shows the control's `on` symbol from
+  // CONTROL_ICONS (the same picture as the Stream Deck key's lit state), drawn solid where the map
+  // says so. A solid symbol's cut strokes take the active button's background colour.
+  function drawControlIcon(node: HTMLElement, iconName: string) {
+    const icon = resolveToggleIcon(iconName, plugin?.settings?.iconStyle === 'custom' ? 'custom' : 'native')
+    setIcon(node, icon.name)
+    if (!icon.solid) return
+    const svg = node.querySelector('svg')
+    if (!svg) return
+    try {
+      solidifySvg(svg, 'var(--interactive-accent)')
+    } catch (err) {
+      // The outline symbol stays; the active button style still shows the control is on.
+      debugLog(`[Icons] ${icon.name} has no solid form: ${String(err)}`)
+    }
+  }
+
   function setIconAction(node: HTMLElement, iconName: string) {
-    setIcon(node, resolveIcon(iconName))
+    drawControlIcon(node, iconName)
     return {
       update(newIconName: string) {
         while (node.firstChild) node.removeChild(node.firstChild)
-        setIcon(node, resolveIcon(newIconName))
+        drawControlIcon(node, newIconName)
       }
     }
   }
@@ -6402,7 +6420,7 @@
   {#snippet renderControl(control: ToolbarControlDef)}
       {#if control.id === 'fullscreen'}
         <button
-          use:setIconAction={'tp-fullscreen'}
+          use:setIconAction={toggleIcon('tp-fullscreen', isFullScreen)}
           onclick={toggleFullScreen}
           class="btn-fullscreen icon-btn"
           class:active={isFullScreen}
@@ -6411,7 +6429,7 @@
         </button>
       {:else if control.id === 'navigation'}
         <button
-          use:setIconAction={'tp-nav-panel'}
+          use:setIconAction={toggleIcon('tp-nav-panel', showNavigation)}
           onclick={toggleNavigation}
           class="btn-nav icon-btn"
           class:active={showNavigation}
@@ -6420,7 +6438,7 @@
         </button>
       {:else if control.id === 'eyeline'}
         <button
-          use:setIconAction={'tp-eyeline'}
+          use:setIconAction={toggleIcon('tp-eyeline', showEyeline)}
           onclick={toggleEyeline}
           class="btn-eyeline icon-btn"
           class:active={showEyeline}
@@ -6429,7 +6447,7 @@
         </button>
       {:else if control.id === 'focus-mode'}
         <button
-          use:setIconAction={CONTROL_ICONS.focusMode.lucide}
+          use:setIconAction={toggleIcon(CONTROL_ICONS.focusMode.lucide, focusMode)}
           onclick={toggleFocusMode}
           class="btn-focus-mode icon-btn"
           class:active={focusMode}
@@ -6438,7 +6456,7 @@
         </button>
       {:else if control.id === 'pin'}
         <button
-          use:setIconAction={'tp-pin'}
+          use:setIconAction={toggleIcon('tp-pin', isPinned)}
           onclick={togglePin}
           class="btn-pin icon-btn"
           class:active={isPinned}
@@ -6447,7 +6465,7 @@
         </button>
       {:else if control.id === 'keep-awake'}
         <button
-          use:setIconAction={'tp-keep-awake'}
+          use:setIconAction={toggleIcon('tp-keep-awake', isKeepAwake)}
           onclick={toggleKeepAwake}
           class="btn-keep-awake icon-btn"
           class:active={isKeepAwake}
@@ -6749,7 +6767,7 @@
         </div>
       {:else if control.id === 'flip-h'}
         <button
-          use:setIconAction={'tp-flip-h'}
+          use:setIconAction={toggleIcon('tp-flip-h', flipHorizontal)}
           onclick={toggleFlipHorizontal}
           class="btn-flip-h icon-btn"
           class:active={flipHorizontal}
@@ -6758,7 +6776,7 @@
         </button>
       {:else if control.id === 'flip-v'}
         <button
-          use:setIconAction={'tp-flip-v'}
+          use:setIconAction={toggleIcon('tp-flip-v', flipVertical)}
           onclick={toggleFlipVertical}
           class="btn-flip-v icon-btn"
           class:active={flipVertical}
@@ -6767,7 +6785,7 @@
         </button>
       {:else if control.id === 'minimap'}
         <button
-          use:setIconAction={'tp-minimap'}
+          use:setIconAction={toggleIcon('tp-minimap', showMinimap)}
           onclick={toggleMinimap}
           class="btn-minimap icon-btn"
           class:active={showMinimap}
@@ -6777,7 +6795,7 @@
       {:else if control.id === 'float'}
         {#if floatSupported}
           <button
-            use:setIconAction={'tp-float'}
+            use:setIconAction={toggleIcon('tp-float', isFloating || floatingSessionActive)}
             onclick={toggleFloating}
             class="btn-float icon-btn"
             class:active={isFloating || floatingSessionActive}
@@ -6970,7 +6988,7 @@
         </div>
       {:else if control.id === 'auto-pause'}
         <button
-          use:setIconAction={'tp-auto-pause'}
+          use:setIconAction={toggleIcon('tp-auto-pause', autoPauseOnEdit)}
           onclick={toggleAutoPauseOnEdit}
           class="btn-auto-pause icon-btn"
           class:active={autoPauseOnEdit}

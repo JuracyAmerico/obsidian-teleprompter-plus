@@ -35,6 +35,7 @@ import os from 'node:os'
 import path from 'node:path'
 import vm from 'node:vm'
 import { actionIcon, type ActionIcon } from '../src/action-icons'
+import { parseParts, solidRoles } from '../src/solid-icon'
 
 export const ROOT = path.resolve(import.meta.dir, '..')
 export const ICON_DIR = path.join(ROOT, 'docs', 'icons', 'streamdeck')
@@ -119,7 +120,31 @@ export function sharedSymbolInner(symbol: string, badge: string | undefined, fil
 	return placedLucide(symbol, 5, 20, 40, fill) + knockout + placedLucide(badge, 46, 7, 22)
 }
 
+/**
+ * The solid form of a Lucide drawing (src/solid-icon.ts, the rule the toolbar applies too): areas
+ * filled with `color`, strokes inside them cut out in the key colour, marked as knockouts so the
+ * lit state cuts them in its own tint.
+ */
+export function solidLucideInner(name: string, color: string): string {
+	const parts = parseParts(lucideInner(name))
+	const roles = solidRoles(parts)
+	return parts.map((part, i) => {
+		const attrs = Object.entries(part.attrs).map(([k, v]) => ` ${k}="${v}"`).join('')
+		const role = roles[i] === 'fill' ? ` fill="${color}"` : roles[i] === 'cut' ? ` stroke="${KEY_BG}" data-knockout="1"` : ''
+		return `<${part.tag}${attrs}${role}/>`
+	}).join('')
+}
+
+/** A solid Lucide symbol placed like an unbadged shared symbol. */
+function solidSymbolInner(symbol: string, color: string): string {
+	const scale = 50 / 24
+	return `<g transform="translate(11 11) scale(${+scale.toFixed(4)})" stroke-width="${+(KEY_STROKE / scale).toFixed(3)}">${solidLucideInner(symbol, color)}</g>`
+}
+
 const FILLED_SYMBOLS = new Set(['play', 'pause'])
+
+/** A toggle's "on" symbol is green: the family's colour for start, connect and recording-on. */
+export const ON_COLOR = ON_DOT
 
 /** Adds the key pictures drawn from src/action-icons.ts, in the colour role of the family picture they replace. */
 function addSharedSymbols(icons: Map<string, IconDef>): void {
@@ -128,18 +153,20 @@ function addSharedSymbols(icons: Map<string, IconDef>): void {
 		const shared: ActionIcon | undefined = actionIcon(a.command)
 		const family = icons.get(a.familyIcon)
 		if (!shared || !family) throw new Error(`${a.id}: no shared symbol or no family picture ${a.familyIcon}`)
-		// State 1 keeps the colour of the family's own state-1 picture (pause is red, play green).
+		// Play/pause state 1 keeps the colour of the family's own state-1 picture (pause is red, play green).
 		const family1 = icons.get(FAMILY_ACTIONS.find(f => f.id === a.id)?.icon1 ?? '') ?? family
-		const add = (id: string, symbol: string, color: string): void => {
+		const add = (id: string, symbol: string, color: string, solid: boolean): void => {
 			const filled = FILLED_SYMBOLS.has(symbol) && !shared.badge
 			icons.set(id, {
 				id, color,
-				note: `Lucide "${symbol}"${shared.badge ? ` with "${shared.badge}"` : ''}, from src/action-icons.ts (${a.command}).`,
-				inner: sharedSymbolInner(symbol, shared.badge, filled, color),
+				note: `Lucide "${symbol}"${solid ? ' drawn solid' : ''}${shared.badge ? ` with "${shared.badge}"` : ''}, from src/action-icons.ts (${a.command}).`,
+				inner: solid ? solidSymbolInner(symbol, color) : sharedSymbolInner(symbol, shared.badge, filled, color),
 			})
 		}
-		add(lucideIconId(a.command), shared.lucide, family.color)
-		if ('on' in shared && shared.on && a.state === 'playback') add(lucideIconId(a.command, true), shared.on, family1.color)
+		add(lucideIconId(a.command), shared.lucide, family.color, false)
+		if (!shared.on) continue
+		if (shared.badge) throw new Error(`${a.id}: a two-state symbol with a badge has no drawing rule`)
+		add(lucideIconId(a.command, true), shared.on, a.state === 'playback' ? family1.color : ON_COLOR, shared.onSolid === true)
 	}
 }
 
@@ -197,7 +224,10 @@ export function actionListSvg(icon: IconDef): string {
 			+ `font-weight="${icon.fontWeight}" fill="#FFFFFF">${icon.text}</text></svg>`
 	}
 	// A knockout only separates a badge from the key colour; on a transparent list icon it would show as a white blot.
-	const inner = icon.inner.replace(/<g [^>]*data-knockout="1"[^>]*>[\s\S]*?<\/g>/g, '').replace(PALETTE_HEX, '#FFFFFF')
+	const inner = icon.inner
+		.replace(/<g [^>]*data-knockout="1"[^>]*>[\s\S]*?<\/g>/g, '')
+		.replace(/<\w+ [^>]*data-knockout="1"[^>]*\/>/g, '')
+		.replace(PALETTE_HEX, '#FFFFFF')
 	return `${open}<g fill="none" stroke="#FFFFFF" stroke-width="5.5" stroke-linecap="round" stroke-linejoin="round">${inner}</g></svg>`
 }
 
@@ -238,7 +268,8 @@ export const STATES = {
 	playback: 'Two states: play while paused, pause while playing; follows playback',
 	follows: 'Two states, lit when on; follows the teleprompter',
 	flips: 'Two states, lit when on; flips on each press (the deck cannot read it back)',
-	viewMode: 'Two states, one picture; flips on each press (the server does not report the view mode)',
+	viewMode: 'Two states: rendered, then plain text (lit); flips on each press (the server does not report the view mode)',
+	oneState: 'A toggle the deck plugin gives one state; its lit picture is made, ready for a second state',
 	voice: 'Live picture: off, starting, listening or error, from the teleprompter',
 	clock: 'Live: time left against the target (or elapsed) as its title, coloured by pace',
 	theme: 'Deck only: switches the key art between T+, PAI Tron and Editorial',
@@ -298,11 +329,11 @@ const FAMILY_ACTIONS: readonly ActionKey[] = [
 	A('clock', 'Clock', 'Clock', 'get-state', 'clock', 'takes', 'clock', 'tp-clock'),
 	A('voicetoggle', 'Voice Tracking', 'Voice', 'voice-toggle', 'voice-toggle', 'voice', 'voice', 'tp-voice'),
 	A('obsrecord', 'OBS Toggle Recording', 'Record', 'obs-toggle-recording', 'obs-record', 'recording', 'flips', 'tp-record-toggle', 'tp-record-start'),
-	A('obsstream', 'OBS Toggle Streaming', 'Stream', 'obs-toggle-streaming', 'obs-stream', 'recording', 'flips', 'tp-stream-toggle', 'tp-stream-start'),
+	A('obsstream', 'OBS Toggle Streaming', 'Stream', 'obs-toggle-streaming', 'obs-stream', 'recording', 'flips', 'tp-stream-toggle', 'tp-stream-live'),
 	A('previoussection', 'Previous Section', 'Prev section', 'previous-section', 'section-previous', 'sections', 'press', 'tp-previous-section'),
 	A('nextsection', 'Next Section', 'Next section', 'next-section', 'section-next', 'sections', 'press', 'tp-next-section'),
-	A('togglenavigation', 'Toggle Navigation', 'Sections', 'toggle-navigation', 'toggle-navigation', 'sections', 'press', 'tp-toggle-nav-panel'),
-	A('minimap', 'Minimap', 'Minimap', 'toggle-minimap', 'minimap', 'navigation', 'press', 'tp-toggle-minimap'),
+	A('togglenavigation', 'Toggle Navigation', 'Sections', 'toggle-navigation', 'toggle-navigation', 'sections', 'oneState', 'tp-toggle-nav-panel'),
+	A('minimap', 'Minimap', 'Minimap', 'toggle-minimap', 'minimap', 'navigation', 'oneState', 'tp-toggle-minimap'),
 	A('scrollup', 'Scroll Up', 'Scroll up', 'scroll-up', 'scroll-up', 'navigation', 'press', 'tp-scroll-up'),
 	A('scrolldown', 'Scroll Down', 'Scroll down', 'scroll-down', 'scroll-down', 'navigation', 'press', 'tp-scroll-down'),
 	A('speedup', 'Speed Up', 'Faster', 'increase-speed', 'speed-up', 'speed', 'press', 'tp-faster'),
@@ -336,18 +367,18 @@ const FAMILY_ACTIONS: readonly ActionKey[] = [
 	A('font-slab', 'Font: Slab Serif', 'Slab', 'font-preset-slab', 'font-slab', 'appearance', 'press', 'tp-font-slab'),
 	A('toggleeyeline', 'Toggle Eyeline', 'Eyeline', 'toggle-eyeline', 'eyeline', 'appearance', 'follows', 'tp-toggle-eyeline'),
 	A('togglefocusmode', 'Toggle Focus Mode', 'Focus', 'toggle-focus-mode', 'focus-mode', 'appearance', 'follows', 'tp-toggle-focus-mode'),
-	A('toggleviewmode', 'Toggle View Mode', 'View mode', 'toggle-view-mode', 'view-mode', 'appearance', 'viewMode', 'tp-toggle-view-mode', 'tp-toggle-view-mode'),
+	A('toggleviewmode', 'Toggle View Mode', 'View mode', 'toggle-view-mode', 'view-mode', 'appearance', 'viewMode', 'tp-toggle-view-mode', 'tp-toggle-view-mode-plain'),
 	A('cyclealignment', 'Cycle Text Alignment', 'Align', 'cycle-alignment', 'cycle-alignment', 'appearance', 'press', 'tp-cycle-text-alignment'),
 	A('cycleprogressindicator', 'Cycle Progress Indicator', 'Progress', 'cycle-progress-indicator', 'cycle-progress', 'appearance', 'press', 'tp-cycle-progress-indicator'),
-	A('flip-horizontal', 'Flip: Horizontal (Mirror)', 'Mirror', 'toggle-flip-horizontal', 'flip-horizontal', 'appearance', 'press', 'tp-flip-horizontal'),
-	A('flip-vertical', 'Flip: Vertical (Upside Down)', 'Upside down', 'toggle-flip-vertical', 'flip-vertical', 'appearance', 'press', 'tp-flip-vertical'),
+	A('flip-horizontal', 'Flip: Horizontal (Mirror)', 'Mirror', 'toggle-flip-horizontal', 'flip-horizontal', 'appearance', 'oneState', 'tp-flip-horizontal'),
+	A('flip-vertical', 'Flip: Vertical (Upside Down)', 'Upside down', 'toggle-flip-vertical', 'flip-vertical', 'appearance', 'oneState', 'tp-flip-vertical'),
 	A('togglefullscreen', 'Toggle Full-Screen', 'Full screen', 'toggle-fullscreen', 'fullscreen', 'windows', 'follows', 'tp-toggle-fullscreen'),
 	A('togglekeepawake', 'Toggle Keep Awake', 'Keep awake', 'toggle-keep-awake', 'keepawake', 'windows', 'follows', 'tp-toggle-keep-awake'),
-	A('detachwindow', 'Detach Window', 'Float', 'detach-window', 'detach', 'windows', 'press', 'tp-detach-window'),
+	A('detachwindow', 'Detach Window', 'Float', 'detach-window', 'detach', 'windows', 'oneState', 'tp-detach-window'),
 	A('openactivefile', 'Open Active File', 'Open note', 'open-active-file', 'open-file', 'windows', 'press', 'tp-open-active-file'),
 	A('togglepin', 'Toggle Pin Note', 'Pin note', 'toggle-pin', 'pin', 'windows', 'follows', 'tp-toggle-pin-window'),
 	A('refreshpinned', 'Refresh Pinned Note', 'Refresh', 'refresh-pinned', 'refresh-pinned', 'windows', 'press', 'tp-refresh-pinned'),
-	A('scroll-sync', 'Scroll Sync', 'Scroll sync', 'toggle-scroll-sync', 'scroll-sync', 'windows', 'press', 'tp-toggle-scroll-sync'),
+	A('scroll-sync', 'Scroll Sync', 'Scroll sync', 'toggle-scroll-sync', 'scroll-sync', 'windows', 'oneState', 'tp-toggle-scroll-sync'),
 	A('toggleautopause', 'Toggle Auto-Pause', 'Auto-pause', 'toggle-auto-pause', 'auto-pause', 'transport', 'follows', 'tp-toggle-auto-pause'),
 	A('cycletheme', 'Cycle Theme', 'Key theme', null, 'theme', 'deck', 'theme', 'tp-cycle-theme'),
 ]
@@ -358,12 +389,12 @@ export const lucideIconId = (command: string, on = false): string => `tp-l-${com
 /**
  * The deck's actions. A key whose action has a toolbar or remote twin takes the shared symbol from
  * src/action-icons.ts, drawn in the family style; a key without a twin keeps its family picture.
+ * A toggle's second picture is the map's `on` symbol (green, solid where the map says so).
  */
 export const ACTIONS: readonly ActionKey[] = FAMILY_ACTIONS.map((a) => {
 	const shared = a.command ? actionIcon(a.command) : undefined
 	if (!a.command || !shared) return a
-	const icon = lucideIconId(a.command)
-	return { ...a, icon, icon1: a.state === 'playback' ? lucideIconId(a.command, true) : undefined }
+	return { ...a, icon: lucideIconId(a.command), icon1: shared.on ? lucideIconId(a.command, true) : undefined }
 })
 
 export const SYSTEM_KEYS: Record<SystemKeyId, SystemKey> = {
@@ -458,15 +489,34 @@ export function placedKeys(page: Page): Array<{ row: number; col: number; id: st
 /** Picture of state 0 and, for two-state keys, state 1 (an icon id, or `<id>@on` for its lit version). */
 export function stateIcons(key: Key): string[] {
 	if (key.kind === 'system') return [key.icon]
-	if (key.state === 'playback' || key.state === 'viewMode') return [key.icon, key.icon1 ?? key.icon]
-	if (key.state === 'follows' || key.state === 'flips') return [key.icon, `${key.icon1 ?? key.icon}@on`]
+	if (key.state === 'playback') return [key.icon, key.icon1 ?? key.icon]
+	if (key.state === 'follows' || key.state === 'flips' || key.state === 'viewMode') return [key.icon, `${key.icon1 ?? key.icon}@on`]
 	return [key.icon]
 }
 
-/** Every key picture the layout uses, base icons and lit versions. */
+/**
+ * Off and on pictures of every toggle, including the ones the deck plugin gives one state today
+ * (their on picture is made and waits for a second state) and the Voice key, whose live pictures
+ * the plugin paints: here, its resting symbol and the map's `on` symbol.
+ */
+export function togglePictures(key: ActionKey): [string, string] | null {
+	if (key.state === 'oneState' || key.state === 'voice') {
+		if (!key.icon1) throw new Error(`${key.id}: a toggle without an on symbol in src/action-icons.ts`)
+		return [key.icon, key.state === 'voice' ? key.icon1 : `${key.icon1}@on`]
+	}
+	const states = stateIcons(key)
+	return states.length === 2 ? [states[0], states[1]] : null
+}
+
+/** Every key picture the layout uses, base icons and lit versions, and the lit pictures waiting for a second state. */
 export function pictures(): string[] {
 	const out = new Set<string>()
-	for (const page of PAGES) for (const { key } of placedKeys(page)) for (const p of stateIcons(key)) out.add(p)
+	for (const page of PAGES) {
+		for (const { key } of placedKeys(page)) {
+			for (const p of stateIcons(key)) out.add(p)
+			if (key.kind === 'action') for (const p of togglePictures(key) ?? []) out.add(p)
+		}
+	}
 	return [...out]
 }
 
@@ -575,25 +625,28 @@ export function pageSvg(set: IconSet, page: Page, chrome: ChromeImages = new Map
 		+ parts.join('') + '</svg>'
 }
 
-/** Every two-state key, off and on side by side, so the lit state can be judged at key size. */
+/** A note under a toggle on the states sheet, for a key whose deck behaviour differs from the rest. */
+const STATE_NOTE: Partial<Record<StateKind, string>> = { oneState: ' (deck: 1 state)', voice: ' (deck: live)' }
+
+/** Every toggle, off and on side by side, so the on picture can be judged at key size. */
 export function statesSvg(set: IconSet): string {
-	const twoState = ACTIONS.filter(a => stateIcons(a).length === 2)
+	const toggles = ACTIONS.flatMap(a => { const p = togglePictures(a); return p ? [{ a, p }] : [] })
 	const key = 96, pairW = 2 * key + 16, cellW = pairW + 40, cellH = key + 50, pad = 40, top = 84, perRow = 4
-	const rows = Math.ceil(twoState.length / perRow)
+	const rows = Math.ceil(toggles.length / perRow)
 	const width = pad * 2 + perRow * cellW - 40, height = top + rows * cellH + 16
 	const clips: string[] = [], parts: string[] = []
-	twoState.forEach((a, i) => {
+	toggles.forEach(({ a, p: pair }, i) => {
 		const x0 = pad + (i % perRow) * cellW, y = top + Math.floor(i / perRow) * cellH
-		stateIcons(a).forEach((p, s) => {
+		pair.forEach((p, s) => {
 			const x = x0 + s * (key + 16), clip = `s${i}${s}`
 			clips.push(`<clipPath id="${clip}"><rect x="${x}" y="${y}" width="${key}" height="${key}" rx="14"/></clipPath>`)
 			parts.push(placed(set, p, x, y, key, clip))
 		})
-		parts.push(`<text x="${x0 + pairW / 2}" y="${y + key + 24}" text-anchor="middle" font-family="${FONT}" font-size="15" fill="#c9c9d6">${escapeXml(a.label)}: off · on</text>`)
+		parts.push(`<text x="${x0 + pairW / 2}" y="${y + key + 24}" text-anchor="middle" font-family="${FONT}" font-size="15" fill="#c9c9d6">${escapeXml(a.label)}: off · on${STATE_NOTE[a.state] ?? ''}</text>`)
 	})
 	return `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">`
 		+ `<defs>${clips.join('')}</defs><rect width="${width}" height="${height}" rx="24" fill="#0c0c10"/>`
-		+ `<text x="${pad}" y="50" font-family="${FONT}" font-size="24" font-weight="600" fill="#ffffff">Two-state keys: state 0 and state 1</text>`
+		+ `<text x="${pad}" y="50" font-family="${FONT}" font-size="24" font-weight="600" fill="#ffffff">Toggles: off and on</text>`
 		+ parts.join('') + '</svg>'
 }
 

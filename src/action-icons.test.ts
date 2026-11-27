@@ -1,8 +1,8 @@
 import { describe, expect, test } from 'bun:test'
 import { existsSync, readFileSync } from 'node:fs'
 import path from 'node:path'
-import { ACTION_ICONS, CONTROL_ICONS } from './action-icons'
-import { CUSTOM_TO_LUCIDE, resolveControlIcon } from './icon-vocabulary'
+import { ACTION_ICONS, CONTROL_ICONS, actionIcon, type ActionIcon } from './action-icons'
+import { CUSTOM_TO_LUCIDE, resolveControlIcon, resolveToggleIcon, toggleIcon } from './icon-vocabulary'
 
 const root = path.resolve(import.meta.dir, '..')
 const app = readFileSync(path.join(root, 'src/TeleprompterApp.svelte'), 'utf8')
@@ -16,8 +16,8 @@ const settings = readFileSync(path.join(root, 'src/settings.ts'), 'utf8')
 function shownIcon(expression: string): string {
 	const fromMap = [...expression.matchAll(/CONTROL_ICONS\.(\w+)\.(lucide|on)/g)].pop()
 	if (fromMap) {
-		const control = (CONTROL_ICONS as Record<string, Record<string, string>>)[fromMap[1]]
-		return control?.[fromMap[2]] ?? `unknown CONTROL_ICONS.${fromMap[1]}`
+		const control = (CONTROL_ICONS as Record<string, ActionIcon>)[fromMap[1]]
+		return control?.[fromMap[2] as 'lucide' | 'on'] ?? `unknown CONTROL_ICONS.${fromMap[1]}`
 	}
 	const names = [...expression.matchAll(/'([^']+)'/g)].map(n => n[1])
 	return resolveControlIcon(names[names.length - 1] ?? '')
@@ -31,9 +31,9 @@ function lucideDrawing(name: string): string {
 }
 const normalise = (s: string): string => s.replace(/\s+/g, ' ').replace(/\s*\/>/g, '/>').replace(/>\s+</g, '><').trim()
 
-/** Toolbar buttons: the icon expression and the click handler of every `use:setIconAction` button. */
-function toolbarButtons(): Array<{ icon: string; handler: string }> {
-	const out: Array<{ icon: string; handler: string }> = []
+/** Toolbar buttons: the icon expression, the click handler and the `class:active` expression of every `use:setIconAction` button. */
+function toolbarButtons(): Array<{ icon: string; handler: string; active: string | null }> {
+	const out: Array<{ icon: string; handler: string; active: string | null }> = []
 	const re = /use:setIconAction=\{([^}]*)\}/g
 	let m: RegExpExecArray | null
 	while ((m = re.exec(app))) {
@@ -41,7 +41,7 @@ function toolbarButtons(): Array<{ icon: string; handler: string }> {
 		const end = app.indexOf('>', m.index)
 		const tag = app.slice(start, end + 1)
 		const handler = /onclick=\{(\w+)\}/.exec(tag)?.[1] ?? ''
-		out.push({ icon: m[1], handler })
+		out.push({ icon: m[1], handler, active: /class:active=\{([^}]*)\}/.exec(tag)?.[1] ?? null })
 	}
 	return out
 }
@@ -98,6 +98,40 @@ describe('one symbol per action', () => {
 		expect(app).toContain(`use:setIconAction={voiceTrackingActive ? '${CONTROL_ICONS.voice.on}' : '${CONTROL_ICONS.voice.lucide}'}`)
 	})
 
+	test('every toggle has an "on" symbol that is a different picture from its "off" symbol', () => {
+		for (const [key, icon] of Object.entries(CONTROL_ICONS as Record<string, ActionIcon>)) {
+			if (!icon.on) continue
+			expect(icon.on !== icon.lucide || icon.onSolid === true, `${key}: on is the off symbol, not drawn solid`).toBe(true)
+		}
+		for (const command of ['toggle-scroll-sync', 'toggle-flip-horizontal', 'toggle-flip-vertical', 'toggle-minimap', 'detach-window', 'toggle-navigation']) {
+			expect(actionIcon(command)?.on, command).toBeDefined()
+		}
+	})
+
+	test('every toolbar toggle that lights up shows the control\'s on symbol while it is lit', () => {
+		// Buttons lit while their popover is open adjust a value; they are not on/off settings.
+		const opensPopover = /Slider|Sliders|List|Picker|Menu|Settings|Appearance/
+		const toggles = toolbarButtons().filter(b => b.active !== null && !opensPopover.test(b.handler) && b.handler !== 'toggleVoiceTracking')
+		expect(toggles.map(b => b.handler).sort()).toEqual([
+			'toggleAutoPauseOnEdit', 'toggleEyeline', 'toggleFlipHorizontal', 'toggleFlipVertical', 'toggleFloating',
+			'toggleFocusMode', 'toggleFullScreen', 'toggleKeepAwake', 'toggleMinimap', 'toggleNavigation', 'togglePin',
+		])
+		for (const b of toggles) {
+			const control: ActionIcon = CONTROL_ICONS[TOOLBAR_TWINS[b.handler]]
+			expect(control.on, `${b.handler}: no on symbol`).toBeDefined()
+			const m = /^toggleIcon\((.+), (.+)\)$/.exec(b.icon.trim())
+			expect(m, `${b.handler} draws ${b.icon}, not toggleIcon(name, its lit state)`).not.toBeNull()
+			expect(m?.[2], `${b.handler}: the icon follows a different state than the lit style`).toBe(b.active ?? undefined)
+			const name = shownIcon(m?.[1] ?? '')
+			expect(name, b.handler).toBe(control.lucide)
+			// The name it passes resolves to the on symbol when lit.
+			const base = /^'([^']+)'$/.exec(m?.[1] ?? '')?.[1] ?? control.lucide
+			const lit = resolveToggleIcon(toggleIcon(base, true))
+			expect(lit.name, b.handler).toBe(control.on ?? '')
+			expect(lit.solid, b.handler).toBe(control.onSolid === true)
+		}
+	})
+
 	test('the settings screen (Toolbar preview, Primary controls) shows the shared symbol for each control', () => {
 		// TOOLBAR_CONTROLS in settings.ts feeds both the Toolbar preview grid and the Primary controls list.
 		const SETTINGS_TWINS: Record<string, keyof typeof CONTROL_ICONS | 'voiceOn'> = {
@@ -144,5 +178,27 @@ describe('one symbol per action', () => {
 		expect(ACTION_ICONS['countdown-increase'].lucide).toBe(CONTROL_ICONS.countdown.lucide)
 		expect(ACTION_ICONS['font-size-down'].lucide).toBe(CONTROL_ICONS.fontSize.lucide)
 		expect(ACTION_ICONS['padding-horizontal-increase'].lucide).toBe(CONTROL_ICONS.padding.lucide)
+	})
+})
+
+describe('toggle icons (icon-vocabulary.ts)', () => {
+	test('a name marked on resolves to the control\'s on symbol, solid where the map says so', () => {
+		expect(resolveToggleIcon(toggleIcon('tp-pin', true))).toEqual({ name: 'pin', solid: true })
+		expect(resolveToggleIcon(toggleIcon('tp-fullscreen', true))).toEqual({ name: 'minimize', solid: false })
+		expect(resolveToggleIcon(toggleIcon('tp-pin', false))).toEqual({ name: 'pin', solid: false })
+	})
+
+	test('the custom icon style keeps its one picture per control, marked or not', () => {
+		expect(resolveToggleIcon(toggleIcon('tp-pin', true), 'custom')).toEqual({ name: 'tp-pin', solid: false })
+		expect(resolveControlIcon(toggleIcon('tp-eyeline', true), 'custom')).toBe('tp-eyeline')
+	})
+
+	test('a marked name with no on form shows its own symbol', () => {
+		expect(resolveToggleIcon(toggleIcon('tp-refresh', true))).toEqual({ name: CONTROL_ICONS.refreshPinned.lucide, solid: false })
+	})
+
+	test('no two controls with an on form share an off symbol, so the lookup by symbol is exact', () => {
+		const offs = Object.values(CONTROL_ICONS as Record<string, ActionIcon>).filter(i => i.on).map(i => i.lucide)
+		expect(new Set(offs).size).toBe(offs.length)
 	})
 })

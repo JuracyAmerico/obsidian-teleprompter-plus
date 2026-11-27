@@ -1,11 +1,12 @@
 # Teleprompter Plus (T+) — Stream Deck icon set
 
-90 cohesive Stream Deck button icons for the Teleprompter Plus Obsidian plugin.
+92 cohesive Stream Deck button icons for the Teleprompter Plus Obsidian plugin.
 Open **`Teleprompter Plus Icons.html`** for the live contact sheet.
 
 ## Design system
 - **Grid:** 72-unit optical grid, ~14% safe padding, glyph ≈ 64–72% of canvas, a little extra room at the bottom for Elgato's title overlay.
-- **Grammar:** Lucide-adjacent line style. **4.5px** stroke (the brand mark's 2px scaled up), round line-caps and joins. Fills only on primary transport glyphs (play / pause / record / stop) and small accent marks.
+- **Grammar:** Lucide-adjacent line style. **4.5px** stroke (the brand mark's 2px scaled up), round line-caps and joins. Fills only on primary transport glyphs (play / pause / record / stop), small accent marks, and the "on" picture of a toggle that has no Lucide "on" form of its own (pin, keep awake, auto-pause, minimap, the flips, view mode): the same symbol solid, the strokes inside it cut out.
+- **On:** every toggle's second state has its own picture, in green, on the lit key (purple tint, `#7c6cf6` ring, green dot): a different Lucide symbol where one exists (eye in the eyeline frame, focus target, minimize, panel with its close chevron, picture-in-picture back, linked chain), else the solid form. `src/action-icons.ts` names it (`on`, `onSolid`), so the toolbar shows the same symbol while the button is active.
 - **Background:** solid **`#16161c`** baked into every icon.
 - **Signature:** the brand "reading line" motif — a brighter middle line + the left-pointing eyeline caret — recurs across `open-teleprompter`, `eyeline`, `focus-mode`, `tts-toggle`, `nav-panel`, `minimap`.
 
@@ -19,7 +20,7 @@ Open **`Teleprompter Plus Icons.html`** for the live contact sheet.
 | neutral| `#cbd5e1` | plain toggles · info · misc |
 
 ## Files
-- `tp-*.svg` — 90 source SVGs (72×72, background baked), plus `tp-*-on.svg`, the lit state of the eight two-state keys (purple tint, `#7c6cf6` ring, green dot).
+- `tp-*.svg` — 92 source SVGs (72×72, background baked), the `tp-l-*` key pictures drawn from the shared Lucide map, plus `tp-*-on.svg`, the lit state of every toggle (purple tint, `#7c6cf6` ring, green dot) drawn on its "on" picture.
 - `png-72/` and `png-144/` — the sizes Elgato asks for on a key: 72×72 and 144×144 (@2x).
 - `png-288/` — 288×288, for print and contact sheets.
 - `action-list/` — the action-list icons: white on transparent, `tp-*.svg`, `tp-*.png` (20×20) and `tp-*@2x.png` (40×40).

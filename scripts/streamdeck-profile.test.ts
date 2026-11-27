@@ -4,9 +4,10 @@ import os from 'node:os'
 import path from 'node:path'
 import { ACTION_ICONS, actionIcon } from '../src/action-icons'
 import {
-	ACTIONS, CHROME, COLS, EMPTY, ICON_DIR, LIST_DIR, PAGES, PROFILE_DOC, ROWS, UUID_PREFIX,
+	ACTIONS, CHROME, COLS, EMPTY, ICON_DIR, LIST_DIR, ON_COLOR, PAGES, PROFILE_DOC, ROWS, UUID_PREFIX,
 	actionListSvg, canonicalSvg, compareWithManifest, keyFor, layoutMarkdown, loadIconSet,
-	lucideIconId, lucideInner, onStateSvg, pictures, placedKeys, pngSize, spliceDoc, stateIcons, writePluginOverlay,
+	lucideIconId, lucideInner, onStateSvg, pictures, placedKeys, pngSize, solidLucideInner, spliceDoc, stateIcons,
+	togglePictures, writePluginOverlay,
 } from './streamdeck-profile'
 
 const catalog = readFileSync(path.resolve(import.meta.dir, '../docs/stream-deck-actions.md'), 'utf8')
@@ -118,12 +119,75 @@ describe('XL layout', () => {
 		}
 	})
 
-	test('two-state keys have two pictures, live keys one', () => {
+	test('two-state keys have two pictures, live keys and one-state toggles one', () => {
 		for (const a of ACTIONS) {
 			const n = stateIcons(a).length
 			if (['playback', 'follows', 'flips', 'viewMode'].includes(a.state)) expect(n, a.id).toBe(2)
 			else expect(n, a.id).toBe(1)
 		}
+	})
+
+	test('the keys the deck plugin gives one state are exactly the toggles without a second state there', () => {
+		// The plugin's TPLUS_TWO_STATE list (docs/icons/streamdeck/deck-plugin/tplus-theme.patch) holds the rest.
+		const patch = readFileSync(path.join(ICON_DIR, 'deck-plugin', 'tplus-theme.patch'), 'utf8')
+		const twoState = new Set([.../TPLUS_TWO_STATE[^[]*\[([^\]]*)\]/.exec(patch)?.[1].matchAll(/'([^']+)'/g) ?? []].map(m => m[1]))
+		expect(twoState.size).toBe(10)
+		for (const a of ACTIONS) {
+			if (a.state === 'oneState') expect(twoState.has(a.folder), `${a.id} is two-state in the plugin`).toBe(false)
+			if (['playback', 'follows', 'flips', 'viewMode'].includes(a.state)) expect(twoState.has(a.folder), `${a.id} is one-state in the plugin`).toBe(true)
+		}
+		expect(ACTIONS.filter(a => a.state === 'oneState').map(a => a.id).sort())
+			.toEqual(['detachwindow', 'flip-horizontal', 'flip-vertical', 'minimap', 'scroll-sync', 'togglenavigation'])
+	})
+})
+
+describe('toggles: a picture of their own when on', () => {
+	const toggles = ACTIONS.flatMap(a => { const p = togglePictures(a); return p ? [{ a, off: p[0], on: p[1] }] : [] })
+	/** The glyph of a picture (lit frame left out), every colour made one: two pictures that differ only in colour look the same here. */
+	const shape = (picture: string): string => canonicalSvg(set.build(set.icons.get(picture.replace(/@on$/, ''))!))
+		.replace(/#[0-9a-f]{6}\b/gi, '#colour')
+
+	test('every toggle on the deck has an off and an on picture, and the on picture is not a colour change', () => {
+		expect(toggles.map(t => t.a.id).sort()).toEqual([
+			'detachwindow', 'flip-horizontal', 'flip-vertical', 'minimap', 'obsrecord', 'obsstream', 'playpause', 'scroll-sync',
+			'toggleautopause', 'toggleeyeline', 'togglefocusmode', 'togglefullscreen', 'togglekeepawake', 'togglenavigation',
+			'togglepin', 'toggleviewmode', 'voicetoggle',
+		])
+		for (const { a, off, on } of toggles) {
+			expect(shape(on), `${a.id}: the on picture is the off picture in another colour`).not.toBe(shape(off))
+		}
+	})
+
+	test('a toggle\'s on picture draws the map\'s on symbol, solid where the map says so, in green', () => {
+		for (const { a } of toggles) {
+			const icon = a.command ? actionIcon(a.command) : undefined
+			if (!a.command || !icon?.on) continue
+			const on = set.icons.get(lucideIconId(a.command, true))
+			const inner = on && 'inner' in on ? on.inner : ''
+			const expected = icon.onSolid ? solidLucideInner(icon.on, ON_COLOR) : lucideInner(icon.on)
+			expect(inner, `${a.id} on draws ${icon.on}`).toContain(expected)
+			expect(on?.color, a.id).toBe(a.state === 'playback' ? '#f87171' : ON_COLOR)
+		}
+	})
+
+	test('every lit picture is exported, the ones waiting for a second state included', () => {
+		for (const { on } of toggles) {
+			if (!on.endsWith('@on')) continue
+			const id = `${on.slice(0, -3)}-on`
+			expect(existsSync(path.join(ICON_DIR, `${id}.svg`)), id).toBe(true)
+			expect(pngSize(path.join(ICON_DIR, 'png-144', `${id}.png`)), id).toEqual({ width: 144, height: 144 })
+		}
+	})
+
+	test('a solid picture\'s cut strokes take the lit tint, not the key colour', () => {
+		const lit = onStateSvg(set, set.icons.get(lucideIconId('toggle-auto-pause', true))!)
+		expect(lit).toContain('stroke="#221d42" data-knockout="1"')
+		expect(lit).not.toContain('stroke="#16161c"')
+	})
+
+	test('the action-list icon of a solid picture drops its cut strokes', () => {
+		const list = actionListSvg(set.icons.get(lucideIconId('toggle-auto-pause', true))!)
+		expect(list).not.toContain('data-knockout')
 	})
 })
 
@@ -143,10 +207,6 @@ describe('one symbol per action, on the deck', () => {
 			const inner = drawn && 'inner' in drawn ? drawn.inner : ''
 			expect(inner, `${a.id} draws ${icon.lucide}`).toContain(lucideInner(icon.lucide))
 			if ('badge' in icon) expect(inner, `${a.id} badge ${icon.badge}`).toContain(lucideInner(icon.badge))
-			if (a.state === 'playback' && 'on' in icon) {
-				const on = set.icons.get(lucideIconId(a.command, true))
-				expect(on && 'inner' in on ? on.inner : '', `${a.id} state 1`).toContain(lucideInner(icon.on))
-			}
 		}
 		expect(shared, 'every entry of ACTION_ICONS is a deck key').toBe(Object.keys(ACTION_ICONS).length)
 	})

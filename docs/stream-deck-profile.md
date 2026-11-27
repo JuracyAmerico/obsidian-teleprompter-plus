@@ -40,7 +40,7 @@ Rehearse and record: transport, sections, scrolling, speed, text size, countdown
 | R2 C1 | Voice Tracking | Voice | `voice-toggle` | Live picture: off, starting, listening or error, from the teleprompter |
 | R2 C2 | Clock | Takes and clock | `get-state` | Live: time left against the target (or elapsed) as its title, coloured by pace |
 | R2 C3 | Countdown Increase | Takes and clock | `countdown-increase` | One state; a press sends the command |
-| R2 C4 | Toggle Navigation | Sections | `toggle-navigation` | One state; a press sends the command |
+| R2 C4 | Toggle Navigation | Sections | `toggle-navigation` | A toggle the deck plugin gives one state; its lit picture is made, ready for a second state |
 | R2 C5 | Next Section | Sections | `next-section` | One state; a press sends the command |
 | R2 C6 | Scroll Down | Navigation | `scroll-down` | One state; a press sends the command |
 | R2 C7 | Speed Down | Speed | `decrease-speed` | One state; a press sends the command |
@@ -48,7 +48,7 @@ Rehearse and record: transport, sections, scrolling, speed, text size, countdown
 | R3 C1 | OBS Toggle Recording | Recording (OBS) | `obs-toggle-recording` | Two states, lit when on; flips on each press (the deck cannot read it back) |
 | R3 C2 | OBS Toggle Streaming | Recording (OBS) | `obs-toggle-streaming` | Two states, lit when on; flips on each press (the deck cannot read it back) |
 | R3 C3 | Countdown Decrease | Takes and clock | `countdown-decrease` | One state; a press sends the command |
-| R3 C4 | Detach Window | Windows and note | `detach-window` | One state; a press sends the command |
+| R3 C4 | Detach Window | Windows and note | `detach-window` | A toggle the deck plugin gives one state; its lit picture is made, ready for a second state |
 | R3 C5 | Previous Speed Preset | Speed | `prev-speed-preset` | One state; a press sends the command |
 | R3 C6 | Cycle Speed Preset | Speed | `cycle-speed-preset` | One state; a press sends the command |
 | R3 C7 | Next Speed Preset | Speed | `next-speed-preset` | One state; a press sends the command |
@@ -81,20 +81,20 @@ Look and behaviour of the script: spacing, opacity, view, mirror, alignment, eye
 | R1 C4 | Padding Vertical Increase | Appearance | `padding-vertical-increase` | One state; a press sends the command |
 | R1 C5 | Padding Horizontal Increase | Appearance | `padding-horizontal-increase` | One state; a press sends the command |
 | R1 C6 | Opacity Up | Appearance | `opacity-increase` | One state; a press sends the command |
-| R1 C7 | Toggle View Mode | Appearance | `toggle-view-mode` | Two states, one picture; flips on each press (the server does not report the view mode) |
+| R1 C7 | Toggle View Mode | Appearance | `toggle-view-mode` | Two states: rendered, then plain text (lit); flips on each press (the server does not report the view mode) |
 | R2 C1 | Cycle Text Alignment | Appearance | `cycle-alignment` | One state; a press sends the command |
 | R2 C2 | Line Height Decrease | Appearance | `line-height-decrease` | One state; a press sends the command |
 | R2 C3 | Letter Spacing Down | Appearance | `letter-spacing-decrease` | One state; a press sends the command |
 | R2 C4 | Padding Vertical Decrease | Appearance | `padding-vertical-decrease` | One state; a press sends the command |
 | R2 C5 | Padding Horizontal Decrease | Appearance | `padding-horizontal-decrease` | One state; a press sends the command |
 | R2 C6 | Opacity Down | Appearance | `opacity-decrease` | One state; a press sends the command |
-| R2 C7 | Flip: Horizontal (Mirror) | Appearance | `toggle-flip-horizontal` | One state; a press sends the command |
-| R2 C8 | Flip: Vertical (Upside Down) | Appearance | `toggle-flip-vertical` | One state; a press sends the command |
+| R2 C7 | Flip: Horizontal (Mirror) | Appearance | `toggle-flip-horizontal` | A toggle the deck plugin gives one state; its lit picture is made, ready for a second state |
+| R2 C8 | Flip: Vertical (Upside Down) | Appearance | `toggle-flip-vertical` | A toggle the deck plugin gives one state; its lit picture is made, ready for a second state |
 | R3 C1 | Toggle Eyeline | Appearance | `toggle-eyeline` | Two states, lit when on; follows the teleprompter |
 | R3 C2 | Toggle Focus Mode | Appearance | `toggle-focus-mode` | Two states, lit when on; follows the teleprompter |
-| R3 C3 | Scroll Sync | Windows and note | `toggle-scroll-sync` | One state; a press sends the command |
+| R3 C3 | Scroll Sync | Windows and note | `toggle-scroll-sync` | A toggle the deck plugin gives one state; its lit picture is made, ready for a second state |
 | R3 C4 | Refresh Pinned Note | Windows and note | `refresh-pinned` | One state; a press sends the command |
-| R3 C5 | Minimap | Navigation | `toggle-minimap` | One state; a press sends the command |
+| R3 C5 | Minimap | Navigation | `toggle-minimap` | A toggle the deck plugin gives one state; its lit picture is made, ready for a second state |
 | R3 C7 | Cycle Progress Indicator | Appearance | `cycle-progress-indicator` | One state; a press sends the command |
 | R3 C8 | Toggle Auto-Pause | Transport | `toggle-auto-pause` | Two states, lit when on; follows the teleprompter |
 | R4 C1 | *Snagit (your key)* | Deck | Copied from Stage R4 C1: Hotkey ⌃⇧C (Snagit); picture tp-capture | Stream Deck key, not a T+ action |
@@ -162,9 +162,10 @@ The key art is one family, defined in [`icons/streamdeck/icons-data.js`](icons/s
 - a 72-unit grid, a 4.5-unit round stroke, glyphs at about two thirds of the key, on the dark key colour `#16161c`;
 - a key whose action also has a toolbar button or a phone-remote button shows the same symbol: the Lucide icon named for that action in [`src/action-icons.ts`](../src/action-icons.ts), the one map the toolbar, the remote and this script read, drawn here in the family grid, stroke and colour. A key that is one step of a toolbar control (Speed Up, Countdown −) shows the control's symbol with a small arrow, plus or minus beside it. `src/action-icons.test.ts` fails when the toolbar or the remote drifts from the map, `scripts/streamdeck-profile.test.ts` when a key does;
 - colour carries meaning: green starts or listens, red stops, purple is speed, size, countdown and the T+ accent, blue is navigation and layout, grey is a plain toggle;
-- a key that is on (eyeline shown, focus on, pinned, full screen, keep awake, auto-pause, recording, streaming) is lit: the same glyph on a purple tint, inside the T+ accent ring `#7c6cf6`, with a green dot.
+- a key that is on (eyeline shown, focus on, pinned, full screen, keep awake, auto-pause, plain-text view, recording, streaming) is lit: its "on" picture in green, on a purple tint, inside the T+ accent ring `#7c6cf6`, with a green dot. The "on" picture is a symbol of its own, the way pause follows play and the live microphone follows the crossed-out one: the Lucide "on" form where there is one (an eye in the eyeline frame, the focus target, minimize, the panel with its close chevron, picture-in-picture pointing back, a linked chain), otherwise the same symbol drawn solid with the strokes inside it cut out (pin, coffee cup, auto-pause, map, the flips, the front panel of the view-mode key). `src/action-icons.ts` names it for each action (`on`, `onSolid`), and the toolbar shows the same symbol while its button is active;
+- Sections, Minimap, Mirror, Upside Down, Float and Scroll Sync are toggles too, and their "on" pictures are made, but the deck plugin gives those keys one state today, so the deck shows only the "off" picture. Each needs a second state in the plugin's manifest and its folder in the plugin's T+ two-state list (Sections can follow `navigationVisible`, which the teleprompter already reports; the others would flip on each press, like Record).
 
-![Two-state keys](icons/streamdeck/profile/streamdeck-xl-states.png)
+![Toggles, off and on](icons/streamdeck/profile/streamdeck-xl-states.png)
 
 Sizes follow Elgato's plugin guidelines: key pictures at 72 × 72 px and 144 × 144 px (@2x) in `png-72/` and `png-144/`, action-list icons at 20 × 20 px and 40 × 40 px (@2x) in white on transparent in `action-list/`. The Voice and Clock keys keep the plugin's live pictures (microphone by status, clock coloured by pace); the Cycle Theme key shows the theme it is on.
 
