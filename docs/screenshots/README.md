@@ -1,50 +1,19 @@
-# Screenshots for README
+# Screenshots for the README
 
-Place the following screenshot files in this folder:
+The pictures the top-level README.md shows, taken on 2026-11-27 from the demo script "Teleprompter Plus Demo".
 
-## Required Screenshots
+| File | What it shows | Size |
+|------|---------------|------|
+| `hero-voice-tracking.gif` | The prompter following a read of the demo script, at the top of the README | 800 × 500, 10 s |
+| `take-card.png` | A rehearsal take card against its section target | 1200 × 800 |
+| `floating-window.png` | The floating window with its Lock, See-through, Hide from capture and Move to Prompter controls | 1200 × 800 |
+| `toolbar-toggles-on.png` | The toolbar with its toggles lit, each with its own on picture | 1206 × 60 |
+| `phone-remote.png` | The phone remote, connected | 780 × 1688 |
+| `stream-deck-page-1.png`, `stream-deck-page-2.png` | The two pages of the Stream Deck XL profile in the Stream Deck app | 1200 × 800 |
+| `settings-toolbar.png` | The Toolbar tab of the settings, cropped below the search box | 1200 × 700 |
 
-| Filename | Description | Recommended Size |
-|----------|-------------|------------------|
-| `main-interface.png` | Main teleprompter view with navigation panel visible | 1600x900 or similar |
-| `mobile-remote.png` | Mobile remote web interface (phone screenshot) | 375x812 (iPhone) or similar |
-| `stream-deck.png` | Stream Deck with Teleprompter Plus buttons | 600x400 or similar |
-| `settings.png` | Settings panel in Obsidian | 800x600 or similar |
+## Keeping them light
 
-## Tips for Taking Screenshots
-
-### Main Interface
-- Open Teleprompter Plus with a sample document
-- Show navigation panel expanded
-- Have eyeline guide visible
-- Show some content scrolled for context
-
-### Mobile Remote
-- Use browser developer tools (Cmd+Opt+I → Toggle Device Toolbar)
-- Or take actual screenshot from phone
-- Show playback controls and section list
-
-### Stream Deck
-- Screenshot Stream Deck app with buttons configured
-- Or photo of physical Stream Deck with buttons
-- Show variety of actions (play, speed, navigation)
-
-### Settings
-- Scroll to show key settings
-- Show WebSocket server status
-- Highlight important options
-
-## Image Optimization
-
-Before committing, optimize images:
-```bash
-# Using ImageOptim (macOS)
-open -a ImageOptim *.png
-
-# Or using pngquant
-pngquant --force --quality=80-90 *.png
-```
-
-Target file sizes:
-- Each image should be under 500KB
-- Total screenshots folder under 2MB
+- Keep the GIF at or under 2 MB and each PNG under 500 KB.
+- Use a demo note, never a real script: whatever is on screen is public once pushed.
+- Every picture gets alt text in full sentences that says what the picture shows.

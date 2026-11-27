@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="docs/screenshots/main-interface.png" alt="Teleprompter Plus beside the note it reads: the script in large type on the right, the reading arrow at the eyeline" width="800">
+  <img src="docs/screenshots/hero-voice-tracking.gif" alt="Teleprompter Plus following a read of its demo script with voice tracking on: the script moves up line by line past the reading arrow, and the Jump to Section list highlights the section being read." width="800">
 </p>
 
 # Teleprompter Plus
@@ -114,26 +114,43 @@ For 25+ keyboard commands, see Obsidian → Settings → Hotkeys → Teleprompte
 
 ## Screenshots
 
-### Main interface
+### Rehearsal takes
 
 <p align="center">
-  <img src="docs/screenshots/main-interface.gif" alt="A note opened in Teleprompter Plus and scrolled in large type, with the speed control open" width="800">
+  <img src="docs/screenshots/take-card.png" alt="A take card at the top of the prompter reads &quot;Opening · 0:04 · target 0:20 · -0:16&quot;, and the Jump to Section list on the right highlights the next section, It follows your voice." width="800">
 </p>
 
-*Auto-scroll at an adjustable speed. Recorded before 0.12; the toolbar has changed since.*
+*Finish a section and its time shows against the target. See [Takes and targets](#takes-and-targets).*
 
-### Mobile remote
+### Floating window
 
 <p align="center">
-  <img src="docs/screenshots/mobile-remote.gif" alt="Mobile remote interface" width="360">
+  <img src="docs/screenshots/floating-window.png" alt="The floating teleprompter window over a web page, with a Lock button, a See-through slider at 90 percent, a Hide from capture box and a Move to Prompter button above the script and its section list." width="800">
 </p>
 
-*Touch-friendly remote — phone, tablet, or second computer on the same network.*
+*The script floats over a video call, see-through, and once locked your clicks pass to the call underneath. With an Elgato Prompter connected it fills the Prompter instead.*
+
+### Toolbar
+
+<p align="center">
+  <img src="docs/screenshots/toolbar-toggles-on.png" alt="The teleprompter toolbar with eight toggles switched on, among them pin, auto-pause and keep awake, each lit in purple and drawn with a picture of its own, and the rehearsal clock at 00:48 on the right." width="800">
+</p>
+
+*A toggle that is on is lit and changes its picture, not only its colour.*
+
+### Phone remote
+
+<p align="center">
+  <img src="docs/screenshots/phone-remote.png" alt="The phone remote in a browser, connected to Teleprompter Plus: a large play button, the speed slider at 1.5x (80 words per minute), the last take card, a progress bar at 39 percent and the start of the section list." width="360">
+</p>
+
+*Touch-friendly remote for a phone, tablet or second computer on the same network. See [Phone remote](#phone-remote).*
 
 ### Stream Deck
 
 <p align="center">
-  <img src="docs/screenshots/stream-deck.png" alt="Teleprompter Plus keys on a Stream Deck" width="600">
+  <img src="docs/screenshots/stream-deck-page-1.png" alt="Page 1 of the Teleprompter Plus profile on a Stream Deck XL, in the Stream Deck app: playback, countdown, section, scroll, speed and text size keys, the rehearsal clock key showing 0:48, and the Sections, Keep Awake and Pin keys lit in their on state." width="400">
+  <img src="docs/screenshots/stream-deck-page-2.png" alt="Page 2 of the same profile: text spacing and padding keys, the Mirror and Upside Down keys, and the Eyeline, Focus and Auto-pause keys lit in their on state." width="400">
 </p>
 
 *Keys of the Stream Deck plugin, which is not released yet.*
@@ -141,7 +158,7 @@ For 25+ keyboard commands, see Obsidian → Settings → Hotkeys → Teleprompte
 ### Settings
 
 <p align="center">
-  <img src="docs/screenshots/settings-dashboard.png" alt="Settings dashboard" width="600">
+  <img src="docs/screenshots/settings-toolbar.png" alt="The Toolbar tab of the Teleprompter Plus settings, with a switch for each of the four phone toolbar buttons: voice tracking, speed, font size and read aloud." width="600">
 </p>
 
 *Seven-tab settings: Dashboard, Toolbar, Features, Profiles, Connection, Streaming, About.*
