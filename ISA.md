@@ -4,7 +4,7 @@ slug: teleprompter-plus
 project: Teleprompter Plus
 effort: E3
 phase: climbing
-progress: 174/181
+progress: 195/201
 mode: algorithm
 started: 2026-10-29
 updated: 2026-11-27
@@ -273,6 +273,20 @@ Measured with `bun run bench:voice` on 25 resolvable sessions (3688 updates). Sp
 - [x] ISC-194: overall, baseline (bench fixed, matcher unchanged, 66fbc9d) → final: lag p50 0 → 0; p95 11.6 → 8.0; off>5 12.4% → 10.4%; stall 5.1 → 4.2 s/min; jumps over 10 words 34 (4 bad) → 38 (2 bad); re-syncs recovered 127/130 → 125/130. Tune p95 6.0 → 5.0, held-out 136.0 → 34.0. The committed sample gate (bench.test.ts) is unchanged: 182 updates, p95 1, 12 over 5 off. `bun scripts/verify.ts` green.
 - [x] ISC-195: a live rehearsal of a script with headings, read by Américo with the voice preset he uses, follows into each section on its first word and never moves onto a later "I'm" while he re-reads an answer. Open until that rehearsal is traced and scored by bench:voice. Live check 2026-11-27 16:59 UTC (session 6bohp, interview script, merged build): 19 min scored, lag p95 3.0 words, 0 bad jumps, 33/33 re-syncs recovered, 0 manual corrections; Américo: "I feel amazing".
 
+### GitHub page quick wins (Fable's GitHub page review, 2026-11-27)
+
+Source: vault `01-projects/obsidian-teleprompter-plus/2026-11-27-12-40-github-page-review-fable.md`, the "Quick wins" tier. Goal: a visitor understands from the first screen what T+ is, and nothing on the page is broken or misleading. Branch integrate, not pushed. Repository settings, the About field and the directory listing are Américo's and were drafted, not changed.
+
+- [x] ISC-196: README.md opens with an image already in the repo (docs/screenshots/main-interface.png, the prompter beside its note) and then the one sentence, "A teleprompter inside Obsidian that follows your voice.", before any badge or feature list; the five lines under it (voice in English or Portuguese, on-device recognition, section targets, floating window and Elgato Prompter, phone and pedal, read-aloud with optional ElevenLabs) each match the code (VOICE_LANGUAGES en-US and pt-BR in src/voice/types.ts; `requiresOnDeviceRecognition = true` in native/teleprompter-stt.swift; ElevenLabs off unless chosen, src/tts/engine-factory.ts).
+- [x] ISC-197: manifest.json's description is the directory's one sentence, "Read any note as a teleprompter that follows your voice, with a phone remote, rehearsal timing and read-aloud." (110 characters, no "Obsidian", ends in a period; the obsidianmd validate-manifest rule passes it and flags the same line with "Obsidian" added). package.json says the same. Version and versions.json are unchanged.
+- [x] ISC-198: README.md has no mermaid block; the Architecture section is two short paragraphs and points at docs/architecture.excalidraw.
+- [x] ISC-199: the first install path in README.md is the community directory listing (https://community.obsidian.md/plugins/teleprompter-plus, whose page shows "Add to Obsidian"; a made-up id on the same site answers "Plugin not found"); "recommended once published" is gone.
+- [x] ISC-200: every link in README.md, SECURITY.md, CONTRIBUTING.md, docs/README.md, docs/ICON-CATALOG.md, docs/stream-deck-actions.md and docs/troubleshooting.md resolves: relative files exist, anchors match a heading, external URLs answer 200. No link points at GitHub Discussions, which are off for the repository (`has_discussions` false).
+- [x] ISC-201: README.md and docs/stream-deck-actions.md say plainly that the Stream Deck plugin is not released yet, and nothing links to its repository (com.americo.obsidian-teleprompter.sdPlugin answers 404; docs/README.md and docs/ICON-CATALOG.md pointed at it by a path outside this repo). "55+" is gone from README.md and docs/, docs/architecture.excalidraw included (CHANGELOG.md history keeps it).
+- [x] ISC-202: README.md has a "What it touches" section, linked from the first screen, listing the programs the plugin starts, the files it reads or writes outside the vault and in its own folder, and every network host with when and what: 127.0.0.1:8765 (src/main.ts, src/settings.ts), alphacephei.com (src/voice/vosk-recognizer.ts; both model URLs answered 200), api.elevenlabs.io (src/tts/elevenlabs-engine.ts), the OBS WebSocket (src/settings.ts), and huggingface.co marked as taken from docs/tts-setup.md, not from code (mlx-audio downloads it, not the plugin).
+- [x] ISC-203: SECURITY.md says how to report privately (the Security tab's Report a vulnerability when it is on, otherwise an issue with no details asking for a private channel) and that only the latest release is supported.
+- [x] ISC-204: `bun scripts/verify.ts` passes all six gates with these changes, and PublicPushGuard's `scanPush` over branch integrate returns no hits (the same scanner finds 4 on a throwaway repo seeded with the protected values).
+
 ## Anti-criteria
 
 - ANTI-1: a floating window that cannot be unlocked: no path may start locked or leave the window click-through after `exit()`.
@@ -460,6 +474,15 @@ Measured with `bun run bench:voice` on 25 resolvable sessions (3688 updates). Sp
 | ISC-193 | bun-test + bench | first find of a session commits at once | pass: resync-landing.test.ts (3); held-out p95 136.0 → 34.0 | bun test src/voice/resync-landing.test.ts; bench:voice --day 2026-11-05, 2026-11-27 |
 | ISC-194 | bench + bash | overall before/after, sample gate, verify | pass: p95 11.6 → 8.0, p50 0, bad jumps 4 → 2; bench.test.ts unchanged; verify passed | bun run bench:voice; bun scripts/verify.ts, 2026-11-27 |
 | ISC-195 | manual + bench | live rehearsal with headings scored | open | a traced rehearsal, bench:voice |
+| ISC-196 | bash | README starts with the image, then the one sentence | exit 0 | head -7 README.md \| rg -q "follows your voice" |
+| ISC-197 | bash | manifest description passes the directory rule | exit 0 | bunx eslint manifest.json --rule '{"obsidianmd/validate-manifest":"error"}' |
+| ISC-198 | bash | no mermaid block in README | exit 1 | rg -q '```mermaid' README.md |
+| ISC-199 | bash | directory listing is the first install path | exit 0 | rg -q "community.obsidian.md/plugins/teleprompter-plus" README.md |
+| ISC-200 | bash | every link resolves | 0 bad links | link check of README.md, SECURITY.md, CONTRIBUTING.md, docs/README.md, docs/ICON-CATALOG.md, docs/stream-deck-actions.md, docs/troubleshooting.md (files, anchors, HTTP status), 2026-11-27 |
+| ISC-201 | bash | no link to the unreleased deck repo, no "55+" | exit 1 | rg -q "sdPlugin\]\(\|55\+" README.md docs |
+| ISC-202 | bash | What it touches names the download hosts | exit 0 | rg -q "alphacephei.com" README.md && rg -q "api.elevenlabs.io" README.md |
+| ISC-203 | bash | SECURITY.md exists with a supported version | exit 0 | rg -q "Latest release" SECURITY.md |
+| ISC-204 | bash | gates and personal-data scan | verify passed; 0 hits | bun scripts/verify.ts; scanPush over integrate |
 | ISC-172 | bun-test | remote key secret, docs current | pass: settings-secrets, gen-ws-docs, stream-deck-docs tests | 2026-11-26 |
 | ISC-166 | bun-test | takes, section targets, take log, WPM, fit | pass: section-targets, takes, take-log, reading-rate, take-wiring tests (108) | bun test, 2026-11-26 |
 | ISC-167 | bun-test | section identity by line, eyeline, callouts | pass: sections.test.ts, parser/callout.test.ts, heading-source-map (49) | bun test, 2026-11-26 |
@@ -545,6 +568,10 @@ Lane: inline
 Criteria: ISC-108, ISC-109, ISC-110, ISC-111, ISC-112, ISC-113, ISC-114, ISC-115
 Lane: inline
 
+### F14: GitHub page quick wins
+Criteria: ISC-196, ISC-197, ISC-198, ISC-199, ISC-200, ISC-201, ISC-202, ISC-203, ISC-204
+Lane: Opus · build
+
 ## Fog
 
 - A Pandoc line block (`| Name` lines in a cover letter) still shows its pipes on screen, seen 2026-11-05. Speech is clean. Not fixed: not asked.
@@ -553,6 +580,7 @@ Lane: inline
 
 ## Decisions
 
+- 2026-11-27: GitHub page quick wins (ISC-196 to ISC-204). The hero is main-interface.png, not the GIF: the GIF's first frame is an Obsidian note and it weighs 2.4 MB; the PNG opens on the prompter. Both predate 0.12 and the PNG's note still says "55+", so new visuals stay in the redesign tier. The manifest sentence drops Fable's "Stream Deck keys" because the deck plugin is not released. Discussions links were removed rather than Discussions turned on, because that is a repository setting; the same goes for private vulnerability reporting (off), so SECURITY.md names a route that works either way. The badge row went: it pushed the sentence down and the release link sits in Install. The listing and About text are drafted in the report, not applied.
 - 2026-11-26: ISC-147 cause, reproduced live before the fix as the Fable list predicted: `marked.setOptions` is global, so each view's mount replaced the other's renderer. The view mounted last numbered both views' headings and collected both views' heading lines; the other view's line map stayed empty, so its note-pane sync logged "No source line mapped". While both views are open, the one that still has a good map keeps the note following, which is why the failure came and went. Closing the floating window left the main view on a dead view's renderer. Fix: `new Marked()` per view, no global calls left (guarded by a source test).
 - 2026-11-25: ISC-142 deviates from Fable's design in one place, on evidence. With straight per-line interpolation in word space the first live probe passed at 2 px, but scrolling up from 13000 px the main view ran 5-6 px a frame for 15 frames: a wrap had left a few words a line of their own in the main view and not in the floating one, and the easing (a time constant of about 4 frames) cannot absorb a burst that long. Each view's word-to-y map is now `lineY` averaged over 6 words either side (SMOOTHING_WORDS, an exact box average from a running area), which stays monotone and invertible, keeps the eyeline word within half a line, and makes the speed in each view the pixel height of the same run of words. The unit test reproduces it: a lone-word main line steps 8.2 px a pixel unsmoothed, under 4 smoothed. Also: the main list click now stops a glide in flight, so the heading the main view jumps to is not pulled back.
 - 2026-11-05: ISC-113: probe run in real Obsidian on the Mac, every step reported, microphone peak 0.0549, three tones played, then the plugin and its note were removed from his vault. That first run found voices reading 0 because the list loads late; fixed and tested in the suite, not rerun live. Probe source: scripts/mobile-probe/. Installed in the iCloud vault "TP Probe"; all four files report uploaded. Whether Obsidian iOS shows that vault and carries its plugin is ISC-114, open until a report comes back.
@@ -609,6 +637,7 @@ acceptance: pass 2026-10-30 (all four runtime checks; mic-blocked Notice + Retry
 
 ## Changelog
 
+- 2026-11-27: ISC-196 to ISC-204 added and ticked: the "Quick wins" tier of Fable's GitHub page review (README top and install path, What it touches, no mermaid, Stream Deck "not released yet", dead links, manifest sentence, SECURITY.md). Branch integrate, not pushed, not released. Frontmatter progress recounted from the criteria lines: 195/201 (it read 174/181, behind the criteria added since).
 - 2026-11-27: ISC-183 to ISC-187 added from Américo's live test of 0.12.15 (test note Blocks 1, 4, 6): countdown cancel, voice pill position, keyboard button, section panel highlight. Branch fix-0.12.16-bugs, not pushed, not released. ISC-183 to ISC-186 stay open until seen on screen; ISC-187 ticked on the verify run.
 - 2026-11-27: ISC-190 to ISC-194 added and ticked, ISC-195 added open: voice matcher against its benchmark (branch voice-matcher). A word-level wide re-sync search was tried with ISC-193 and dropped: better on tune (off>5 7.4%), worse on held-out (p95 156, off>5 23.7%). Fuzzier re-read matching changed nothing on tune and was not kept.
 

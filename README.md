@@ -1,90 +1,26 @@
 <p align="center">
-  <img src="docs/logo.png" alt="Teleprompter Plus Logo" width="180">
+  <img src="docs/screenshots/main-interface.png" alt="Teleprompter Plus beside the note it reads: the script in large type on the right, the reading arrow at the eyeline" width="800">
 </p>
 
 # Teleprompter Plus
 
-<p align="center"><strong>Professional teleprompter for Obsidian — Stream Deck hardware control, mobile remote, neural text-to-speech, and full Markdown support.</strong></p>
+**A teleprompter inside Obsidian that follows your voice.** Open a note, start reading, and the script keeps your place.
 
-<p align="center">
-  <a href="https://github.com/JuracyAmerico/obsidian-teleprompter-plus/releases/latest">
-    <img src="https://img.shields.io/github/v/release/JuracyAmerico/obsidian-teleprompter-plus?style=for-the-badge" alt="Latest release">
-  </a>
-  <img src="https://img.shields.io/badge/Obsidian-1.8.7+-7c3aed?style=for-the-badge&logo=obsidian&logoColor=white" alt="Obsidian">
-  <img src="https://img.shields.io/badge/License-MIT-green?style=for-the-badge" alt="License">
-  <a href="https://ko-fi.com/americocanada">
-    <img src="https://img.shields.io/badge/Ko--fi-Support-ff5e5b?style=for-the-badge&logo=ko-fi&logoColor=white" alt="Ko-fi">
-  </a>
-</p>
+[Install](#install) · [What it touches](#what-it-touches) · [Quick start](#quick-start) · [Takes and targets](#takes-and-targets) · [Phone remote](#phone-remote) · [Changelog](CHANGELOG.md)
 
-<p align="center">Built for video recording, presentations, podcasts, speeches, and content creation.</p>
+- **It follows you.** Read aloud and the highlighted line moves with your voice, in English or Portuguese. Speech recognition runs on your computer.
+- **Rehearse against the clock.** Give a section a target, `## Why us {1:30}`, and see your time against it when you finish.
+- **It stays over your call.** A floating, see-through script window, or the whole screen of an Elgato Prompter.
+- **Hands off the keyboard.** Control it from your phone or a pedal. A Stream Deck plugin with live keys is built but [not released yet](#stream-deck).
+- **It reads to you.** Hear the script in a local voice, or in ElevenLabs if you bring your own key.
+
+Desktop only. Your script goes to no outside service unless you turn on ElevenLabs. The plugin runs local speech programs and keeps some files outside the vault: [what it touches, and why](#what-it-touches).
 
 ---
 
-## What it does
+## Install
 
-Teleprompter Plus turns any Obsidian note into a professional teleprompter. Auto-scroll at adjustable speed, highlight your reading position, control playback from the keyboard, an Elgato Stream Deck, or a phone, and optionally read your script aloud with high-quality neural voices. Designed for creators who already live in Obsidian and want a teleprompter that speaks the same Markdown they write in.
-
-## Key features
-
-- **Smooth auto-scroll** — variable speed (0.5×–10×), countdown timer, manual scroll, horizontal/vertical flip for camera-rig mirrors
-- **Voice-tracked scrolling** — read aloud and the prompter follows your voice, scrolling and highlighting to keep your place, using on-device speech recognition (no cloud)
-- **English and Portuguese voice** — the prompter listens in the language of each script, or set `voice-language` in a note's properties. Recognition stays on your computer: Apple's on-device speech when macOS offers it for that language, otherwise an offline Vosk model, downloaded once.
-- **Floating window** — keep the script on top of a video call, with adjustable see-through and a lock that lets clicks pass to the app underneath. With an Elgato Prompter connected, it opens there and fills the screen with just the script. **Check what you share:** in a Zoom test on macOS, the script showed when sharing the entire screen it was on and when sharing an Obsidian window. It did not show when sharing another app's window, or a screen it was not on. Share another app's window, or keep the script on a Prompter or second display.
-- **Hierarchical navigation** — collapsible header tree, abstract-scrollbar minimap, click-to-jump, active-section highlighting
-- **Stream Deck integration** — 60 keys with real-time bidirectional state sync, including a rehearsal clock and voice tracking ([catalog](docs/stream-deck-actions.md))
-- **Mobile remote control** — touch-friendly web interface, control from any device on your network, protected by a remote key ([setup](#phone-remote))
-- **Rehearsal takes** — give a section a target time, `## Why us {1:30}`, and get your time against it when you finish ([how it works](#takes-and-targets))
-- **Neural text-to-speech** — ElevenLabs (cloud, opt-in, bring-your-own-key), Kokoro MLX (22 local voices, Apple Silicon), macOS `say`, Web Speech fallback, sentence-by-sentence highlighting
-- **Citation resolution** — `[@ries2011]` spoken as *"(Ries, 2011)"* using your `.bib` files
-- **Full Markdown support** — Obsidian syntax, math, callouts, code with syntax highlighting, tables, images, internal links
-- **6 built-in profiles** — Professional, Broadcast, Stream, Practice, Accessibility, Cinema, plus custom colors and fonts
-- **OBS integration** — start/stop recording synced with teleprompter playback
-- **Local WebSocket API** — build custom integrations in any language ([API reference](docs/websocket-api.md))
-
----
-
-## Screenshots
-
-### Main interface
-
-<p align="center">
-  <img src="docs/screenshots/main-interface.gif" alt="Main teleprompter interface" width="800">
-</p>
-
-*Clean reading display with hierarchical navigation panel, eyeline guide, and real-time position tracking.*
-
-### Mobile remote
-
-<p align="center">
-  <img src="docs/screenshots/mobile-remote.gif" alt="Mobile remote interface" width="360">
-</p>
-
-*Touch-friendly remote — phone, tablet, or second computer on the same network.*
-
-### Stream Deck
-
-<p align="center">
-  <img src="docs/screenshots/stream-deck.png" alt="Stream Deck integration" width="600">
-</p>
-
-*60 hardware keys with live state synchronization across all controls.*
-
-### Settings
-
-<p align="center">
-  <img src="docs/screenshots/settings-dashboard.png" alt="Settings dashboard" width="600">
-</p>
-
-*Seven-tab settings: Dashboard, Toolbar, Features, Profiles, Connection, Streaming, About.*
-
----
-
-## Installation
-
-### Community Plugin browser (recommended once published)
-
-Obsidian → Settings → Community plugins → Browse → search **Teleprompter Plus** → Install → Enable.
+**From the community directory.** Open [Teleprompter Plus in the Obsidian community directory](https://community.obsidian.md/plugins/teleprompter-plus) and choose **Add to Obsidian**. Or, inside Obsidian: Settings → Community plugins → Browse → search **Teleprompter Plus** → Install → Enable.
 
 ### Manual install
 
@@ -106,6 +42,39 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for the full development setup.
 
 ---
 
+## What it touches
+
+Teleprompter Plus is desktop only. Everything below is off or local by default unless it says otherwise. The full threat model is in [ATTACKSURFACE.md](ATTACKSURFACE.md).
+
+**Programs it runs on your computer**, because these engines cannot run inside Obsidian:
+
+- The Apple speech helper (`teleprompter-stt`, started through `disclaim-launcher`), on macOS, only if you installed it in `~/.local/share/teleprompter-plus/` ([voice tracking](docs/voice-tracking.md)). It asks macOS for on-device recognition only, so no audio leaves the computer. Without it, voice tracking uses Vosk inside Obsidian.
+- `say` and `afplay` (macOS), to read the script aloud.
+- Python from `~/.local/share/mlx-tts-venv`, only if you created that environment for the Kokoro voice ([setup](docs/tts-setup.md)).
+- `pdftotext`, only when you open a PDF in the prompter.
+
+**Files outside the vault:**
+
+- It runs, and never writes, the two folders above. The Kokoro model, once downloaded, sits in the `mlx-audio` library's own cache.
+- In the system temp folder: `teleprompter-stt-context.txt` (up to 100 names and numbers from the script, given to the speech helper as word hints) and `teleprompter-tts-kokoro-<time>/` (the Kokoro audio of the sentences read aloud).
+
+**Inside the vault**, in the plugin's own folder `.obsidian/plugins/teleprompter-plus/`: your settings, `takes.json` (rehearsal takes), `error-log.jsonl`, and `voice-trace.jsonl` only if you set `voiceTrace` to true in the plugin's `data.json` (off by default). A vault sync carries these too. The Vosk model and the ElevenLabs audio cache live in Obsidian's own browser storage.
+
+**Network:**
+
+| Host | When | What goes there |
+|------|------|-----------------|
+| `127.0.0.1:8765` (listens) | At start, unless you turn off Settings → Connection → *Auto-start server* | Commands from the Stream Deck and your own scripts. Only this computer can reach it. |
+| Your local network, same port | Only if you set the server host to `0.0.0.0` for the [phone remote](#phone-remote) | The note's name, section titles and playback state, unencrypted; every request but `/health` needs the remote key |
+| `alphacephei.com` | Once per language, when voice tracking falls back to Vosk | Downloads the speech model (about 40 MB English, 31 MB Portuguese). Nothing is sent. |
+| `api.elevenlabs.io` | Only if you choose ElevenLabs and paste your own key | The text being read, to make the audio. Uses your ElevenLabs credits. |
+| `huggingface.co` | The first time Kokoro speaks | The Kokoro model (about 200 MB). The download is made by the `mlx-audio` Python library, not by the plugin; host taken from its documentation, not checked in its code. |
+| OBS WebSocket (`127.0.0.1:4455` by default) | Only if you turn on OBS integration | Start and stop recording or streaming |
+
+The plugin has no analytics and makes no other network calls of its own.
+
+---
+
 ## Quick start
 
 1. **Open** — click the teleprompter ribbon icon, or run *Open Teleprompter Plus* from the command palette (`Cmd/Ctrl + P`).
@@ -121,6 +90,61 @@ For 25+ keyboard commands, see Obsidian → Settings → Hotkeys → Teleprompte
 **Hiding the floating window from a screen share:** the bar's "Hide from capture" box asks macOS to leave that window out of screen capture. We measured entire-screen shares on macOS 26.5 in Zoom 7.1.9 (local recording), Google Meet in Chrome 156 (the outgoing stream) and Microsoft Teams 26289 (a second participant's view): with the box on the floating window was absent, while other windows on that screen still showed. That is one Mac on one day, so test your own setup before relying on it. It also blanks the window in your own screenshots and recordings.
 
 **While you work on a script:** saving the note updates the prompter in place, your place and voice tracking included. Double-click a word to jump to its line in the note. If you go back and read an earlier line again, voice tracking moves back to it after about six words. Each note reopens where you left it, and one you read to the end starts from the top. Notes to yourself in square brackets, such as `[pause]`, are hidden on screen, never read aloud and never tracked; a setting shows them dimmed instead. With "Keep screen awake while reading" on, the screen stays awake while the script plays, voice listens or it reads aloud.
+
+---
+
+## Features
+
+- **Smooth auto-scroll** — variable speed (0.5×–10×), countdown timer, manual scroll, horizontal/vertical flip for camera-rig mirrors
+- **Voice-tracked scrolling** — read aloud and the prompter follows your voice, scrolling and highlighting to keep your place, using on-device speech recognition (no cloud)
+- **English and Portuguese voice** — the prompter listens in the language of each script, or set `voice-language` in a note's properties. Recognition stays on your computer: Apple's on-device speech when macOS offers it for that language, otherwise an offline Vosk model, downloaded once.
+- **Floating window** — keep the script on top of a video call, with adjustable see-through and a lock that lets clicks pass to the app underneath. With an Elgato Prompter connected, it opens there and fills the screen with just the script. **Check what you share:** in a Zoom test on macOS, the script showed when sharing the entire screen it was on and when sharing an Obsidian window. It did not show when sharing another app's window, or a screen it was not on. Share another app's window, or keep the script on a Prompter or second display.
+- **Hierarchical navigation** — collapsible header tree, abstract-scrollbar minimap, click-to-jump, active-section highlighting
+- **Stream Deck integration** — the plugin side is in this release; the Stream Deck plugin itself, 60 keys with live state including a rehearsal clock and voice tracking, is not released yet ([catalog](docs/stream-deck-actions.md))
+- **Mobile remote control** — touch-friendly web interface, control from any device on your network, protected by a remote key ([setup](#phone-remote))
+- **Rehearsal takes** — give a section a target time, `## Why us {1:30}`, and get your time against it when you finish ([how it works](#takes-and-targets))
+- **Neural text-to-speech** — ElevenLabs (cloud, opt-in, bring-your-own-key), Kokoro MLX (22 local voices, Apple Silicon), macOS `say`, Web Speech fallback, sentence-by-sentence highlighting
+- **Citation resolution** — `[@ries2011]` spoken as *"(Ries, 2011)"* using your `.bib` files
+- **Full Markdown support** — Obsidian syntax, math, callouts, code with syntax highlighting, tables, images, internal links
+- **6 built-in profiles** — Professional, Broadcast, Stream, Practice, Accessibility, Cinema, plus custom colors and fonts
+- **OBS integration** — start/stop recording synced with teleprompter playback
+- **Local WebSocket API** — build custom integrations in any language ([API reference](docs/websocket-api.md))
+
+---
+
+## Screenshots
+
+### Main interface
+
+<p align="center">
+  <img src="docs/screenshots/main-interface.gif" alt="A note opened in Teleprompter Plus and scrolled in large type, with the speed control open" width="800">
+</p>
+
+*Auto-scroll at an adjustable speed. Recorded before 0.12; the toolbar has changed since.*
+
+### Mobile remote
+
+<p align="center">
+  <img src="docs/screenshots/mobile-remote.gif" alt="Mobile remote interface" width="360">
+</p>
+
+*Touch-friendly remote — phone, tablet, or second computer on the same network.*
+
+### Stream Deck
+
+<p align="center">
+  <img src="docs/screenshots/stream-deck.png" alt="Teleprompter Plus keys on a Stream Deck" width="600">
+</p>
+
+*Keys of the Stream Deck plugin, which is not released yet.*
+
+### Settings
+
+<p align="center">
+  <img src="docs/screenshots/settings-dashboard.png" alt="Settings dashboard" width="600">
+</p>
+
+*Seven-tab settings: Dashboard, Toolbar, Features, Profiles, Connection, Streaming, About.*
 
 ---
 
@@ -165,7 +189,7 @@ The link is plain `http://`, not encrypted: use it on a network you trust. If th
 
 ## Stream Deck
 
-60 keys in 10 groups — Playback, Speed, Text size and spacing, Colors and fonts, Navigation, Display and window, Countdown, Rehearsal clock, Voice tracking, OBS. Real-time bidirectional state sync: the Stream Deck button updates live when you change the teleprompter from any source.
+**The Stream Deck plugin is not released yet.** There is no download and no Marketplace listing. This plugin already serves everything the deck needs, over the local WebSocket server, so a script or another controller can send the same commands today:
 
 ```json
 { "command": "toggle-play" }
@@ -173,7 +197,7 @@ The link is plain `http://`, not encrypted: use it on a network you trust. If th
 { "command": "jump-to-header", "index": 1 }
 ```
 
-Full action catalog, configuration steps, and Stream Deck plugin setup: **[docs/stream-deck-actions.md](docs/stream-deck-actions.md)**.
+The deck plugin has 60 keys in 10 groups (Playback, Speed, Text size and spacing, Colors and fonts, Navigation, Display and window, Countdown, Rehearsal clock, Voice tracking, OBS), and each key that shows state updates live when you change the teleprompter from any source. The full key catalog: **[docs/stream-deck-actions.md](docs/stream-deck-actions.md)**.
 
 ---
 
@@ -211,9 +235,9 @@ Pause/resume from the toolbar or keyboard. Citations are resolved from your bibl
 
 ### Network use & privacy
 
-All default engines run **fully offline** — no audio or text leaves your machine. The **ElevenLabs** engine is the one exception and is strictly opt-in: when you explicitly select it and provide your own API key, the text of the script you are reading is sent to ElevenLabs' servers to synthesize audio, and playback consumes credits on **your** ElevenLabs account. No key is bundled with the plugin, and nothing is sent to ElevenLabs unless you turn the engine on. Prefer to keep everything local and free? Use Kokoro, macOS `say`, or Web Speech.
+All default engines run **on your computer**: no audio or text leaves your machine (Kokoro downloads its model once, the first time it speaks). The **ElevenLabs** engine is the one exception and is strictly opt-in: when you explicitly select it and provide your own API key, the text of the script you are reading is sent to ElevenLabs' servers to synthesize audio, and playback consumes credits on **your** ElevenLabs account. No key is bundled with the plugin, and nothing is sent to ElevenLabs unless you turn the engine on. Prefer to keep everything local and free? Use Kokoro, macOS `say`, or Web Speech.
 
-**Files and programs outside your vault** — on desktop only, the plugin reads and writes files outside the vault (the Kokoro voice cache and Python environment, a temporary file for the speech helper's word hints) and runs local programs: the Kokoro and macOS `say` text-to-speech engines, `afplay` to play their audio, and the Apple speech-recognition helper that follows your reading. It needs this because those engines and the recognizer are separate programs that cannot run inside Obsidian's sandbox; all of it stays on your computer, and none of it runs on mobile.
+The programs, files and hosts every engine uses are listed in [What it touches](#what-it-touches).
 
 ---
 
@@ -235,80 +259,9 @@ Full troubleshooting guide: **[docs/troubleshooting.md](docs/troubleshooting.md)
 
 ## Architecture
 
-```mermaid
-%%{init: {'theme':'base', 'themeVariables': {
-  'background':'#0a0a0a',
-  'primaryColor':'#001a26',
-  'primaryTextColor':'#e0fbff',
-  'primaryBorderColor':'#00d4ff',
-  'secondaryColor':'#1a0a02',
-  'tertiaryColor':'#001824',
-  'lineColor':'#00d4ff',
-  'fontFamily':'Inter, sans-serif'
-}}}%%
-flowchart LR
-    subgraph Clients["🎮 EXTERNAL CLIENTS"]
-        direction TB
-        StreamDeck["Stream Deck<br/>60 keys"]
-        Mobile["Mobile Remote<br/>touch web UI"]
-        Custom["Custom Scripts<br/>TS · Node · Python"]
-    end
+The plugin is a Svelte 5 view inside Obsidian. Clients (the Stream Deck, the phone remote, your scripts) send commands to a local WebSocket bridge, and the plugin broadcasts its state back to all of them. By default all traffic stays on `127.0.0.1`; with the host set to `0.0.0.0` for the phone remote, the phone connects over your LAN with the remote key. Read-aloud, citation lookup and OBS recording sync hang off the view.
 
-    subgraph Bridge["🔌 WEBSOCKET BRIDGE"]
-        direction TB
-        WS["ws://127.0.0.1:8765<br/><i>loopback by default</i>"]
-        Commands["Command Router"]
-        Broadcast["State Broadcaster"]
-        WS --> Commands
-        WS --> Broadcast
-    end
-
-    subgraph Obsidian["📔 OBSIDIAN PLUGIN"]
-        direction TB
-        Plugin["Plugin Entry<br/>main.ts"]
-        View["Teleprompter View<br/>ItemView"]
-        Settings["Settings Manager"]
-        Plugin --> View
-        Plugin --> Settings
-
-        subgraph Core["Core Components"]
-            direction LR
-            Svelte["Svelte 5 UI"]
-            Markdown["Markdown<br/>marked + hljs"]
-            State["State<br/>$state · $effect"]
-        end
-        View --> Core
-    end
-
-    subgraph Branches["⚡ SIDE BRANCHES"]
-        direction TB
-        TTS["TTS Engines<br/>Kokoro · say · Web Speech"]
-        Cite["Citation Resolver<br/>[@key] → (Author, Year)"]
-        OBS["OBS Service<br/>recording sync"]
-    end
-
-    StreamDeck <-->|"commands ⇄ state"| WS
-    Mobile <--> WS
-    Custom <--> WS
-    Bridge <-->|"local IPC"| Plugin
-    View --> TTS
-    View --> Cite
-    Plugin --> OBS
-
-    classDef client fill:#1a0a02,stroke:#FF6B00,stroke-width:2px,color:#FF6B00
-    classDef bridge fill:#001824,stroke:#00d4ff,stroke-width:3px,color:#00d4ff
-    classDef obs fill:#001a26,stroke:#00d4ff,stroke-width:2px,color:#00d4ff
-    classDef branch fill:#001824,stroke:#00d4ff,stroke-width:2px,stroke-dasharray: 5 5,color:#e0fbff
-
-    class StreamDeck,Mobile,Custom client
-    class WS,Commands,Broadcast bridge
-    class Plugin,View,Settings,Svelte,Markdown,State obs
-    class TTS,Cite,OBS branch
-```
-
-> Orange = command sent from a client. Cyan = state update broadcast back. By default all traffic stays on `127.0.0.1`; with the host set to `0.0.0.0` for the phone remote, the phone connects over your LAN with the remote key.
-
-A richer Excalidraw version of this diagram is in **[docs/architecture.excalidraw](docs/architecture.excalidraw)** — open it in Obsidian (with the Excalidraw plugin) to view, edit, or export to PNG/SVG for slides and presentations.
+The diagram is in **[docs/architecture.excalidraw](docs/architecture.excalidraw)**: open it in Obsidian (with the Excalidraw plugin) to view, edit, or export it to PNG or SVG.
 
 Design system, component reference, and icon catalog: **[docs/](docs/)**.
 
@@ -324,7 +277,7 @@ Pull requests welcome. See **[CONTRIBUTING.md](CONTRIBUTING.md)** for the tech s
 
 Full version history in **[CHANGELOG.md](CHANGELOG.md)**. Latest release: see the [Releases page](https://github.com/JuracyAmerico/obsidian-teleprompter-plus/releases).
 
-Have an idea? [Open a discussion](https://github.com/JuracyAmerico/obsidian-teleprompter-plus/discussions) or [submit an issue](https://github.com/JuracyAmerico/obsidian-teleprompter-plus/issues).
+Have an idea or found a bug? [Open an issue](https://github.com/JuracyAmerico/obsidian-teleprompter-plus/issues). Security problems: see [SECURITY.md](SECURITY.md).
 
 ---
 

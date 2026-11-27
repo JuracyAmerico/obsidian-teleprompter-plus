@@ -147,7 +147,7 @@ The plugin runs in Obsidian's Electron process and shares CPU with everything el
 
 ## Questions
 
-Open a [Discussion](https://github.com/JuracyAmerico/obsidian-teleprompter-plus/discussions) for design questions, or an [Issue](https://github.com/JuracyAmerico/obsidian-teleprompter-plus/issues) for confirmed bugs.
+Open an [Issue](https://github.com/JuracyAmerico/obsidian-teleprompter-plus/issues) for design questions and confirmed bugs. Security problems: see [SECURITY.md](SECURITY.md).
 
 ---
 

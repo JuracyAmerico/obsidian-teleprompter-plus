@@ -1,5 +1,7 @@
 # Stream Deck — Action Catalog
 
+**The Stream Deck plugin is not released yet.** This page documents the keys it will ship with; the Obsidian plugin already answers every command they send.
+
 The Teleprompter Plus Stream Deck plugin has 60 keys, in the Obsidian Teleprompter Plus category. Each key sends one command to the plugin's WebSocket server and, where it shows state, repaints from the state the server broadcasts: the Play/Pause key follows playback, the Voice Tracking key follows the voice status, the Clock key shows the rehearsal clock. Change the teleprompter from the keyboard or the phone remote and the keys follow.
 
 The deck connects to `ws://127.0.0.1:8765`. That address is fixed in the deck plugin. For the raw protocol and every command the server accepts, see [websocket-api.md](websocket-api.md).
@@ -11,9 +13,7 @@ This catalog is checked against the deck plugin's manifest (version 1.0.0.0, 60 
 ## Setup
 
 1. **Install the Stream Deck software** from [Elgato](https://www.elgato.com/en/downloads).
-2. **Install the Teleprompter Plus Stream Deck plugin.**
-   - Manual install: clone [`JuracyAmerico/com.americo.obsidian-teleprompter.sdPlugin`](https://github.com/JuracyAmerico/com.americo.obsidian-teleprompter.sdPlugin) and follow its README.
-   - Marketplace install: coming soon.
+2. **Install the Teleprompter Plus Stream Deck plugin.** Not possible yet: the deck plugin is not released, and there is no public download or Marketplace listing. Until it is, send the same commands from a script over the [WebSocket API](websocket-api.md).
 3. **Drag keys** from the Obsidian Teleprompter Plus category onto your Stream Deck profile. On a Stream Deck XL, [stream-deck-profile.md](stream-deck-profile.md) lays out every key on three pages.
 4. **Verify** — open Teleprompter Plus in Obsidian and press the Clock key. It shows `--:--` while the deck cannot reach Obsidian, and the time as soon as it can.
 

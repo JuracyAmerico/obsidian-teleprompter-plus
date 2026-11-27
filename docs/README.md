@@ -371,9 +371,7 @@ cp icon@2x.png imgs/actions/action/icon@2x.png
 - [README.md](../README.md) - Teleprompter Plus overview
 - [CHANGELOG.md](../CHANGELOG.md) - Version history
 
-**Stream Deck Plugin:**
-- [Stream Deck README](../../com.americo.obsidian-teleprompter.sdPlugin/README.md)
-- [Elgato Icons Guide](../../com.americo.obsidian-teleprompter.sdPlugin/README-ELGATO-ICONS.md)
+**Stream Deck Plugin:** not released yet. Its key catalog is [stream-deck-actions.md](./stream-deck-actions.md).
 
 ---
 

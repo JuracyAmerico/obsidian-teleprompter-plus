@@ -501,8 +501,7 @@ com.americo.obsidian-teleprompter.sdPlugin/
 ## Related Documentation
 
 - **[DESIGN-SYSTEM.md](./DESIGN-SYSTEM.md)** - Complete design system specification
-- **[README-ELGATO-ICONS.md](../../com.americo.obsidian-teleprompter.sdPlugin/README-ELGATO-ICONS.md)** - Using Elgato icon library
-- **[ICON-QUICK-REFERENCE.md](../../com.americo.obsidian-teleprompter.sdPlugin/ICON-QUICK-REFERENCE.md)** - Stream Deck icon quick guide
+- The Elgato icon guides live with the Stream Deck plugin, which is not released yet.
 
 ---
 

@@ -35,7 +35,7 @@ Your phone becomes your teleprompter remote.
 
 ### Stream Deck Integration
 
-For professional setups, we support 55+ Stream Deck actions:
+For professional setups, a Stream Deck plugin with 60 keys is on the way (not released yet):
 
 | Category | Actions |
 |----------|---------|

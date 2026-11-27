@@ -175,5 +175,4 @@ Then redeploy the built `dist/main.js` to your vault's plugin folder.
 If nothing here resolved your issue:
 
 1. **Issue report** — [GitHub Issues](https://github.com/JuracyAmerico/obsidian-teleprompter-plus/issues). Include: Obsidian version, plugin version, OS, exact error from Developer Console, steps to reproduce. Screenshots or a 10-second screen recording help a lot.
-2. **Discussion** — [GitHub Discussions](https://github.com/JuracyAmerico/obsidian-teleprompter-plus/discussions) for usage questions and feature ideas.
-3. **Obsidian Forum** — [forum.obsidian.md](https://forum.obsidian.md/) — search "teleprompter" before posting.
+2. **Obsidian Forum** — [forum.obsidian.md](https://forum.obsidian.md/) — search "teleprompter" before posting.

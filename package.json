@@ -1,7 +1,7 @@
 {
   "name": "teleprompter-plus",
   "version": "0.12.15",
-  "description": "Scroll notes as a teleprompter with mobile remote control, Stream Deck integration, countdown timer, and voice tracking.",
+  "description": "Read any note as a teleprompter that follows your voice, with a phone remote, rehearsal timing and read-aloud.",
   "private": true,
   "type": "module",
   "repository": {
