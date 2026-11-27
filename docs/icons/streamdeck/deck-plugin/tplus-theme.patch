@@ -12,7 +12,7 @@ index 083ed90..0b55935 100644
          {
            "Image": "imgs/actions/theme/key-tron",
 diff --git a/src/plugin.ts b/src/plugin.ts
-index f3bc4a0..2560c5f 100644
+index f3bc4a0..235627a 100644
 --- a/src/plugin.ts
 +++ b/src/plugin.ts
 @@ -11,7 +11,7 @@ import { clockView, voiceView, type PaceStatus, type VoiceView } from './protoco
@@ -24,7 +24,7 @@ index f3bc4a0..2560c5f 100644
  
  interface ThemeConfig {
  	name: ThemeName;
-@@ -20,10 +20,27 @@ interface ThemeConfig {
+@@ -20,10 +20,28 @@ interface ThemeConfig {
  }
  
  const THEMES: Record<ThemeName, ThemeConfig> = {
@@ -47,12 +47,13 @@ index f3bc4a0..2560c5f 100644
 +const TPLUS_DIR = 'imgs/themes/tplus';
 +const TPLUS_TWO_STATE: ReadonlySet<string> = new Set([
 +	'playpause', 'eyeline', 'focus-mode', 'pin', 'keepawake', 'fullscreen', 'auto-pause', 'view-mode', 'obs-record', 'obs-stream',
++	'toggle-navigation', 'minimap', 'flip-horizontal', 'flip-vertical', 'detach', 'scroll-sync',
 +]);
 +
  // Icon mapping: action folder name -> editorial icon name
  const EDITORIAL_ICON_MAP: Record<string, string> = {
  	// Core controls
-@@ -48,6 +65,7 @@ const EDITORIAL_ICON_MAP: Record<string, string> = {
+@@ -48,6 +66,7 @@ const EDITORIAL_ICON_MAP: Record<string, string> = {
  	'countdown-down': 'countdown-down-editorial',
  	// Pin
  	'pin': 'pin-editorial',
@@ -60,7 +61,7 @@ index f3bc4a0..2560c5f 100644
  	// Keep awake
  	'keepawake': 'keepawake-editorial',
  	// Fullscreen
-@@ -143,6 +161,7 @@ const TRON_ICON_MAP: Record<string, string> = {
+@@ -143,6 +162,7 @@ const TRON_ICON_MAP: Record<string, string> = {
  	'countdown-down': 'countdown-down-tron',
  	// Pin
  	'pin': 'pin-tron',
@@ -68,7 +69,7 @@ index f3bc4a0..2560c5f 100644
  	// Keep awake
  	'keepawake': 'keepawake-tron',
  	// Fullscreen
-@@ -218,7 +237,7 @@ const TRON_ICON_MAP: Record<string, string> = {
+@@ -218,7 +238,7 @@ const TRON_ICON_MAP: Record<string, string> = {
   * carry one image per action, so without this a theme setImage() (which writes both states when
   * no state is given) makes the two states identical.
   */
@@ -77,7 +78,7 @@ index f3bc4a0..2560c5f 100644
  	playpause: {
  		tron: ['imgs/themes/tron/play-tron', 'imgs/themes/tron/pause-tron'],
  		editorial: ['imgs/themes/editorial/play-editorial', 'imgs/themes/editorial/pause-editorial'],
-@@ -226,7 +245,7 @@ const STATE_ICONS: Record<string, Record<ThemeName, readonly [string, string]>>
+@@ -226,7 +246,7 @@ const STATE_ICONS: Record<string, Record<ThemeName, readonly [string, string]>>
  };
  
  class ThemeManager {
@@ -86,7 +87,7 @@ index f3bc4a0..2560c5f 100644
  	private readonly themeListeners = new Map<string, (theme: ThemeName) => void>();
  	private readonly visibleActions = new Map<string, { action: KeyAction<JsonObject>; folder: string }>();
  
-@@ -235,7 +254,14 @@ class ThemeManager {
+@@ -235,7 +255,14 @@ class ThemeManager {
  	}
  
  	private loadTheme(): void {
@@ -102,7 +103,7 @@ index f3bc4a0..2560c5f 100644
  			if (settings.theme && THEMES[settings.theme] && settings.theme !== this.currentTheme) {
  				this.currentTheme = settings.theme;
  				streamDeck.logger.info(`Loaded theme: ${this.currentTheme}`);
-@@ -244,12 +270,12 @@ class ThemeManager {
+@@ -244,12 +271,12 @@ class ThemeManager {
  				this.updateAllVisibleActions();
  			}
  		}).catch((err: unknown) => {
@@ -117,7 +118,7 @@ index f3bc4a0..2560c5f 100644
  			streamDeck.logger.error('Failed to save theme:', err);
  		});
  	}
-@@ -259,7 +285,7 @@ class ThemeManager {
+@@ -259,7 +286,7 @@ class ThemeManager {
  	}
  
  	cycleTheme(): ThemeName {
@@ -126,7 +127,7 @@ index f3bc4a0..2560c5f 100644
  		this.saveTheme();
  		streamDeck.logger.info(`Theme changed to: ${this.currentTheme}`);
  		this.notifyListeners();
-@@ -293,9 +319,19 @@ class ThemeManager {
+@@ -293,9 +320,19 @@ class ThemeManager {
  	}
  
  	updateActionIcon(action: KeyAction<JsonObject>, actionFolder: string): void {
@@ -147,7 +148,7 @@ index f3bc4a0..2560c5f 100644
  			setImageQuietly(action, first, actionFolder, 0);
  			setImageQuietly(action, second, actionFolder, 1);
  			return;
-@@ -649,7 +685,7 @@ export class TogglePinAction extends SingletonAction<JsonObject> {
+@@ -649,7 +686,7 @@ export class TogglePinAction extends SingletonAction<JsonObject> {
  
  export class RefreshPinnedAction extends SingletonAction<JsonObject> {
  	manifestId = 'com.americo.teleprompter.refreshpinned';
@@ -156,7 +157,29 @@ index f3bc4a0..2560c5f 100644
  	override onKeyDown(ev: KeyDownEvent<JsonObject>): void {
  		streamDeck.logger.info('Refresh Pinned Note pressed');
  		teleprompter.send('refresh-pinned', ev.action);
-@@ -1592,13 +1628,17 @@ export class OBSToggleStreamingAction extends SingletonAction<JsonObject> {
+@@ -1152,6 +1189,7 @@ export class ToggleNavigationAction extends SingletonAction<JsonObject> {
+ 		const keyAction = ev.action as KeyAction<JsonObject>;
+ 		themeManager.registerVisibleAction(ev.action.id, keyAction, ToggleNavigationAction.ACTION_FOLDER);
+ 		themeManager.updateActionIcon(keyAction, ToggleNavigationAction.ACTION_FOLDER);
++		teleprompter.subscribe(ev.action.id, (state) => setStateQuietly(keyAction, (state?.navigationVisible ?? false) ? 1 : 0));
+ 	}
+ 	override onWillDisappear(ev: WillDisappearEvent<JsonObject>): void { releaseKey(ev.action.id); }
+ }
+@@ -1483,8 +1521,11 @@ export class LetterSpacingDownAction extends SingletonAction<JsonObject> {
+ 
+ /**
+  * Toggle View Mode Action (Theme-aware)
+- * Switches between Markdown and Plain text rendering. The server sends no viewMode in its state,
+- * so the key does not subscribe: Stream Deck's own two-state flip on press is the only indicator.
++ * Switches between Markdown and Plain text rendering. The server sends no viewMode in its state
++ * (checked 2026-11-27: TeleprompterApp's broadcastState({ viewMode }) goes to the app's other
++ * windows, and broadcastStateToWebSocket leaves it out), so the key does not subscribe: Stream
++ * Deck's own two-state flip on press is the only indicator. The same holds for Minimap, both
++ * flips, Detach Window and Scroll Sync, which the server does not report either.
+  */
+ 
+ export class ToggleViewModeAction extends SingletonAction<JsonObject> {
+@@ -1592,13 +1633,17 @@ export class OBSToggleStreamingAction extends SingletonAction<JsonObject> {
  
  /**
   * Cycle Theme Action
@@ -176,3 +199,40 @@ index f3bc4a0..2560c5f 100644
  	}
  
  	override onKeyDown(ev: KeyDownEvent<JsonObject>): void {
+diff --git a/src/protocol.ts b/src/protocol.ts
+index f26cc50..854c41c 100644
+--- a/src/protocol.ts
++++ b/src/protocol.ts
+@@ -29,6 +29,8 @@ export interface TeleprompterState {
+ 	isKeepAwake?: boolean;
+ 	isFullScreen?: boolean;
+ 	autoPauseOnEdit?: boolean;
++	/** The section list is shown; the Sections key follows it. */
++	navigationVisible?: boolean;
+ 	voiceTrackingActive?: boolean;
+ 	voiceTrackingStatus?: VoiceTrackingStatus;
+ 	targetSeconds?: number | null;
+@@ -52,6 +54,7 @@ const BOOLEAN_FIELDS = [
+ 	'isKeepAwake',
+ 	'isFullScreen',
+ 	'autoPauseOnEdit',
++	'navigationVisible',
+ 	'voiceTrackingActive',
+ ] as const;
+ 
+diff --git a/test/protocol.test.ts b/test/protocol.test.ts
+index 5f658c5..04f5ccd 100644
+--- a/test/protocol.test.ts
++++ b/test/protocol.test.ts
+@@ -33,6 +33,11 @@ describe('parseState', () => {
+ 		});
+ 	});
+ 
++	test('keeps navigationVisible, which the Sections key follows', () => {
++		expect(parseState({ navigationVisible: true })).toEqual({ navigationVisible: true });
++		expect(parseState({ navigationVisible: 'yes' })).toEqual({});
++	});
++
+ 	test('rejects non-objects', () => {
+ 		expect(parseState(null)).toBeNull();
+ 		expect(parseState([1, 2])).toBeNull();

@@ -269,7 +269,6 @@ export const STATES = {
 	follows: 'Two states, lit when on; follows the teleprompter',
 	flips: 'Two states, lit when on; flips on each press (the deck cannot read it back)',
 	viewMode: 'Two states: rendered, then plain text (lit); flips on each press (the server does not report the view mode)',
-	oneState: 'A toggle the deck plugin gives one state; its lit picture is made, ready for a second state',
 	voice: 'Live picture: off, starting, listening or error, from the teleprompter',
 	clock: 'Live: time left against the target (or elapsed) as its title, coloured by pace',
 	theme: 'Deck only: switches the key art between T+, PAI Tron and Editorial',
@@ -332,8 +331,8 @@ const FAMILY_ACTIONS: readonly ActionKey[] = [
 	A('obsstream', 'OBS Toggle Streaming', 'Stream', 'obs-toggle-streaming', 'obs-stream', 'recording', 'flips', 'tp-stream-toggle', 'tp-stream-live'),
 	A('previoussection', 'Previous Section', 'Prev section', 'previous-section', 'section-previous', 'sections', 'press', 'tp-previous-section'),
 	A('nextsection', 'Next Section', 'Next section', 'next-section', 'section-next', 'sections', 'press', 'tp-next-section'),
-	A('togglenavigation', 'Toggle Navigation', 'Sections', 'toggle-navigation', 'toggle-navigation', 'sections', 'oneState', 'tp-toggle-nav-panel'),
-	A('minimap', 'Minimap', 'Minimap', 'toggle-minimap', 'minimap', 'navigation', 'oneState', 'tp-toggle-minimap'),
+	A('togglenavigation', 'Toggle Navigation', 'Sections', 'toggle-navigation', 'toggle-navigation', 'sections', 'follows', 'tp-toggle-nav-panel'),
+	A('minimap', 'Minimap', 'Minimap', 'toggle-minimap', 'minimap', 'navigation', 'flips', 'tp-toggle-minimap'),
 	A('scrollup', 'Scroll Up', 'Scroll up', 'scroll-up', 'scroll-up', 'navigation', 'press', 'tp-scroll-up'),
 	A('scrolldown', 'Scroll Down', 'Scroll down', 'scroll-down', 'scroll-down', 'navigation', 'press', 'tp-scroll-down'),
 	A('speedup', 'Speed Up', 'Faster', 'increase-speed', 'speed-up', 'speed', 'press', 'tp-faster'),
@@ -370,15 +369,15 @@ const FAMILY_ACTIONS: readonly ActionKey[] = [
 	A('toggleviewmode', 'Toggle View Mode', 'View mode', 'toggle-view-mode', 'view-mode', 'appearance', 'viewMode', 'tp-toggle-view-mode', 'tp-toggle-view-mode-plain'),
 	A('cyclealignment', 'Cycle Text Alignment', 'Align', 'cycle-alignment', 'cycle-alignment', 'appearance', 'press', 'tp-cycle-text-alignment'),
 	A('cycleprogressindicator', 'Cycle Progress Indicator', 'Progress', 'cycle-progress-indicator', 'cycle-progress', 'appearance', 'press', 'tp-cycle-progress-indicator'),
-	A('flip-horizontal', 'Flip: Horizontal (Mirror)', 'Mirror', 'toggle-flip-horizontal', 'flip-horizontal', 'appearance', 'oneState', 'tp-flip-horizontal'),
-	A('flip-vertical', 'Flip: Vertical (Upside Down)', 'Upside down', 'toggle-flip-vertical', 'flip-vertical', 'appearance', 'oneState', 'tp-flip-vertical'),
+	A('flip-horizontal', 'Flip: Horizontal (Mirror)', 'Mirror', 'toggle-flip-horizontal', 'flip-horizontal', 'appearance', 'flips', 'tp-flip-horizontal'),
+	A('flip-vertical', 'Flip: Vertical (Upside Down)', 'Upside down', 'toggle-flip-vertical', 'flip-vertical', 'appearance', 'flips', 'tp-flip-vertical'),
 	A('togglefullscreen', 'Toggle Full-Screen', 'Full screen', 'toggle-fullscreen', 'fullscreen', 'windows', 'follows', 'tp-toggle-fullscreen'),
 	A('togglekeepawake', 'Toggle Keep Awake', 'Keep awake', 'toggle-keep-awake', 'keepawake', 'windows', 'follows', 'tp-toggle-keep-awake'),
-	A('detachwindow', 'Detach Window', 'Float', 'detach-window', 'detach', 'windows', 'oneState', 'tp-detach-window'),
+	A('detachwindow', 'Detach Window', 'Float', 'detach-window', 'detach', 'windows', 'flips', 'tp-detach-window'),
 	A('openactivefile', 'Open Active File', 'Open note', 'open-active-file', 'open-file', 'windows', 'press', 'tp-open-active-file'),
 	A('togglepin', 'Toggle Pin Note', 'Pin note', 'toggle-pin', 'pin', 'windows', 'follows', 'tp-toggle-pin-window'),
 	A('refreshpinned', 'Refresh Pinned Note', 'Refresh', 'refresh-pinned', 'refresh-pinned', 'windows', 'press', 'tp-refresh-pinned'),
-	A('scroll-sync', 'Scroll Sync', 'Scroll sync', 'toggle-scroll-sync', 'scroll-sync', 'windows', 'oneState', 'tp-toggle-scroll-sync'),
+	A('scroll-sync', 'Scroll Sync', 'Scroll sync', 'toggle-scroll-sync', 'scroll-sync', 'windows', 'flips', 'tp-toggle-scroll-sync'),
 	A('toggleautopause', 'Toggle Auto-Pause', 'Auto-pause', 'toggle-auto-pause', 'auto-pause', 'transport', 'follows', 'tp-toggle-auto-pause'),
 	A('cycletheme', 'Cycle Theme', 'Key theme', null, 'theme', 'deck', 'theme', 'tp-cycle-theme'),
 ]
@@ -495,20 +494,19 @@ export function stateIcons(key: Key): string[] {
 }
 
 /**
- * Off and on pictures of every toggle, including the ones the deck plugin gives one state today
- * (their on picture is made and waits for a second state) and the Voice key, whose live pictures
- * the plugin paints: here, its resting symbol and the map's `on` symbol.
+ * Off and on pictures of every toggle: the two states of a two-state key, and for the Voice key,
+ * whose live pictures the plugin paints, its resting symbol and the map's `on` symbol.
  */
 export function togglePictures(key: ActionKey): [string, string] | null {
-	if (key.state === 'oneState' || key.state === 'voice') {
+	if (key.state === 'voice') {
 		if (!key.icon1) throw new Error(`${key.id}: a toggle without an on symbol in src/action-icons.ts`)
-		return [key.icon, key.state === 'voice' ? key.icon1 : `${key.icon1}@on`]
+		return [key.icon, key.icon1]
 	}
 	const states = stateIcons(key)
 	return states.length === 2 ? [states[0], states[1]] : null
 }
 
-/** Every key picture the layout uses, base icons and lit versions, and the lit pictures waiting for a second state. */
+/** Every key picture the layout uses, base icons and lit versions, and the Voice key's on symbol. */
 export function pictures(): string[] {
 	const out = new Set<string>()
 	for (const page of PAGES) {
@@ -626,7 +624,7 @@ export function pageSvg(set: IconSet, page: Page, chrome: ChromeImages = new Map
 }
 
 /** A note under a toggle on the states sheet, for a key whose deck behaviour differs from the rest. */
-const STATE_NOTE: Partial<Record<StateKind, string>> = { oneState: ' (deck: 1 state)', voice: ' (deck: live)' }
+const STATE_NOTE: Partial<Record<StateKind, string>> = { voice: ' (deck: live)' }
 
 /** Every toggle, off and on side by side, so the on picture can be judged at key size. */
 export function statesSvg(set: IconSet): string {
@@ -798,7 +796,16 @@ export function writePluginOverlay(dir: string, profile: string | null): string[
 		entry.Icon = `${TPLUS}/list/${a.folder}`
 		if (!LIVE_PICTURES.has(a.state)) {
 			const states = entry.States as ManifestState[]
-			states.forEach((state, i) => { state.Image = i === 0 ? `${TPLUS}/${a.folder}` : `${TPLUS}/${a.folder}${s1 ? '-on' : ''}` })
+			// A key the layout gives two states gets its second manifest state here; Stream Deck
+			// then flips it on each press, and a key that follows the teleprompter sets it.
+			if (s1 && states.length === 1) {
+				states[0].Name ??= `${a.label} Off`
+				states.push({ Name: `${a.label} On` })
+			}
+			if (states.length !== stateIcons(a).length) {
+				throw new Error(`${a.id}: the manifest has ${states.length} states, the layout ${stateIcons(a).length}`)
+			}
+			states.forEach((state, i) => { state.Image = i === 0 ? `${TPLUS}/${a.folder}` : `${TPLUS}/${a.folder}-on` })
 		}
 	}
 	if (profile !== null) {

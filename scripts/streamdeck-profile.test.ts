@@ -119,7 +119,7 @@ describe('XL layout', () => {
 		}
 	})
 
-	test('two-state keys have two pictures, live keys and one-state toggles one', () => {
+	test('two-state keys have two pictures, live keys one', () => {
 		for (const a of ACTIONS) {
 			const n = stateIcons(a).length
 			if (['playback', 'follows', 'flips', 'viewMode'].includes(a.state)) expect(n, a.id).toBe(2)
@@ -127,17 +127,19 @@ describe('XL layout', () => {
 		}
 	})
 
-	test('the keys the deck plugin gives one state are exactly the toggles without a second state there', () => {
-		// The plugin's TPLUS_TWO_STATE list (docs/icons/streamdeck/deck-plugin/tplus-theme.patch) holds the rest.
+	test('the deck plugin paints two states on exactly the keys the layout gives two', () => {
+		// The plugin's TPLUS_TWO_STATE list, as docs/icons/streamdeck/deck-plugin/tplus-theme.patch carries it.
 		const patch = readFileSync(path.join(ICON_DIR, 'deck-plugin', 'tplus-theme.patch'), 'utf8')
 		const twoState = new Set([.../TPLUS_TWO_STATE[^[]*\[([^\]]*)\]/.exec(patch)?.[1].matchAll(/'([^']+)'/g) ?? []].map(m => m[1]))
-		expect(twoState.size).toBe(10)
-		for (const a of ACTIONS) {
-			if (a.state === 'oneState') expect(twoState.has(a.folder), `${a.id} is two-state in the plugin`).toBe(false)
-			if (['playback', 'follows', 'flips', 'viewMode'].includes(a.state)) expect(twoState.has(a.folder), `${a.id} is one-state in the plugin`).toBe(true)
-		}
-		expect(ACTIONS.filter(a => a.state === 'oneState').map(a => a.id).sort())
-			.toEqual(['detachwindow', 'flip-horizontal', 'flip-vertical', 'minimap', 'scroll-sync', 'togglenavigation'])
+		const layout = new Set(ACTIONS.filter(a => stateIcons(a).length === 2).map(a => a.folder))
+		expect([...twoState].sort()).toEqual([...layout].sort())
+		expect(layout.size).toBe(16)
+	})
+
+	test('Sections follows the teleprompter (it reports navigationVisible); Minimap, the flips, Float and Scroll Sync flip per press', () => {
+		const state = (id: string) => ACTIONS.find(a => a.id === id)?.state
+		expect(state('togglenavigation')).toBe('follows')
+		for (const id of ['minimap', 'flip-horizontal', 'flip-vertical', 'detachwindow', 'scroll-sync']) expect(state(id), id).toBe('flips')
 	})
 })
 
@@ -310,11 +312,12 @@ describe('docs/stream-deck-profile.md', () => {
 })
 
 describe('deck plugin manifest', () => {
-	function fakePlugin(): string {
+	/** A deck plugin source dir whose manifest has the layout's actions; `stateCount` overrides an action's number of states. */
+	function fakePlugin(stateCount: Record<string, number> = {}): string {
 		const dir = mkdtempSync(path.join(os.tmpdir(), 'tp-deck-plugin-'))
 		const actions = ACTIONS.map(a => ({
 			Name: a.name, UUID: UUID_PREFIX + a.id, Icon: `imgs/actions/${a.folder}/${a.folder}`,
-			States: stateIcons(a).map(() => ({ Image: `imgs/actions/${a.folder}/key` })),
+			States: Array.from({ length: stateCount[a.id] ?? stateIcons(a).length }, () => ({ Image: `imgs/actions/${a.folder}/key` })),
 		}))
 		writeFileSync(path.join(dir, 'manifest.json'), JSON.stringify({ Actions: actions }))
 		return dir
@@ -332,6 +335,32 @@ describe('deck plugin manifest', () => {
 			const problems = compareWithManifest(file)
 			expect(problems.some(p => p.includes('clock'))).toBe(true)
 			expect(problems.some(p => p.includes('Renamed'))).toBe(true)
+		} finally {
+			rmSync(dir, { recursive: true, force: true })
+		}
+	})
+
+	test('the overlay gives a one-state toggle its second state, named, with its lit picture', () => {
+		const dir = fakePlugin({ minimap: 1, togglenavigation: 1 })
+		try {
+			writePluginOverlay(dir, null)
+			const m = JSON.parse(readFileSync(path.join(dir, 'manifest.json'), 'utf8'))
+			const entry = (id: string) => m.Actions.find((a: { UUID: string }) => a.UUID === UUID_PREFIX + id)
+			expect(entry('minimap').States).toEqual([
+				{ Image: 'imgs/themes/tplus/minimap', Name: 'Minimap Off' },
+				{ Image: 'imgs/themes/tplus/minimap-on', Name: 'Minimap On' },
+			])
+			expect(entry('togglenavigation').States.length).toBe(2)
+			expect(pngSize(path.join(dir, 'imgs/themes/tplus/minimap-on@2x.png'))).toEqual({ width: 144, height: 144 })
+		} finally {
+			rmSync(dir, { recursive: true, force: true })
+		}
+	})
+
+	test('the overlay refuses a manifest with more states than the layout', () => {
+		const dir = fakePlugin({ minimap: 3 })
+		try {
+			expect(() => writePluginOverlay(dir, null)).toThrow('minimap: the manifest has 3 states, the layout 2')
 		} finally {
 			rmSync(dir, { recursive: true, force: true })
 		}
