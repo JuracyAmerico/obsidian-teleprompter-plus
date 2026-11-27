@@ -24,4 +24,12 @@ This is a one-person project, so a reply may take a few days. Once a fix is rele
 
 The plugin's own code in this repository: the local WebSocket server and the phone remote page, the programs it starts on your computer, and the files it reads and writes. [ATTACKSURFACE.md](ATTACKSURFACE.md) lists each of these surfaces and how it is protected; the README's [What it touches](README.md#what-it-touches) lists every program, file and network host.
 
-Out of scope: Obsidian itself, ElevenLabs, OBS, the Vosk and Kokoro models, and problems that need someone who already controls your computer or your vault.
+In scope, as in [ATTACKSURFACE.md § Scope and attacker model](ATTACKSURFACE.md#scope-and-attacker-model):
+
+- **Files someone else put in a vault you open**: a note, PDF or other file in a shared or synced vault, or a downloaded folder of notes. Opening or prompting them must not run code, reach the network or change settings.
+- **A settings or profile file you import**, or a profile you apply: it must not set secrets or widen network use without your confirmation.
+- **A device on your network**, once you have set the server host to `0.0.0.0` for the phone remote.
+- **A web page in your browser**, reaching the server on this computer.
+- **A program on your computer**, only where the plugin gives it something it would not otherwise have, such as a key-free control channel or the microphone.
+
+Out of scope: Obsidian itself, ElevenLabs, OBS, the Vosk and Kokoro models; anyone who can already run code as you; and anyone who can write your vault's `.obsidian` folder, because that folder holds the plugin's own code (`main.js`) next to its settings, so they can replace the plugin.

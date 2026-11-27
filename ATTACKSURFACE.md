@@ -1,290 +1,355 @@
 # Attack Surface — Teleprompter Plus
 
-> Engineering security reference. Maps every channel that accepts input or reaches outside the
-> plugin, who can reach it, and what stops abuse. Verified against source 2026-11-26 (0.12.13);
-> the previous pass was 2026-07-09 (0.11.x). SURF-05 and SURF-06 (command injection) fixed in
-> 0.11.4. SURF-12 to SURF-15 were added for the LAN bind and remote key (0.12.10), the saved
-> read-aloud audio (0.12.13) and the take log (0.12.13); each lists what remains.
+> **Applies to 0.12.18** (the release after 0.12.17; until it ships, branch `integrate`). **Verified against source 2026-11-27.**
+> Every `file:line` below was read in that tree. A claim that was not checked in code says so in the same sentence.
+> Earlier passes: 2026-11-26 (0.12.13), 2026-07-09 (0.11.x).
 
-`isDesktopOnly: true` — the plugin runs in Electron with full Node access (`child_process`, `fs`,
-`require`). That is the reason a filename or note can matter beyond the sandbox.
+Teleprompter Plus is desktop only (`isDesktopOnly: true` in `manifest.json`). It runs inside Obsidian's Electron renderer with
+full Node access (`child_process`, `fs`, `http`), so a file name, a note or a setting can matter beyond a browser sandbox.
+
+## Scope and attacker model
+
+Five attackers, from the least to the most trusted. Each surface below names the ones that can reach it.
+
+| Attacker | What they control | In scope? |
+|----------|-------------------|-----------|
+| **Vault content author** | Notes, PDFs, images and other files in a vault you open: a shared or synced vault, a downloaded folder of notes, a Git repo of notes | **Yes.** Opening or prompting their files must not run code, reach the network or change settings. |
+| **Settings-file author** | A settings export or profile file you import, or a profile in a `data.json` they share | **Yes.** Importing or applying it must not take secrets or widen network use without your yes (SURF-17). |
+| **LAN device** | Any device on the network the computer is on (home Wi-Fi, a café, a conference) | **Yes.** Only reaches the plugin when you set the server host off loopback (SURF-12). |
+| **Local web page** | A page open in a browser on this computer | **Yes.** Public sites are refused (SURF-01, SURF-13); pages with a local or private address are not (SURF-13). |
+| **Local process** | A program running as you on this computer | **Partly.** It can already do what you can, so it is out of scope except where the plugin lends it something it would not have: a key-free control channel (SURF-01) and the microphone (SURF-07). |
+| **Someone with the computer** | Your unlocked computer or its disk | Out of scope as an attacker; listed so you know what is on disk (§ Data at rest). |
+
+**Not defended: whoever can write the vault's `.obsidian` folder.** The plugin's code (`.obsidian/plugins/teleprompter-plus/main.js`)
+sits in the same folder as its settings (`data.json`). Anyone who can change that folder (a sync that carries plugins, a shared Git
+vault with `.obsidian` committed) can replace the plugin itself, so `data.json` is treated as yours: on load it is checked for format
+(`validateSettings`, `src/main.ts:1526`) but its choices are not questioned. Do not sync `.obsidian/plugins` from people you do not trust.
+
+[SECURITY.md](SECURITY.md) states the same scope for reports.
+
+## Severity legend
+
+- **Critical**: code execution or full control with no action beyond opening something.
+- **High**: code execution, or control of the prompter, OBS or the microphone, that needs one plausible action.
+- **Medium**: private data leaves the computer, or control from the network once you have opted in.
+- **Low**: limited data disclosure, denial of service, or a weakness that needs an unusual setup.
+- **Info**: worth knowing; no attack.
+
+**Before fix** is the severity when the surface was found. **Residual now** is what is left in this version.
 
 ## Summary
 
-| ID | Surface | Who can reach it | Severity | Status |
-|----|---------|------------------|----------|--------|
-| SURF-01 | Local WebSocket control server | Any local process; web pages served from a local or LAN address | Low | Hardened in 0.11.3; loopback needs no key (below) |
-| SURF-02 | Local HTTP endpoints (`/api/state` etc.) | Any local process; with the host on `0.0.0.0`, the network (key needed) | Low | Hardened in 0.11.3 and 0.12.10 |
-| SURF-03 | Mobile remote interface (served HTML/JS) | Whoever loads the remote URL with the key | Low | Clean (textContent) |
-| SURF-04 | Markdown note → renderer/DOM | Author of any opened/synced note | Low | Sanitized |
-| SURF-05 | PDF filename → `pdftotext` shell | Anyone who can place a PDF in the vault | HIGH (RCE) | Fixed in 0.11.4 |
-| SURF-06 | Kokoro `venvPython` shell exec | Local env (vault path) | Low | Fixed in 0.11.4 |
-| SURF-07 | Local TTS subprocesses (`say`, `afplay`, python, apple sidecar) | Note content (spoken) | Info | Safe (array args) |
-| SURF-08 | ElevenLabs cloud egress | Opt-in (needs API key) | Medium (privacy) | By design, disclosed |
-| SURF-09 | Vosk model download | Opt-in | Low (supply chain) | By design |
-| SURF-10 | OBS WebSocket (outbound) | LAN OBS instance | Low | By design |
-| SURF-11 | Debug error-log write | Plugin internal | Info | Safe (fixed path) |
-| SURF-12 | Server on `0.0.0.0` (LAN) and the remote key | Any device on the network the computer is on | Medium when enabled | Mitigated in 0.12.10; residuals below |
-| SURF-13 | Host and Origin policy limits | Browser pages on a private address; Tailscale and `.local` users | Low | By design, one availability gap |
-| SURF-14 | Saved read-aloud audio (IndexedDB) | Code in the same Obsidian install; whoever has the computer | Low (privacy) | By design, disclosed here |
-| SURF-15 | Take log `takes.json` | Whoever can read the vault's `.obsidian` folder | Info | By design |
+| ID | Surface | Who can reach it | Before fix | Residual now | Status |
+|----|---------|------------------|-----------|--------------|--------|
+| SURF-01 | Local WebSocket control server | Local process; local web page with a local Origin | High | Low | Hardened 0.11.3; loopback needs no key |
+| SURF-02 | Local HTTP endpoints | Local process; LAN device with the key | Medium | Low | Hardened 0.11.3, 0.12.10 |
+| SURF-03 | Phone remote page (served HTML/JS) | Whoever opens the link with the key | Low | Info | No HTML sink |
+| SURF-04 | Note → renderer (raw HTML, ReDoS) | Vault content author | High | Low | Fixed 0.11.5, 0.11.6 |
+| SURF-05 | PDF file name → shell | Vault content author | Critical | None | Fixed 0.11.4 |
+| SURF-06 | Kokoro `venvPython` → shell | Local setup only | Low | None | Fixed 0.11.4 |
+| SURF-06b | Kokoro voice/speed → Python source | Settings-file author | High | None | Fixed 0.11.6 |
+| SURF-07 | Local programs it starts (speech helper, `say`, `afplay`, Python, `pdftotext`) and their temp files | Vault content author (text only); local process | Low | Low | Array arguments; residuals below |
+| SURF-08 | ElevenLabs (cloud read-aloud) | You, by choosing it | Medium | Medium | By design, disclosed |
+| SURF-09 | Vosk model download and cache | Network path to `alphacephei.com` | Low | Low | By design, no signature |
+| SURF-10 | OBS WebSocket (outbound) | Whoever is at the OBS host | Low | Low | By design |
+| SURF-11 | `voice-trace.jsonl` (opt-in diagnostics) | Anyone who reads the vault's `.obsidian` folder | Medium | Low | Capped and opt-in in 0.12.18 |
+| SURF-12 | Server on the LAN and the remote key | LAN device | High | Medium | Key since 0.12.10; residuals below |
+| SURF-13 | Host and Origin policy | Local web page with a private address | Medium | Low | One availability gap, one open fix |
+| SURF-14 | Saved read-aloud audio (IndexedDB) | Someone with the computer; other plugins | Low | Low | By design, disclosed |
+| SURF-15 | Take log `takes.json` | Anyone who reads the vault's `.obsidian` folder | Info | Info | By design |
+| SURF-16 | Loading the `ws` module | Clean install (availability); local process (code on disk) | Medium | None | Bundled in 0.12.18 |
+| SURF-17 | Profiles and imported settings | Settings-file author | High | Low | Narrowed, validated, consent in 0.12.18 |
+| SURF-18 | Kokoro model download (Hugging Face) | Network path to Hugging Face | Low | Low | Outside the plugin's code |
 
 ---
 
-## SURF-05 — PDF filename command injection (HIGH, RCE) — FIXED in 0.11.4
+## SURF-01 / SURF-02 — Local control server
 
-`src/TeleprompterApp.svelte` `extractPDFText()` **used to** build a shell string:
+WebSocket and HTTP on one port (default `127.0.0.1:8765`, `src/settings.ts:270-271`), started with Obsidian unless *Auto-start
+server* is off (`autoStartWebSocket`, `src/main.ts:177`). The `ws` module is bundled (SURF-16).
 
-```ts
-const fullPath = pathMod.join(adapter.basePath, filePath)      // filePath = the PDF's vault path
-const text = cp.execSync(`pdftotext -layout "${fullPath}" -`, …) // string -> /bin/sh -c  ← RCE
-```
+**What a client can do.** 111 commands are registered (`registerCommand` in `src/main.ts`; the generated table is in
+[docs/websocket-api.md](docs/websocket-api.md)). Among them:
 
-`execSync` runs through a shell. **Double-quoting did not neutralize the filename**: inside double
-quotes `sh` still evaluates `$(…)` and backticks, and a literal `"` closes the quote. A PDF whose
-*name* contained shell metacharacters executed arbitrary commands the moment the user opened it.
+- replace the script on screen with any text (`load-speaker-notes`, `src/main.ts:1259`), rendered through the same sanitizer as a note (SURF-04);
+- open a vault note by path (`open-file`, `src/main.ts:1140`): markdown only since 0.12.14 (`src/commands.ts:419-423` drops any other
+  path); unknown paths are ignored. The note's path, title and heading outline then come back in `state`; its text does not;
+- pin the note on screen (`pin-note`, `src/main.ts:937`) and unlock the floating window (`floating-unlock`, `src/main.ts:933`);
+- **turn the microphone on**: `voice-start` and `voice-toggle` (`src/main.ts:1157`, `1165`) start voice tracking, which starts the
+  speech helper or Vosk. Recognition is on-device, and what it hears is not sent to clients: `state` carries only the voice
+  status and the scroll position (`TeleprompterState`, `src/websocket-server.ts:191-240`);
+- drive OBS with the saved connection: start and stop recording or streaming (`src/main.ts:1221`, `1233`), switch scenes
+  (`obs-set-scene`, `1241`) and list scene names (`obs-get-scenes`, `1249`, sent to every client in `state`);
+- start read-aloud (`toggleTTS`, `startTTS`, `src/main.ts:1271-1278`), which spends ElevenLabs credits when that engine is on.
 
-- **Was triggerable by:** opening a PDF named e.g. `` `id>/tmp/pwned`.pdf `` or `a";open -a Calculator;"b.pdf`.
-- **Delivery:** the injection is in the **filename**, not the content — a shared/synced vault, a
-  downloaded file dropped into the vault, or a repo of notes was a realistic vector. No content
-  parsing needed; the shell ran before `pdftotext` even read the file.
-- **Impact:** arbitrary local command execution with the user's privileges.
+**What protects it.**
 
-**Fix shipped (removes the shell entirely):** `execFileSync` with an argument array — args are passed
-to the process directly, never parsed by a shell, so a filename cannot inject.
+- **Origin check on the WebSocket upgrade** (`src/websocket-server.ts:627-631`): a browser Origin that is not a local or private address is
+  closed with `4403`; no Origin (every non-browser client) passes. Policy in `src/net-access.ts:84-91`.
+- **Host check on HTTP** (`src/websocket-server.ts:404-409`, `src/net-access.ts:96-99`): a `Host` header that is not local gets `403`,
+  which stops DNS rebinding. An absent `Host` passes. No `Access-Control-Allow-Origin` header is sent, so a public page cannot read a response.
+- Only `GET` (and an empty `OPTIONS`) is answered (`src/websocket-server.ts:412-423`).
+- 50 messages a second per client (`src/websocket-server.ts:320`), at most 10 connected clients (`317`; an 11th is closed with `1008`, `634-636`),
+  numeric and string bounds on command fields (`validateCommand`, `542`).
+- The remote key for every client that is not on this computer (SURF-12).
 
-```ts
-const cp = require('child_process') as {
-  execFileSync: (file: string, args: string[], opts: Record<string, unknown>) => string
-}
-const text = cp.execFileSync('pdftotext', ['-layout', fullPath, '-'],
-  { encoding: 'utf-8', timeout: 15000, maxBuffer: 10 * 1024 * 1024 }) as string
-```
+**Routes** (`handleHttpRequest`, `src/websocket-server.ts:396-468`): `/`, `/remote` and `/remote/` serve the phone page; `/health` and
+`/api/health` answer `{"status":"ok","clients":<n>,"version":"1.0.0"}` (`448-456`; the version is a fixed protocol string, `294`);
+`/api/state` returns the current state (note path, title, heading outline, playback); everything else is `404`.
 
-Regression-locked by `src/exec-safety.test.ts`: a `"`, `$(…)`, or backtick payload in a path argument
-is proven inert under `execFileSync`, and the old string form is proven to have injected.
+**Close codes** (`src/websocket-server.ts:622-662`): `4403` origin refused, `1008` server full, `4001` no auth message within 5 s,
+`4002` wrong key, `4003` first message not JSON.
 
-## SURF-06 — Kokoro venvPython shell exec (Low) — FIXED in 0.11.4, same class
+**Residual (Low).** A client on this computer needs no key: `isLoopbackAddress` (`src/websocket-server.ts:40-43`) exempts every socket
+whose address is loopback (`429`, `641`). So any local process, and any browser page on this computer whose Origin passes SURF-13
+(a dev server on `localhost`, a router page on a LAN address), can read `/api/state` and send every command above, including
+turning the microphone on. A key on loopback would break the Stream Deck, which sends none; a loopback-only Origin rule would not (SURF-13).
+`WebSocketServerConfig.authToken` exists but nothing sets it (no `authToken` in `src/main.ts`).
 
-`src/tts/kokoro-engine.ts` **used** `execSync(\`"${venvPython}" -c "import mlx_audio"\`, …)`. Same
-string-to-shell pattern, but `venvPython` is a plugin-internal path, exploitable only if the vault
-install path itself contained shell metacharacters (user's own environment, not attacker-delivered).
-Fixed the same way: `execFileSync(venvPython, ['-c', 'import mlx_audio'], …)`.
+## SURF-03 — Phone remote page
 
-## SURF-06b — Kokoro generation Python-code injection (HIGH, RCE) — FIXED in 0.11.6
+The page is `REMOTE_INTERFACE_HTML` in `src/remote-interface.ts`, served by SURF-02; nothing else is served. Checked 2026-11-27: no
+`innerHTML`, `outerHTML`, `insertAdjacentHTML` or `document.write` in that file; server data is written with `textContent`. Off this
+computer the page is served only with the key (`401` otherwise, `src/websocket-server.ts:430-435`), and it sends the `key` from its
+own URL as its first WebSocket message (`src/remote-interface.ts:627-629`). The page holds no per-install data; the key lives only in
+the link. (A stale copy, `src/remote-interface.html`, which was never served and lacked the key code, was deleted in 0.12.18.)
 
-Found by a cross-vendor (GPT-5.4/Forge) review: the 0.11.4 fix above hardened only the *availability
-probe*. The actual audio-generation path (`generateWav` + `startPregen`) still built a Python **script
-string** by raw interpolation — `voice="${voiceId}", speed=${speed}` — and ran it via
-`spawn(python, ['-c', script])`. `voiceId`/`speed` came from `settings.ttsVoice`/`ttsRate`, which
-`validateSettings` never checked and Kokoro never matched against its own `KOKORO_VOICES` allowlist.
-A `ttsVoice` like `af_heart", speed=1.0)\nimport os\nos.system('id')\n#` in a synced/shared `data.json`
-(or an imported settings/profile) executed arbitrary Python on the next TTS play. **Gated on the victim
-having the mlx-tts venv installed** (Kokoro is the live engine). Fixed by resolving `voiceId` against the
-allowlist and coercing `speed` to a clamped number *before* interpolation (`src/tts/kokoro-safety.ts`,
-tested). Lesson logged: the 0.11.4 patch fixed the probe the finding named and missed the sibling sink.
+## SURF-04 — Note → renderer (fixed 0.11.5 and 0.11.6; residual Low)
 
-## SURF-01 / SURF-02 — Local control server (Hardened in 0.11.3 and 0.12.10)
+Notes are rendered with `marked` and pass through Obsidian's `sanitizeHTMLToDom` before they reach the page
+(`src/TeleprompterApp.svelte:1613` for the main render; embeds at `516`). Embedded-note recursion is guarded against cycles (`486`).
 
-WebSocket + HTTP on one port (default `8765`), **auto-started by default** (`autoStartWebSocket: true`),
-bound to `127.0.0.1` unless the user sets another host (SURF-12). Localhost binding does not protect
-against a malicious *website*, whose JS runs in the user's browser (on localhost).
+- **Fixed 0.11.6 (High):** the main render used `{@html marked.parse(content)}` with no sanitizer, so a note's `<img onerror=…>` reached
+  the DOM on open. Embeds were already sanitized.
+- **Fixed 0.11.5 (Medium):** three quadratic regexes on note and `.bib` text (`stripPandocAttributes`, the bracketed-citation regex,
+  the `.bib` entry lookahead) froze Obsidian on inputs like `"[".repeat(100000)`. Bounded; `src/parser/redos.test.ts` requires
+  100k-character inputs to finish in under a second.
+- A note's `bibliography:` path and embeds are read through the vault API (`app.vault.getAbstractFileByPath`, `app.vault.read`), so
+  they cannot reach files outside the vault.
+- **Residual:** the sanitizer is Obsidian's; a bypass in it would be a bypass here.
 
-- **Fixed in 0.11.3:** WS upgrade validates `Origin` (blocks Cross-Site WebSocket Hijacking; no-Origin
-  non-browser clients still pass); HTTP validates the `Host` header (blocks DNS rebinding); the
-  `Access-Control-Allow-Origin: *` header was removed (it let any site read `/api/state`). Policy in
-  `src/net-access.ts` (see SURF-13 for exactly what it accepts).
-- **Existing controls:** per-client rate limit (50 messages a second), numeric and string bounds on commands
-  (`validateCommand`), at most 10 connected clients, a 5 s timeout for the first (auth) message when a key is required,
-  and the remote key for anything off this computer (SURF-12).
-- **Dead config:** `WebSocketServerConfig.authToken` still exists, but `startWebSocketServer()` in `src/main.ts`
-  never sets it, so the only secret in play is the remote key.
-- **Residual (unchanged, by design):** a client on this computer needs no key. `isLoopbackAddress` exempts
-  every connection whose socket address is loopback, so any *local* process, and any web page whose
-  Origin passes SURF-13 (a dev server on `localhost`, a page on a LAN address), can read `/api/state`
-  (note path, title, heading outline) and send any of the 111 commands. A key requirement on
-  loopback would break the Stream Deck, which sends none; an Origin rule that is tighter for
-  loopback connections would not (SURF-13).
+## SURF-05 — PDF file name → shell (Critical, fixed 0.11.4)
 
-## SURF-03 — Mobile remote interface (Clean)
+`extractPDFText` built `` cp.execSync(`pdftotext -layout "${fullPath}" -`) ``: a PDF *named* `` `id>/tmp/pwned`.pdf `` ran a command
+when opened. Now `execFileSync('pdftotext', ['-layout', fullPath, '-'], { timeout: 15000, maxBuffer: 10 MB })`
+(`src/TeleprompterApp.svelte:1784-1788`): no shell. `src/exec-safety.test.ts` proves a `"`, `$(…)` or backtick in a path is inert.
 
-`remote-interface.html/.ts` served by SURF-02, runs in the phone browser, connects back via WS. All
-server data (section labels, titles, status, and the take card text added in 0.12.13) is written with
-**`textContent`**, never `innerHTML` — checked 2026-11-26: no `innerHTML`, `outerHTML`,
-`insertAdjacentHTML` or `document.write` in `src/remote-interface.ts` or `.html`. No XSS sink. Since 0.12.10 the
-page is served only to a client that carries the key (`401` otherwise), and the page forwards the `key` of its own URL as
-the first WebSocket message. The page itself holds no per-install data; the key lives only in the link.
+## SURF-06 — Kokoro `venvPython` → shell (Low, fixed 0.11.4)
 
-## SURF-04 — Markdown note → renderer (Sanitized; ReDoS fixed in 0.11.5)
+The availability probe ran `execSync` on a string with the venv path. Now `execFileSync(venvPython, ['-c', 'import mlx_audio'])`
+(`src/tts/kokoro-engine.ts:79-83`). The path is fixed (`~/.local/share/mlx-tts-venv`, `src/tts/kokoro-engine.ts:17`); the
+`ttsPythonPath` setting exists but no code reads it.
 
-Note content is rendered with `marked` and injected via Obsidian's **`sanitizeHTMLToDom`** (no XSS sink).
-Embedded-note recursion is depth/circular-ref guarded. Trust note: a synced/shared note is authored by
-someone else, but the sanitizer is the boundary and it is used consistently.
+## SURF-06b — Kokoro voice and speed → Python source (High, fixed 0.11.6)
 
-**Raw-HTML injection (fixed 0.11.6):** the primary note render did `{@html marked.parse(content)}` with
-**no sanitizer** — marked preserves raw inline HTML, so a synced note's `<img onerror=…>` / `<svg onload=…>`
-reached the DOM on open (confirmed injection; RCE plausible, depends on Obsidian's CSP). The *embedded-note*
-path already sanitized identical output; the main path didn't. Fixed by routing the main render through
-`sanitizeHTMLToDom` too — which preserves the safe tags + `data-*`/`class`/`id` the pipeline (images,
-embeds, callouts) and navigation (`data-header-id`) rely on. A render-path duplicate of the
-`stripPandocAttributes` ReDoS regex (missed in 0.11.5, only the text-cleaner copy was bounded) was also
-bounded here.
+Found by a cross-vendor review: generation builds a Python script with `voice="${voiceId}", speed=${speed}` and runs
+`spawn(python, ['-c', script])` (`src/tts/kokoro-engine.ts:153`, `235`). `voiceId` and `speed` came from `ttsVoice`/`ttsRate`, so a
+shared `data.json` or profile with `ttsVoice: 'af_heart", speed=1.0)\nimport os\nos.system("id")\n#'` ran Python on the next read-aloud,
+for anyone with the Kokoro venv. Now `resolveVoiceId` checks the voice against `KOKORO_VOICES` and `clampSpeed` forces a number
+before interpolation (`src/tts/kokoro-safety.ts:15`, `27`; called at `src/tts/kokoro-engine.ts:130-131`, `213-214`). Tested in
+`src/tts/kokoro-safety.test.ts`. The script text itself goes in as `JSON.stringify(text)`.
 
-**ReDoS (fixed 0.11.5):** a deeper audit found three *quadratic* backtracking regexes running on raw
-note/.bib content — `stripPandocAttributes` (text-cleaner), the bracketed-citation regex and the
-`.bib` entry lookahead (citation-resolver). A synced note of `"[".repeat(100000)` (with a bib
-configured, default-on) or `"{".repeat(100000)` (on read-aloud) froze the main thread. Fixed by
-bounding the char classes / end anchor; regression-locked by `src/parser/redos.test.ts` (pathological
-100k-char input must finish <1s). Two lower items shipped in 0.11.5 too: `say` argv now has a `--`
-terminator (arg-injection hardening, `mac-say-engine.ts`), and Settings→Export / Save-as-Profile now
-strip `elevenLabsApiKey` + `obsPassword` via `redactSecrets` (`settings-secrets.ts`, tested).
+## SURF-07 — Local programs and their temp files (residual Low)
 
-## SURF-07 — Local TTS subprocesses (Safe)
+Every program is started with an argument array, never a shell string, except one constant (below):
 
-`say`, `afplay`, kokoro python, and the apple-speech sidecar are all launched with
-`spawn(cmd, [args])` — **array args, no shell**, so the spoken note text cannot inject commands. Note
-content is processed locally by these binaries (no network).
+| Program | Where | Started at | Input from the script |
+|---------|-------|-----------|-----------------------|
+| `disclaim-launcher` → `teleprompter-stt` (Apple speech helper) | `~/.local/share/teleprompter-plus/` (`src/voice/apple-speech-recognizer.ts:26-37`) | `:165` | up to 100 words as a hints file |
+| `say` | `PATH` | `src/tts/mac-say-engine.ts:119`, args end with `--` | the sentence |
+| `say -v "?"` | `PATH`, **through `/bin/sh`** | `src/tts/mac-say-engine.ts:37` (`execSync`) | none: a constant string |
+| `afplay` | `PATH` | `src/tts/kokoro-engine.ts:274` | a WAV path the plugin made |
+| Python | `~/.local/share/mlx-tts-venv/bin/python3` | `src/tts/kokoro-engine.ts:79`, `153`, `235` | see SURF-06b |
+| `pdftotext` | `PATH` | `src/TeleprompterApp.svelte:1784` | a vault path (SURF-05) |
 
-## SURF-08 — ElevenLabs cloud egress (Medium, by design)
+- **The plugin installs none of these.** The speech helper and its launcher are built and copied by you
+  ([docs/voice-tracking.md](docs/voice-tracking.md)); the repo carries their source and a prebuilt `native/disclaim-launcher`, which the plugin
+  never copies. The plugin runs whatever is at those paths when both files exist (`src/voice/apple-speech-recognizer.ts:100`).
+- **The launcher is what holds the microphone.** It starts the helper as its own TCC-responsible process, so macOS asks for
+  Speech and Microphone for the helper, not for Obsidian, and the permission is not listed under Obsidian in System Settings.
+  A local process that replaces the files in `~/.local/share/teleprompter-plus/` gets started by the plugin the next time voice
+  tracking starts. Whether macOS then keeps the old microphone grant depends on the replacement's code signature; not tested.
+- **Names resolved through `PATH`:** `say`, `afplay` and `pdftotext` are found by name, so whatever `PATH` Obsidian was started with decides
+  which binary runs. Running as you, a local process could already put one there; this is noted, not defended.
+- **Temp files** (system temp folder, readable by you only on macOS by default):
+  - `teleprompter-stt-context.txt` (`src/voice/apple-speech-recognizer.ts:146-148`): up to 100 words of the script, its rarest first
+    (`buildContextHints`, `src/voice/voice-tracking-service.ts:779-782`), given to the helper as hints. Replaced on each start, **never deleted**.
+  - `teleprompter-tts-kokoro-<ms>/` (`src/tts/kokoro-engine.ts:101-104`): the WAV audio of sentences read aloud. Deleted when the engine is
+    destroyed (`:365-379`); left behind if Obsidian quits or crashes first.
 
-If the user enables the ElevenLabs TTS engine and supplies a key, the **script text is sent to
-`api.elevenlabs.io`** over HTTPS with an `xi-api-key` header. The key is stored in `data.json`
-(plaintext — standard for Obsidian plugins). This is disclosed to the user in a `Notice` before use.
-Privacy consideration: prompter script leaves the machine. Offline engines (Kokoro, macOS `say`, Web
-Speech) remain available.
+## SURF-08 — ElevenLabs (Medium, by design)
 
-## SURF-09 — Vosk model download (Low, supply chain)
+Only when you choose the ElevenLabs engine and paste your own key. Requests go to `https://api.elevenlabs.io/v1`
+(`src/tts/elevenlabs-engine.ts:34`) through Obsidian's `requestUrl`, with the key in the `xi-api-key` header (`:253`, `:348`):
 
-Voice-tracking models are downloaded from `alphacephei.com` over HTTPS on opt-in. Trusts that host and
-transport; no signature check on the model zip. Low risk, standard for the feature.
+- `GET /v1/voices` (`:251`) when the voice list loads: sends only the key.
+- `POST /v1/text-to-speech/<voice>` (`:345`) per sentence: sends **the sentence and the sentences on either side** of it.
+
+Choosing the engine shows a Notice that the script text goes to ElevenLabs and uses your credits (`src/settings.ts:1926`), and the
+key field says the same. The key is kept in plain text in `data.json`, as Obsidian plugins do. Offline engines stay available.
+
+## SURF-09 — Vosk model download and cache (Low)
+
+When voice tracking falls back to Vosk, the model for the language is downloaded once from
+`https://alphacephei.com/vosk/models/<model>.zip` (`src/voice/vosk-recognizer.ts:113-136`; English `vosk-model-small-en-us-0.15`,
+Portuguese `vosk-model-small-pt-0.3`, `src/voice/types.ts:166`, `172`). There is no checksum or signature: HTTPS and that host are trusted.
+The model runs in Vosk's WebAssembly worker. It is cached in the IndexedDB database `teleprompter-vosk-models`, store `models`
+(`src/voice/vosk-recognizer.ts:494`), and a `vosk-model-<name>` flag is kept in Obsidian's localStorage (`src/voice/model-manager.ts:79-80`).
+Both are per Obsidian install, not per vault, and stay after the plugin is removed.
 
 ## SURF-10 — OBS WebSocket, outbound (Low)
 
-The plugin is a *client* connecting out to `ws://<obsHost>:<obsPort>` (LAN, user-configured) with the
-user's OBS password. No inbound surface.
+Off until you turn on OBS integration. The plugin connects as a client to `ws://<obsHost>:<obsPort>` (`src/obs-service.ts:138`), default
+`127.0.0.1:4455` (`src/settings.ts:287-288`). The host field accepts any text (`src/settings.ts:2851-2859`) and `validateSettings` does not
+check it, so a host on another computer works and the connection is **plain `ws://`, not encrypted**. The OBS password is not sent as is
+(obs-websocket v5 answers a challenge with a hash), but whoever runs that host gets the answer to that challenge. No inbound surface.
 
-## SURF-11 — Debug error-log write (Safe)
+## SURF-11 — `voice-trace.jsonl` (Medium before 0.12.18; residual Low)
 
-`fs.appendFileSync` to a **fixed** path under the plugin's own dir (`…/plugins/teleprompter-plus/
-error-log.jsonl`). Path is not attacker-influenced; content is JSON-encoded error data.
+Opt-in voice diagnostics, written by `writeVoiceTrace` (`src/TeleprompterApp.svelte:1912-1931`) to
+`<vault>/.obsidian/plugins/teleprompter-plus/voice-trace.jsonl`.
 
----
+- **What is in it:** each run's first lines hold **the whole script** and the exact word list (`init` and `wrapped` events,
+  `src/voice/voice-tracking-service.ts:308-318`, `527-536`), then **every utterance the recognizer heard** (`heard`) and every matcher
+  decision. It is as private as the scripts, and a vault sync copies it.
+- **Before 0.12.18:** no size limit (one real file was 19.8 MB), and the switch existed only as a hand edit of `data.json`.
+- **Now:** a toggle under Settings → Voice tracking → *Write a voice trace (diagnostics)*, off by default (`voiceTrace: false`), whose text says
+  what it saves and where; read on every line, so turning it off stops writing at once. The file rotates to `voice-trace.1.jsonl` before it
+  would pass 5 MB (`appendCappedLine`, `src/voice/trace-file.ts`), so at most about 10 MB exists. A profile or imported file cannot turn it on (SURF-17).
+- **Residual:** a trace you turned on stays on disk until you delete it; turning the switch off does not delete it.
+- `error-log.jsonl` is **no longer written**: its writer had no callers and was deleted in 0.12.18. Older versions may have left one in the plugin folder.
 
-## SURF-12 — Server on `0.0.0.0` and the remote key (Medium when enabled; mitigated in 0.12.10)
+## SURF-12 — Server on the LAN and the remote key (High before 0.12.10; residual Medium when enabled)
 
-**What it is.** The Host setting (Settings → Connection → Server) accepts `127.0.0.1` (the default), `localhost`,
-`0.0.0.0` or any IPv4 literal. Set to `0.0.0.0`, the server listens on every interface, so it is reachable from
-whatever network the computer is on, not only the home Wi-Fi: a café, a hotel, a conference. This is the
-setting the phone remote needs. The plugin shows a Notice when the host is not local, and the Settings text
-recommends `127.0.0.1`. Before 0.12.10 nothing else stood in the way: any device on the network could connect and
-drive the prompter, including replacing the script (`load-speaker-notes`).
+The Host setting accepts `127.0.0.1` (default), `localhost`, `0.0.0.0` or any IPv4 literal (`src/main.ts:1557`). On `0.0.0.0` the server
+listens on every interface, so every device on whatever network the computer is on can reach it. The phone remote needs this.
+Setting it in the field shows a Notice (`src/settings.ts:2587`); applying it from a profile or file asks first (SURF-17).
 
-**What protects it (`src/websocket-server.ts`, `src/main.ts`).**
+**What protects it.**
 
-- A **remote key**: 16 bytes from `crypto.getRandomValues`, 32 hex characters, made on first start and kept in `data.json`
-  (`startWebSocketServer()`, `src/main.ts`).
-- **HTTP:** a request from a non-loopback address needs `?key=<key>` on every path except `/health` and `/api/health`;
-  otherwise `401`. The decision uses `req.socket.remoteAddress`, not a header the client controls.
-- **WebSocket:** a non-loopback client must send `{"type":"auth","token":"<key>"}` as its first message within 5 s;
-  a wrong key closes with `4002`, a timeout with `4001`. Only then is it added to the client list and sent state.
-- Loopback clients (the Stream Deck on this Mac) need no key.
-- Regression: `src/remote-key.test.ts` (loopback detection, the key in the link, server and page wiring).
+- A **remote key**: 16 random bytes from `crypto.getRandomValues`, 32 hex characters, made on the first start and kept in `data.json`
+  (`src/main.ts:673-677`).
+- **HTTP:** a request from a non-loopback socket needs `?key=<key>` on every path but `/health` and `/api/health`, otherwise `401`
+  (`src/websocket-server.ts:429-435`). The decision uses the socket address, not a header.
+- **WebSocket:** a non-loopback client must send `{"type":"auth","token":"<key>"}` first, within 5 s (`src/websocket-server.ts:641-662`).
+  Only then does it get state or commands.
+- Since 0.12.14 the key is a secret (`SECRET_SETTING_KEYS`, `src/settings-secrets.ts:7`): Export and *Save as profile* leave it out,
+  and since 0.12.18 no import or profile can set it (SURF-17). (This was item 2 of the previous list: fixed in 0.12.14.)
+- Regression: `src/remote-key.test.ts`.
 
 **What remains.**
 
-1. **No encryption.** The key rides in the URL of a plain `http://` request and in a plain `ws://` message. Anyone who can
-   watch the Wi-Fi traffic sees it once and can reuse it; so can anyone who sees the link (the phone's history, a screenshot of
-   Settings, a chat message). The remote key does not rotate on its own and the UI has no button to rotate it
-   (clearing `remoteKey` in `data.json` makes the next start generate a new one).
-2. **The key is not on the secret list.** `SECRET_SETTING_KEYS` in `src/settings-secrets.ts` holds only
-   `elevenLabsApiKey` and `obsPassword`. Settings → Export and Save-as-Profile run `redactSecrets` and so still write
-   `remoteKey` into the file (checked: `SECRET_SETTING_KEYS.includes('remoteKey')` is `false`). A shared profile or
-   exported settings file carries a working key to anyone who can reach the server, and importing a file overwrites your key
-   with the one in it. Fix: add `remoteKey` to the list.
-3. **A key is full control.** Every registered command works for a keyed client: replace the script
-   (`load-speaker-notes`), start or stop OBS recording and streaming (`obs-*`, using the saved OBS connection), start
-   read-aloud (`toggleTTS`, which spends ElevenLabs credits when that engine is on), and `open-file` any vault note by
-   path (it loads on screen, and from reading the code its path, title and heading outline then come back in `state`; unknown
-   paths are ignored). File contents are not sent back.
-4. **`/health` is open** to anyone on the network: it answers `{"status":"ok","clients":n,"version":"1.0.0"}`, which tells a scanner
-   the port is this plugin and how many clients are connected.
-5. **Unauthenticated sockets are not counted.** The 10-client cap is checked against `clients`, and a socket joins `clients`
-   only after it authenticates, so a device on the network can open many sockets that each wait out the 5 s auth
-   timeout. It cannot do more than hold sockets open: it never gets state or commands.
-6. **The key is compared with `!==`** and a wrong guess costs one new connection. At 128 bits this is not a practical
-   attack; it is noted because there is no lockout either.
-7. **The link may show the wrong address.** `getLocalNetworkUrl()` returns the first non-internal IPv4 address of
-   `os.networkInterfaces()`. With a VPN or Tailscale adapter listed before the Wi-Fi one, the link carries that address
-   (see SURF-13).
+1. **No encryption.** The key travels in the URL of a plain `http://` request and in a plain `ws://` message. Anyone who can watch the network
+   traffic, or who sees the link (phone history, a screenshot, a chat), can reuse it. There is no button to make a new key; *Reset all* in
+   Settings clears it with every other setting, and the next start makes a new one.
+2. **A key is full control**: every command in SURF-01, microphone and OBS included.
+3. **`/health` and `/api/health` are open** to the network: they tell a scanner the port is this plugin and how many clients are connected.
+4. **Waiting sockets are not counted.** The 10-client limit counts only authenticated clients (`src/websocket-server.ts:634`), so a device can
+   hold many sockets open, each for up to 5 s. `ws`'s default 100 MiB message limit applies, so a waiting socket can send one large first
+   message before it is refused (`maxPayload` is not set). It never gets state or commands.
+5. **The key is compared with `!==`** (`src/websocket-server.ts:431`, `652`), with no lockout. At 128 bits this is not a practical attack.
+6. **The link can show the wrong address**: `getLocalNetworkUrl` takes the first non-internal IPv4 address (`src/websocket-server.ts:978-990`);
+   with a VPN or Tailscale adapter first, the link carries that address (SURF-13).
 
-## SURF-13 — Host and Origin policy limits (Low)
+## SURF-13 — Host and Origin policy (residual Low)
 
-`src/net-access.ts` accepts a name only if it is `localhost`, `*.localhost`, IPv6 loopback, fc00::/7, fe80::/10, or an
-IPv4 address in 127/8, 10/8, 172.16/12, 192.168/16 or 169.254/16 (the IPv4 ranges are `net-access.ts:52-56`). Everything else,
-including every hostname, is refused.
+`isLocalHostname` (`src/net-access.ts:37-59`) accepts `localhost`, `*.localhost`, `::1`, fc00::/7, fe80::/10, and IPv4 in 127/8, 10/8,
+172.16/12, 192.168/16 and 169.254/16 (`:52-56`), also as IPv4-mapped IPv6. Every other name, every hostname included, is refused.
 
-- **Tailscale and `.local` do not work (verified).** Tailscale addresses (100.64.0.0/10, the CGNAT block), mDNS names
-  (`macbook.local`) and MagicDNS names (`*.ts.net`) are not in that list. Calling `isHttpHostAllowed` gave `false` for
-  `100.73.241.35:8765`, `macbook.local:8765` and `mac.tail1234.ts.net:8765`, and `true` for `192.168.2.40:8765`. In a
-  stand-in with the same wiring (an `http` server plus `ws` on the same server, the same `isHttpHostAllowed`) a request with
-  `Host: 100.73.241.35:8765` got `403` and `Host: mac.local:8765` got `403`. So a phone that opens
-  `http://100.x.y.z:8765/?key=…` gets `403 Forbidden` on the page, key or no key (`handleHttpRequest`,
-  `websocket-server.ts:407-411`), and the phone remote cannot be reached over Tailscale by address. Use the LAN address.
-  A non-browser WebSocket client does not go through the Host check: in the stand-in an upgrade with
-  `Host: 100.73.241.35:8765` was accepted with no HTTP handler hit (the `ws` library handles upgrades itself). It
-  is checked only by Origin, and a script sends none, so a script over Tailscale reaches the key check, and with the right key
-  it connects. This was not run against the plugin inside Obsidian.
-- **Private-address pages pass the Origin check.** A browser page whose Origin is a private or LAN address (a router admin
-  page, an IoT device's web page, a dev server on `localhost:3000`) is allowed, because the phone page itself has a LAN Origin. The
-  page runs in a browser on this computer, so it connects over loopback and needs no key. A web page cannot be served
-  from a public domain, but it can be served from any device on the LAN that the user is lured to. Fix, not applied:
-  for a loopback connection, accept only an absent Origin or a loopback Origin; the phone, which is not loopback, keeps the LAN rule and the key.
-- A request with **no `Host`** header (HTTP/1.0) or **no `Origin`** (every non-browser client) passes the policy; the key still
-  applies off this computer.
+- **Private-address pages pass the Origin check (open fix).** A page whose Origin is a private address (a router's admin page, a device's web
+  page, a dev server on `localhost:3000`) is allowed, because the phone page itself has a LAN Origin. In a browser on this computer it connects over
+  loopback, so it needs no key (SURF-01). Fix, not applied: for a loopback socket, accept only no Origin or a loopback Origin; the phone, which is
+  not loopback, keeps the LAN rule and the key.
+- **Tailscale and `.local` do not reach the phone page.** 100.64.0.0/10 addresses, `*.local` and `*.ts.net` names are not in the list, so the
+  page answers `403` to them, key or not. A script (no Origin, and the `ws` library handles the upgrade without the Host check) reaches the key
+  check and connects with the right key; this was shown in a stand-in server with the same wiring on 2026-11-26, not inside Obsidian.
+- A request with no `Host` (HTTP/1.0) or no `Origin` (every non-browser client) passes the policy; the key still applies off this computer.
 
-## SURF-14 — Saved read-aloud audio, IndexedDB (Low, privacy; added 0.12.13)
+## SURF-14 — Saved read-aloud audio (Low, privacy)
 
-`src/tts/speech-audio-store.ts`. When the ElevenLabs engine is selected, each synthesized sentence is kept as MP3 bytes in an
-IndexedDB database named `teleprompter-plus-speech-audio` (object stores `audio` and `meta`), so it replays without a new charge.
-The database is created the first time the store is read or written, so a user who never selects ElevenLabs never gets one.
+`src/tts/speech-audio-store.ts`. With the ElevenLabs engine, each sentence's MP3 is kept in the IndexedDB database
+`teleprompter-plus-speech-audio` (`:13`), stores `audio` and `meta`, so it replays without a new charge. The record key is
+`JSON.stringify([model, voice, stability, similarity, previousText, nextText, text])` (`src/tts/elevenlabs-request.ts:37`): the sentence
+and its neighbours in plain text. The API key is not stored. Capped at 200 MB by default (`elevenLabsAudioCacheMb`, `src/settings.ts:410`),
+least recently used first. Per Obsidian install, not per vault: every vault and every plugin in that install can read it, and a vault sync
+does not copy it. The command *Clear read-aloud audio cache* (`src/main.ts:220-221`) empties it; disabling or removing the plugin does not.
 
-- **Where it lives.** IndexedDB is per origin, not per vault: every vault opened in the same Obsidian install shares one
-  database, and other plugins in that install can read it, as they can read any file the plugin can (a plugin has full Node access
-  already, so this adds no new boundary). It sits in Obsidian's own browser storage, not in the vault folder, so a vault sync does not copy it.
-- **What is in it.** The cache key is `JSON.stringify([modelId, voiceId, stability, similarity, previousText, nextText, text])`
-  (`speechCacheKey`, `elevenlabs-request.ts`): the plaintext of each sentence read aloud and the sentences on either
-  side, as the record key, next to the audio. The API key is not stored. Deleting a note, or the whole vault, does not delete
-  its read-aloud audio.
-- **Bounds.** 200 MB by default (`elevenLabsAudioCacheMb`), least recently used evicted first. A clip larger than the cap is not kept.
-  A damaged record, no IndexedDB, or quota exhaustion is a cache miss, never an error.
-- **Clearing.** The command *Clear read-aloud audio cache* empties it. `onunload` does not, and disabling or uninstalling the
-  plugin leaves the database in place. Clear it before uninstalling if the scripts were sensitive.
-- It carries the same privacy fact as SURF-08: the script text goes to ElevenLabs when the engine is on; this surface adds that
-  the text, and the audio of it, then also stays on this computer until evicted or cleared.
+## SURF-15 — Take log `takes.json` (Info)
 
-## SURF-15 — Take log `takes.json` (Info; added 0.12.13)
+`src/take-store.ts`, `src/take-log.ts`. One file in the plugin folder, written through Obsidian's vault adapter: per take the note path, kind,
+section title, duration, target and date; no script text. At most 5,000 entries (`TAKE_LOG_LIMIT`, `src/take-log.ts:15`). Reads never throw
+and entries that fail validation are skipped, so a hand-edited or synced file cannot crash the prompter. No command returns the log; `state`
+carries only the last take card.
 
-`src/take-store.ts`, `src/take-log.ts`. One JSON file, `takes.json`, in the plugin's own folder
-(`<vault>/.obsidian/plugins/teleprompter-plus/takes.json`), written through Obsidian's vault adapter. Each take holds the
-note path, `section` or `script`, the section title, duration, target and date: no script text. At most 5,000 entries; the oldest
-are dropped first.
+## SURF-16 — Loading the `ws` module (Medium before 0.12.18; fixed)
 
-- **Writes** are queued one after another (a read-modify-write of the whole file), so two takes ending together do not overwrite
-  each other. A failed write is reported and never interrupts a rehearsal.
-- **Reads** never throw: a missing, empty, broken or foreign file is an empty log, and entries that fail validation
-  (`isEntry`) are skipped, so a hand-edited or synced file cannot crash the prompter.
-- **Exposure.** It names the notes you rehearsed and when. It sits in the vault's `.obsidian` folder, so Obsidian Sync or another
-  vault sync carries it to your other devices. Nothing reads it over the network: no WebSocket command returns the log (the
-  `state` message carries only the latest take card, with the section title and times).
+**Before:** `ws` was left out of `main.js` (`external` in `vite.config.ts`) and `src/websocket-loader.ts` searched for it at run time:
+`require('electron').remote.require('ws')`, `<vault>/<configDir>/plugins/teleprompter-plus/node_modules/ws`, `process.cwd()/node_modules/ws`,
+`<resourcesPath>/app.asar/node_modules/ws`, then a bare `require('ws')`. A directory install gets only `main.js`, `styles.css` and
+`manifest.json`, and Obsidian 1.15.1 ships no `ws` (its `app.asar`, `obsidian.asar` and `app.asar.unpacked` were listed), so in the running
+Obsidian renderer (Electron 43.8.9, Node 24.22.1, working directory `/`) all five failed against a vault holding only the 0.12.17 release
+files. **The Stream Deck and the phone remote could not connect on a normal install**; they worked only where someone had copied
+`node_modules/ws` into the plugin folder by hand. That search also meant code would be loaded from whichever of those paths held a `ws`
+first; the working directory is `/` when Obsidian starts from Finder, so this was not shown to be reachable, but it was an unneeded path.
+
+**Now:** `ws` is bundled into `main.js` from its Node entry (`vite.config.ts`, alias to `node_modules/ws/index.js`) and required only when
+the server starts (`src/load-ws.cjs`), so loading `main.js` touches no Node module. Nothing is read from disk. Its optional native add-ons
+`bufferutil` and `utf-8-validate` resolve to modules that throw (`src/ws-absent/`), so `ws` uses its own JavaScript; without them the build
+put `{}` in their place and, on Obsidian's Node 24, which has no `http.websocketMask`, every client message of 32 bytes or more would have
+thrown. `src/websocket-bundle.test.ts` bundles the loader with the real build settings and runs it where `require` reaches only Node's own
+modules: nothing loads at start and a 106-byte message makes the round trip. The same bundle ran inside the live Obsidian renderer and echoed
+that message. `ws` is now in `main.js`, so a `ws` advisory is an advisory against the plugin.
+
+## SURF-17 — Profiles and imported settings (High before 0.12.18; residual Low)
+
+**Before:** *Import profile* stored the file's `settings` as they came, and every profile apply (dashboard chip, built-in list, custom list)
+ran `Object.assign(settings, redactSecrets(profile.settings))` with no validator. A shared profile could silently set `wsHost: 0.0.0.0`,
+`voiceTrace: true`, an OBS host on another computer, record or stream on Play, or the ElevenLabs engine. *Import* (settings file) filtered keys
+but did not validate them either.
+
+**Now** (`src/settings-import.ts`, `src/settings.ts` `applyFromOutside`, `src/main.ts:1491` `applyExternalSettings`):
+
+- only keys the plugin defines, with the JSON type of their default, get through; never `elevenLabsApiKey`, `obsPassword`, `remoteKey`,
+  the profile list or `voiceTrace` (`pickImportableSettings`);
+- the result passes `validateSettings`, the same check as a load from disk, before it is saved;
+- a change that widens network use (server host off loopback, server port, auto-start, OBS host off loopback, OBS port, OBS on or auto-connect,
+  record or stream on Play, read-aloud through ElevenLabs) opens a dialog listing each change; **Cancel applies nothing**;
+- an imported profile is stored already narrowed, with its name, icon and description cut to plain text of 80, 40 and 200 characters.
+
+Tests: `src/settings-import.test.ts`, `src/settings-secrets.test.ts`. **Residual:** `validateSettings` checks ranges and formats of the
+fields it knows, not every field; a non-network setting from a profile (font, colours, speed) applies without a question, as intended.
+
+## SURF-18 — Kokoro model download (Low)
+
+The Kokoro engine runs `mlx_audio.tts.generate.generate_audio(model="mlx-community/Kokoro-82M-bf16", …)` (`src/tts/kokoro-engine.ts:18`).
+The plugin makes no download itself; the `mlx-audio` library fetches that model from Hugging Face on first use into its own cache, in the
+Python environment you created. That download behaviour is the library's and was not checked in its code here. Trust in it is trust in your
+venv's packages and in Hugging Face.
+
+---
+
+## Data at rest
+
+| Where | What | Who can read it | Removed by |
+|-------|------|-----------------|-----------|
+| `<vault>/.obsidian/plugins/teleprompter-plus/data.json` | All settings, including **`elevenLabsApiKey`, `obsPassword` and `remoteKey` in plain text**; where each note was left (`notePositions`, note paths); custom profiles | Anyone who reads the vault folder; vault sync | You |
+| same folder, `takes.json` | Note paths, section titles, durations, dates (SURF-15) | as above | You |
+| same folder, `voice-trace.jsonl` and `voice-trace.1.jsonl` | Only if you turned the trace on: the whole script and every utterance, at most about 10 MB (SURF-11) | as above | You |
+| Obsidian's IndexedDB `teleprompter-plus-speech-audio` | ElevenLabs audio, with the sentences as keys (SURF-14) | Code in this Obsidian install; whoever has the computer | *Clear read-aloud audio cache* |
+| Obsidian's IndexedDB `teleprompter-vosk-models` | Vosk models (SURF-09) | as above | Obsidian's storage, by hand |
+| Obsidian's localStorage | Panel width, eyeline position and visibility, sections panel open, Vosk download flags | as above | Obsidian's storage, by hand |
+| System temp folder | `teleprompter-stt-context.txt` (up to 100 words of the script), `teleprompter-tts-kokoro-<ms>/` (WAV audio) (SURF-07) | You and processes running as you | The first: never. The second: when the engine closes |
+| `~/.local/share/teleprompter-plus/`, `~/.local/share/mlx-tts-venv/`, the `mlx-audio` model cache | Programs and models you installed; the plugin only runs and reads them | You | You |
 
 ---
 
 ## Recommended order of work
 
-1. ~~**SURF-05**~~ — done in 0.11.4 (`execFileSync`, the only RCE).
-2. ~~**SURF-06**~~ — done in 0.11.4, bundled with #1.
-3. **SURF-12 item 2** — add `remoteKey` to `SECRET_SETTING_KEYS` so Export and Save-as-Profile stop writing it. Smallest fix, real leak.
-4. **SURF-13** — for loopback connections, accept only an absent or loopback Origin. Decide whether Tailscale addresses (100.64.0.0/10) should be accepted for the phone remote: today they get `403`.
-5. **SURF-12 items 1 and 4** — a "new remote key" button; consider answering `/health` with less (or only to loopback).
-6. **SURF-01/02 defense-in-depth** (optional) — default a random token or default-off, if you want belt-and-suspenders on the local server.
-7. **SURF-08 / SURF-14** — already acceptable; revisit only if you want at-rest key encryption or the read-aloud text out of the cache keys.
+1. ~~SURF-05, SURF-06, SURF-06b~~: done (0.11.4, 0.11.6).
+2. ~~SURF-12 item 2 (remote key in exports)~~: done in 0.12.14.
+3. ~~SURF-16, SURF-17, SURF-11~~: done in 0.12.18.
+4. **SURF-13**: for loopback sockets, accept only an absent or loopback Origin. This also closes most of SURF-01's residual.
+5. **SURF-12 items 1, 3 and 4**: a "new remote key" button; answer `/health` only on loopback; set `maxPayload` on the server and count
+   waiting sockets toward the limit.
+6. **SURF-07**: delete `teleprompter-stt-context.txt` when voice tracking stops.
+7. **SURF-08, SURF-14**: acceptable as disclosed; revisit for at-rest key encryption or sentence text out of the cache keys.

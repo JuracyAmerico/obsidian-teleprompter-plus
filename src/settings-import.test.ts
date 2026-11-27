@@ -20,7 +20,7 @@ describe('settings and profiles from a file', () => {
 		const picked = pickImportableSettings({
 			fontSize: 30,
 			wsHost: '0.0.0.0',
-			voiceTrace: true,                 // not a defined setting: diagnostics stay a deliberate choice
+			voiceTrace: true,                 // diagnostics stay a choice made in the settings tab
 			elevenLabsApiKey: 'sk-from-file', // secrets never come from a file
 			obsPassword: 'hunter2',
 			remoteKey: 'attacker-chosen',

@@ -14,6 +14,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **An imported settings file or profile can no longer change network settings without asking.** Applying a profile, or importing a settings or profile file, now takes only settings the plugin defines, with the right type and never a password or key, and runs them through the same checks as the settings saved on disk. If it would open the remote server to the network, move a port, connect to OBS on another computer, start recording or streaming on Play, or send your script to ElevenLabs, a dialog lists each change and nothing is applied unless you confirm. Before, a profile file was stored as it came and applied unchecked.
 - **The voice trace is a visible switch, off by default, and has a size limit.** Settings → Voice tracking → Write a voice trace says what it saves (the whole script and every word heard) and where. The file `voice-trace.jsonl` now stops at 5 MB and moves to `voice-trace.1.jsonl`, so at most about 10 MB is ever kept; before, it grew without limit. A profile or imported file can no longer turn it on. The never-written `error-log.jsonl` code is gone.
 
+### Documentation
+- ATTACKSURFACE.md rewritten against this version's code: who each surface is exposed to (vault authors, imported files, the local network, web pages, other programs), severity before and after each fix, what a remote client can do (the microphone and OBS scenes included), every file and cache the plugin leaves on disk, and the three fixes above. A test now fails when a cited line no longer exists or a surface lacks a summary row. SECURITY.md takes the same scope, and the README's "What it touches" says which programs on this computer can reach the server.
+
 ## [0.12.17] - 2026-11-27
 
 ### Changed

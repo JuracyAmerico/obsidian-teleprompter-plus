@@ -4,7 +4,8 @@
  * This is the mobile-first web interface for controlling the teleprompter
  * from a phone or tablet on the same network.
  *
- * Generated from remote-interface.html
+ * This string is the page: edit it here. (A separate remote-interface.html copy was never served,
+ * fell behind, and was deleted in 0.12.18.)
  */
 
 export const REMOTE_INTERFACE_HTML = `<!DOCTYPE html>

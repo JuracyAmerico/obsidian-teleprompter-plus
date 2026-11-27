@@ -56,16 +56,16 @@ Teleprompter Plus is desktop only. Everything below is off or local by default u
 **Files outside the vault:**
 
 - It runs, and never writes, the two folders above. The Kokoro model, once downloaded, sits in the `mlx-audio` library's own cache.
-- In the system temp folder: `teleprompter-stt-context.txt` (up to 100 names and numbers from the script, given to the speech helper as word hints) and `teleprompter-tts-kokoro-<time>/` (the Kokoro audio of the sentences read aloud).
+- In the system temp folder: `teleprompter-stt-context.txt` (up to 100 of the script's rarest words, given to the speech helper as word hints; replaced at each start and not deleted) and `teleprompter-tts-kokoro-<time>/` (the Kokoro audio of the sentences read aloud, deleted when the engine closes).
 
-**Inside the vault**, in the plugin's own folder `.obsidian/plugins/teleprompter-plus/`: your settings, `takes.json` (rehearsal takes), `error-log.jsonl`, and `voice-trace.jsonl` only if you set `voiceTrace` to true in the plugin's `data.json` (off by default). A vault sync carries these too. The Vosk model and the ElevenLabs audio cache live in Obsidian's own browser storage.
+**Inside the vault**, in the plugin's own folder `.obsidian/plugins/teleprompter-plus/`: your settings (`data.json`, which holds your ElevenLabs key, OBS password and remote key in plain text, as Obsidian plugins do), `takes.json` (rehearsal takes), and `voice-trace.jsonl` only if you turn on Settings → Voice tracking → *Write a voice trace* (off by default; it holds the whole script and everything heard, up to about 10 MB). A vault sync carries these too. The Vosk model and the ElevenLabs audio cache live in Obsidian's own browser storage.
 
 **Network:**
 
 | Host | When | What goes there |
 |------|------|-----------------|
-| `127.0.0.1:8765` (listens) | At start, unless you turn off Settings → Connection → *Auto-start server* | Commands from the Stream Deck and your own scripts. Only this computer can reach it. |
-| Your local network, same port | Only if you set the server host to `0.0.0.0` for the [phone remote](#phone-remote) | The note's name, section titles and playback state, unencrypted; every request but `/health` needs the remote key |
+| `127.0.0.1:8765` (listens) | At start, unless you turn off Settings → Connection → *Auto-start server* | Commands from the Stream Deck and your own scripts. Other devices cannot reach it. Programs on this computer, and browser pages served from a local or private address (a dev server on `localhost`, a router's page), can, with no key ([SURF-01, SURF-13](ATTACKSURFACE.md#surf-01--surf-02--local-control-server)). Public websites are refused. |
+| Your local network, same port | Only if you set the server host to `0.0.0.0` for the [phone remote](#phone-remote) | The note's name, section titles and playback state, unencrypted; every request but `/health` and `/api/health` needs the remote key |
 | `alphacephei.com` | Once per language, when voice tracking falls back to Vosk | Downloads the speech model (about 40 MB English, 31 MB Portuguese). Nothing is sent. |
 | `api.elevenlabs.io` | Only if you choose ElevenLabs and paste your own key | The text being read, to make the audio. Uses your ElevenLabs credits. |
 | `huggingface.co` | The first time Kokoro speaks | The Kokoro model (about 200 MB). The download is made by the `mlx-audio` Python library, not by the plugin; host taken from its documentation, not checked in its code. |
