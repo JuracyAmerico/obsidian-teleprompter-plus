@@ -1,57 +1,156 @@
-/**
- * ESLint config for local development.
- * Matches ObsidianReviewBot's rules for src/ files.
- *
- * Note: The bot also checks SDL and import rules using its own config.
- * Only obsidianmd + typescript-eslint are needed here.
- */
-import eslint from '@eslint/js';
-import tseslint from 'typescript-eslint';
-import obsidianmd from 'eslint-plugin-obsidianmd';
+// The Obsidian review bot's "Full scanner-equivalent configuration", copied verbatim from
+// eslint-plugin-obsidianmd docs/configuration.md (0.6.0). Do not edit it to quiet a rule.
+// Everything this project adds is in the one block marked "Project addition" below.
+// eslint.config.mjs
+import { defineConfig, globalIgnores } from "eslint/config";
+import obsidianmd from "eslint-plugin-obsidianmd";
 
-export default [
-  eslint.configs.recommended,
-  ...tseslint.configs.recommendedTypeChecked,
+export default defineConfig([
   {
-    files: ['src/**/*.ts'],
-    plugins: {
-      'obsidianmd': obsidianmd,
-    },
     languageOptions: {
       parserOptions: {
-        project: './tsconfig.app.json',
-        ecmaVersion: 2022,
-        sourceType: 'module'
+        projectService: true,
       },
     },
+  },
+
+  ...obsidianmd.configs.recommended,
+
+  {
+    files: ["**/*.{ts,cts,mts,tsx,js,cjs,mjs,jsx}"],
     rules: {
-      // TypeScript handles undefined variables better than no-undef
-      'no-undef': 'off',
-      'no-unused-vars': 'off',
-      'no-self-compare': 'warn',
-      'no-eval': 'error',
-      'no-implied-eval': 'error',
-      'prefer-const': 'off',
-      'no-implicit-globals': 'error',
-      'no-alert': 'error',
-      'no-console': 'off',
-      'no-restricted-globals': [
-        'error',
-        { name: 'app', message: 'Avoid using the global app object. Use the reference from your plugin instance.' },
-      ],
+      // Security — keep as errors
+      "no-eval": "error",
+      "no-unsanitized/method": "error",
+      "no-unsanitized/property": "error",
+      "obsidianmd/regex-lookbehind": "error",
+      "obsidianmd/no-forbidden-elements": "error",
 
-      // TypeScript rules
-      '@typescript-eslint/ban-ts-comment': 'off',
-      '@typescript-eslint/no-deprecated': 'error',
-      '@typescript-eslint/no-unused-vars': ['warn', { args: 'none' }],
-      '@typescript-eslint/require-await': 'off',
-      '@typescript-eslint/no-explicit-any': ['error', { fixToUnknown: true }],
+      // Covered by TypeScript or too noisy
+      "no-undef": "off",
+      "@typescript-eslint/no-unsafe-member-access": "off",
+      "@typescript-eslint/no-unsafe-assignment": "off",
+      "@typescript-eslint/no-unsafe-argument": "off",
+      "@typescript-eslint/no-unsafe-call": "off",
+      "@typescript-eslint/no-unsafe-return": "off",
+      "@typescript-eslint/restrict-template-expressions": "off",
+      "@typescript-eslint/no-base-to-string": "off",
+      "import/no-unresolved": "off",
 
-      // All 25 obsidianmd rules
-      ...obsidianmd.configs.recommended,
-    }
+      // Old plugins should not change their command ids
+      "obsidianmd/commands/no-command-in-command-id": "off",
+      "obsidianmd/commands/no-plugin-id-in-command-id": "off",
+    },
+  },
+
+  {
+    // Security — implied eval, once per call: the core rule in JavaScript,
+    // typescript-eslint's in TypeScript, where the recommended config turns the
+    // core rule off. An "error" for the core rule in the block above would turn
+    // it back on in TypeScript and report each call twice.
+    files: ["**/*.{js,cjs,mjs,jsx}"],
+    rules: {
+      "no-implied-eval": "error",
+    },
   },
   {
-    ignores: ['dist/**', 'node_modules/**', '*.js', '*.mjs']
-  }
-];
+    files: ["**/*.{ts,cts,mts,tsx}"],
+    rules: {
+      "@typescript-eslint/no-implied-eval": "error",
+    },
+  },
+
+  {
+    // Scanner handles this separately. It must be switched off under the glob
+    // the rule actually runs on -- manifest.json matches no source glob, so an
+    // "off" in the block above would not reach it.
+    files: ["manifest.json"],
+    rules: {
+      "obsidianmd/validate-manifest": "off",
+    },
+  },
+
+  {
+    // Scanner handles this separately. It must be switched off under the glob
+    // the rule actually runs on -- LICENSE matches no source glob, so an "off"
+    // in the block above would not reach it.
+    files: ["LICENSE", "LICENSE.md", "LICENSE.txt"],
+    rules: {
+      "obsidianmd/validate-license": "off",
+    },
+  },
+
+  {
+    // The scanner honours disable comments but does not report unused ones
+    linterOptions: {
+      reportUnusedDisableDirectives: "off",
+      reportUnusedInlineConfigs: "off",
+    },
+  },
+
+  {
+    // Project addition (not in the bot's config): a suppression comment in shipped source
+    // has no effect, so it can never turn an error into a pass. src/no-suppressions.test.ts
+    // also fails on one, without depending on ESLint.
+    files: ["src/**/*.ts"],
+    ignores: ["src/**/*.test.ts", "src/test-support/**"],
+    linterOptions: {
+      noInlineConfig: true,
+    },
+  },
+
+  globalIgnores([
+    // Not in the scanner's list: the scanner recognises bundled and minified
+    // JavaScript by its name and, in a TypeScript project, by its content.
+    // These names stand in for that here. Drop "main.js" if your plugin is
+    // written in JavaScript and main.js is its source.
+    "main.js",
+    "**/*.min.js",
+    "**/{dist,build,out,release}/**/*.{js,cjs,mjs,jsx}",
+    "node_modules",
+    "dist",
+    "build",
+    "pkg",
+    "test-vault",
+    ".obsidian",
+    "**/.obsidian/**",
+    "esbuild.config.mjs",
+    "version-bump.mjs",
+    "**/*.test.*",
+    "**/*.tests.*",
+    "**/*.spec.*",
+    "**/*.specs.*",
+    "**/test/**",
+    "**/tests/**",
+    "**/__tests__/**",
+    "**/mocks/**",
+    "**/__mocks__/**",
+    "**/*.cjs",
+    "**/*.mjs",
+    "**/*.cts",
+    "**/*.mts",
+    "**/vite*",
+    "**/scripts/**",
+    "**/docs/**",
+    "**/i18n/**",
+    "**/i18next/**",
+    "**/locale/**",
+    "**/locales/**",
+    "**/translations/**",
+    "**/l10n/**",
+    ".pnpm-store",
+    "**/*.spec.ts",
+    "**/testUtils**",
+    "automation/**",
+    "**/e2e/**",
+    "**/e2e-tests/**",
+    "**/*.e2e.*",
+    "**/wdio.conf.*",
+    "**/wdio.*.conf.*",
+    "**/playwright.config.*",
+    "**/{astro,babel,commitlint,docusaurus,esbuild,eslint,jest,oxlint,postcss,prettier,rolldown,rollup,stylelint,svelte,tailwind,tsdown,tsup,uno,webpack}.config.*",
+    "**/{eslint,jest}.*.config.*",
+    "**/jest.setup.*",
+    "**/.{babelrc,eslintrc,mocharc,prettierrc}.*",
+  ]),
+]);
