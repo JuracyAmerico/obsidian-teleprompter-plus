@@ -1,6 +1,6 @@
 {
   "name": "teleprompter-plus",
-  "version": "0.12.17",
+  "version": "0.12.18",
   "description": "Read any note as a teleprompter that follows your voice, with a phone remote, rehearsal timing and read-aloud.",
   "private": true,
   "type": "module",

@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.12.18] - 2026-11-27
+
 ### Fixed
 - **The Stream Deck and the phone remote now work on a normal install.** The remote server's WebSocket module (`ws`) was never inside `main.js`, and an install from Community plugins gets only `main.js`, `styles.css` and `manifest.json`, so the server could not start and nothing could connect unless `node_modules/ws` had been copied into the plugin folder by hand. `ws` is now bundled into `main.js` and loads only when the server starts. A `node_modules` folder in the plugin folder is no longer read and can be deleted.
 
