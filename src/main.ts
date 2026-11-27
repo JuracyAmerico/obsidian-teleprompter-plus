@@ -32,7 +32,7 @@ interface ExtendedBroadcastState extends Partial<TeleprompterState> {
 }
 
 export default class TeleprompterPlusPlugin extends Plugin {
-	settings!: TeleprompterSettings
+	declare settings: TeleprompterSettings
 	wsServer: TeleprompterWebSocketServer | null = null
 	readonly floatingSession = new FloatingSession()
 	private obsService: OBSService | null = null
