@@ -1,0 +1,10 @@
+{
+  "sha": "c5b98f094cb1a8f4f32aa470ec08d9a92080aa9f",
+  "ref": "review/0.12.18",
+  "date": "2026-11-27T18:30:00-05:00",
+  "status": "Completed",
+  "errors": 0,
+  "warnings": -1,
+  "warnings_note": "Read from Americo screenshot: Completed, only Warning rows visible; full warning count not read",
+  "source": "community.obsidian.md preview scan"
+}
