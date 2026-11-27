@@ -1,0 +1,10 @@
+{
+  "sha": "78308b129d5a3018689e847db25845eb2f0b474e",
+  "ref": "review/0.12.17",
+  "date": "2026-11-27T16:08:00-05:00",
+  "status": "Completed",
+  "errors": 0,
+  "warnings": -1,
+  "warnings_note": "Americo read 'Commit: 78308b1 Completed' on the account page; the warning count was not read",
+  "source": "community.obsidian.md preview scan"
+}
