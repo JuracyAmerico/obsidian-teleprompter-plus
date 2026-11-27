@@ -26,6 +26,8 @@ export interface RecordedMatch {
 	proposedWord: string
 	global: boolean
 	total: number
+	/** Where the page was when a wide re-sync searched around it (traces written since this was added). */
+	page?: number
 }
 
 /** A go-back-and-re-read the app committed: the place moved to `to`. */
@@ -46,6 +48,8 @@ export interface TracedScript {
 	wrappedWords?: number
 	wordList?: string
 	wordsHash?: string
+	/** Heading words of the word list, as index runs (traces written since this was added). */
+	headingWords?: string
 }
 
 export interface TraceSession {
@@ -154,6 +158,7 @@ export function readTraceSessions(files: TraceFile[]): TraceSession[] {
 					wrappedWords: num(record.words),
 					wordList: str(record.wordList),
 					wordsHash: str(record.wordsHash),
+					headingWords: str(record.headingWords),
 				}
 				break
 			case 'status':
@@ -198,6 +203,7 @@ export function readTraceSessions(files: TraceFile[]): TraceSession[] {
 					proposedWord: str(record.proposedWord) ?? '?',
 					global: record.global === true,
 					total: num(record.total) ?? -1,
+					...(num(record.page) !== undefined ? { page: num(record.page) } : {}),
 				})
 				break
 			}

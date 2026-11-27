@@ -153,7 +153,7 @@ The server does not check that a parameter is present; what a handler does witho
 | `cycle-alignment` | none | Cycles text alignment |
 | `cycle-progress-indicator` | none | Cycles the progress indicator style |
 | `toggle-auto-pause` | none | Turns auto-pause on editor focus on or off |
-| `start-countdown` | none | Stops scrolling and runs the pre-roll countdown |
+| `start-countdown` | none | Stops scrolling and runs the pre-roll countdown; sent again while it runs, it cancels it |
 | `toggle-pin` | none | Pins or unpins the note, locking what the prompter shows |
 | `toggle-floating` | none | Opens the floating window, or closes it when open |
 | `floating-unlock` | none | Unlocks a locked floating window, so clicks land on it again |

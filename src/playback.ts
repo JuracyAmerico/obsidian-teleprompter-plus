@@ -270,3 +270,13 @@ export function wordsRemaining(totalWords: number, fraction: number): number {
 	const share = Number.isFinite(fraction) ? Math.min(1, Math.max(0, fraction)) : 0
 	return Math.max(0, totalWords - Math.floor(totalWords * share))
 }
+
+/**
+ * What a start-countdown press does (the Stream Deck key, the phone's button, the command): while a
+ * countdown runs, the same press cancels it, as Space and the Play button ("Cancel countdown")
+ * already do. It used to cancel and start again, so the countdown could never be stopped from the
+ * key that started it.
+ */
+export function countdownPress(counting: boolean): 'cancel' | 'start' {
+	return counting ? 'cancel' : 'start'
+}

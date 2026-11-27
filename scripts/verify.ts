@@ -15,6 +15,10 @@ export interface Gate {
 
 export function gates(latest: LatestVersion = registryLatest): Gate[] {
 	return [
+		// node_modules must be exactly what bun.lock says before any other gate reads it: a stale
+		// install once made the icon test compare against lucide-static 1.17 while the lockfile said
+		// 1.79 (2026-11-27). Fails if bun.lock is out of date with package.json.
+		{ name: 'deps', run: ['bun', 'install', '--frozen-lockfile'] },
 		{ name: 'freshness', run: (root) => runFreshness(root, latest) },
 		{ name: 'check', run: ['bun', 'run', 'check'] },
 		{ name: 'test', run: ['bun', 'test'] },

@@ -1,6 +1,6 @@
 # Teleprompter Plus (T+) — Stream Deck icon set
 
-78 cohesive Stream Deck button icons for the Teleprompter Plus Obsidian plugin.
+91 cohesive Stream Deck button icons for the Teleprompter Plus Obsidian plugin.
 Open **`Teleprompter Plus Icons.html`** for the live contact sheet.
 
 ## Design system
@@ -19,9 +19,11 @@ Open **`Teleprompter Plus Icons.html`** for the live contact sheet.
 | neutral| `#cbd5e1` | plain toggles · info · misc |
 
 ## Files
-- `icons/tp-*.svg` — 78 source SVGs (72×72, background baked).
-- `icons/png-288/` — 288×288 PNG masters (**use these** — 4×, Elgato downscales crisply).
-- `icons/png-144/` — 144×144 PNG (@2×).
+- `tp-*.svg` — 91 source SVGs (72×72, background baked), plus `tp-*-on.svg`, the lit state of the eight two-state keys (purple tint, `#7c6cf6` ring, green dot).
+- `png-72/` and `png-144/` — the sizes Elgato asks for on a key: 72×72 and 144×144 (@2x).
+- `png-288/` — 288×288, for print and contact sheets.
+- `action-list/` — the action-list icons: white on transparent, `tp-*.svg`, `tp-*.png` (20×20) and `tp-*@2x.png` (40×40).
+- `profile/` — previews of the Stream Deck XL profile, three pages and the key states (see `docs/stream-deck-profile.md`).
 - `icons-data.js` — single source of truth (paths/text + colours + notes) **and** the shared `TP_BUILD()` renderer used by both the contact sheet and the exporter, so they never drift.
 
 ### Choice-set tiles
@@ -31,7 +33,7 @@ Two categories are intentionally *not* abstract glyphs — they read better as s
 Both are defined as `text` items in `icons-data.js` (no `inner` paths).
 
 ## Re-exporting
-All geometry lives in `icons-data.js`. To tweak an icon, edit its `inner` path string (72-grid coords) or `color`, then regenerate the SVGs and PNGs. PNGs are produced by rasterising each SVG at 288 and 144.
+All geometry lives in `icons-data.js`. To tweak an icon, edit its `inner` path string (72-grid coords) or `color`, then run `bun run icons:streamdeck` (`scripts/streamdeck-profile.ts`). It rewrites the SVGs whose drawing changed, every PNG (with `rsvg-convert`; ImageMagick drops stroked paths on some installs), the action-list icons, the profile previews and the layout tables in `docs/stream-deck-profile.md`.
 
 ## Icon index (metaphor · colour role)
 
@@ -39,7 +41,7 @@ All geometry lives in `icons-data.js`. To tweak an icon, edit its `inner` path s
 - `tp-play` — solid play triangle · green (start)
 - `tp-pause` — two solid bars · red
 - `tp-play-pause` — triangle + bars combined · neutral (toggle)
-- `tp-reset-to-top` — up-arrow to a top bar · blue (nav)
+- `tp-reset-to-top` — solid triangle up against a top bar · blue (nav)
 - `tp-open-teleprompter` — the brand mark: screen + 3 lines (bright middle) + eyeline caret · purple
 
 **Speed**
@@ -62,7 +64,7 @@ All geometry lives in `icons-data.js`. To tweak an icon, edit its `inner` path s
 - `tp-next-section` — down arrow onto a section line · blue
 - `tp-previous-section` — up arrow off a section line · blue
 - `tp-scroll-up` / `tp-scroll-down` — scrollbar thumb high/low + arrow · blue
-- `tp-toggle-nav-panel` — screen + left sidebar column · blue
+- `tp-toggle-nav-panel` — list of headings, the current one bright · blue
 - `tp-toggle-minimap` — screen + right line-stack · blue
 
 **Display / View**
@@ -108,6 +110,16 @@ All geometry lives in `icons-data.js`. To tweak an icon, edit its `inner` path s
 - `tp-toggle-scroll-sync` — two curved sync arrows · blue
 - `tp-refresh-pinned` — refresh ring around a pinned dot · neutral
 - `tp-websocket-info` — info circle · neutral
+
+**Deck and rehearsal**
+- `tp-voice` — microphone · green
+- `tp-clock` — stopwatch with hands · blue
+- `tp-start-countdown` — stopwatch holding a solid play triangle · purple
+- `tp-open-active-file` — note page + arrow into the prompter · purple
+- `tp-home` — house · neutral
+- `tp-page-next` / `tp-page-prev` — chevron · purple; `tp-page-first` — double back chevron against a bar · purple
+- `tp-capture` / `tp-light` / `tp-command` — crop marks, bulb, command sign · neutral: stand-ins for the principal's own Snagit, Lights and Keyboard Maestro keys in previews
+- `tp-capture-region` / `tp-capture-scroll` — dashed selection + crosshair, tall dashed page + down arrow · neutral: proposed Snagit Region and Scrolling keys
 
 **OBS**
 - `tp-obs-connect` — joined chain link · green

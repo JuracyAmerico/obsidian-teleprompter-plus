@@ -1,5 +1,5 @@
 /* ============================================================
-   Teleprompter Plus (T+) — Stream Deck icon set  (78 icons)
+   Teleprompter Plus (T+) — Stream Deck icon set  (91 icons)
    Single source of truth. Loaded by the contact sheet AND read
    by the SVG exporter, so the family stays perfectly consistent.
 
@@ -45,8 +45,8 @@ var TP_GROUPS = [
         note: 'Combined triangle + bars = play/pause toggle. Neutral = stateful toggle.',
         inner: `<path d="M21 23 L21 49 L39 36 Z" fill="${N}"/><rect x="44" y="23" width="6.5" height="26" rx="3.25" fill="${N}"/><rect x="53.5" y="23" width="6.5" height="26" rx="3.25" fill="${N}"/>` },
       { id: 'tp-reset-to-top', color: B,
-        note: 'Up-arrow to a top bar = jump to the very top. Blue = navigation.',
-        inner: `<line x1="22" y1="20" x2="50" y2="20"/><path d="M36 52 L36 30"/><path d="M26 39 L36 29 L46 39"/>` },
+        note: 'Solid triangle up against a top bar (skip-to-start turned upright) = back to the very top, paused. A filled transport glyph, so it never reads as the stroked previous-section arrow. Blue = navigation.',
+        inner: `<line x1="21" y1="19" x2="51" y2="19"/><path d="M36 28 L51 50 L21 50 Z" fill="${B}"/>` },
       { id: 'tp-open-teleprompter', color: P,
         note: 'THE BRAND MARK: prompter screen, three lines (middle = bright active reading line), left-pointing eyeline caret. Purple = open / T+.',
         inner: `<rect x="13" y="16" width="46" height="34" rx="7"/><line x1="22" y1="25" x2="41" y2="25" opacity="0.4"/><line x1="22" y1="33" x2="47" y2="33"/><line x1="22" y1="41" x2="37" y2="41" opacity="0.4"/><path d="M54 28 L49 33 L54 38"/>` },
@@ -108,8 +108,8 @@ var TP_GROUPS = [
         inner: `<rect x="43" y="15" width="9" height="42" rx="4.5" opacity="0.35"/><rect x="43" y="15" width="9" height="18" rx="4.5" fill="${B}" stroke="none"/><path d="M26 50 L26 24"/><path d="M19 31 L26 24 L33 31"/>` },
       { id: 'tp-scroll-down', color: B, note: 'Scrollbar thumb low + down arrow = scroll down. Mirror of scroll-up.',
         inner: `<rect x="43" y="15" width="9" height="42" rx="4.5" opacity="0.35"/><rect x="43" y="39" width="9" height="18" rx="4.5" fill="${B}" stroke="none"/><path d="M26 24 L26 50"/><path d="M19 43 L26 50 L33 43"/>` },
-      { id: 'tp-toggle-nav-panel', color: B, note: 'Screen with a left sidebar column = nav / outline panel toggle. Blue.',
-        inner: `<rect x="14" y="18" width="44" height="36" rx="6"/><line x1="29" y1="18" x2="29" y2="54"/><line x1="20" y1="27" x2="24" y2="27"/><line x1="20" y1="36" x2="24" y2="36"/><line x1="20" y1="45" x2="24" y2="45"/>` },
+      { id: 'tp-toggle-nav-panel', color: B, note: 'A list of headings, the current one bright and indented under a section mark = the sections panel. Kept apart from the minimap, which is a screen. Blue.',
+        inner: `<circle cx="17" cy="21" r="3.2" fill="${B}" stroke="none"/><line x1="26" y1="21" x2="56" y2="21"/><line x1="26" y1="36" x2="52" y2="36" opacity="0.45"/><circle cx="17" cy="36" r="3.2" fill="${B}" stroke="none" opacity="0.45"/><circle cx="17" cy="51" r="3.2" fill="${B}" stroke="none" opacity="0.45"/><line x1="26" y1="51" x2="46" y2="51" opacity="0.45"/>` },
       { id: 'tp-toggle-minimap', color: B, note: 'Screen with a stack of short lines on the right = minimap toggle. Blue.',
         inner: `<rect x="14" y="18" width="44" height="36" rx="6"/><line x1="44" y1="20" x2="44" y2="52" opacity="0.45"/><line x1="48" y1="27" x2="54" y2="27"/><line x1="48" y1="33" x2="54" y2="33"/><line x1="48" y1="39" x2="54" y2="39"/><line x1="48" y1="45" x2="54" y2="45"/><line x1="20" y1="30" x2="38" y2="30" opacity="0.35"/><line x1="20" y1="38" x2="33" y2="38" opacity="0.35"/>` },
     ]
@@ -214,6 +214,38 @@ var TP_GROUPS = [
     ]
   },
   {
+    name: 'Deck and rehearsal',
+    note: 'Keys the 0.12 deck gained (voice, clock, start countdown, open file) and the page keys of the XL profile.',
+    icons: [
+      { id: 'tp-voice', color: G, note: 'Microphone = voice-tracked scrolling. Green = start / listening.',
+        inner: `<rect x="28" y="13" width="16" height="27" rx="8"/><path d="M20 34 a16 16 0 0 0 32 0"/><line x1="36" y1="50" x2="36" y2="57"/><line x1="28" y1="57" x2="44" y2="57"/>` },
+      { id: 'tp-clock', color: B, note: 'Stopwatch = rehearsal clock (time left against the take target). Blue = time read-out.',
+        inner: `<circle cx="36" cy="40" r="16"/><path d="M36 31 L36 40 L43 44"/><line x1="31" y1="15" x2="41" y2="15"/><line x1="36" y1="15" x2="36" y2="24"/>` },
+      { id: 'tp-start-countdown', color: P, note: 'Stopwatch holding a solid play triangle = start the pre-roll countdown. Purple = countdown.',
+        inner: `<circle cx="36" cy="40" r="16"/><path d="M31 32 L31 48 L44 40 Z" fill="${P}"/><line x1="31" y1="15" x2="41" y2="15"/><line x1="36" y1="15" x2="36" y2="24"/>` },
+      { id: 'tp-open-active-file', color: P, note: 'Note page with a reading line + arrow into the prompter = load the active note. Purple = open.',
+        inner: `<path d="M17 14 H32 L41 23 V54 a3 3 0 0 1 -3 3 H17 a3 3 0 0 1 -3 -3 V17 a3 3 0 0 1 3 -3 Z"/><path d="M32 14 V23 H41"/><line x1="20" y1="34" x2="34" y2="34"/><line x1="20" y1="42" x2="30" y2="42" opacity="0.45"/><line x1="46" y1="38" x2="59" y2="38"/><path d="M53 32 L59 38 L53 44"/>` },
+      { id: 'tp-home', color: N, note: 'House = back to the home profile (the principal\'s own key 1). Neutral = system.',
+        inner: `<path d="M15 35 L36 17 L57 35"/><path d="M21 31 V55 H51 V31"/><path d="M31 55 V44 H41 V55"/>` },
+      { id: 'tp-page-next', color: P, note: 'Forward chevron = next page. T+ accent purple marks deck navigation.',
+        inner: `<path d="M29 18 L47 36 L29 54"/>` },
+      { id: 'tp-page-prev', color: P, note: 'Back chevron = previous page. Mirror of next.',
+        inner: `<path d="M43 18 L25 36 L43 54"/>` },
+      { id: 'tp-page-first', color: P, note: 'Double back chevron against a bar = back to page 1, on the last page.',
+        inner: `<line x1="18" y1="20" x2="18" y2="52"/><path d="M40 20 L26 36 L40 52"/><path d="M55 20 L41 36 L55 52"/>` },
+      { id: 'tp-capture', color: N, note: 'Crop marks = screen capture. Stand-in for the principal\'s own Snagit key in previews.',
+        inner: `<path d="M24 13 V48 H59"/><path d="M13 24 H48 V59"/>` },
+      { id: 'tp-light', color: N, note: 'Light bulb = studio lights toggle. Stand-in for the principal\'s own Lights key in previews.',
+        inner: `<path d="M28 45 a15 15 0 1 1 16 0 c-1.5 1.5 -2 3.5 -2 5 H30 c0 -1.5 -0.5 -3.5 -2 -5 Z"/><line x1="30" y1="57" x2="42" y2="57"/>` },
+      { id: 'tp-command', color: N, note: 'Command loop sign = switch to the Keyboard Maestro profile. Stand-in for the principal\'s own key in previews.',
+        inner: `<path d="M29 23 V49 M43 23 V49 M23 29 H49 M23 43 H49"/><circle cx="23" cy="23" r="6"/><circle cx="49" cy="23" r="6"/><circle cx="23" cy="49" r="6"/><circle cx="49" cy="49" r="6"/>` },
+      { id: 'tp-capture-region', color: N, note: 'Dashed selection rectangle + crosshair = Snagit region capture. Proposal; the key sends a Snagit preset shortcut.',
+        inner: `<rect x="12" y="13" width="38" height="30" rx="3" stroke-dasharray="5 6"/><line x1="54" y1="42" x2="54" y2="62"/><line x1="44" y1="52" x2="64" y2="52"/>` },
+      { id: 'tp-capture-scroll', color: N, note: 'Tall dashed page + down arrow = Snagit scrolling capture. Proposal; the key sends a Snagit preset shortcut.',
+        inner: `<rect x="14" y="10" width="28" height="52" rx="3" stroke-dasharray="5 6"/><line x1="22" y1="26" x2="34" y2="26"/><line x1="22" y1="36" x2="34" y2="36"/><path d="M54 18 V52"/><path d="M47 45 L54 52 L61 45"/>` },
+    ]
+  },
+  {
     name: 'OBS',
     icons: [
       { id: 'tp-obs-connect', color: G, note: 'Linked chain (joined) = OBS connect. Green = connect.',
@@ -250,12 +282,12 @@ var TP_GROUPS = [
     name: 'Fonts',
     note: 'Choice tiles — a big “Aa” rendered in each font family on the dark key.',
     icons: [
-      { id: 'tp-font-system',   color: '#e8e8ef', bg: BG, text: 'Aa', font: 'system-ui, -apple-system, "Segoe UI", sans-serif', fontSize: 40, fontWeight: 600, textY: 49, note: 'System font sample.' },
-      { id: 'tp-font-sans',     color: '#e8e8ef', bg: BG, text: 'Aa', font: 'Helvetica, Arial, sans-serif',                  fontSize: 40, fontWeight: 600, textY: 49, note: 'Sans-serif font sample.' },
-      { id: 'tp-font-serif',    color: '#e8e8ef', bg: BG, text: 'Aa', font: 'Georgia, "Times New Roman", serif',             fontSize: 40, fontWeight: 600, textY: 49, note: 'Serif font sample.' },
-      { id: 'tp-font-mono',     color: '#e8e8ef', bg: BG, text: 'Aa', font: '"Courier New", ui-monospace, monospace',        fontSize: 38, fontWeight: 600, textY: 49, note: 'Monospace font sample.' },
-      { id: 'tp-font-readable', color: '#e8e8ef', bg: BG, text: 'Aa', font: 'Verdana, Tahoma, sans-serif',                   fontSize: 38, fontWeight: 500, textY: 49, note: 'Readable (humanist) font sample.' },
-      { id: 'tp-font-slab',     color: '#e8e8ef', bg: BG, text: 'Aa', font: '"Roboto Slab", Rockwell, Georgia, serif',       fontSize: 40, fontWeight: 700, textY: 49, note: 'Slab-serif font sample.' },
+      { id: 'tp-font-system',   color: '#e8e8ef', bg: BG, text: 'Aa', font: 'system-ui, -apple-system, "Segoe UI", sans-serif', fontSize: 32, fontWeight: 600, textY: 47, note: 'System font sample.' },
+      { id: 'tp-font-sans',     color: '#e8e8ef', bg: BG, text: 'Aa', font: 'Helvetica, Arial, sans-serif',                  fontSize: 32, fontWeight: 600, textY: 47, note: 'Sans-serif font sample.' },
+      { id: 'tp-font-serif',    color: '#e8e8ef', bg: BG, text: 'Aa', font: 'Georgia, "Times New Roman", serif',             fontSize: 32, fontWeight: 600, textY: 47, note: 'Serif font sample.' },
+      { id: 'tp-font-mono',     color: '#e8e8ef', bg: BG, text: 'Aa', font: '"Courier New", ui-monospace, monospace',        fontSize: 31, fontWeight: 600, textY: 47, note: 'Monospace font sample.' },
+      { id: 'tp-font-readable', color: '#e8e8ef', bg: BG, text: 'Aa', font: 'Verdana, Tahoma, sans-serif',                   fontSize: 31, fontWeight: 500, textY: 47, note: 'Readable (humanist) font sample.' },
+      { id: 'tp-font-slab',     color: '#e8e8ef', bg: BG, text: 'Aa', font: '"Roboto Slab", Rockwell, Georgia, serif',       fontSize: 32, fontWeight: 700, textY: 47, note: 'Slab-serif font sample.' },
     ]
   },
 ];

@@ -4,6 +4,8 @@
  *   bun run bench:voice                 # every voice-trace*.jsonl of the vault's plugin folder
  *   bun run bench:voice -- --json       # machine-readable report
  *   bun run bench:voice -- --trace a.jsonl --trace b.jsonl --vault ~/Notes --settings data.json
+ *   bun run bench:voice -- --day 2026-11-05           # score only sessions that started that day (UTC)
+ *   bun run bench:voice -- --not-day 2026-11-05       # score every session but those
  *
  * Replays each recorded session through the CURRENT VoiceTrackingService, at the recorded timing, and
  * compares where the matcher put the reader with an offline ground truth. Read-only: trace files, the
@@ -37,7 +39,7 @@ import { existsSync, readdirSync, readFileSync, statSync } from 'fs'
 import { join, relative } from 'path'
 import { obsidianStub } from '../src/test-support/obsidian-stub'
 import { runBench, type BenchReport, type NoteLookup } from '../src/voice/bench/bench'
-import { percentile, type SessionMetrics } from '../src/voice/bench/metrics'
+import { overallMetrics, percentile, type SessionMetrics } from '../src/voice/bench/metrics'
 import { contentMatchingSize } from '../src/voice/bench/script-words'
 import { readTraceSessions, type TraceSession } from '../src/voice/bench/trace'
 import type { VoiceTrackingConfig } from '../src/voice/types'
@@ -55,10 +57,14 @@ interface Options {
 	vault: string
 	settings: string
 	json: boolean
+	/** Score only sessions that started on these UTC days (YYYY-MM-DD); empty means every day. */
+	days: string[]
+	/** Leave out sessions that started on these UTC days. */
+	notDays: string[]
 }
 
 function usage(message: string): never {
-	console.error(`${message}\nusage: bun run bench:voice -- [--trace FILE]... [--vault DIR] [--settings data.json] [--json]`)
+	console.error(`${message}\nusage: bun run bench:voice -- [--trace FILE]... [--vault DIR] [--settings data.json] [--day YYYY-MM-DD]... [--not-day YYYY-MM-DD]... [--json]`)
 	process.exit(2)
 }
 
@@ -66,7 +72,11 @@ function parseOptions(argv: string[]): Options {
 	const home = process.env.HOME
 	if (!home) usage('HOME is not set')
 	const vault = join(home, 'Documents', 'Notes')
-	const options: Options = { traces: [], vault, settings: '', json: false }
+	const options: Options = { traces: [], vault, settings: '', json: false, days: [], notDays: [] }
+	const day = (value: string): string => {
+		if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) usage(`a day is YYYY-MM-DD, not ${value}`)
+		return value
+	}
 	for (let i = 0; i < argv.length; i++) {
 		const arg = argv[i]
 		const value = (): string => {
@@ -78,6 +88,8 @@ function parseOptions(argv: string[]): Options {
 		else if (arg === '--vault') options.vault = value()
 		else if (arg === '--settings') options.settings = value()
 		else if (arg === '--json') options.json = true
+		else if (arg === '--day') options.days.push(day(value()))
+		else if (arg === '--not-day') options.notDays.push(day(value()))
 		else usage(`unknown argument ${arg}`)
 	}
 	const pluginDir = join(options.vault, '.obsidian', 'plugins', 'teleprompter-plus')
@@ -208,7 +220,18 @@ const options = parseOptions(process.argv.slice(2))
 const { config, languageSetting } = matcherConfig(options.settings)
 const sessions = readTraceSessions(options.traces.map(file => ({ file: file.split('/').pop() ?? file, text: readFileSync(file, 'utf8') })))
 const { VoiceTrackingService } = await import('../src/voice/voice-tracking-service')
-const report = runBench(VoiceTrackingService, sessions, vaultLookup(options.vault), config, languageSetting)
+const full = runBench(VoiceTrackingService, sessions, vaultLookup(options.vault), config, languageSetting)
+// Every session is replayed, in order, so a session starts its page where the view's previous one left it;
+// the day filter only chooses which of them are scored.
+const startDay = (session: TraceSession): string => new Date(session.start).toISOString().slice(0, 10)
+const scoredDay = (session: TraceSession): boolean =>
+	(options.days.length === 0 || options.days.includes(startDay(session))) && !options.notDays.includes(startDay(session))
+const kept = full.sessions.filter(s => scoredDay(s.session))
+const report: BenchReport = {
+	sessions: kept,
+	unresolved: full.unresolved.filter(u => scoredDay(u.session)),
+	overall: overallMetrics(kept),
+}
 
 if (options.json) {
 	console.log(JSON.stringify({
@@ -216,6 +239,7 @@ if (options.json) {
 		sessions: report.sessions.map(s => ({
 			id: s.session.id,
 			words: s.resolution.words.length,
+			headingWords: s.resolution.headings.length,
 			scriptFrom: s.resolution.origin,
 			notePath: s.resolution.notePath,
 			language: s.resolution.language,

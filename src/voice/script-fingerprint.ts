@@ -36,3 +36,29 @@ export function scriptHash(text: string): string {
 export function wordListText(words: readonly { value: string }[]): string {
 	return words.map(word => word.value).join(' ')
 }
+
+/** Which words sit in a heading, as ascending index runs: "3-5 40-47". Empty when none do. */
+export function headingRangesText(words: readonly { heading?: boolean }[]): string {
+	const runs: string[] = []
+	for (let i = 0; i < words.length; i++) {
+		if (!words[i].heading) continue
+		let end = i
+		while (end + 1 < words.length && words[end + 1].heading) end++
+		runs.push(end === i ? String(i) : `${i}-${end}`)
+		i = end
+	}
+	return runs.join(' ')
+}
+
+/** The word indexes of a `headingRangesText` line. Anything that is not a run is skipped. */
+export function parseHeadingRanges(text: string): number[] {
+	const indexes: number[] = []
+	for (const run of text.split(' ')) {
+		const match = /^(\d+)(?:-(\d+))?$/.exec(run)
+		if (!match) continue
+		const first = Number(match[1])
+		const last = match[2] === undefined ? first : Number(match[2])
+		for (let i = first; i <= last; i++) indexes.push(i)
+	}
+	return indexes
+}

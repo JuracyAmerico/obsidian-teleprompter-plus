@@ -15,6 +15,8 @@ export interface TextElement {
   value: string
   /** Position index in the token array */
   index: number
+  /** A word of a heading: readers often pass over these without saying them. Words only. */
+  heading?: boolean
 }
 
 /**
@@ -27,6 +29,11 @@ export interface MatchResult {
   token: TextElement | null
   /** How well the last heard words align with the script ending at that word, 0-1 (1 = exact) */
   confidence: number
+  /**
+   * The same alignment with each heard word weighed as it costs to leave out (short words at half), 0-1.
+   * Two short words that happen to match ("I'm") carry the confidence of a whole tail; they carry little here.
+   */
+  support: number
 }
 
 /**

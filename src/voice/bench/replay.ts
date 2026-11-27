@@ -72,7 +72,50 @@ export function externalMoves(heard: HeardEvent[], matches: RecordedMatch[], rer
 	return moves
 }
 
+/** How far either side of the page the app's wide re-sync looks (VoiceTrackingService.GLOBAL_SEARCH_RADIUS). */
+const SEARCH_RADIUS = 120
+/** A heard word or two dropped or added, and the re-sync's re-alignment of its last word (END_ALIGN_RADIUS). */
+const SEARCH_SLACK = 5
 /**
+ * How far past the place a re-sync can land without the wide search: the local look-ahead (23 words,
+ * longer than any preset's window) and the re-alignment slack. A proposal this close says nothing about the page.
+ */
+const NEARBY_REACH = 26
+
+/**
+ * Where the page sat when the session started, as far as the trace tells, or null when it does not.
+ *
+ * A session can start on a section the reader scrolled to before the microphone came on. Nothing moved
+ * the matcher yet, so no recorded decision shows that as a move, and the replay would search around the
+ * wrong page and never find the reader. The app's first wide re-sync, before it moved the place, does
+ * show it: newer traces record the page it searched around; in older ones the word it proposed bounds
+ * the page, because the search only looks SEARCH_RADIUS words either side of the page. Only the start is
+ * taken from the trace: later the page follows the place, and the place is the replayed matcher's own.
+ */
+export function startPageBound(heard: HeardEvent[], matches: RecordedMatch[], words: number): { low: number; high: number; page: number } | null {
+	const first = matches[0]
+	if (!first) return null
+	for (const match of matches) {
+		if (match.cur !== first.cur) return null // the app moved the place before any wide re-sync
+		if (!match.global) continue
+		if (match.page !== undefined) return { low: match.page, high: match.page, page: match.page }
+		const heardWords = (heard[match.heardIndex]?.text ?? '').split(/\s+/).filter(word => word.length > 0).length
+		// A re-sync can also land just ahead of the place, without the wide search. That says nothing about the page.
+		if (match.proposed >= match.cur && match.proposed - match.cur <= NEARBY_REACH) continue
+		// The proposal is the first heard word (traces before 2026-11-26) or the last one (since): either
+		// way the words it found start within SEARCH_RADIUS of the page.
+		const clamp = (value: number): number => Math.max(0, Math.min(words - 1, value))
+		return {
+			low: clamp(match.proposed - heardWords - SEARCH_RADIUS - SEARCH_SLACK),
+			high: clamp(match.proposed + SEARCH_RADIUS + SEARCH_SLACK),
+			page: clamp(match.proposed - heardWords + 1),
+		}
+	}
+	return null
+}
+
+/**
+ * @param headings - Indexes of the words inside a heading, flagged as the app flags them.
  * @param startPage - The word at the page's reading line when the session starts. A script load resets
  *   the matcher to word 0 but leaves the page where the reader had it, and the re-sync searches around
  *   the page, so this is where the previous session of the same view and script left the place.
@@ -85,6 +128,7 @@ export function replaySession(
 	moves: ExternalMove[],
 	continued: boolean,
 	startPage = 0,
+	headings: ReadonlySet<number> = new Set(),
 ): ReplayResult {
 	const realNow = Date.now
 	let clock = heard[0]?.t ?? 0
@@ -123,7 +167,8 @@ export function replaySession(
 		}
 		const service = new Service({ engine: 'vosk', language: 'en-US', ...config }, recognizer as never)
 		const internals = service as unknown as Internals
-		const tokens: TextElement[] = words.map((value, index) => ({ type: 'TOKEN', value, index }))
+		const tokens: TextElement[] = words.map((value, index) =>
+			headings.has(index) ? { type: 'TOKEN', value, index, heading: true } : { type: 'TOKEN', value, index })
 		internals.wordTokens = tokens
 		internals.tokens = tokens
 		internals.contentArea = { scrollTop: 0, clientHeight: 600, ownerDocument: { defaultView: fakeWindow } }

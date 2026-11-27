@@ -1,7 +1,7 @@
 import { describe, expect, mock, test } from 'bun:test'
 import { obsidianStub } from '../../test-support/obsidian-stub'
 import { BENCH_SAMPLE_HEARD, BENCH_SAMPLE_SCRIPT } from '../fixtures/bench-sample'
-import { renderedScriptWords } from './script-words'
+import { renderedScript } from './script-words'
 import type { TraceSession } from './trace'
 
 void mock.module('obsidian', () => obsidianStub)
@@ -37,10 +37,11 @@ function benchSample() {
 		matches: [],
 		rereads: [],
 	}
-	const words = renderedScriptWords(BENCH_SAMPLE_SCRIPT)
+	const { words, headings } = renderedScript(BENCH_SAMPLE_SCRIPT)
 	const resolution = {
 		ok: true as const,
 		words,
+		headings,
 		origin: 'trace word list' as const,
 		language: 'en-US',
 		check: { compared: 0, agreement: 1, tracedCount: words.length },

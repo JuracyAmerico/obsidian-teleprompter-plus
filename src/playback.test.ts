@@ -6,6 +6,7 @@ import {
 	MAX_FRAME_GAP_MS,
 	clampSpeed,
 	countWords,
+	countdownPress,
 	isAtScriptEnd,
 	scrollFraction,
 	shouldCountDown,
@@ -367,5 +368,33 @@ describe('word count (B7)', () => {
 		expect(wordsRemaining(100, 0.25)).toBe(75)
 		expect(wordsRemaining(100, 1)).toBe(0)
 		expect(wordsRemaining(0, 0.5)).toBe(0)
+	})
+})
+
+describe('ISC-183: a second countdown press cancels', () => {
+	test('a press while a countdown runs cancels it; otherwise it starts one', () => {
+		expect(countdownPress(true)).toBe('cancel')
+		expect(countdownPress(false)).toBe('start')
+	})
+
+	test('pressing twice leaves nothing running and playback never starts', () => {
+		const { timers, countdown, handlers, done } = countdownRig()
+		let counting = false
+		const press = () => {
+			if (countdownPress(counting) === 'cancel') {
+				countdown.cancel()
+				counting = false
+			} else {
+				countdown.start(5, handlers)
+				counting = true
+			}
+		}
+		press()
+		timers.advance(2000)
+		expect(countdown.active).toBe(true)
+		press()
+		expect(countdown.active).toBe(false)
+		timers.advance(10_000)
+		expect(done()).toBe(0)
 	})
 })

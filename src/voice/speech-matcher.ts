@@ -40,14 +40,23 @@ const LOCAL_LOOK_AHEAD = TAIL_WORDS + 18
  */
 const LOCAL_LOOK_BEHIND = 3
 /**
- * A farther candidate pays this much per word of distance (in word-edit units). It breaks ties toward
- * the nearer copy of a repeated phrase without pinning the place behind a reader who moved on.
+ * A farther candidate pays this much per word of distance (in word-edit units, counting words the reader
+ * says, not heading words). It breaks ties toward the nearer copy of a repeated phrase without pinning the
+ * place behind a reader who moved on.
  */
 const PROXIMITY_PENALTY = 0.04
 /** Two words this close (edit distance over length) are the same word said with an accent: "tablo"/"tableau". */
 const SAME_WORD_MAX_DISTANCE = 0.5
 /** Skipping or adding a word this short costs half: recognizers drop and insert "a", "o", "the" freely. */
 const SHORT_WORD_LENGTH = 3
+
+/**
+ * Passing over a heading word unsaid costs this much, when the reader then says a word after it. Readers
+ * skip headings: a section number, a title, the interviewer's question they rehearse the answer to. At a
+ * full word each, "## 2 Who is watching Canada" cost 3.5, more than the first two words of the section
+ * could earn back, and the place waited behind the heading for a whole tail of new words.
+ */
+const HEADING_SKIP_COST = 0.05
 
 /** One word compared with another: 0 identical, up to SAME_WORD_MAX_DISTANCE for an accent, 1 a different word. */
 function wordCost(heard: string, script: string): number {
@@ -74,23 +83,33 @@ function matchKey(word: string): string {
 function tailCostsEndingAt(tail: string[], reference: TextElement[], from: number, to: number): number[] {
   // Room for the tail (and a dropped word or two) to sit wholly before the first candidate
   const start = Math.max(0, from - tail.length - 2)
-  const script = reference.slice(start, to + 1).map(t => matchKey(t.value))
+  const candidates = reference.slice(start, to + 1)
+  const script = candidates.map(t => matchKey(t.value))
+  // Unsaid before a heard word: a heading word costs next to nothing. Unsaid after the last heard word:
+  // full price, heading or not, so the place never runs ahead of the voice over a heading.
+  const passOver = candidates.map((t, j) => (t.heading ? HEADING_SKIP_COST : gapCost(script[j])))
   // previous[j]: cost of the first i heard words ending at script[j - 1]; column 0 is "before the window"
   let previous = new Array<number>(script.length + 1).fill(0)
+  let ended = previous
   for (const heard of tail) {
-    const current = new Array<number>(script.length + 1)
-    current[0] = previous[0] + gapCost(heard)
+    const said = new Array<number>(script.length + 1)
+    const passed = new Array<number>(script.length + 1).fill(Infinity)
+    const trailing = new Array<number>(script.length + 1).fill(Infinity)
+    said[0] = previous[0] + gapCost(heard)
     for (let j = 1; j <= script.length; j++) {
-      current[j] = Math.min(
+      said[j] = Math.min(
         previous[j - 1] + wordCost(heard, script[j - 1]), // heard word is this script word
         previous[j] + gapCost(heard),                     // heard word is not in the script
-        current[j - 1] + gapCost(script[j - 1]),          // script word was not heard
       )
+      // script word j - 1 was not heard
+      passed[j] = Math.min(said[j - 1], passed[j - 1]) + passOver[j - 1]
+      trailing[j] = Math.min(said[j - 1], trailing[j - 1]) + gapCost(script[j - 1])
     }
-    previous = current
+    previous = said.map((cost, j) => Math.min(cost, passed[j]))
+    ended = said.map((cost, j) => Math.min(cost, trailing[j]))
   }
   // Candidate index k sits at column k - start + 1
-  return Array.from({ length: to - from + 1 }, (_, i) => previous[from + i - start + 1])
+  return Array.from({ length: to - from + 1 }, (_, i) => ended[from + i - start + 1])
 }
 
 /**
@@ -146,6 +165,13 @@ export function alignHeardEnd(recognized: string, reference: TextElement[], appr
  */
 export const EVIDENCE_FLOOR = 0.4
 
+/**
+ * A forward move longer than this many said words must be carried by the support, not only the confidence.
+ * Picked on the tune split: 2 and 3 also blocked real catch-ups (lag p95 5 to 6 words); 6 let a false
+ * 6-word move through. Shorter moves follow reading and keep the confidence alone.
+ */
+const FAR_MOVE_WORDS = 4
+
 /** Whether a tail alignment is strong enough to move the place. */
 export function isConfidentMatch(confidence: number, config: SpeechMatcherConfig): boolean {
   return confidence >= EVIDENCE_FLOOR + config.confidenceThreshold
@@ -166,7 +192,10 @@ function bestTailAlignment(recognized: string, reference: TextElement[], place: 
   let best = 0
   let bestScore = Infinity
   for (let i = 0; i < costs.length; i++) {
-    const score = costs[i] + PROXIMITY_PENALTY * Math.abs(first + i - place)
+    // Distance in words the reader says: the first word after a heading is next to the last one before it.
+    const candidate = first + i
+    const distance = candidate >= place ? spokenWordsBetween(reference, place, candidate) : spokenWordsBetween(reference, candidate, place)
+    const score = costs[i] + PROXIMITY_PENALTY * distance
     if (score < bestScore) {
       bestScore = score
       best = i
@@ -174,11 +203,20 @@ function bestTailAlignment(recognized: string, reference: TextElement[], place: 
   }
 
   const matchedWordIndex = first + best
+  const unexplained = tail.reduce((sum, word) => sum + gapCost(word), 0)
   return {
     matchedWordIndex,
     token: reference[matchedWordIndex],
     confidence: Math.max(0, 1 - costs[best] / tail.length),
+    support: Math.max(0, 1 - costs[best] / unexplained),
   }
+}
+
+/** Words the reader says from `from` to `to`, heading words between them passed over unsaid. */
+function spokenWordsBetween(reference: TextElement[], from: number, to: number): number {
+  let said = 0
+  for (let i = from + 1; i <= to; i++) if (!reference[i]?.heading) said++
+  return said
 }
 
 /**
@@ -435,6 +473,14 @@ export function findNextPosition(
   // ending there. (It used to be measured against a window centred on the match, which a correct
   // match ending at that word could fail.)
   if (!isConfidentMatch(result.confidence, config)) {
+    return currentIndex
+  }
+
+  // A longer move must be carried by what was heard, not by a couple of short words that happen to match.
+  // "Yes I'm authorized", re-read from twenty words back, matched only "I'm" in "I'm based in Ontario"
+  // twelve words ahead; at the old confidence (0.6 to 0.75) it moved the place there three times in one
+  // rehearsal, and "scope I'm" did the same off-script. Their support is 0.33 to 0.5.
+  if (spokenWordsBetween(reference, currentIndex, result.matchedWordIndex) > FAR_MOVE_WORDS && !isConfidentMatch(result.support, config)) {
     return currentIndex
   }
 

@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, mock, test } from 'bun:test'
 import { obsidianStub } from '../test-support/obsidian-stub'
-import { scriptHash, wordListText } from './script-fingerprint'
+import { headingRangesText, parseHeadingRanges, scriptHash, wordListText } from './script-fingerprint'
 import { tokenizeWords } from './word-tokenizer'
 
 void mock.module('obsidian', () => obsidianStub)
@@ -20,6 +20,16 @@ describe('scriptHash', () => {
 		const words = tokenizeWords("Don't cross-border, it's 2026.")
 		expect(wordListText(words).split(' ')).toEqual(words.map(w => w.value))
 	})
+
+	test('heading words are written as index runs and read back', () => {
+		const flags = [true, true, false, false, true, false, true, true, true]
+		const words = flags.map(heading => ({ heading }))
+		expect(headingRangesText(words)).toBe('0-1 4 6-8')
+		expect(parseHeadingRanges('0-1 4 6-8')).toEqual([0, 1, 4, 6, 7, 8])
+		expect(headingRangesText([{}, { heading: false }])).toBe('')
+		expect(parseHeadingRanges('')).toEqual([])
+		expect(parseHeadingRanges('2 junk 5-6')).toEqual([2, 5, 6])
+	})
 })
 
 // --- A DOM just large enough for initialize(): one paragraph of text the service wraps in spans. ---
@@ -29,7 +39,7 @@ interface FakeElement {
 	children: unknown[]
 	textContent: string
 	replaceChild: (fragment: { nodes: unknown[] }, old: FakeNode) => void
-	closest: () => null
+	closest: (selector: string) => FakeElement | null
 	classList: { contains: () => boolean; add: () => void; remove: () => void }
 	querySelectorAll: () => unknown[]
 	addEventListener: () => void
@@ -45,11 +55,13 @@ afterEach(() => {
 	;(globalThis as Record<string, unknown>).NodeFilter = saved.NodeFilter
 })
 
-function fakeContentArea(text: string): FakeElement {
+/** A content area holding `text`, after a heading holding `headingText` when one is given. */
+function fakeContentArea(text: string, headingText?: string): FakeElement {
 	const classList = { contains: () => false, add: () => {}, remove: () => {} }
+	const textNodes: FakeNode[] = []
 	const area: FakeElement = {
 		children: [],
-		get textContent() { return text },
+		get textContent() { return headingText === undefined ? text : `${headingText}\n${text}` },
 		replaceChild: (fragment, old) => {
 			area.children.splice(area.children.indexOf(old), 1, ...fragment.nodes)
 		},
@@ -62,12 +74,23 @@ function fakeContentArea(text: string): FakeElement {
 		scrollTop: 0,
 		clientHeight: 600,
 	}
+	if (headingText !== undefined) {
+		const heading: FakeElement = {
+			...area,
+			children: [],
+			textContent: headingText,
+			replaceChild: () => {},
+			closest: (selector: string) => (selector.split(',').map(part => part.trim()).includes('h2') ? heading : null),
+		}
+		textNodes.push({ textContent: headingText, parentElement: heading })
+	}
 	const node: FakeNode = { textContent: text, parentElement: area }
 	area.children.push(node)
+	textNodes.push(node)
 	;(globalThis as Record<string, unknown>).NodeFilter = { SHOW_TEXT: 4, FILTER_ACCEPT: 1, FILTER_REJECT: 2 }
 	globalThis.document = {
 		createTreeWalker: () => {
-			const nodes = area.children.filter((c): c is FakeNode => (c as FakeNode).parentElement === area)
+			const nodes = textNodes
 			let i = -1
 			return {
 				get currentNode() { return nodes[i] },
@@ -84,7 +107,7 @@ function fakeContentArea(text: string): FakeElement {
 	return area
 }
 
-function traceInitialize(script: string, rendered: string, source?: { path: string; mtime: number }) {
+function traceInitialize(script: string, rendered: string, source?: { path: string; mtime: number }, renderedHeading?: string) {
 	const recognizer = {
 		onResult: () => {}, onStatus: () => {}, onError: () => {}, onProgress: () => {},
 		updateGrammar: () => {}, getIsInitialized: () => true, getLanguage: () => 'en-US', dispose: () => {},
@@ -92,7 +115,7 @@ function traceInitialize(script: string, rendered: string, source?: { path: stri
 	const service = new VoiceTrackingService({ engine: 'vosk', language: 'en-US' }, recognizer as never)
 	const events: { event: string; data: Record<string, unknown> }[] = []
 	service.onDiagnostic = (event, data) => events.push({ event, data })
-	service.initialize(script, fakeContentArea(rendered) as unknown as HTMLElement, source)
+	service.initialize(script, fakeContentArea(rendered, renderedHeading) as unknown as HTMLElement, source)
 	return events
 }
 
@@ -123,6 +146,12 @@ describe('the trace records what a replay needs', () => {
 	test('wrapped carries the exact rendered word list the matcher indexes, with its hash', () => {
 		const wrapped = traceInitialize(markdown, rendered).find(e => e.event === 'wrapped')?.data
 		const expected = 'Rehearsal I spent seven years at Tableau'
-		expect(wrapped).toMatchObject({ words: 7, wordList: expected, wordsHash: scriptHash(expected) })
+		expect(wrapped).toMatchObject({ words: 7, wordList: expected, wordsHash: scriptHash(expected), headingWords: '' })
+	})
+
+	test('wrapped names the words that sit in a heading, which the matcher lets a reader pass over', () => {
+		const wrapped = traceInitialize('## Who is watching\n\nFirst the visual', 'First the visual', undefined, 'Who is watching')
+			.find(e => e.event === 'wrapped')?.data
+		expect(wrapped).toMatchObject({ words: 6, wordList: 'Who is watching First the visual', headingWords: '0-2' })
 	})
 })

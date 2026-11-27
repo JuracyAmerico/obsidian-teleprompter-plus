@@ -27,7 +27,7 @@ import {
   type SpeechMatcherConfig,
 } from './speech-matcher'
 import { buildContextHints } from './context-hints'
-import { scriptHash, wordListText, type ScriptSource } from './script-fingerprint'
+import { headingRangesText, scriptHash, wordListText, type ScriptSource } from './script-fingerprint'
 import { VoskRecognizer } from './vosk-recognizer'
 import { AppleSpeechRecognizer } from './apple-speech-recognizer'
 import { SpeechActivityDetector } from './speech-activity-detector'
@@ -46,6 +46,9 @@ const DEFAULT_CONFIG: VoiceTrackingConfig = {
   // Scroll position default (20% from top = 80% runway below)
   scrollPosition: 20
 }
+
+/** Elements whose words are a heading: matched, but passing over them unsaid costs almost nothing. */
+const HEADING_SELECTOR = 'h1, h2, h3, h4, h5, h6'
 
 // Feature flag: Karaoke word highlighting
 const ENABLE_KARAOKE_HIGHLIGHTING = true
@@ -105,6 +108,11 @@ export class VoiceTrackingService {
   // the reader to an unrelated part of the document.
   private pendingGlobalIndex: number = -1
   private readonly GLOBAL_JUMP_CONFIRM_DISTANCE = 25  // words; farther jumps need confirmation
+  // Whether this session has placed the reader yet. Until it has, the place is word 0 of a fresh load or
+  // the last one of a stopped session: a jump "from" it says nothing, so the first wide-search find
+  // commits without waiting for a second (the find itself must be confident, supported and unambiguous).
+  // Waiting cost 2 to 5 s at every session start where the recognizer garbled the next few words.
+  private placeFound = false
 
   // Forward catch-up: when the reader is clearly ahead, snap forward immediately
   // (bypassing the smooth per-step cap + accumulator) so we never trail a fast reader.
@@ -332,6 +340,7 @@ export class VoiceTrackingService {
     this.contentArea = contentArea
     this.attachUserScrollGuard(contentArea)
     this.currentWordIndex = 0
+    this.placeFound = false
     this.lastRecognizedText = ''
 
     // Build word position map
@@ -442,6 +451,9 @@ export class VoiceTrackingService {
 
       const parent = textNode.parentElement
       if (!parent) continue
+      // A heading's words are matched like any other, but a reader who passes over them unsaid is
+      // followed into the section without paying for every word of the heading.
+      const inHeading = parent.closest(HEADING_SELECTOR) !== null
 
       // Wrap words using the SAME tokenizer the matcher uses, so a span's index is
       // IDENTICAL to its wordTokens index. The previous code split on whitespace only,
@@ -479,7 +491,7 @@ export class VoiceTrackingService {
           offsetTop: 0, // Will be updated after DOM insertion
           text: element.value
         })
-        rebuiltTokens.push(element)
+        rebuiltTokens.push(inHeading ? { ...element, heading: true } : element)
 
         globalWordIndex++
       }
@@ -520,6 +532,7 @@ export class VoiceTrackingService {
         spans: this.wordSpans.size,
         wordsHash: scriptHash(wordList),
         wordList,
+        headingWords: headingRangesText(this.wordTokens),
       })
     }
   }
@@ -644,6 +657,7 @@ export class VoiceTrackingService {
 
     // Reset global search state - next start will find position from scratch
     this.needsGlobalSearch = true
+    this.placeFound = false
     this.consecutiveFailedMatches = 0
 
     // Cancel any ongoing scroll animation, and forget speech heard before the stop
@@ -705,6 +719,7 @@ export class VoiceTrackingService {
     // Re-anchor LOCAL matching here. We KNOW where the reader is (they chose it), so resume forward
     // matching from this word — don't arm a global search.
     this.currentWordIndex = clamped
+    this.placeFound = true
     this.lastMatchedIndex = clamped
     this.needsGlobalSearch = false
 
@@ -771,6 +786,7 @@ export class VoiceTrackingService {
    */
   reset(): void {
     this.currentWordIndex = 0
+    this.placeFound = false
     this.lastRecognizedText = ''
 
     // Reset global search state - will search for position on next speech
@@ -917,6 +933,9 @@ export class VoiceTrackingService {
 
     let newIndex: number
     let isGlobalMatch = false  // Flag for global search result
+    // Where the page was when a wide re-sync searched around it. Traced, so a replay starts the page where
+    // the reader had it: a session that begins on a section scrolled to before the microphone came on.
+    let searchedPage: number | undefined
 
     // Re-sync on initial start, on R, and after STALL_RESYNC_THRESHOLD partials without progress.
     // The wide search is bounded near where the reader is looking, so it can't jump to an unrelated
@@ -936,6 +955,7 @@ export class VoiceTrackingService {
       // second my phone is ringing") and, confirmed by its own final, flung the place 30 words ahead.
       const heardEnd = (): number => {
         const hintPosition = this.estimateWordIndexFromScroll()  // where the reader is looking
+        searchedPage = hintPosition
         const heardStart = findGlobalPosition(text, this.wordTokens, matcherConfig, hintPosition, this.GLOBAL_SEARCH_RADIUS)
         if (heardStart < 0) return -1
         const heardWords = tokenize(text).filter(t => t.type === 'TOKEN').length
@@ -972,6 +992,7 @@ export class VoiceTrackingService {
       global: isGlobalMatch,
       fails: this.consecutiveFailedMatches,
       total: this.wordTokens.length,
+      ...(searchedPage !== undefined ? { page: searchedPage } : {}),
     })
 
     if (DEBUG_VOICE_MATCH) {
@@ -1031,7 +1052,7 @@ export class VoiceTrackingService {
       const confirmed = this.pendingGlobalIndex >= 0 &&
         Math.abs(newIndex - this.pendingGlobalIndex) <= 5
 
-      if (this.resyncRequested || globalJump <= this.GLOBAL_JUMP_CONFIRM_DISTANCE || confirmed) {
+      if (this.resyncRequested || globalJump <= this.GLOBAL_JUMP_CONFIRM_DISTANCE || confirmed || !this.placeFound) {
         // User-requested re-sync commits immediately (no confirmation) — that's the whole point of R.
         this.resyncRequested = false
         this.pendingGlobalIndex = -1
@@ -1056,7 +1077,8 @@ export class VoiceTrackingService {
       // agreeing — so a single noisy over-match can't fling the highlight ahead of your voice.
       this.recentMatchPositions.push(newIndex)
       if (this.recentMatchPositions.length > 3) this.recentMatchPositions.shift()
-      const smallStep = jumpDistance <= this.SMALL_STEP_WORDS
+      // Counted in words the reader says: passing over a heading into the next section is one step.
+      const smallStep = this.spokenDistance(this.currentWordIndex, newIndex) <= this.SMALL_STEP_WORDS
       let confirmed = false
       if (this.recentMatchPositions.length >= 2) {
         const agree = this.recentMatchPositions.filter(p => Math.abs(p - newIndex) <= this.AGREE_WORDS).length
@@ -1086,7 +1108,7 @@ export class VoiceTrackingService {
         (Math.max(...aheadPositions) - Math.min(...aheadPositions)) <= this.AGREE_WORDS
       if (smallStep || confirmed || catchingUp) {
         // Cap the advance so a single over-reaching match can't lurch the highlight far ahead.
-        let capped = Math.min(newIndex, this.currentWordIndex + this.FORWARD_CAP)
+        let capped = this.advanceSpoken(this.currentWordIndex, this.FORWARD_CAP, newIndex)
         // Reading-pace governor: also cap to human reading speed, defeating the repeated-vocabulary
         // ratchet that a constant lead can't. Bypassed at start (no pace history yet) and fail-safe.
         // ALSO bypassed while catching up: a genuine fall-behind is a discontinuity, and clamping it
@@ -1126,8 +1148,9 @@ export class VoiceTrackingService {
 
   private governByPace(proposed: number): number {
     const now = Date.now()
-    // Sample the proposed (already FORWARD_CAP-limited) index, then trim the window.
-    this.paceSamples.push({ t: now, idx: proposed })
+    // Sample the proposed (already FORWARD_CAP-limited) place, then trim the window. Pace is in words
+    // said, so a heading passed over neither speeds the estimate up nor counts against the step.
+    this.paceSamples.push({ t: now, idx: this.spokenIndex(proposed) })
     while (this.paceSamples.length > 0 && now - this.paceSamples[0].t > this.PACE_WINDOW_MS) {
       this.paceSamples.shift()
     }
@@ -1145,7 +1168,41 @@ export class VoiceTrackingService {
     // Max words this commit may advance: pace × elapsed × headroom, but never fewer than a small step
     // so steady reading is never throttled.
     const maxAdvance = Math.max(this.SMALL_STEP_WORDS, Math.ceil(wps * dtSec * this.PACE_TOLERANCE))
-    return Math.min(proposed, this.currentWordIndex + maxAdvance)
+    return this.advanceSpoken(this.currentWordIndex, maxAdvance, proposed)
+  }
+
+  // Heading words before each word, cached for the word list it was counted on.
+  private headingsCountedFor: TextElement[] | null = null
+  private headingWordsBefore: number[] = []
+
+  /** How many words the reader says up to `index`: heading words are passed over, not said. */
+  private spokenIndex(index: number): number {
+    if (this.headingsCountedFor !== this.wordTokens) {
+      this.headingsCountedFor = this.wordTokens
+      this.headingWordsBefore = new Array<number>(this.wordTokens.length + 1)
+      this.headingWordsBefore[0] = 0
+      this.wordTokens.forEach((token, i) => {
+        this.headingWordsBefore[i + 1] = this.headingWordsBefore[i] + (token.heading ? 1 : 0)
+      })
+    }
+    const clamped = Math.max(0, Math.min(this.wordTokens.length, index))
+    return clamped - this.headingWordsBefore[clamped]
+  }
+
+  /** Words said going from `from` to `to` (heading words between them do not count). */
+  private spokenDistance(from: number, to: number): number {
+    return this.spokenIndex(to) - this.spokenIndex(from)
+  }
+
+  /** The place `words` said words past `from`, heading words passed over, never beyond `limit`. */
+  private advanceSpoken(from: number, words: number, limit: number): number {
+    let place = from
+    let said = 0
+    while (place < limit && said < words) {
+      place++
+      if (!this.wordTokens[place]?.heading) said++
+    }
+    return place
   }
 
   /**
@@ -1155,6 +1212,7 @@ export class VoiceTrackingService {
    * @param jumpDistance - Number of words being jumped (for animation timing)
    */
   private scrollToWord(wordIndex: number): void {
+    this.placeFound = true
     // Every commit lands here. The place is reported before anything below can return early: a word
     // on the line already shown, or a hand scroll holding the page, is still where the reader is.
     this.onReadingMove?.({
@@ -1320,6 +1378,7 @@ export class VoiceTrackingService {
     this.tokens = tokenize(content)
     this.wordTokens = this.tokens.filter(t => t.type === 'TOKEN')
     this.currentWordIndex = 0
+    this.placeFound = false
     this.buildWordPositionMap()
   }
 

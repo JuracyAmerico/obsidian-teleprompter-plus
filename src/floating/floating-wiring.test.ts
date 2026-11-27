@@ -390,7 +390,8 @@ describe('read-aloud runs in the floating view while a script floats (ISC-144)',
 	test('ISC-156: keyboard shortcut state is a bar button, nothing over the script', () => {
 		expect(app).toContain('class="tp-keys-btn icon-btn"')
 		expect(app).toContain('class:tp-keys-off={!isTeleprompterFocused}')
-		expect(app).toContain('onclick={() => focusTeleprompter()}')
+		// ISC-185: the click still gives the prompter the keyboard, and now opens the list as well.
+		expect(app).toContain('onclick={toggleShortcutsList}')
 		expect(app).not.toContain('Click here to enable keyboard shortcuts')
 		expect(app).not.toContain('<div class="shortcuts-active-badge">')
 	})

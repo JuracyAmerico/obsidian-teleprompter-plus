@@ -17,8 +17,9 @@ import type { VoiceTrackingConfig } from '../types'
 import type { VoiceTrackingService } from '../voice-tracking-service'
 import { groundTruth } from './ground-truth'
 import { overallMetrics, sessionMetrics, updateSamples, type SessionMetrics, type UpdateSample } from './metrics'
-import { externalMoves, replaySession } from './replay'
-import { contentMatchingHash, renderedScriptWords, verifyWords, type WordCheck } from './script-words'
+import { externalMoves, replaySession, startPageBound } from './replay'
+import { parseHeadingRanges } from '../script-fingerprint'
+import { contentMatchingHash, renderedScript, verifyWords, type WordCheck } from './script-words'
 import type { TraceSession } from './trace'
 
 export interface NoteLookup {
@@ -31,7 +32,16 @@ export interface NoteLookup {
 export type ScriptOrigin = 'trace word list' | 'trace script' | 'note path' | 'vault note with the traced size'
 
 export type Resolution =
-	| { ok: true; words: string[]; origin: ScriptOrigin; notePath?: string; language: string; check: WordCheck }
+	| {
+		ok: true
+		words: string[]
+		/** Indexes of the words inside a heading; empty when the trace and the note cannot say. */
+		headings: number[]
+		origin: ScriptOrigin
+		notePath?: string
+		language: string
+		check: WordCheck
+	}
 	| { ok: false; reason: string }
 
 const MIN_AGREEMENT = 0.95
@@ -51,7 +61,7 @@ export function resolveScript(session: TraceSession, lookup: NoteLookup, languag
 	const language = (content: string, raw?: string): string =>
 		script.language ?? resolveVoiceLanguage(languageSetting, raw ? frontmatterLanguage(raw) : undefined, content)
 
-	const accept = (words: string[], origin: ScriptOrigin, content: string, raw?: string, notePath?: string): Resolution => {
+	const accept = (words: string[], headings: number[], origin: ScriptOrigin, content: string, raw?: string, notePath?: string): Resolution => {
 		const check = verifyWords(words, script, session.matches)
 		if (origin !== 'trace word list') {
 			if (check.tracedCount >= 0 && check.tracedCount !== words.length) {
@@ -61,20 +71,33 @@ export function resolveScript(session: TraceSession, lookup: NoteLookup, languag
 				return { ok: false, reason: `${origin}: only ${(check.agreement * 100).toFixed(0)}% of recorded word positions agree` }
 			}
 		}
-		return { ok: true, words, origin, notePath, language: language(content, raw), check }
+		return { ok: true, words, headings, origin, notePath, language: language(content, raw), check }
+	}
+	/** Headings of a rendered script, when it renders to exactly these words. */
+	const headingsOf = (content: string, words: string[]): number[] => {
+		const rendered = renderedScript(content)
+		const same = rendered.words.length === words.length && rendered.words.every((word, i) => word === words[i])
+		return same ? rendered.headings : []
 	}
 
 	if (script.wordList !== undefined) {
 		const words = script.wordList.split(' ').filter(word => word.length > 0)
-		return accept(words, 'trace word list', script.script ?? words.join(' '))
+		const headings = script.headingWords !== undefined
+			? parseHeadingRanges(script.headingWords)
+			: script.script !== undefined ? headingsOf(script.script, words) : []
+		return accept(words, headings, 'trace word list', script.script ?? words.join(' '))
 	}
-	if (script.script !== undefined) return accept(renderedScriptWords(script.script), 'trace script', script.script)
+	if (script.script !== undefined) {
+		const rendered = renderedScript(script.script)
+		return accept(rendered.words, rendered.headings, 'trace script', script.script)
+	}
 	if (script.notePath && script.scriptHash) {
 		const note = lookup.read(script.notePath)
 		if (!note) return { ok: false, reason: `note ${script.notePath} no longer exists` }
 		const content = contentMatchingHash(note.raw, script.scriptHash)
 		if (content === null) return { ok: false, reason: `note ${script.notePath} changed since the session` }
-		return accept(renderedScriptWords(content), 'note path', content, note.raw, script.notePath)
+		const rendered = renderedScript(content)
+		return accept(rendered.words, rendered.headings, 'note path', content, note.raw, script.notePath)
 	}
 	if (script.contentChars !== undefined && script.incomingWords !== undefined) {
 		const found = lookup.findBySize(script.contentChars, script.incomingWords)
@@ -86,7 +109,8 @@ export function resolveScript(session: TraceSession, lookup: NoteLookup, languag
 			return { ok: false, reason: `${texts.size} different vault notes have the traced size; refusing to pick one` }
 		}
 		const note = found[0]
-		return accept(renderedScriptWords(note.content), 'vault note with the traced size', note.content, note.raw, note.path)
+		const rendered = renderedScript(note.content)
+		return accept(rendered.words, rendered.headings, 'vault note with the traced size', note.content, note.raw, note.path)
 	}
 	return { ok: false, reason: 'the trace recorded nothing that identifies the script' }
 }
@@ -128,6 +152,9 @@ export function scoreSession(
 ): SessionReport {
 	const truth = groundTruth(session.heard, resolution.words)
 	const moves = externalMoves(session.heard, session.matches, session.rereads)
+	// The page carried over from the view's previous session, unless the trace shows it somewhere else.
+	const bound = startPageBound(session.heard, session.matches, resolution.words.length)
+	const page = bound && (startPage < bound.low || startPage > bound.high) ? bound.page : startPage
 	const replay = replaySession(
 		Service,
 		resolution.words,
@@ -135,7 +162,8 @@ export function scoreSession(
 		{ ...config, language: resolution.language },
 		moves,
 		session.continued,
-		startPage,
+		page,
+		new Set(resolution.headings),
 	)
 	const samples = updateSamples(
 		session.heard.map(event => event.text),

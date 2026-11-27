@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'bun:test'
 import { scriptHash } from '../script-fingerprint'
 import { resolveScript, type NoteLookup } from './bench'
-import { contentMatchingHash, contentMatchingSize, renderedScriptWords, verifyWords } from './script-words'
+import { contentMatchingHash, contentMatchingSize, renderedScript, renderedScriptWords, verifyWords } from './script-words'
 import type { RecordedMatch, TraceSession, TracedScript } from './trace'
 
 describe('renderedScriptWords', () => {
@@ -21,6 +21,15 @@ describe('renderedScriptWords', () => {
 		expect(renderedScriptWords(markdown)).toEqual(
 			['Opening', 'I', 'spent', 'seven', 'years', 'at', 'Tableau', 'more', 'It', 's', 'a', 'link'],
 		)
+	})
+})
+
+describe('renderedScript', () => {
+	test('says which words sit in a heading, at the indexes voice tracking gives them', () => {
+		const markdown = '# Opening {0:30}\n\nI spent seven years.\n\n## Work authorization: "can **you** work?"\n\nYes. I am.'
+		const rendered = renderedScript(markdown)
+		expect(rendered.words).toEqual(renderedScriptWords(markdown))
+		expect(rendered.headings.map(i => rendered.words[i])).toEqual(['Opening', 'Work', 'authorization', 'can', 'you', 'work'])
 	})
 })
 
@@ -66,7 +75,16 @@ describe('resolveScript', () => {
 
 	test('prefers the word list the trace recorded, exactly as recorded', () => {
 		const resolved = resolveScript(session({ wordList: 'one two', script: 'ignored text' }), lookup([]), 'auto')
-		expect(resolved).toMatchObject({ ok: true, origin: 'trace word list', words: ['one', 'two'] })
+		expect(resolved).toMatchObject({ ok: true, origin: 'trace word list', words: ['one', 'two'], headings: [] })
+	})
+
+	test('takes heading words from the trace, or from its script when that renders to the same words', () => {
+		const traced = resolveScript(session({ wordList: 'Intro one two', headingWords: '0' }), lookup([]), 'auto')
+		expect(traced).toMatchObject({ ok: true, headings: [0] })
+		const rendered = resolveScript(session({ wordList: 'Intro one two', script: '## Intro\n\none two' }), lookup([]), 'auto')
+		expect(rendered).toMatchObject({ ok: true, headings: [0] })
+		const otherWords = resolveScript(session({ wordList: 'Intro one three', script: '## Intro\n\none two' }), lookup([]), 'auto')
+		expect(otherWords).toMatchObject({ ok: true, headings: [] })
 	})
 
 	test('finds an old trace\'s note by size, and says which note it used', () => {

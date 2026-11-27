@@ -7,12 +7,16 @@ const root = path.resolve(import.meta.dir, '..')
 const read = (name: string) => readFileSync(path.join(root, name), 'utf8')
 
 describe('verify holds every gate', () => {
-	test('the gates are freshness, check, test, lint and build, in that order', () => {
-		expect(GATE_NAMES).toEqual(['freshness', 'check', 'test', 'lint', 'build'])
+	test('the gates are deps, freshness, check, test, lint and build, in that order', () => {
+		expect(GATE_NAMES).toEqual(['deps', 'freshness', 'check', 'test', 'lint', 'build'])
+	})
+
+	test('the deps gate installs exactly what bun.lock says', () => {
+		expect(gates()[0].run).toEqual(['bun', 'install', '--frozen-lockfile'])
 	})
 
 	test('the freshness gate uses the injected registry and fails when the plugin is behind', async () => {
-		const freshness = gates(async () => '99.0.0')[0]
+		const freshness = gates(async () => '99.0.0').find((gate) => gate.name === 'freshness')!
 		expect(freshness.name).toBe('freshness')
 		expect(typeof freshness.run).toBe('function')
 		const result = await (freshness.run as (root: string) => Promise<{ ok: boolean; message: string }>)(root)

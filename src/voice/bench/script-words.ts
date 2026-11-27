@@ -39,8 +39,27 @@ const UNTRACKED_BLOCKS = [
 	/<span class="tp-stage-cue">[\s\S]*?<\/span>/gi,
 ]
 
+/** The words of a script as the prompter shows it, and which of them sit in a heading. */
+export interface RenderedScript {
+	words: string[]
+	/** Indexes of the words inside a heading (h1 to h6), ascending. */
+	headings: number[]
+}
+
 /** The words of a script as the prompter shows it, the way voice tracking indexes them. */
 export function renderedScriptWords(content: string): string[] {
+	return renderedScript(content).words
+}
+
+const HEADING = /<h([1-6])[\s>][\s\S]*?<\/h\1>/gi
+
+/** Words of a piece of rendered HTML, tags dropped and entities decoded. */
+function htmlWords(html: string): string[] {
+	return tokenizeWords(decodeEntities(html.replace(/<[^>]*>/g, ''))).map(token => token.value)
+}
+
+/** The words of a script as the prompter shows it, with the indexes of those in its headings. */
+export function renderedScript(content: string): RenderedScript {
 	let markdown = stripHeadingTargets(content)
 	markdown = markdown.replace(/<!--[\s\S]*?-->/g, '')
 	markdown = markdown.replace(/```\{=[a-z]+\}\r?\n[\s\S]*?\r?\n```/g, '')
@@ -51,8 +70,22 @@ export function renderedScriptWords(content: string): string[] {
 	markdown = markStageCues(markdown)
 	let html = new Marked().parse(markdown, { async: false })
 	for (const block of UNTRACKED_BLOCKS) html = html.replace(block, ' ')
-	const text = decodeEntities(html.replace(/<[^>]*>/g, ''))
-	return tokenizeWords(text).map(token => token.value)
+	const words = htmlWords(html)
+	// Blocks are separated by newlines, so cutting at heading tags never splits a word; if it ever
+	// did, the words would not add up and the script is reported without headings.
+	const pieces: string[] = []
+	const headings: number[] = []
+	let last = 0
+	for (const match of html.matchAll(HEADING)) {
+		pieces.push(...htmlWords(html.slice(last, match.index)))
+		const inHeading = htmlWords(match[0])
+		for (let i = 0; i < inHeading.length; i++) headings.push(pieces.length + i)
+		pieces.push(...inHeading)
+		last = match.index + match[0].length
+	}
+	pieces.push(...htmlWords(html.slice(last)))
+	const agree = pieces.length === words.length && pieces.every((word, i) => word === words[i])
+	return { words, headings: agree ? headings : [] }
 }
 
 /**

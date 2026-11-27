@@ -91,7 +91,7 @@ const DESCRIPTIONS: Record<string, string> = {
 	'countdown-increase': 'Longer pre-roll countdown',
 	'countdown-decrease': 'Shorter pre-roll countdown',
 	'set-countdown': 'Sets the pre-roll countdown length',
-	'start-countdown': 'Stops scrolling and runs the pre-roll countdown',
+	'start-countdown': 'Stops scrolling and runs the pre-roll countdown; sent again while it runs, it cancels it',
 	'cycle-speed-preset': 'Steps through the speed presets',
 	'next-speed-preset': 'Next speed preset',
 	'prev-speed-preset': 'Previous speed preset',

@@ -88,3 +88,22 @@ describe('tail-aligned local matching on a real-sized script', () => {
 		expect(findNextPosition('that changed how I run discovery', script, place)).toBe(place)
 	})
 })
+
+describe('a long forward move needs support from what was heard', () => {
+	// The 2026-11-27 rehearsal: re-reading an answer from twenty words back, the reader says "Yes I'm".
+	const words = tokenizeWords(
+		"Yes I'm authorized to work full-time in Canada for any employer. My post-graduation work permit is in " +
+		"process. I don't need sponsorship. Location where are you hybrid ok. I'm based in Ontario.",
+	)
+	const place = words.findIndex((w, i) => w.value === 'I' && words[i + 1]?.value === 'don')
+
+	test('two short words that match a copy twelve words ahead do not move the place', () => {
+		expect(findNextPosition("yes I'm am", words, place)).toBe(place)
+		expect(findNextPosition("on the scope I'm", words, place)).toBe(place)
+	})
+
+	test('the same distance read aloud is followed', () => {
+		const based = words.findIndex(w => w.value === 'based')
+		expect(findNextPosition("sponsorship location where are you hybrid ok I'm based", words, place)).toBe(based)
+	})
+})

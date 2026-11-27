@@ -14,7 +14,7 @@ This catalog is checked against the deck plugin's manifest (version 1.0.0.0, 60 
 2. **Install the Teleprompter Plus Stream Deck plugin.**
    - Manual install: clone [`JuracyAmerico/com.americo.obsidian-teleprompter.sdPlugin`](https://github.com/JuracyAmerico/com.americo.obsidian-teleprompter.sdPlugin) and follow its README.
    - Marketplace install: coming soon.
-3. **Drag keys** from the Obsidian Teleprompter Plus category onto your Stream Deck profile.
+3. **Drag keys** from the Obsidian Teleprompter Plus category onto your Stream Deck profile. On a Stream Deck XL, [stream-deck-profile.md](stream-deck-profile.md) lays out every key on three pages.
 4. **Verify** — open Teleprompter Plus in Obsidian and press the Clock key. It shows `--:--` while the deck cannot reach Obsidian, and the time as soon as it can.
 
 The keys take no settings: a key sends its command with no parameters. Commands that need a value (`set-speed`, `jump-to-header`, `set-countdown`, `set-font-size`, `open-file`, and the others in the [command reference](websocket-api.md#command-reference)) have no key; send them from a script.
@@ -114,7 +114,7 @@ The floating window is not on the deck. Its two commands, `toggle-floating` and 
 |-----|---------|--------------|
 | **Countdown Increase** | `countdown-increase` | Longer pre-roll countdown |
 | **Countdown Decrease** | `countdown-decrease` | Shorter pre-roll countdown |
-| **Start Countdown** | `start-countdown` | Stops scrolling and runs the pre-roll countdown |
+| **Start Countdown** | `start-countdown` | Stops scrolling and runs the pre-roll countdown; pressed again while it runs, it cancels it |
 
 ## 8. Rehearsal clock (1 key)
 

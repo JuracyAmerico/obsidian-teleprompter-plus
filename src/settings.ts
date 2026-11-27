@@ -4,6 +4,7 @@ import type TeleprompterPlusPlugin from './main'
 import { ConfirmModal } from './confirm-modal'
 import { PromptModal } from './prompt-modal'
 import { resolveControlIcon, type IconStyle } from './icon-vocabulary'
+import { CONTROL_ICONS } from './action-icons'
 import { redactSecrets } from './settings-secrets'
 import { showsMobileInterface } from './platform/device'
 import { DESKTOP_ONLY_ENGINES, DESKTOP_ONLY_SETTINGS_TABS, PHONE_OPTIONAL_CONTROLS, forPhone } from './platform/mobile-surface'
@@ -572,7 +573,7 @@ const TOOLBAR_CONTROLS: ToolbarControlMeta[] = [
 	{ id: 'bg-color', name: 'Background color', icon: 'tp-bg-color' },
 	// Feature toggles
 	{ id: 'eyeline', name: 'Eyeline', icon: 'tp-eyeline' },
-	{ id: 'focus-mode', name: 'Focus mode', icon: 'focus' },
+	{ id: 'focus-mode', name: 'Focus mode', icon: CONTROL_ICONS.focusMode.lucide },
 	{ id: 'navigation', name: 'Navigation panel', icon: 'tp-navigation', defaultMore: true },
 	{ id: 'fullscreen', name: 'Fullscreen', icon: 'tp-fullscreen' },
 	{ id: 'flip-h', name: 'Flip horizontal', icon: 'tp-flip-h' },
@@ -588,9 +589,9 @@ const TOOLBAR_CONTROLS: ToolbarControlMeta[] = [
 	{ id: 'float', name: 'Float over other apps', icon: 'tp-float', defaultMore: true },
 	{ id: 'quick-presets', name: 'Quick presets', icon: 'tp-quick-presets' },
 	// Info displays
-	{ id: 'time-display', name: 'Time display', icon: 'clock' },
+	{ id: 'time-display', name: 'Time display', icon: CONTROL_ICONS.timeDisplay.lucide },
 	// Voice tracking
-	{ id: 'voice-tracking', name: 'Voice tracking', icon: 'mic' },
+	{ id: 'voice-tracking', name: 'Voice tracking', icon: CONTROL_ICONS.voice.on },
 	// TTS
 	{ id: 'tts', name: 'Text-to-speech', icon: 'volume-2' },
 ]
@@ -1181,7 +1182,7 @@ export class TeleprompterSettingTab extends PluginSettingTab {
 			{
 				id: 'countdown',
 				name: 'Countdown timer',
-				icon: 'timer',
+				icon: CONTROL_ICONS.countdown.lucide,
 				hasToggle: true,
 				toggleValue: this.plugin.settings.defaultCountdown > 0,
 				settings: [
@@ -1211,7 +1212,7 @@ export class TeleprompterSettingTab extends PluginSettingTab {
 			{
 				id: 'speed',
 				name: 'Speed control',
-				icon: 'gauge',
+				icon: CONTROL_ICONS.speed.lucide,
 				hasToggle: false,
 				settings: [
 					{
@@ -1245,7 +1246,7 @@ export class TeleprompterSettingTab extends PluginSettingTab {
 			{
 				id: 'eyeline',
 				name: 'Eyeline indicator',
-				icon: 'eye',
+				icon: CONTROL_ICONS.eyeline.lucide,
 				hasToggle: true,
 				toggleValue: this.plugin.settings.showEyeline,
 				onToggle: (value: boolean) => {
@@ -1269,7 +1270,7 @@ export class TeleprompterSettingTab extends PluginSettingTab {
 			{
 				id: 'focus-mode',
 				name: 'Focus mode',
-				icon: 'focus',
+				icon: CONTROL_ICONS.focusMode.lucide,
 				hasToggle: true,
 				toggleValue: this.plugin.settings.focusMode,
 				onToggle: (value: boolean) => {
@@ -1304,7 +1305,7 @@ export class TeleprompterSettingTab extends PluginSettingTab {
 			{
 				id: 'minimap',
 				name: 'Minimap',
-				icon: 'map',
+				icon: CONTROL_ICONS.minimap.lucide,
 				hasToggle: true,
 				toggleValue: this.plugin.settings.showMinimap,
 				onToggle: (value: boolean) => {
@@ -1316,7 +1317,7 @@ export class TeleprompterSettingTab extends PluginSettingTab {
 			{
 				id: 'fullscreen',
 				name: 'Fullscreen',
-				icon: 'maximize',
+				icon: CONTROL_ICONS.fullscreen.lucide,
 				hasToggle: true,
 				toggleValue: this.plugin.settings.autoFullScreen,
 				onToggle: (value: boolean) => {
@@ -1328,7 +1329,7 @@ export class TeleprompterSettingTab extends PluginSettingTab {
 			{
 				id: 'time',
 				name: 'Time display',
-				icon: 'clock',
+				icon: CONTROL_ICONS.timeDisplay.lucide,
 				hasToggle: true,
 				toggleValue: this.plugin.settings.showTimeEstimation,
 				onToggle: (value: boolean) => {

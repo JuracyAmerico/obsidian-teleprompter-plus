@@ -15,49 +15,55 @@
  * everywhere — rendered monochrome-native in Obsidian, as an accent key on Stream Deck.
  */
 
+import { CONTROL_ICONS as C } from './action-icons'
+
 export type IconStyle = 'native' | 'custom'
 
-/** `tp-*` custom icon name → Lucide icon name. Lucide is Obsidian's built-in set (theme-aware). */
+/**
+ * `tp-*` custom icon name → Lucide icon name. Lucide is Obsidian's built-in set (theme-aware). Controls
+ * that have a twin on the phone remote or the Stream Deck take their symbol from CONTROL_ICONS in
+ * action-icons.ts, the one map every surface reads.
+ */
 export const CUSTOM_TO_LUCIDE: Record<string, string> = {
   // Playback
-  'tp-play': 'play',
-  'tp-pause': 'pause',
-  'tp-play-pause': 'play',
-  'tp-reset-top': 'arrow-up-to-line',
-  'tp-speed-up': 'gauge',
-  'tp-speed-down': 'gauge',
-  'tp-countdown-up': 'timer',
+  'tp-play': C.play.lucide,
+  'tp-pause': C.play.on,
+  'tp-play-pause': C.play.lucide,
+  'tp-reset-top': C.resetToTop.lucide,
+  'tp-speed-up': C.speed.lucide,
+  'tp-speed-down': C.speed.lucide,
+  'tp-countdown-up': C.countdown.lucide,
   // Typography / display
-  'tp-font-up': 'a-large-small',
-  'tp-font-down': 'a-large-small',
-  'tp-font-reset': 'a-large-small',
+  'tp-font-up': C.fontSize.lucide,
+  'tp-font-down': C.fontSize.lucide,
+  'tp-font-reset': C.fontSize.lucide,
   'tp-font-system': 'type',
-  'tp-line-height': 'stretch-vertical',
-  'tp-letter-spacing': 'move-horizontal',
-  'tp-opacity': 'blend',
-  'tp-padding': 'frame',
+  'tp-line-height': C.lineHeight.lucide,
+  'tp-letter-spacing': C.letterSpacing.lucide,
+  'tp-opacity': C.opacity.lucide,
+  'tp-padding': C.padding.lucide,
   'tp-text-color': 'baseline',
   'tp-bg-color': 'paint-bucket',
-  'tp-align-center': 'align-center',
+  'tp-align-center': C.alignment.lucide,
   // View
-  'tp-fullscreen': 'maximize',
-  'tp-eyeline': 'eye',
-  'tp-flip-h': 'flip-horizontal-2',
-  'tp-flip-v': 'flip-vertical-2',
-  'tp-minimap': 'map',
-  'tp-navigation': 'panel-right',
-  'tp-nav-panel': 'panel-left',
-  'tp-next-section': 'chevrons-right',
-  'tp-prev-section': 'chevrons-left',
-  'tp-progress-bar': 'loader',
+  'tp-fullscreen': C.fullscreen.lucide,
+  'tp-eyeline': C.eyeline.lucide,
+  'tp-flip-h': C.flipHorizontal.lucide,
+  'tp-flip-v': C.flipVertical.lucide,
+  'tp-minimap': C.minimap.lucide,
+  'tp-navigation': C.navigationPanel.lucide,
+  'tp-nav-panel': C.navigationPanel.lucide,
+  'tp-next-section': C.nextSection.lucide,
+  'tp-prev-section': C.previousSection.lucide,
+  'tp-progress-bar': C.progressIndicator.lucide,
   // System / utility
-  'tp-pin': 'pin',
-  'tp-detach': 'picture-in-picture-2',
-  'tp-float': 'layers-2',
-  'tp-keep-awake': 'coffee',
-  'tp-auto-pause': 'circle-pause',
+  'tp-pin': C.pin.lucide,
+  'tp-detach': C.openInWindow.lucide,
+  'tp-float': C.float.lucide,
+  'tp-keep-awake': C.keepAwake.lucide,
+  'tp-auto-pause': C.autoPause.lucide,
   'tp-quick-presets': 'layout-grid',
-  'tp-refresh': 'refresh-cw',
+  'tp-refresh': C.refreshPinned.lucide,
   // Capture / TTS
   'tp-tts': 'audio-lines',
   'tp-tts-playing': 'audio-lines',

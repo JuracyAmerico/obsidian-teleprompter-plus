@@ -33,7 +33,7 @@
     "check": "svelte-check --tsconfig ./tsconfig.app.json && tsc -p tsconfig.node.json",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
-    "icons:streamdeck": "bun scripts/generate-streamdeck-icons.ts && cd docs/icons/streamdeck && for f in *.svg; do rsvg-convert -w 288 -h 288 \"$f\" -o \"${f%.svg}.png\"; done",
+    "icons:streamdeck": "bun scripts/streamdeck-profile.ts",
     "test": "bun test",
     "test:watch": "bun test --watch",
     "bench:voice": "bun scripts/voice-bench.ts"

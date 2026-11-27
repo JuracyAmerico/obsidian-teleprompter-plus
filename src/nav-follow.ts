@@ -59,3 +59,22 @@ export function progressLine(percent: number, remainingMinutes: number | null, w
 	if (words > 0) parts.push(`${words.toLocaleString('en-US')} words`)
 	return parts.join(' · ')
 }
+
+/**
+ * The collapsed set with every collapsed ancestor of the current section opened, so the panel can
+ * highlight the section itself. Returns the very set it was given when there is nothing to open, so
+ * the caller can tell and skip the redraw. The current section's own collapsed state is left alone:
+ * it is visible either way.
+ */
+export function expandToReveal(headers: NavHeader[], activeIndex: number, collapsed: ReadonlySet<string>): ReadonlySet<string> {
+	const active = headers[activeIndex]
+	if (!active || collapsed.size === 0) return collapsed
+	const byId = new Map(headers.map((h) => [h.id, h]))
+	let next: Set<string> | null = null
+	for (let h = active.parentId ? byId.get(active.parentId) : undefined; h; h = h.parentId ? byId.get(h.parentId) : undefined) {
+		if (!collapsed.has(h.id)) continue
+		next ??= new Set(collapsed)
+		next.delete(h.id)
+	}
+	return next ?? collapsed
+}

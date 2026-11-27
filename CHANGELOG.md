@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- **The keyboard button on the toolbar now opens the list of shortcuts.** Before, it only gave the prompter the keyboard, which shows nothing when it already had it, so it looked dead. The list reads your real keys (a remapped key shows under its new action, and the pedal arrow mode shows its page turns). Click the button again, press Escape or open another menu to close it.
+- **Start Countdown, pressed again while the countdown runs, cancels it.** The Stream Deck key, the phone's Countdown button and the command used to start a new countdown instead, so there was no way to stop it from the key that started it. It works the same when the script is on the floating window.
+- **The "Voice Active" / "Listening..." pill no longer covers the clock and the toolbar.** It now sits at the bottom left of the reading area, in the main window and the floating window, and never takes a click.
+- **The Jump to Section panel follows the section the script is in, whatever moved the script** (phone remote, Stream Deck, keys, scrolling). When that section was inside a collapsed parent, the panel kept highlighting the parent, which looked like the old section; the parent now opens so the highlight lands on the section itself. If you collapse the parent yourself afterwards, it stays collapsed until the reading moves to another section.
+- **Voice tracking follows you past a heading.** When you skip a heading, a section number or the interviewer's question and start the next answer, the prompter now moves there on your first words instead of waiting a second or two at the end of the previous section.
+- **Voice tracking finds you faster when you start the microphone partway down the page.** The first confident match of a session now places you at once; before, it waited for a second match, which a misheard opening often delayed by several seconds.
+- **Re-reading an answer no longer jumps the prompter ahead on a couple of short words.** Saying "Yes, I'm..." again from a few lines back could match a later "I'm" and jump the prompter forward; a longer move now needs more of what you said to match.
+
+### Changed
+- For contributors: the voice benchmark replays a session from the page you had scrolled to when the microphone came on (voice traces now record it, and heading words), and `bun run bench:voice -- --day YYYY-MM-DD` / `--not-day` score a subset of sessions.
+
 ## [0.12.15] - 2026-11-27
 
 ### Fixed

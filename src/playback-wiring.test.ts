@@ -124,3 +124,14 @@ describe('B7: word count', () => {
 		expect(app).not.toContain(".replace(/\\[.*?\\]\\(.*?\\)/g, '$1')")
 	})
 })
+
+describe('ISC-183: the start-countdown command is a toggle in the view that owns the script', () => {
+	test('a second start-countdown cancels instead of restarting', () => {
+		const body = eventCase('start-countdown')
+		expect(body).toContain('countdownPress(isCountingDown)')
+		expect(body).toContain("cancelCountdown('start-countdown pressed again')")
+		// The decision comes before anything that would cancel and restart.
+		expect(body.indexOf('countdownPress(isCountingDown)')).toBeLessThan(body.indexOf("stopPlayback('start-countdown command')"))
+		expect(body.indexOf('countdownPress(isCountingDown)')).toBeLessThan(body.indexOf('startCountdown()'))
+	})
+})

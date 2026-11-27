@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test'
 import { readTraceSessions } from './trace'
-import { externalMoves } from './replay'
+import { externalMoves, startPageBound } from './replay'
 
 const line = (t: number, view: string, type: string, data: Record<string, unknown> = {}): string =>
 	JSON.stringify({ t: new Date(Date.UTC(2026, 10, 26, 15, 0, 0, t)).toISOString(), view, type, ...data })
@@ -65,5 +65,37 @@ describe('externalMoves', () => {
 			{ t: 0, to: 40, anchor: true },
 			{ t: 200, to: 300, anchor: false },
 		])
+	})
+})
+
+describe('startPageBound', () => {
+	const heard = [0, 100, 200].map(t => ({ t, text: 'one two three four', final: false }))
+	const match = (t: number, heardIndex: number, cur: number, proposed: number, global: boolean, page?: number) =>
+		({ t, heardIndex, cur, curWord: '?', proposed, proposedWord: '?', global, total: 1000, ...(page !== undefined ? { page } : {}) })
+
+	test('a traced page is where the session started', () => {
+		expect(startPageBound(heard, [match(0, 0, 0, 0, false), match(100, 1, 0, 870, true, 860)], 1000))
+			.toEqual({ low: 860, high: 860, page: 860 })
+	})
+
+	test('an older trace: a wide re-sync far from the place bounds the page around the words it found', () => {
+		// "one two three four" ends at 870, so it starts at 867, and the search looks 120 either side of the page, whichever end of the words the trace proposed.
+		expect(startPageBound(heard, [match(0, 0, 0, 0, false), match(100, 1, 0, 870, true)], 1000))
+			.toEqual({ low: 741, high: 995, page: 867 })
+	})
+
+	test('nothing is inferred once the app moved the place, or from a re-sync within the local look-ahead; one past it bounds the page', () => {
+		expect(startPageBound(heard, [match(0, 0, 0, 3, false), match(100, 1, 3, 870, true)], 1000)).toBeNull()
+		expect(startPageBound(heard, [match(0, 0, 0, 20, true)], 1000)).toBeNull()
+		expect(startPageBound(heard, [match(0, 0, 0, 69, true)], 1000)).toEqual({ low: 0, high: 194, page: 66 })
+		expect(startPageBound(heard, [], 1000)).toBeNull()
+	})
+
+	test('the traced page is read from the match line', () => {
+		const text = [
+			line(0, 'a', 'heard', { final: false, text: 'x y z' }),
+			line(1, 'a', 'match', { cur: 0, proposed: 870, global: true, total: 1000, page: 860 }),
+		].join('\n')
+		expect(readTraceSessions([{ file: 't', text }])[0].matches[0].page).toBe(860)
 	})
 })

@@ -56,3 +56,58 @@ describe('re-sync lands at the last heard word', () => {
 		expect(harness.service.getCurrentWordIndex()).toBe(harness.at('you'))
 	})
 })
+
+describe('the trace records the page a wide re-sync searched around', () => {
+	test('a session that starts on a scrolled-to section traces that page, so a replay starts there', () => {
+		harness = createHarness(VoiceTrackingService, INTERVIEW_SCRIPT)
+		const events: { event: string; data: Record<string, unknown> }[] = []
+		harness.service.onDiagnostic = (event, data) => events.push({ event, data })
+		const page = harness.at('Brazil')
+		harness.internals.estimateWordIndexFromScroll = () => page
+		harness.internals.needsGlobalSearch = true
+		harness.hear('Most of my customers were state and federal health agencies', true)
+		const matches = events.filter(e => e.event === 'match').map(e => e.data)
+		expect(matches[0]).toMatchObject({ global: true, page })
+	})
+
+	test('an ordinary forward match carries no page', () => {
+		harness = createHarness(VoiceTrackingService, INTERVIEW_SCRIPT)
+		const events: { event: string; data: Record<string, unknown> }[] = []
+		harness.service.onDiagnostic = (event, data) => events.push({ event, data })
+		harness.internals.needsGlobalSearch = false
+		harness.hear('Thanks for having me today', true)
+		const match = events.find(e => e.event === 'match')?.data
+		expect(match).toBeDefined()
+		expect(match && 'page' in match).toBe(false)
+	})
+})
+
+describe('the first find of a session commits at once', () => {
+	const sentence = 'Most of my customers were state and federal health agencies'
+
+	test('a reader who starts forty words into the page is placed by the first confident find', () => {
+		harness = createHarness(VoiceTrackingService, INTERVIEW_SCRIPT)
+		harness.internals.needsGlobalSearch = true // the microphone just came on: nothing placed yet
+		harness.hear(sentence)
+		expect(harness.service.getCurrentWordIndex()).toBe(harness.at('agencies'))
+	})
+
+	test('once the reader was placed, a far re-sync still waits for a second find to agree', () => {
+		harness = createHarness(VoiceTrackingService, INTERVIEW_SCRIPT)
+		harness.service.seekToWord(2) // placed: the reader chose this word
+		harness.internals.needsGlobalSearch = true // three partials without progress armed a re-sync
+		harness.hear(sentence)
+		expect(harness.service.getCurrentWordIndex()).toBe(2)
+		harness.advance(500)
+		harness.hear(`${sentence} and`)
+		expect(harness.service.getCurrentWordIndex()).toBe(harness.at('and', harness.at('agencies')))
+	})
+
+	test('stopping the microphone forgets the placement, so the next session is placed at once again', () => {
+		harness = createHarness(VoiceTrackingService, INTERVIEW_SCRIPT)
+		harness.service.seekToWord(2)
+		harness.service.stop()
+		harness.hear(sentence)
+		expect(harness.service.getCurrentWordIndex()).toBe(harness.at('agencies'))
+	})
+})

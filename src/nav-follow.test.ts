@@ -1,5 +1,7 @@
 import { describe, expect, test } from 'bun:test'
-import { followScrollTop, mayFollow, progressLine, visibleActiveId, MANUAL_PAUSE_MS } from './nav-follow'
+import { readFileSync } from 'fs'
+import { join } from 'path'
+import { expandToReveal, followScrollTop, mayFollow, progressLine, visibleActiveId, MANUAL_PAUSE_MS } from './nav-follow'
 
 const headers = [
 	{ id: 'h0' }, // # Title
@@ -68,5 +70,58 @@ describe('ISC-135 progressLine', () => {
 	})
 	test('time hidden and no words', () => {
 		expect(progressLine(0, null, 0)).toBe('0%')
+	})
+})
+
+describe('ISC-186 expandToReveal', () => {
+	test('the screenshot: the script is at Names, inside a collapsed Warm-up, so Warm-up opens and Names is the highlight', () => {
+		const list = [
+			{ id: 'h0' }, // # Rosemary Travers
+			{ id: 'h1', parentId: 'h0' }, // ## 1. Warm-up
+			{ id: 'h2', parentId: 'h1' }, // ### American R
+			{ id: 'h3', parentId: 'h1' }, // ### Names
+			{ id: 'h4', parentId: 'h0' }, // ## 2. Opening
+		]
+		const collapsed = new Set(['h1'])
+		// Before: the panel could only show the parent, which reads as a stale highlight.
+		expect(visibleActiveId(list, 3, collapsed)).toBe('h1')
+		const opened = expandToReveal(list, 3, collapsed)
+		expect([...opened]).toEqual([])
+		expect(visibleActiveId(list, 3, opened)).toBe('h3')
+	})
+
+	test('every collapsed ancestor opens, and a collapsed sibling or the active section itself stays as it is', () => {
+		const opened = expandToReveal(headers, 3, new Set(['h0', 'h1', 'h5', 'h3']))
+		expect([...opened].sort()).toEqual(['h3', 'h5'])
+	})
+
+	test('nothing to open returns the very same set, so the panel does not redraw', () => {
+		const collapsed = new Set(['h5'])
+		expect(expandToReveal(headers, 3, collapsed)).toBe(collapsed)
+		expect(expandToReveal(headers, 9, collapsed)).toBe(collapsed)
+	})
+
+	test('it never changes the set it was given', () => {
+		const collapsed = new Set(['h1'])
+		expandToReveal(headers, 3, collapsed)
+		expect([...collapsed]).toEqual(['h1'])
+	})
+})
+
+describe('ISC-186 wiring: the panel follows the eyeline section whatever moved the script', () => {
+	const app = readFileSync(join(import.meta.dir, 'TeleprompterApp.svelte'), 'utf8')
+
+	test('a change of the current section opens the collapsed parents above it, once per section', () => {
+		const start = app.indexOf('function revealActiveSection')
+		expect(start).toBeGreaterThan(-1)
+		expect(app).toContain('expandToReveal(headersList, currentHeaderIndex, collapsedHeaders)')
+		expect(app).toContain('untrack(revealActiveSection)')
+		expect(app).toContain('if (key === revealedKey) return')
+	})
+
+	test('every mover of the script ends in currentHeaderIndex: jump, scroll, floating mirror, reset', () => {
+		for (const mover of ['currentHeaderIndex = headerIndex', 'currentHeaderIndex = index', 'currentHeaderIndex = 0']) {
+			expect(app).toContain(mover)
+		}
 	})
 })

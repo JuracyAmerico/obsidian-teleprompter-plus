@@ -42,6 +42,7 @@
     type FloatRequest,
   } from './floating/floating-window'
   import { resolveControlIcon } from './icon-vocabulary'
+  import { CONTROL_ICONS } from './action-icons'
   import { onMount, tick, untrack } from 'svelte'
   import { alignWords, makeAnchor, mapWordIndex, resolveAnchor, sourceLineOfWord } from './passage-anchor'
   import { lineTable, positionAtY, renderedWords, scrollTopForWord, wordAtPoint, wordAtViewportOffset, yAtPosition, type LineTable } from './passage-dom'
@@ -52,8 +53,9 @@
   import { currentSection, findSection, holdAfterJump, scrollTopForHeading, sectionAtReadingLine, sectionRef, type JumpHold, type SectionRef } from './sections'
   import { wakeHoldAction } from './wake-hold'
   import { PAGE_TURN_SHARE, hotkeyAction } from './pedal-keys'
+  import { shortcutRows } from './shortcuts-list'
   import { LISTENED_COMMAND_EVENTS, SCRIPT_HOTKEY_ACTIONS, dispatchCommand, ownsScript, runIntent, type AppearancePatch, type CommandHandlers, type CommandView, type Direction } from './commands'
-  import { AutoScroller, Countdown, clampSpeed, countWords, isAtScriptEnd, maxScrollOf, scrollFraction, shouldCountDown, speedLimits, stepSection, stepSpeed, wordsRemaining as wordsAhead } from './playback'
+  import { AutoScroller, Countdown, clampSpeed, countWords, countdownPress, isAtScriptEnd, maxScrollOf, scrollFraction, shouldCountDown, speedLimits, stepSection, stepSpeed, wordsRemaining as wordsAhead } from './playback'
   import { Marked } from 'marked'
   import { VOICE_TRACKING_PRESETS, type VoiceTrackingPacePreset } from './settings'
   import type { VoiceReadingMove, VoiceTrackingService } from './voice'
@@ -155,7 +157,7 @@
   })
 
   import type TeleprompterPlusPlugin from './main'
-  import { followScrollTop, mayFollow, progressLine, visibleActiveId } from './nav-follow'
+  import { expandToReveal, followScrollTop, mayFollow, progressLine, visibleActiveId } from './nav-follow'
 
   let { app, plugin, ownerDocument, ownerWindow }: {
     app: ObsidianApp,
@@ -1109,6 +1111,7 @@
   let showSpeedSlider = $state(false)
   let showVoiceSettings = $state(false)  // Voice tracking preset selector
   let showCountdownSlider = $state(false)
+  let showShortcutsList = $state(false) // The keyboard button's list of shortcuts (ISC-185)
   let showFontSizeSlider = $state(false)
   let showLineHeightSlider = $state(false)
   let showLetterSpacingSlider = $state(false)
@@ -1952,6 +1955,25 @@
   let lastNavManualScrollAt = 0
   const navHighlightId = $derived(visibleActiveId(headersList, currentHeaderIndex, collapsedHeaders))
   function markNavManualScroll() { lastNavManualScrollAt = Date.now() }
+
+  // ISC-186: the highlight follows the section the script is in, whatever moved it (phone remote,
+  // Stream Deck, keys, scroll). A section inside a collapsed parent could only show the parent, which
+  // read as the old section (Américo, 2026-11-27: script at "Names", panel still on "1. Warm-up").
+  // When the current section changes, the collapsed parents above it open. Once per section, so
+  // collapsing the parent afterwards still works until the reading moves on.
+  let revealedKey = ''
+  function revealActiveSection() {
+    const next = expandToReveal(headersList, currentHeaderIndex, collapsedHeaders)
+    if (next !== collapsedHeaders) collapsedHeaders = new Set(next)
+  }
+  $effect(() => {
+    const active = headersList[currentHeaderIndex]
+    if (!active) return
+    const key = `${active.id}|${active.line}|${active.text}`
+    if (key === revealedKey) return
+    revealedKey = key
+    untrack(revealActiveSection)
+  })
   $effect(() => {
     const id = navHighlightId
     const list = navItemsEl
@@ -2839,6 +2861,7 @@
   }
 
   function closeOtherPopups(except: string) {
+    if (except !== 'shortcuts') showShortcutsList = false
     if (except !== 'speed') showSpeedSlider = false
     if (except !== 'countdown') showCountdownSlider = false
     if (except !== 'fontSize') showFontSizeSlider = false
@@ -4667,6 +4690,17 @@
     }
   }
 
+  /**
+   * The keyboard button: it gives the prompter the keyboard (as it always did) and opens or closes the
+   * list of shortcuts. When the prompter already had the keyboard the click used to change nothing
+   * you could see, which read as a dead button (Américo, 2026-11-27).
+   */
+  function toggleShortcutsList() {
+    focusTeleprompter()
+    showShortcutsList = !showShortcutsList
+    if (showShortcutsList) closeOtherPopups('shortcuts')
+  }
+
   function unfocusTeleprompter() {
     if (teleprompterContainer) {
       teleprompterContainer.blur()
@@ -4800,6 +4834,7 @@
 
     // Handle Escape key globally - unfocus teleprompter and return to editor
     if (e.key === 'Escape') {
+      showShortcutsList = false
       if (isTeleprompterFocused) {
         e.preventDefault()
         unfocusTeleprompter()
@@ -5066,8 +5101,12 @@
     broadcastState({ isPlaying })
   }
 
-  /** Count down from a stop: scrolling pauses first, and a running countdown restarts (never two). */
+  /** Count down from a stop: scrolling pauses first. Pressed again while it runs, it cancels (never two, never a restart). */
   function startCountdownCommand() {
+    if (countdownPress(isCountingDown) === 'cancel') {
+      cancelCountdown('start-countdown pressed again')
+      return
+    }
     stopPlayback('start-countdown command')
     startCountdown()
     debugLog(`[Countdown] Started with ${countdownSeconds}s`)
@@ -6314,36 +6353,6 @@
     </div>
   {/if}
 
-  <!-- Voice tracking status indicator -->
-  {#if (voiceTrackingActive || voiceTrackingStatus === 'initializing') && settings.voiceTrackingShowIndicator}
-    <div class="voice-status-overlay">
-      <div class="voice-status-indicator" class:listening={voiceTrackingStatus === 'listening'}>
-        <span class="voice-icon" use:lucideIcon={'mic'}></span>
-        <span class="voice-status-text">
-          {#if voiceTrackingStatus === 'listening'}
-            Listening...
-          {:else if voiceTrackingStatus === 'initializing'}
-            {#if voiceDownloadProgress > 0 && voiceDownloadProgress < 100}
-              Downloading model... {voiceDownloadProgress}%
-            {:else}
-              Initializing...
-            {/if}
-          {:else}
-            Voice Active
-          {/if}
-        </span>
-      </div>
-      {#if voiceTrackingStatus === 'initializing' && voiceDownloadProgress > 0}
-        <div class="voice-progress-bar">
-          <div class="voice-progress-fill" style="width: {voiceDownloadProgress}%"></div>
-        </div>
-      {/if}
-      {#if lastRecognizedText}
-        <div class="voice-recognized-text">"{lastRecognizedText}"</div>
-      {/if}
-    </div>
-  {/if}
-
   <!-- TTS status indicator -->
   {#if ttsPlaybackState !== 'idle' || ttsError}
     <div class="tts-status-overlay">
@@ -6420,7 +6429,7 @@
         </button>
       {:else if control.id === 'focus-mode'}
         <button
-          use:setIconAction={'focus'}
+          use:setIconAction={CONTROL_ICONS.focusMode.lucide}
           onclick={toggleFocusMode}
           class="btn-focus-mode icon-btn"
           class:active={focusMode}
@@ -7184,16 +7193,34 @@
     <!-- Keyboard shortcuts: dimmed with an amber dot while the prompter does not have the keyboard;
          one click gives it the keyboard. Replaces the hint and badge that sat on the script (ISC-156). -->
     {#if !showsMobileInterface()}
-      <button
-        class="tp-keys-btn icon-btn"
-        class:tp-keys-off={!isTeleprompterFocused}
-        aria-label={isTeleprompterFocused ? 'Keyboard shortcuts on' : 'Keyboard shortcuts off: click to turn on'}
-        title={isTeleprompterFocused ? 'Keyboard shortcuts on' : 'Keyboard shortcuts off: click to turn on'}
-        onclick={() => focusTeleprompter()}
-      >
-        <span class="tp-inline-icon" use:lucideIcon={'keyboard'}></span>
-        {#if !isTeleprompterFocused}<span class="tp-keys-dot"></span>{/if}
-      </button>
+      <div class="control-with-popup tp-keys">
+        <button
+          class="tp-keys-btn icon-btn"
+          class:tp-keys-off={!isTeleprompterFocused}
+          class:active={showShortcutsList}
+          aria-label={isTeleprompterFocused ? 'Keyboard shortcuts on: show the list' : 'Keyboard shortcuts off: click to turn on and show the list'}
+          title={isTeleprompterFocused ? 'Keyboard shortcuts on: click for the list' : 'Keyboard shortcuts off: click to turn on and show the list'}
+          aria-haspopup="dialog"
+          aria-expanded={showShortcutsList}
+          onclick={toggleShortcutsList}
+        >
+          <span class="tp-inline-icon" use:lucideIcon={'keyboard'}></span>
+          {#if !isTeleprompterFocused}<span class="tp-keys-dot"></span>{/if}
+        </button>
+        {#if showShortcutsList}
+          <div class="popup-panel tp-keys-panel" role="dialog" aria-label="Keyboard shortcuts">
+            <div class="tp-keys-title">Keyboard shortcuts</div>
+            <div class="tp-keys-note">{isTeleprompterFocused ? 'They work now.' : 'Click the script to turn them on.'}</div>
+            <table class="tp-keys-table">
+              <tbody>
+                {#each shortcutRows(customHotkeys, plugin?.settings?.pedalArrowKeys === true) as row (row.action)}
+                  <tr><td class="tp-keys-keys">{row.keys}</td><td>{row.action}</td></tr>
+                {/each}
+              </tbody>
+            </table>
+          </div>
+        {/if}
+      </div>
     {/if}
 
     <!-- The clock, on the bar while it fits (fitReadout) -->
@@ -7261,6 +7288,36 @@
         </span>
       </div>
     {/if}
+    <!-- Voice status: in the reading area (bottom left), never over the toolbar or the clock (ISC-184). -->
+    {#if (voiceTrackingActive || voiceTrackingStatus === 'initializing') && settings.voiceTrackingShowIndicator}
+      <div class="voice-status-overlay">
+        <div class="voice-status-indicator" class:listening={voiceTrackingStatus === 'listening'}>
+          <span class="voice-icon" use:lucideIcon={'mic'}></span>
+          <span class="voice-status-text">
+            {#if voiceTrackingStatus === 'listening'}
+              Listening...
+            {:else if voiceTrackingStatus === 'initializing'}
+              {#if voiceDownloadProgress > 0 && voiceDownloadProgress < 100}
+                Downloading model... {voiceDownloadProgress}%
+              {:else}
+                Initializing...
+              {/if}
+            {:else}
+              Voice Active
+            {/if}
+          </span>
+        </div>
+        {#if voiceTrackingStatus === 'initializing' && voiceDownloadProgress > 0}
+          <div class="voice-progress-bar">
+            <div class="voice-progress-fill" style="width: {voiceDownloadProgress}%"></div>
+          </div>
+        {/if}
+        {#if lastRecognizedText}
+          <div class="voice-recognized-text">"{lastRecognizedText}"</div>
+        {/if}
+      </div>
+    {/if}
+
     <!-- The take that just ended: one line, the same text the other window and the phone show.
          Mirrored with the script, like the clock, because this screen feeds the prompter glass. -->
     {#if takeCardShown}
@@ -7477,11 +7534,6 @@
   /* Floating window. The whole window fades, so the text needs an edge to stay readable. */
   .tp-floating .content-area {
     text-shadow: -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000;
-  }
-
-  /* Below the floating bar, so the voice badge never covers its buttons. */
-  .tp-floating .voice-status-overlay {
-    top: 3rem;
   }
 
   .tp-floating .focus-hint,
@@ -7716,6 +7768,10 @@
     min-width: 0.25rem;
   }
 
+  .tp-keys {
+    flex: 0 0 auto;
+  }
+
   .tp-keys-btn {
     position: relative;
     flex: 0 0 auto;
@@ -7724,6 +7780,43 @@
 
   .tp-keys-btn.tp-keys-off {
     color: var(--text-muted);
+  }
+
+  /* The button sits at the bar's right edge: the list opens inward from it, not centred on it. */
+  .tp-keys-panel {
+    right: 0;
+    left: auto;
+    transform: none;
+    min-width: 270px;
+    animation: none;
+  }
+
+  .tp-keys-title {
+    font-weight: 600;
+    margin-bottom: 0.1rem;
+  }
+
+  .tp-keys-note {
+    color: var(--text-muted);
+    font-size: 0.75rem;
+    margin-bottom: 0.4rem;
+  }
+
+  .tp-keys-table {
+    border-collapse: collapse;
+    width: 100%;
+  }
+
+  .tp-keys-table td {
+    padding: 0.15rem 0.4rem 0.15rem 0;
+    font-size: 0.8rem;
+    white-space: nowrap;
+  }
+
+  .tp-keys-keys {
+    font-family: var(--font-monospace);
+    color: var(--interactive-accent);
+    padding-right: 0.9rem;
   }
 
   .tp-keys-dot {
@@ -9069,11 +9162,14 @@
     50% { transform: scale(1.05); }
   }
 
-  /* Voice Tracking Status Overlay */
+  /* Voice Tracking Status Overlay. Bottom left of the reading area (.main-content), which sits below
+     the toolbar and above the progress bar, so it cannot cover the keyboard button or the clock; it
+     used to sit at the top right of the whole window, on both (ISC-184). Same place in the floating view. */
   .voice-status-overlay {
     position: absolute;
-    top: 1rem;
-    right: 1rem;
+    bottom: 1rem;
+    left: 1rem;
+    pointer-events: none;
     background: rgba(0, 0, 0, 0.8);
     border-radius: 8px;
     padding: 0.75rem 1rem;

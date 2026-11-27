@@ -72,7 +72,7 @@ describe('mobile phase 1', () => {
 		const main = readFileSync(join(SRC, 'main.ts'), 'utf8')
 		expect(main).toContain("mobile ? workspace.getLeaf('tab') : workspace.getRightLeaf(false)")
 		const app = readFileSync(join(SRC, 'TeleprompterApp.svelte'), 'utf8')
-		expect(app).toMatch(/\{#if !showsMobileInterface\(\)\}\s*<button\s*class="tp-keys-btn/)
+		expect(app).toMatch(/\{#if !showsMobileInterface\(\)\}\s*<div class="control-with-popup tp-keys">\s*<button\s*class="tp-keys-btn/)
 		expect(app).toContain('let showNavigation = $state(!showsMobileInterface() &&')
 		expect(app).toMatch(/font-size: min\(calc\(var\(--base-font-size\) \* 1\.8\), 9cqw\)/)
 	})
