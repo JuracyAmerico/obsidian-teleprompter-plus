@@ -81,20 +81,20 @@ Look and behaviour of the script: spacing, opacity, view, mirror, alignment, eye
 | R1 C4 | Padding Vertical Increase | Appearance | `padding-vertical-increase` | One state; a press sends the command |
 | R1 C5 | Padding Horizontal Increase | Appearance | `padding-horizontal-increase` | One state; a press sends the command |
 | R1 C6 | Opacity Up | Appearance | `opacity-increase` | One state; a press sends the command |
-| R1 C7 | Toggle View Mode | Appearance | `toggle-view-mode` | Two states: rendered, then plain text (lit); flips on each press (the server does not report the view mode) |
+| R1 C7 | Toggle View Mode | Appearance | `toggle-view-mode` | Two states: rendered, then plain text (lit); follows the teleprompter |
 | R2 C1 | Cycle Text Alignment | Appearance | `cycle-alignment` | One state; a press sends the command |
 | R2 C2 | Line Height Decrease | Appearance | `line-height-decrease` | One state; a press sends the command |
 | R2 C3 | Letter Spacing Down | Appearance | `letter-spacing-decrease` | One state; a press sends the command |
 | R2 C4 | Padding Vertical Decrease | Appearance | `padding-vertical-decrease` | One state; a press sends the command |
 | R2 C5 | Padding Horizontal Decrease | Appearance | `padding-horizontal-decrease` | One state; a press sends the command |
 | R2 C6 | Opacity Down | Appearance | `opacity-decrease` | One state; a press sends the command |
-| R2 C7 | Flip: Horizontal (Mirror) | Appearance | `toggle-flip-horizontal` | Two states, lit when on; flips on each press (the deck cannot read it back) |
-| R2 C8 | Flip: Vertical (Upside Down) | Appearance | `toggle-flip-vertical` | Two states, lit when on; flips on each press (the deck cannot read it back) |
+| R2 C7 | Flip: Horizontal (Mirror) | Appearance | `toggle-flip-horizontal` | Two states, lit when on; follows the teleprompter |
+| R2 C8 | Flip: Vertical (Upside Down) | Appearance | `toggle-flip-vertical` | Two states, lit when on; follows the teleprompter |
 | R3 C1 | Toggle Eyeline | Appearance | `toggle-eyeline` | Two states, lit when on; follows the teleprompter |
 | R3 C2 | Toggle Focus Mode | Appearance | `toggle-focus-mode` | Two states, lit when on; follows the teleprompter |
 | R3 C3 | Scroll Sync | Windows and note | `toggle-scroll-sync` | Two states, lit when on; flips on each press (the deck cannot read it back) |
 | R3 C4 | Refresh Pinned Note | Windows and note | `refresh-pinned` | One state; a press sends the command |
-| R3 C5 | Minimap | Navigation | `toggle-minimap` | Two states, lit when on; flips on each press (the deck cannot read it back) |
+| R3 C5 | Minimap | Navigation | `toggle-minimap` | Two states, lit when on; follows the teleprompter |
 | R3 C7 | Cycle Progress Indicator | Appearance | `cycle-progress-indicator` | One state; a press sends the command |
 | R3 C8 | Toggle Auto-Pause | Transport | `toggle-auto-pause` | Two states, lit when on; follows the teleprompter |
 | R4 C1 | *Snagit (your key)* | Deck | Copied from Stage R4 C1: Hotkey ⌃⇧C (Snagit); picture tp-capture | Stream Deck key, not a T+ action |
@@ -163,7 +163,7 @@ The key art is one family, defined in [`icons/streamdeck/icons-data.js`](icons/s
 - a key whose action also has a toolbar button or a phone-remote button shows the same symbol: the Lucide icon named for that action in [`src/action-icons.ts`](../src/action-icons.ts), the one map the toolbar, the remote and this script read, drawn here in the family grid, stroke and colour. A key that is one step of a toolbar control (Speed Up, Countdown −) shows the control's symbol with a small arrow, plus or minus beside it. `src/action-icons.test.ts` fails when the toolbar or the remote drifts from the map, `scripts/streamdeck-profile.test.ts` when a key does;
 - colour carries meaning: green starts or listens, red stops, purple is speed, size, countdown and the T+ accent, blue is navigation and layout, grey is a plain toggle;
 - a key that is on (eyeline shown, focus on, pinned, full screen, keep awake, auto-pause, plain-text view, recording, streaming) is lit: its "on" picture in green, on a purple tint, inside the T+ accent ring `#7c6cf6`, with a green dot. The "on" picture is a symbol of its own, the way pause follows play and the live microphone follows the crossed-out one: the Lucide "on" form where there is one (an eye in the eyeline frame, the focus target, minimize, the panel with its close chevron, picture-in-picture pointing back, a linked chain), otherwise the same symbol drawn solid with the strokes inside it cut out (pin, coffee cup, auto-pause, map, the flips, the front panel of the view-mode key). `src/action-icons.ts` names it for each action (`on`, `onSolid`), and the toolbar shows the same symbol while its button is active;
-- Sections follows the teleprompter (it reports `navigationVisible`). Minimap, Mirror, Upside Down, Float, Scroll Sync and View Mode flip on each press, like Record: the teleprompter does not report those settings to the deck (View Mode's `broadcastState` goes to the app's other windows, not to the WebSocket), so a change made in Obsidian leaves the key on its last picture until the next press. `--plugin-overlay` adds the second manifest state to a key the layout gives two.
+- Sections, Minimap, Mirror, Upside Down and View Mode follow the teleprompter, which reports `navigationVisible`, `minimapVisible`, `flipHorizontal`, `flipVertical` and `viewMode` in its WebSocket state and pushes it as soon as one changes, so a change made in Obsidian reaches the key too. Float and Scroll Sync flip on each press, like Record: the teleprompter does not report them. With a teleprompter older than these fields the four keys keep Stream Deck's own flip on press. `--plugin-overlay` adds the second manifest state to a key the layout gives two.
 
 ![Toggles, off and on](icons/streamdeck/profile/streamdeck-xl-states.png)
 
@@ -171,7 +171,7 @@ Sizes follow Elgato's plugin guidelines: key pictures at 72 × 72 px and 144 × 
 
 ## Putting the art into the deck plugin
 
-A key shows, first, a picture you set on it in the app; then the picture the plugin sets while it runs; then the one in the plugin's manifest. The deck plugin paints every key with its theme while it runs, so this art reaches the keys through a third theme, **T+**, which becomes the default. [`icons/streamdeck/deck-plugin/tplus-theme.patch`](icons/streamdeck/deck-plugin/tplus-theme.patch) adds it to the deck plugin's `src/plugin.ts`: the T+ pictures by action folder, the lit picture for state 1 of the two-state keys, Cycle Theme stepping T+, PAI Tron, Editorial, a picture of its own for Refresh Pinned Note, which used to share the pin, and the Sections key following `navigationVisible` (`src/protocol.ts` keeps that field). In a checkout of the deck plugin at `fa08131`:
+A key shows, first, a picture you set on it in the app; then the picture the plugin sets while it runs; then the one in the plugin's manifest. The deck plugin paints every key with its theme while it runs, so this art reaches the keys through a third theme, **T+**, which becomes the default. [`icons/streamdeck/deck-plugin/tplus-theme.patch`](icons/streamdeck/deck-plugin/tplus-theme.patch) adds it to the deck plugin's `src/plugin.ts`: the T+ pictures by action folder, the lit picture for state 1 of the two-state keys, Cycle Theme stepping T+, PAI Tron, Editorial, a picture of its own for Refresh Pinned Note, which used to share the pin, the Sections key following `navigationVisible`, and Mirror, Upside Down, Minimap and View Mode following `flipHorizontal`, `flipVertical`, `minimapVisible` and `viewMode` (`src/protocol.ts` keeps those fields). In a checkout of the deck plugin at `fa08131`:
 
 ```sh
 git apply <this repo>/docs/icons/streamdeck/deck-plugin/tplus-theme.patch

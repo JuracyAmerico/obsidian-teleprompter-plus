@@ -61,6 +61,10 @@ The server pushes a `state` message whenever anything observable changes, plus o
     "isFullScreen": false,
     "focusMode": false,
     "eyelineVisible": true,
+    "flipHorizontal": false,
+    "flipVertical": false,
+    "minimapVisible": false,
+    "viewMode": "rendered",
     "textAlignment": "left",
     "voiceTrackingActive": false,
     "voiceTrackingStatus": "off",
@@ -77,6 +81,8 @@ The server pushes a `state` message whenever anything observable changes, plus o
 ```
 
 Treat `timestamp` as monotonically increasing per session — use it to dedupe or sequence updates. Fields beyond `isPlaying`, `speed`, `fontSize`, the scroll fields, `currentNote`, `currentNoteTitle`, `headers`, `navigationVisible` and `timestamp` are optional: a key can be absent, so read it defensively. The shape is `TeleprompterState` in `src/websocket-server.ts`.
+
+Display toggles: `flipHorizontal` (mirror), `flipVertical` (upside down) and `minimapVisible` are booleans, and `viewMode` is `rendered` or `plain`. A change to any of them, or to `eyelineVisible`, `focusMode`, `isPinned`, `isKeepAwake`, `isFullScreen` or `autoPauseOnEdit`, pushes a `state` message at once, wherever it was made, so a Stream Deck key that shows the setting follows it. The four display toggles are sent by releases after 0.12.16; an older server omits them.
 
 Rehearsal fields: `paceStatus` is `ahead`, `on-track`, `behind`, `over` or `unknown`; `remainingSeconds` is negative once the target is passed; `sessionState` is `idle`, `running`, `paused` or `finished`. `lastTake` is the card of the take that just ended (`kind`, `title`, `durationSeconds`, `targetSeconds`, `deltaSeconds`, `verdict`, `complete`, and `text`, the line the prompter shows), and `null` once reading moves on.
 

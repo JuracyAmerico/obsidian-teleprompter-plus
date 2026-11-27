@@ -4,7 +4,7 @@ import os from 'node:os'
 import path from 'node:path'
 import { ACTION_ICONS, actionIcon } from '../src/action-icons'
 import {
-	ACTIONS, CHROME, COLS, EMPTY, ICON_DIR, LIST_DIR, ON_COLOR, PAGES, PROFILE_DOC, ROWS, UUID_PREFIX,
+	ACTIONS, CHROME, COLS, EMPTY, ICON_DIR, LIST_DIR, ON_COLOR, PAGES, PROFILE_DOC, ROWS, STATES, UUID_PREFIX,
 	actionListSvg, canonicalSvg, compareWithManifest, keyFor, layoutMarkdown, loadIconSet,
 	lucideIconId, lucideInner, onStateSvg, pictures, placedKeys, pngSize, solidLucideInner, spliceDoc, stateIcons,
 	togglePictures, writePluginOverlay,
@@ -136,10 +136,19 @@ describe('XL layout', () => {
 		expect(layout.size).toBe(16)
 	})
 
-	test('Sections follows the teleprompter (it reports navigationVisible); Minimap, the flips, Float and Scroll Sync flip per press', () => {
+	test('Sections, Minimap and the flips follow the teleprompter, View Mode too; Float and Scroll Sync flip per press (ISC-210)', () => {
 		const state = (id: string) => ACTIONS.find(a => a.id === id)?.state
-		expect(state('togglenavigation')).toBe('follows')
-		for (const id of ['minimap', 'flip-horizontal', 'flip-vertical', 'detachwindow', 'scroll-sync']) expect(state(id), id).toBe('flips')
+		// The WebSocket state reports navigationVisible, minimapVisible, flipHorizontal, flipVertical and viewMode.
+		for (const id of ['togglenavigation', 'minimap', 'flip-horizontal', 'flip-vertical']) expect(state(id), id).toBe('follows')
+		expect(state('toggleviewmode')).toBe('viewMode')
+		expect(STATES.viewMode).toContain('follows the teleprompter')
+		for (const id of ['detachwindow', 'scroll-sync']) expect(state(id), id).toBe('flips')
+	})
+
+	test('the deck plugin patch lights Mirror, Upside Down, Minimap and View Mode from the reported state (ISC-210)', () => {
+		const patch = readFileSync(path.join(ICON_DIR, 'deck-plugin', 'tplus-theme.patch'), 'utf8')
+		for (const field of ['flipHorizontal', 'flipVertical', 'minimapVisible', 'viewMode']) expect(patch, field).toContain(`+	${field}?:`)
+		expect(patch.match(/^\+\t\tfollowToggle\(keyAction, /gm)?.length).toBe(4)
 	})
 })
 

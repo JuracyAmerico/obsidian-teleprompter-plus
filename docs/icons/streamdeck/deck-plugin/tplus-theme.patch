@@ -12,10 +12,17 @@ index 083ed90..0b55935 100644
          {
            "Image": "imgs/actions/theme/key-tron",
 diff --git a/src/plugin.ts b/src/plugin.ts
-index f3bc4a0..235627a 100644
+index f3bc4a0..6b2d126 100644
 --- a/src/plugin.ts
 +++ b/src/plugin.ts
-@@ -11,7 +11,7 @@ import { clockView, voiceView, type PaceStatus, type VoiceView } from './protoco
+@@ -5,13 +5,13 @@
+ 
+ import streamDeck, { KeyAction, KeyDownEvent, SingletonAction, WillAppearEvent, WillDisappearEvent, type JsonObject } from '@elgato/streamdeck';
+ import { TeleprompterConnection } from './connection';
+-import { clockView, voiceView, type PaceStatus, type VoiceView } from './protocol';
++import { clockView, toggleKeyState, voiceView, type PaceStatus, type VoiceView } from './protocol';
+ 
+ // ============================================================================
  // Theme Management System
  // ============================================================================
  
@@ -148,7 +155,25 @@ index f3bc4a0..235627a 100644
  			setImageQuietly(action, first, actionFolder, 0);
  			setImageQuietly(action, second, actionFolder, 1);
  			return;
-@@ -649,7 +686,7 @@ export class TogglePinAction extends SingletonAction<JsonObject> {
+@@ -326,6 +363,17 @@ function setStateQuietly(action: KeyAction<JsonObject>, state: 0 | 1): void {
+ 	});
+ }
+ 
++/**
++ * Lights a display toggle key (Mirror, Upside Down, Minimap, View Mode) from the setting the server
++ * reports. A server that does not report it leaves the key as Stream Deck's flip on press set it.
++ */
++function followToggle(action: KeyAction<JsonObject>, actionFolder: string): void {
++	teleprompter.subscribe(action.id, (state) => {
++		const lit = toggleKeyState(actionFolder, state);
++		if (lit !== null) setStateQuietly(action, lit);
++	});
++}
++
+ // Global theme manager instance
+ const themeManager = new ThemeManager();
+ 
+@@ -649,7 +697,7 @@ export class TogglePinAction extends SingletonAction<JsonObject> {
  
  export class RefreshPinnedAction extends SingletonAction<JsonObject> {
  	manifestId = 'com.americo.teleprompter.refreshpinned';
@@ -157,7 +182,31 @@ index f3bc4a0..235627a 100644
  	override onKeyDown(ev: KeyDownEvent<JsonObject>): void {
  		streamDeck.logger.info('Refresh Pinned Note pressed');
  		teleprompter.send('refresh-pinned', ev.action);
-@@ -1152,6 +1189,7 @@ export class ToggleNavigationAction extends SingletonAction<JsonObject> {
+@@ -1077,6 +1125,7 @@ export class FlipHorizontalAction extends SingletonAction<JsonObject> {
+ 		const keyAction = ev.action as KeyAction<JsonObject>;
+ 		themeManager.registerVisibleAction(ev.action.id, keyAction, FlipHorizontalAction.ACTION_FOLDER);
+ 		themeManager.updateActionIcon(keyAction, FlipHorizontalAction.ACTION_FOLDER);
++		followToggle(keyAction, FlipHorizontalAction.ACTION_FOLDER);
+ 	}
+ 	override onWillDisappear(ev: WillDisappearEvent<JsonObject>): void { releaseKey(ev.action.id); }
+ }
+@@ -1096,6 +1145,7 @@ export class FlipVerticalAction extends SingletonAction<JsonObject> {
+ 		const keyAction = ev.action as KeyAction<JsonObject>;
+ 		themeManager.registerVisibleAction(ev.action.id, keyAction, FlipVerticalAction.ACTION_FOLDER);
+ 		themeManager.updateActionIcon(keyAction, FlipVerticalAction.ACTION_FOLDER);
++		followToggle(keyAction, FlipVerticalAction.ACTION_FOLDER);
+ 	}
+ 	override onWillDisappear(ev: WillDisappearEvent<JsonObject>): void { releaseKey(ev.action.id); }
+ }
+@@ -1134,6 +1184,7 @@ export class MinimapAction extends SingletonAction<JsonObject> {
+ 		const keyAction = ev.action as KeyAction<JsonObject>;
+ 		themeManager.registerVisibleAction(ev.action.id, keyAction, MinimapAction.ACTION_FOLDER);
+ 		themeManager.updateActionIcon(keyAction, MinimapAction.ACTION_FOLDER);
++		followToggle(keyAction, MinimapAction.ACTION_FOLDER);
+ 	}
+ 	override onWillDisappear(ev: WillDisappearEvent<JsonObject>): void { releaseKey(ev.action.id); }
+ }
+@@ -1152,6 +1203,7 @@ export class ToggleNavigationAction extends SingletonAction<JsonObject> {
  		const keyAction = ev.action as KeyAction<JsonObject>;
  		themeManager.registerVisibleAction(ev.action.id, keyAction, ToggleNavigationAction.ACTION_FOLDER);
  		themeManager.updateActionIcon(keyAction, ToggleNavigationAction.ACTION_FOLDER);
@@ -165,21 +214,27 @@ index f3bc4a0..235627a 100644
  	}
  	override onWillDisappear(ev: WillDisappearEvent<JsonObject>): void { releaseKey(ev.action.id); }
  }
-@@ -1483,8 +1521,11 @@ export class LetterSpacingDownAction extends SingletonAction<JsonObject> {
+@@ -1483,8 +1535,9 @@ export class LetterSpacingDownAction extends SingletonAction<JsonObject> {
  
  /**
   * Toggle View Mode Action (Theme-aware)
 - * Switches between Markdown and Plain text rendering. The server sends no viewMode in its state,
 - * so the key does not subscribe: Stream Deck's own two-state flip on press is the only indicator.
-+ * Switches between Markdown and Plain text rendering. The server sends no viewMode in its state
-+ * (checked 2026-11-27: TeleprompterApp's broadcastState({ viewMode }) goes to the app's other
-+ * windows, and broadcastStateToWebSocket leaves it out), so the key does not subscribe: Stream
-+ * Deck's own two-state flip on press is the only indicator. The same holds for Minimap, both
-+ * flips, Detach Window and Scroll Sync, which the server does not report either.
++ * Switches between Markdown and Plain text rendering; lit on plain text. It follows the server's
++ * `viewMode`, as Minimap and both flips follow theirs (see followToggle). Detach Window and Scroll
++ * Sync are not reported by the server, so Stream Deck's own flip on press stays their only indicator.
   */
  
  export class ToggleViewModeAction extends SingletonAction<JsonObject> {
-@@ -1592,13 +1633,17 @@ export class OBSToggleStreamingAction extends SingletonAction<JsonObject> {
+@@ -1498,6 +1551,7 @@ export class ToggleViewModeAction extends SingletonAction<JsonObject> {
+ 		const keyAction = ev.action as KeyAction<JsonObject>;
+ 		themeManager.registerVisibleAction(ev.action.id, keyAction, ToggleViewModeAction.ACTION_FOLDER);
+ 		themeManager.updateActionIcon(keyAction, ToggleViewModeAction.ACTION_FOLDER);
++		followToggle(keyAction, ToggleViewModeAction.ACTION_FOLDER);
+ 	}
+ 	override onWillDisappear(ev: WillDisappearEvent<JsonObject>): void { releaseKey(ev.action.id); }
+ }
+@@ -1592,13 +1646,17 @@ export class OBSToggleStreamingAction extends SingletonAction<JsonObject> {
  
  /**
   * Cycle Theme Action
@@ -200,31 +255,149 @@ index f3bc4a0..235627a 100644
  
  	override onKeyDown(ev: KeyDownEvent<JsonObject>): void {
 diff --git a/src/protocol.ts b/src/protocol.ts
-index f26cc50..854c41c 100644
+index f26cc50..8878833 100644
 --- a/src/protocol.ts
 +++ b/src/protocol.ts
-@@ -29,6 +29,8 @@ export interface TeleprompterState {
+@@ -10,10 +10,12 @@
+ export type PaceStatus = 'ahead' | 'on-track' | 'behind' | 'over' | 'unknown';
+ export type VoiceTrackingStatus = 'off' | 'initializing' | 'listening' | 'error';
+ export type SessionState = 'idle' | 'running' | 'paused' | 'finished';
++export type ViewMode = 'rendered' | 'plain';
+ 
+ const PACE_STATUSES: readonly PaceStatus[] = ['ahead', 'on-track', 'behind', 'over', 'unknown'];
+ const VOICE_STATUSES: readonly VoiceTrackingStatus[] = ['off', 'initializing', 'listening', 'error'];
+ const SESSION_STATES: readonly SessionState[] = ['idle', 'running', 'paused', 'finished'];
++const VIEW_MODES: readonly ViewMode[] = ['rendered', 'plain'];
+ 
+ /**
+  * The part of the server's state the keys read. Every field is optional: the server adds fields
+@@ -29,6 +31,13 @@ export interface TeleprompterState {
  	isKeepAwake?: boolean;
  	isFullScreen?: boolean;
  	autoPauseOnEdit?: boolean;
 +	/** The section list is shown; the Sections key follows it. */
 +	navigationVisible?: boolean;
++	/** Display toggles the Mirror, Upside Down, Minimap and View Mode keys follow (sent by Teleprompter Plus after 0.12.16). */
++	flipHorizontal?: boolean;
++	flipVertical?: boolean;
++	minimapVisible?: boolean;
++	viewMode?: ViewMode;
  	voiceTrackingActive?: boolean;
  	voiceTrackingStatus?: VoiceTrackingStatus;
  	targetSeconds?: number | null;
-@@ -52,6 +54,7 @@ const BOOLEAN_FIELDS = [
+@@ -52,6 +61,10 @@ const BOOLEAN_FIELDS = [
  	'isKeepAwake',
  	'isFullScreen',
  	'autoPauseOnEdit',
 +	'navigationVisible',
++	'flipHorizontal',
++	'flipVertical',
++	'minimapVisible',
  	'voiceTrackingActive',
  ] as const;
  
+@@ -90,10 +103,40 @@ export function parseState(data: unknown): TeleprompterState | null {
+ 	if (pace) state.paceStatus = pace;
+ 	const session = pickEnum(data.sessionState, SESSION_STATES);
+ 	if (session) state.sessionState = session;
++	const viewMode = pickEnum(data.viewMode, VIEW_MODES);
++	if (viewMode) state.viewMode = viewMode;
+ 
+ 	return state;
+ }
+ 
++/**
++ * The two-state keys that follow a display setting of the teleprompter, by action folder, and
++ * whether the setting is on in a state. Undefined means the server did not report it.
++ */
++const FOLLOWED_TOGGLES: Readonly<Record<string, (state: TeleprompterState) => boolean | undefined>> = {
++	'flip-horizontal': (state) => state.flipHorizontal,
++	'flip-vertical': (state) => state.flipVertical,
++	minimap: (state) => state.minimapVisible,
++	'view-mode': (state) => (state.viewMode === undefined ? undefined : state.viewMode === 'plain'),
++};
++
++export const FOLLOWED_TOGGLE_FOLDERS: readonly string[] = Object.keys(FOLLOWED_TOGGLES);
++
++/**
++ * The state a followed toggle key shows: 1 lit, 0 off. Disconnected (null) is off, as for the other
++ * keys that follow the teleprompter. null means leave the key as it is: a server older than these
++ * fields reports nothing, and forcing the key off on every push would undo Stream Deck's own flip
++ * on press, the only indicator such a server allows.
++ */
++export function toggleKeyState(folder: string, state: TeleprompterState | null): 0 | 1 | null {
++	const read = FOLLOWED_TOGGLES[folder];
++	if (!read) throw new Error(`No teleprompter setting is followed by the "${folder}" key`);
++	if (!state) return 0;
++	const on = read(state);
++	if (on === undefined) return null;
++	return on ? 1 : 0;
++}
++
+ /** Parses one frame from the server. Returns null for anything that is not a JSON object with a string `type`. */
+ export function parseServerMessage(raw: string): ServerMessage | null {
+ 	let message: unknown;
 diff --git a/test/protocol.test.ts b/test/protocol.test.ts
-index 5f658c5..04f5ccd 100644
+index 5f658c5..e02938a 100644
 --- a/test/protocol.test.ts
 +++ b/test/protocol.test.ts
-@@ -33,6 +33,11 @@ describe('parseState', () => {
+@@ -2,15 +2,55 @@ import { describe, expect, test } from 'bun:test';
+ import {
+ 	CLOCK_OFFLINE_TITLE,
+ 	CommandLedger,
++	FOLLOWED_TOGGLE_FOLDERS,
+ 	StateHub,
+ 	clockView,
+ 	formatDuration,
+ 	parseServerMessage,
+ 	parseState,
++	toggleKeyState,
+ 	voiceView,
+ 	type TeleprompterState,
+ } from '../src/protocol';
+ 
++describe('display toggles the teleprompter reports (Mirror, Upside Down, Minimap, View Mode)', () => {
++	test('parseState keeps the three flags and the view mode, and drops wrong types', () => {
++		expect(parseState({ flipHorizontal: true, flipVertical: false, minimapVisible: true, viewMode: 'plain' })).toEqual({
++			flipHorizontal: true,
++			flipVertical: false,
++			minimapVisible: true,
++			viewMode: 'plain',
++		});
++		expect(parseState({ flipHorizontal: 'yes', flipVertical: 1, minimapVisible: null, viewMode: 'source' })).toEqual({});
++	});
++
++	test('each key is lit exactly when its setting is on; View Mode is lit on plain text', () => {
++		const on: TeleprompterState = { flipHorizontal: true, flipVertical: true, minimapVisible: true, viewMode: 'plain' };
++		const off: TeleprompterState = { flipHorizontal: false, flipVertical: false, minimapVisible: false, viewMode: 'rendered' };
++		for (const folder of FOLLOWED_TOGGLE_FOLDERS) {
++			expect(toggleKeyState(folder, on), folder).toBe(1);
++			expect(toggleKeyState(folder, off), folder).toBe(0);
++		}
++		expect([...FOLLOWED_TOGGLE_FOLDERS].sort()).toEqual(['flip-horizontal', 'flip-vertical', 'minimap', 'view-mode']);
++	});
++
++	test('one setting lights only its own key', () => {
++		const state: TeleprompterState = { flipHorizontal: true, flipVertical: false, minimapVisible: false, viewMode: 'rendered' };
++		expect(toggleKeyState('flip-horizontal', state)).toBe(1);
++		expect(toggleKeyState('flip-vertical', state)).toBe(0);
++		expect(toggleKeyState('minimap', state)).toBe(0);
++		expect(toggleKeyState('view-mode', state)).toBe(0);
++	});
++
++	test('disconnected shows the key off, like the other keys that follow the teleprompter', () => {
++		for (const folder of FOLLOWED_TOGGLE_FOLDERS) expect(toggleKeyState(folder, null), folder).toBe(0);
++	});
++
++	test('a server that does not report the setting leaves the key alone, so its own flip on press still shows', () => {
++		for (const folder of FOLLOWED_TOGGLE_FOLDERS) expect(toggleKeyState(folder, { isPlaying: true }), folder).toBeNull();
++	});
++});
++
+ describe('parseState', () => {
+ 	test('keeps typed fields and drops wrong types and unknown enum values', () => {
+ 		const state = parseState({
+@@ -33,6 +73,11 @@ describe('parseState', () => {
  		});
  	});
  

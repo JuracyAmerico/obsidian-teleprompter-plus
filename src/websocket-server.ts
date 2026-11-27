@@ -216,6 +216,11 @@ export interface TeleprompterState {
 	isFullScreen?: boolean
 	focusMode?: boolean
 	eyelineVisible?: boolean
+	/** Display toggles; the Stream Deck's Mirror, Upside Down, Minimap and View Mode keys follow them. */
+	flipHorizontal?: boolean
+	flipVertical?: boolean
+	minimapVisible?: boolean
+	viewMode?: 'rendered' | 'plain'
 	speedPresets?: number[]
 	currentSpeedPresetIndex?: number
 	textAlignment?: string

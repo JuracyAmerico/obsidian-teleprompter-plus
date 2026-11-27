@@ -5228,6 +5228,11 @@
       isKeepAwake,
       isFullScreen,
       focusMode,
+      // The Stream Deck lights Mirror, Upside Down, Minimap and View Mode from these (ISC-210).
+      flipHorizontal,
+      flipVertical,
+      minimapVisible: showMinimap,
+      viewMode,
       progressIndicatorStyle,
       autoPauseOnEdit,
       doubleClickToEdit: settings.doubleClickToEdit,
@@ -5258,6 +5263,18 @@
       elapsed: elapsedSeconds,
       // A take ending (or its card clearing) pushes state, so the phone shows it at once.
       take: takeCardShown,
+      // An on/off setting the Stream Deck shows on a key pushes when it changes, wherever it was
+      // changed (toolbar, hotkey, other window), so the key never waits for an unrelated push (ISC-210).
+      eyeline: showEyeline,
+      focus: focusMode,
+      pinned: isPinned,
+      keepAwake: isKeepAwake,
+      fullScreen: isFullScreen,
+      autoPause: autoPauseOnEdit,
+      mirror: flipHorizontal,
+      upsideDown: flipVertical,
+      minimap: showMinimap,
+      view: viewMode,
     }
 
     // Broadcast after a short debounce
