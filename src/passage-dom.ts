@@ -92,7 +92,6 @@ export function wordAtPoint(
 		offset = position?.offset ?? 0
 	} else {
 		// Older Chromium has only the non-standard form.
-		// eslint-disable-next-line @typescript-eslint/no-deprecated
 		const range: Range | null = doc.caretRangeFromPoint(clientX, clientY)
 		caretNode = range?.startContainer
 		offset = range?.startOffset ?? 0

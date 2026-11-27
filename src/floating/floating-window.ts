@@ -160,7 +160,6 @@ export function restorableBounds(
 /** Every connected display, or an empty list when Electron's screen module is out of reach. */
 export function connectedDisplays(): DisplayInfo[] {
 	try {
-		// eslint-disable-next-line @typescript-eslint/no-require-imports -- Electron exists only at runtime, in Obsidian
 		const electron = require('electron') as {
 			remote?: { screen?: { getAllDisplays(): DisplayInfo[] } }
 		}
