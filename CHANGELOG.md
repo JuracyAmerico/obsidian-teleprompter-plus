@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.12.15] - 2026-11-27
+
 ### Fixed
 - **The lint error that failed 0.12.14's directory review is fixed.** Version 0.12.14 was marked Failed for a lint-suppression comment next to the touch-to-word lookup. The comment is gone; the older-Chromium fallback it sat on stays, so word lookup behaves as before. Two unused type imports and four unnecessary type assertions are gone too. Nothing you can see changes.
 
