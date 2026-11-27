@@ -1,12 +1,24 @@
 # Weekly version updates. CI (ci.yml) runs on every pull request, so a lint plugin update shows
 # its new findings here, days before a release. Dependabot security updates do not cover bun.
+#
+# Minor and patch updates arrive as one grouped PR a week, so they never conflict with each
+# other on bun.lock (2026-11-27: ten separate PRs, three conflicted after the first merges).
+# Major versions stay one PR each, because each needs its own decision.
 version: 2
 updates:
   - package-ecosystem: "bun"
     directory: "/"
     schedule:
       interval: "weekly"
+      day: "monday"
+    groups:
+      minor-and-patch:
+        update-types: ["minor", "patch"]
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:
       interval: "weekly"
+      day: "monday"
+    groups:
+      minor-and-patch:
+        update-types: ["minor", "patch"]
