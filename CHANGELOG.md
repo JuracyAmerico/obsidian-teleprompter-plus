@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.12.17] - 2026-11-27
+
 ### Changed
 - **A toggle that is on now shows its own symbol, not only a highlight.** Full screen shows minimize, the eyeline an eye in its frame, focus mode a focus target, the sections panel its close chevron, floating the picture-in-picture that points back; pin, keep awake, auto-pause, the minimap and both flips turn solid. Play and the microphone already worked this way. The Stream Deck key art (docs/icons/streamdeck) draws the same symbols on its lit keys, and the View Mode and Stream keys get an on picture of their own.
 
