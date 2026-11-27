@@ -369,8 +369,8 @@ export const ACTIONS: readonly ActionKey[] = FAMILY_ACTIONS.map((a) => {
 export const SYSTEM_KEYS: Record<SystemKeyId, SystemKey> = {
 	home: { kind: 'system', id: 'home', name: 'Home (your key)', label: 'Home', icon: 'tp-home', source: 'Your key 1: Switch Profile to Stage; picture tp-home' },
 	snagit: { kind: 'system', id: 'snagit', name: 'Snagit (your key)', label: 'Snagit', icon: 'tp-capture', source: 'Copied from Stage R4 C1: Hotkey ⌃⇧C (Snagit); picture tp-capture' },
-	'snagit-region': { kind: 'system', id: 'snagit-region', name: 'Snagit Region (your key)', label: 'Region', icon: 'tp-capture-region', source: 'Hotkey ⌃⇧R: give a Snagit preset with Selection Region that shortcut; picture tp-capture-region' },
-	'snagit-scroll': { kind: 'system', id: 'snagit-scroll', name: 'Snagit Scrolling (your key)', label: 'Scrolling', icon: 'tp-capture-scroll', source: 'Hotkey ⌃⇧S: give your Scrolling Capture preset that shortcut; picture tp-capture-scroll' },
+	'snagit-region': { kind: 'system', id: 'snagit-region', name: 'Snagit Region (your key)', label: 'Region', icon: 'tp-capture-region', source: 'Hotkey ⌃⇧S, Snagit Image Capture (region select); picture tp-capture-region' },
+	'snagit-scroll': { kind: 'system', id: 'snagit-scroll', name: 'Snagit Scrolling (your key)', label: 'Scrolling', icon: 'tp-capture-scroll', source: 'Hotkey ⌃⌥⇧S: the shortcut you give your Scrolling Capture preset; picture tp-capture-scroll' },
 	lights: { kind: 'system', id: 'lights', name: 'Lights (your key)', label: 'Lights', icon: 'tp-light', source: 'Copied from Stage R4 C2: Open light-toggle.sh; picture tp-light' },
 	km: { kind: 'system', id: 'km', name: '⌘ Keyboard Maestro (your key)', label: '⌘ KM', icon: 'tp-command', source: 'Copied from Stage R4 C3: Switch Profile to KeyboardMaestro; picture tp-command' },
 	'page-next': { kind: 'system', id: 'page-next', name: 'Next Page', label: 'Next page ›', icon: 'tp-page-next', source: 'Navigation: Next Page (the app places it); picture tp-page-next' },
