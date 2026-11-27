@@ -53,12 +53,12 @@ describe('XL layout', () => {
 		expect(ACTIONS.filter(a => !placed.has(a.id)).map(a => a.id)).toEqual([])
 	})
 
-	test('every page carries the same chrome: Home R1 C1; Snagit, Region, Scrolling, Lights, ⌘ R4 C1-C5; page keys R4 C7-C8', () => {
+	test('every page carries the same chrome: Home R1 C1; Snagit, Scrolling, Lights, ⌘ R4 C1-C4; page keys R4 C7-C8', () => {
 		expect(PAGES.length).toBe(3)
 		for (const page of PAGES) {
 			const g = page.grid
 			expect(g[0][0], `page ${page.number}`).toBe('home')
-			expect(g[3].slice(0, 5), `page ${page.number}`).toEqual(['snagit', 'snagit-region', 'snagit-scroll', 'lights', 'km'])
+			expect(g[3].slice(0, 4), `page ${page.number}`).toEqual(['snagit', 'snagit-scroll', 'lights', 'km'])
 			const last = page.number === PAGES.length
 			expect(g[3][7], `page ${page.number}`).toBe(last ? 'page-first' : 'page-next')
 			if (page.number > 1) expect(g[3][6], `page ${page.number}`).toBe('page-prev')
@@ -77,20 +77,20 @@ describe('XL layout', () => {
 		}
 	})
 
-	test('page 1 holds 25 actions; page 3 holds exactly the colour themes, the fonts and the key theme', () => {
+	test('page 1 holds 26 actions; page 3 holds exactly the colour themes, the fonts and the key theme', () => {
 		const actionsOn = (n: number) => placedKeys(PAGES[n - 1]).filter(k => k.key.kind === 'action').map(k => k.id)
-		expect(actionsOn(1).length).toBe(25)
+		expect(actionsOn(1).length).toBe(26)
 		const page3 = actionsOn(3).sort()
 		const expected = ACTIONS.filter(a => a.id.startsWith('color-') || a.id.startsWith('font-') || a.id === 'cycletheme').map(a => a.id).sort()
 		expect(page3).toEqual(expected)
 	})
 
 	test('page 1 keeps the approved positions of rows 1 to 3', () => {
-		// Approved 2026-11-27; the Snagit round moved Float and Open note into row 3 (C4, C8).
+		// Approved 2026-11-27; Float sits in row 3 (C4) since the Snagit round.
 		const approved = [
 			['home', 'playpause', 'startcountdown', 'reset', 'previoussection', 'scrollup', 'speedup', 'fontsizeup'],
 			['voicetoggle', 'clock', 'countdownincrease', 'togglenavigation', 'nextsection', 'scrolldown', 'speeddown', 'fontsizedown'],
-			['obsrecord', 'obsstream', 'countdowndecrease', 'detachwindow', 'prevspeedpreset', 'cyclespeedpreset', 'nextspeedpreset', 'openactivefile'],
+			['obsrecord', 'obsstream', 'countdowndecrease', 'detachwindow', 'prevspeedpreset', 'cyclespeedpreset', 'nextspeedpreset', 'togglekeepawake'],
 		]
 		expect(PAGES[0].grid.slice(0, 3)).toEqual(approved)
 	})

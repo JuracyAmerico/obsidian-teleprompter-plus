@@ -1,6 +1,6 @@
 # Teleprompter Plus (T+) — Stream Deck icon set
 
-91 cohesive Stream Deck button icons for the Teleprompter Plus Obsidian plugin.
+90 cohesive Stream Deck button icons for the Teleprompter Plus Obsidian plugin.
 Open **`Teleprompter Plus Icons.html`** for the live contact sheet.
 
 ## Design system
@@ -19,7 +19,7 @@ Open **`Teleprompter Plus Icons.html`** for the live contact sheet.
 | neutral| `#cbd5e1` | plain toggles · info · misc |
 
 ## Files
-- `tp-*.svg` — 91 source SVGs (72×72, background baked), plus `tp-*-on.svg`, the lit state of the eight two-state keys (purple tint, `#7c6cf6` ring, green dot).
+- `tp-*.svg` — 90 source SVGs (72×72, background baked), plus `tp-*-on.svg`, the lit state of the eight two-state keys (purple tint, `#7c6cf6` ring, green dot).
 - `png-72/` and `png-144/` — the sizes Elgato asks for on a key: 72×72 and 144×144 (@2x).
 - `png-288/` — 288×288, for print and contact sheets.
 - `action-list/` — the action-list icons: white on transparent, `tp-*.svg`, `tp-*.png` (20×20) and `tp-*@2x.png` (40×40).
@@ -119,7 +119,7 @@ All geometry lives in `icons-data.js`. To tweak an icon, edit its `inner` path s
 - `tp-home` — house · neutral
 - `tp-page-next` / `tp-page-prev` — chevron · purple; `tp-page-first` — double back chevron against a bar · purple
 - `tp-capture` / `tp-light` / `tp-command` — crop marks, bulb, command sign · neutral: stand-ins for the principal's own Snagit, Lights and Keyboard Maestro keys in previews
-- `tp-capture-region` / `tp-capture-scroll` — dashed selection + crosshair, tall dashed page + down arrow · neutral: proposed Snagit Region and Scrolling keys
+- `tp-capture-scroll` — tall dashed page + down arrow · neutral: the Snagit Scrolling key
 
 **OBS**
 - `tp-obs-connect` — joined chain link · green

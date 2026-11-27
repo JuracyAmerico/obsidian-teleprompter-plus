@@ -1,6 +1,6 @@
 # Stream Deck XL profile
 
-Every key of the Teleprompter Plus Stream Deck plugin on one Stream Deck XL profile: 60 actions on three pages of 32 keys. Nine keys stay put on every page: Home at R1 C1; Snagit (⌃⇧C), Snagit Region (⌃⇧S, Snagit's Image Capture), Snagit Scrolling (⌃⌥⇧S), Lights and the Keyboard Maestro profile key (⌘) at R4 C1 to C5; next page at R4 C8, which on the last page goes back to page 1; previous page at R4 C7 from page 2 on. Those keys keep their actions; only their pictures change, to glyphs of the same family (a house, crop marks, a dashed selection, a dashed page with an arrow, a bulb, the command sign, chevrons). They have a dashed edge in the previews.
+Every key of the Teleprompter Plus Stream Deck plugin on one Stream Deck XL profile: 60 actions on three pages of 32 keys. Eight keys stay put on every page: Home at R1 C1; Snagit (⌃⇧C), Snagit Scrolling (⌃⌥⇧S), Lights and the Keyboard Maestro profile key (⌘) at R4 C1 to C4; next page at R4 C8, which on the last page goes back to page 1; previous page at R4 C7 from page 2 on. Those keys keep their actions; only their pictures change, to glyphs of the same family (a house, crop marks, a dashed page with an arrow, a bulb, the command sign, chevrons). They have a dashed edge in the previews.
 
 ![Page 1](icons/streamdeck/profile/streamdeck-xl-page-1.png)
 
@@ -8,7 +8,7 @@ Every key of the Teleprompter Plus Stream Deck plugin on one Stream Deck XL prof
 
 ![Page 3](icons/streamdeck/profile/streamdeck-xl-page-3.png)
 
-Page 1 holds the 25 controls you press while you rehearse and record. Page 2 holds set-up: how the script looks and behaves. Page 3 holds the colour themes and fonts, the least used. Keys that go up and down share a column, up above down. For the action behind each key and the command it sends, see [stream-deck-actions.md](stream-deck-actions.md).
+Page 1 holds the 26 controls you press while you rehearse and record. Page 2 holds set-up: how the script looks and behaves. Page 3 holds the colour themes and fonts, the least used. Keys that go up and down share a column, up above down. For the action behind each key and the command it sends, see [stream-deck-actions.md](stream-deck-actions.md).
 
 ## Layout
 
@@ -24,8 +24,8 @@ Rehearse and record: transport, sections, scrolling, speed, text size, countdown
 |---|---|---|---|---|---|---|---|---|
 | **1** | Home | Play / Pause | Countdown | Top | Prev section | Scroll up | Faster | Text + |
 | **2** | Voice | Clock | Countdown + | Sections | Next section | Scroll down | Slower | Text − |
-| **3** | Record | Stream | Countdown − | Float | ‹ Preset | Speed preset | Preset › | Open note |
-| **4** | Snagit | Region | Scrolling | Lights | ⌘ KM | Pin note | Full screen | Next page › |
+| **3** | Record | Stream | Countdown − | Float | ‹ Preset | Speed preset | Preset › | Keep awake |
+| **4** | Snagit | Scrolling | Lights | ⌘ KM | Open note | Pin note | Full screen | Next page › |
 
 | Key | Action | Purpose | Sends | Picture |
 |---|---|---|---|---|
@@ -52,26 +52,26 @@ Rehearse and record: transport, sections, scrolling, speed, text size, countdown
 | R3 C5 | Previous Speed Preset | Speed | `prev-speed-preset` | One state; a press sends the command |
 | R3 C6 | Cycle Speed Preset | Speed | `cycle-speed-preset` | One state; a press sends the command |
 | R3 C7 | Next Speed Preset | Speed | `next-speed-preset` | One state; a press sends the command |
-| R3 C8 | Open Active File | Windows and note | `open-active-file` | One state; a press sends the command |
+| R3 C8 | Toggle Keep Awake | Windows and note | `toggle-keep-awake` | Two states, lit when on; follows the teleprompter |
 | R4 C1 | *Snagit (your key)* | Deck | Copied from Stage R4 C1: Hotkey ⌃⇧C (Snagit); picture tp-capture | Stream Deck key, not a T+ action |
-| R4 C2 | *Snagit Region (your key)* | Deck | Hotkey ⌃⇧S, Snagit Image Capture (region select); picture tp-capture-region | Stream Deck key, not a T+ action |
-| R4 C3 | *Snagit Scrolling (your key)* | Deck | Hotkey ⌃⌥⇧S: the shortcut you give your Scrolling Capture preset; picture tp-capture-scroll | Stream Deck key, not a T+ action |
-| R4 C4 | *Lights (your key)* | Deck | Copied from Stage R4 C2: Open light-toggle.sh; picture tp-light | Stream Deck key, not a T+ action |
-| R4 C5 | *⌘ Keyboard Maestro (your key)* | Deck | Copied from Stage R4 C3: Switch Profile to KeyboardMaestro; picture tp-command | Stream Deck key, not a T+ action |
+| R4 C2 | *Snagit Scrolling (your key)* | Deck | Hotkey ⌃⌥⇧S: the shortcut you give your Scrolling Capture preset; picture tp-capture-scroll | Stream Deck key, not a T+ action |
+| R4 C3 | *Lights (your key)* | Deck | Copied from Stage R4 C2: Open light-toggle.sh; picture tp-light | Stream Deck key, not a T+ action |
+| R4 C4 | *⌘ Keyboard Maestro (your key)* | Deck | Copied from Stage R4 C3: Switch Profile to KeyboardMaestro; picture tp-command | Stream Deck key, not a T+ action |
+| R4 C5 | Open Active File | Windows and note | `open-active-file` | One state; a press sends the command |
 | R4 C6 | Toggle Pin Note | Windows and note | `toggle-pin` | Two states, lit when on; follows the teleprompter |
 | R4 C7 | Toggle Full-Screen | Windows and note | `toggle-fullscreen` | Two states, lit when on; follows the teleprompter |
 | R4 C8 | *Next Page* | Deck | Navigation: Next Page (the app places it); picture tp-page-next | Stream Deck key, not a T+ action |
 
 ### Page 2: Set-up
 
-Look and behaviour of the script: spacing, opacity, view, mirror, alignment, eyeline, focus, sync, minimap, keep awake, progress, auto-pause.
+Look and behaviour of the script: spacing, opacity, view, mirror, alignment, eyeline, focus, sync, minimap, progress, auto-pause.
 
 | Row | Col 1 | Col 2 | Col 3 | Col 4 | Col 5 | Col 6 | Col 7 | Col 8 |
 |---|---|---|---|---|---|---|---|---|
 | **1** | Home | Lines + | Letters + | Pad ↕ + | Pad ↔ + | Opacity + | View mode | · |
 | **2** | Align | Lines − | Letters − | Pad ↕ − | Pad ↔ − | Opacity − | Mirror | Upside down |
-| **3** | Eyeline | Focus | Scroll sync | Refresh | Minimap | Keep awake | Progress | Auto-pause |
-| **4** | Snagit | Region | Scrolling | Lights | ⌘ KM | · | ‹ Previous page | Next page › |
+| **3** | Eyeline | Focus | Scroll sync | Refresh | Minimap | · | Progress | Auto-pause |
+| **4** | Snagit | Scrolling | Lights | ⌘ KM | · | · | ‹ Previous page | Next page › |
 
 | Key | Action | Purpose | Sends | Picture |
 |---|---|---|---|---|
@@ -95,14 +95,12 @@ Look and behaviour of the script: spacing, opacity, view, mirror, alignment, eye
 | R3 C3 | Scroll Sync | Windows and note | `toggle-scroll-sync` | One state; a press sends the command |
 | R3 C4 | Refresh Pinned Note | Windows and note | `refresh-pinned` | One state; a press sends the command |
 | R3 C5 | Minimap | Navigation | `toggle-minimap` | One state; a press sends the command |
-| R3 C6 | Toggle Keep Awake | Windows and note | `toggle-keep-awake` | Two states, lit when on; follows the teleprompter |
 | R3 C7 | Cycle Progress Indicator | Appearance | `cycle-progress-indicator` | One state; a press sends the command |
 | R3 C8 | Toggle Auto-Pause | Transport | `toggle-auto-pause` | Two states, lit when on; follows the teleprompter |
 | R4 C1 | *Snagit (your key)* | Deck | Copied from Stage R4 C1: Hotkey ⌃⇧C (Snagit); picture tp-capture | Stream Deck key, not a T+ action |
-| R4 C2 | *Snagit Region (your key)* | Deck | Hotkey ⌃⇧S, Snagit Image Capture (region select); picture tp-capture-region | Stream Deck key, not a T+ action |
-| R4 C3 | *Snagit Scrolling (your key)* | Deck | Hotkey ⌃⌥⇧S: the shortcut you give your Scrolling Capture preset; picture tp-capture-scroll | Stream Deck key, not a T+ action |
-| R4 C4 | *Lights (your key)* | Deck | Copied from Stage R4 C2: Open light-toggle.sh; picture tp-light | Stream Deck key, not a T+ action |
-| R4 C5 | *⌘ Keyboard Maestro (your key)* | Deck | Copied from Stage R4 C3: Switch Profile to KeyboardMaestro; picture tp-command | Stream Deck key, not a T+ action |
+| R4 C2 | *Snagit Scrolling (your key)* | Deck | Hotkey ⌃⌥⇧S: the shortcut you give your Scrolling Capture preset; picture tp-capture-scroll | Stream Deck key, not a T+ action |
+| R4 C3 | *Lights (your key)* | Deck | Copied from Stage R4 C2: Open light-toggle.sh; picture tp-light | Stream Deck key, not a T+ action |
+| R4 C4 | *⌘ Keyboard Maestro (your key)* | Deck | Copied from Stage R4 C3: Switch Profile to KeyboardMaestro; picture tp-command | Stream Deck key, not a T+ action |
 | R4 C7 | *Previous Page* | Deck | Navigation: Previous Page (the app places it); picture tp-page-prev | Stream Deck key, not a T+ action |
 | R4 C8 | *Next Page* | Deck | Navigation: Next Page (the app places it); picture tp-page-next | Stream Deck key, not a T+ action |
 
@@ -115,7 +113,7 @@ Colour themes and fonts of the script, and the key art theme.
 | **1** | Home | · | · | · | · | · | · | Key theme |
 | **2** | Dark | Light | Black | Sepia | Terminal | Amber | · | · |
 | **3** | System | Sans | Serif | Mono | Readable | Slab | · | · |
-| **4** | Snagit | Region | Scrolling | Lights | ⌘ KM | · | ‹ Previous page | « Page 1 |
+| **4** | Snagit | Scrolling | Lights | ⌘ KM | · | · | ‹ Previous page | « Page 1 |
 
 | Key | Action | Purpose | Sends | Picture |
 |---|---|---|---|---|
@@ -134,10 +132,9 @@ Colour themes and fonts of the script, and the key art theme.
 | R3 C5 | Font: Readable | Appearance | `font-preset-readable` | One state; a press sends the command |
 | R3 C6 | Font: Slab Serif | Appearance | `font-preset-slab` | One state; a press sends the command |
 | R4 C1 | *Snagit (your key)* | Deck | Copied from Stage R4 C1: Hotkey ⌃⇧C (Snagit); picture tp-capture | Stream Deck key, not a T+ action |
-| R4 C2 | *Snagit Region (your key)* | Deck | Hotkey ⌃⇧S, Snagit Image Capture (region select); picture tp-capture-region | Stream Deck key, not a T+ action |
-| R4 C3 | *Snagit Scrolling (your key)* | Deck | Hotkey ⌃⌥⇧S: the shortcut you give your Scrolling Capture preset; picture tp-capture-scroll | Stream Deck key, not a T+ action |
-| R4 C4 | *Lights (your key)* | Deck | Copied from Stage R4 C2: Open light-toggle.sh; picture tp-light | Stream Deck key, not a T+ action |
-| R4 C5 | *⌘ Keyboard Maestro (your key)* | Deck | Copied from Stage R4 C3: Switch Profile to KeyboardMaestro; picture tp-command | Stream Deck key, not a T+ action |
+| R4 C2 | *Snagit Scrolling (your key)* | Deck | Hotkey ⌃⌥⇧S: the shortcut you give your Scrolling Capture preset; picture tp-capture-scroll | Stream Deck key, not a T+ action |
+| R4 C3 | *Lights (your key)* | Deck | Copied from Stage R4 C2: Open light-toggle.sh; picture tp-light | Stream Deck key, not a T+ action |
+| R4 C4 | *⌘ Keyboard Maestro (your key)* | Deck | Copied from Stage R4 C3: Switch Profile to KeyboardMaestro; picture tp-command | Stream Deck key, not a T+ action |
 | R4 C7 | *Previous Page* | Deck | Navigation: Previous Page (the app places it); picture tp-page-prev | Stream Deck key, not a T+ action |
 | R4 C8 | *Go To Page 1* | Deck | Navigation: Go To Page, page 1; picture tp-page-first | Stream Deck key, not a T+ action |
 
@@ -153,7 +150,7 @@ Colour themes and fonts of the script, and the key art theme.
 | Voice (1) | Voice Tracking (P1 R2 C1) |
 | Recording (OBS) (2) | OBS Toggle Recording (P1 R3 C1), OBS Toggle Streaming (P1 R3 C2) |
 | Appearance (31) | Font Size Up (P1 R1 C8), Font Size Down (P1 R2 C8), Line Height Increase (P2 R1 C2), Line Height Decrease (P2 R2 C2), Letter Spacing Up (P2 R1 C3), Letter Spacing Down (P2 R2 C3), Padding Vertical Increase (P2 R1 C4), Padding Vertical Decrease (P2 R2 C4), Padding Horizontal Increase (P2 R1 C5), Padding Horizontal Decrease (P2 R2 C5), Opacity Up (P2 R1 C6), Opacity Down (P2 R2 C6), Color: Dark Mode (P3 R2 C1), Color: Light Mode (P3 R2 C2), Color: Pure Black (P3 R2 C3), Color: Sepia (P3 R2 C4), Color: Green Terminal (P3 R2 C5), Color: Amber Retro (P3 R2 C6), Font: System Default (P3 R3 C1), Font: Sans-serif (P3 R3 C2), Font: Serif (P3 R3 C3), Font: Monospace (P3 R3 C4), Font: Readable (P3 R3 C5), Font: Slab Serif (P3 R3 C6), Toggle Eyeline (P2 R3 C1), Toggle Focus Mode (P2 R3 C2), Toggle View Mode (P2 R1 C7), Cycle Text Alignment (P2 R2 C1), Cycle Progress Indicator (P2 R3 C7), Flip: Horizontal (Mirror) (P2 R2 C7), Flip: Vertical (Upside Down) (P2 R2 C8) |
-| Windows and note (7) | Toggle Full-Screen (P1 R4 C7), Toggle Keep Awake (P2 R3 C6), Detach Window (P1 R3 C4), Open Active File (P1 R3 C8), Toggle Pin Note (P1 R4 C6), Refresh Pinned Note (P2 R3 C4), Scroll Sync (P2 R3 C3) |
+| Windows and note (7) | Toggle Full-Screen (P1 R4 C7), Toggle Keep Awake (P1 R3 C8), Detach Window (P1 R3 C4), Open Active File (P1 R4 C5), Toggle Pin Note (P1 R4 C6), Refresh Pinned Note (P2 R3 C4), Scroll Sync (P2 R3 C3) |
 | Deck (1) | Cycle Theme (P3 R1 C8) |
 
 <!-- layout:end -->
@@ -189,7 +186,7 @@ The Stream Deck app builds profiles; a `.streamDeckProfile` file is what the app
 
 1. Open the **Stream Deck** app, choose **Stream Deck XL** at the top left, then your **Teleprompter +** profile in the menu under it.
 2. Right-click each key you are replacing, except key 1, and choose **Delete**. A deleted key also drops the custom picture you gave it, so the plugin's own picture shows.
-3. Pin the keys every page shares. Elgato's Pinned Actions keep a key in the same position on every page and folder of a profile; a page's own key in that position wins. Right-click key 1 (Home) and turn on **Pin Action**. Then open your **Stage** profile, right-click R4 C1 (Snagit), **Copy**, come back, right-click R4 C1, **Paste**, and pin it; do the same for Lights and ⌘, pasting them on R4 C4 and R4 C5. R4 C2 and C3 are Stream Deck **Hotkey** actions. Region sends ⌃⇧S, which Snagit already uses for Image Capture (region select), so it needs nothing in Snagit. Scrolling sends ⌃⌥⇧S: in Snagit, give the **Scrolling Capture** preset that shortcut (Presets, **+ Shortcut**). Snagit's own ⌃⇧R is Repeat Last Capture, so no key uses it. Copy and Paste carries the action, its settings and its picture.
+3. Pin the keys every page shares. Elgato's Pinned Actions keep a key in the same position on every page and folder of a profile; a page's own key in that position wins. Right-click key 1 (Home) and turn on **Pin Action**. Then open your **Stage** profile, right-click R4 C1 (Snagit), **Copy**, come back, right-click R4 C1, **Paste**, and pin it; do the same for Lights and ⌘, pasting them on R4 C3 and R4 C4. R4 C2 (Scrolling) is a Stream Deck **Hotkey** action sending ⌃⌥⇧S: in Snagit, give the **Scrolling Capture** preset that shortcut (Presets, **+ Shortcut**). There is no separate Region key: Snagit's ⌃⇧C capture already selects a region. Copy and Paste carries the action, its settings and its picture.
 4. In the action list on the right, open **Obsidian Teleprompter Plus** and drag each action onto its key of page 1.
 5. Click **+** next to the page number under the keys to add pages 2 and 3. The app places **Next Page** and **Previous Page** keys by itself; move Next Page to R4 C8 on pages 1 and 2 and Previous Page to R4 C7 on pages 2 and 3. They live under **Navigation** in the action list if you need them again.
 6. On page 3, put **Go To Page** (also under **Navigation**) on R4 C8, set to page 1.

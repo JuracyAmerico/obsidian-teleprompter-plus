@@ -1,5 +1,5 @@
 /* ============================================================
-   Teleprompter Plus (T+) — Stream Deck icon set  (91 icons)
+   Teleprompter Plus (T+) — Stream Deck icon set  (90 icons)
    Single source of truth. Loaded by the contact sheet AND read
    by the SVG exporter, so the family stays perfectly consistent.
 
@@ -239,8 +239,6 @@ var TP_GROUPS = [
         inner: `<path d="M28 45 a15 15 0 1 1 16 0 c-1.5 1.5 -2 3.5 -2 5 H30 c0 -1.5 -0.5 -3.5 -2 -5 Z"/><line x1="30" y1="57" x2="42" y2="57"/>` },
       { id: 'tp-command', color: N, note: 'Command loop sign = switch to the Keyboard Maestro profile. Stand-in for the principal\'s own key in previews.',
         inner: `<path d="M29 23 V49 M43 23 V49 M23 29 H49 M23 43 H49"/><circle cx="23" cy="23" r="6"/><circle cx="49" cy="23" r="6"/><circle cx="23" cy="49" r="6"/><circle cx="49" cy="49" r="6"/>` },
-      { id: 'tp-capture-region', color: N, note: 'Dashed selection rectangle + crosshair = Snagit region capture. Proposal; the key sends a Snagit preset shortcut.',
-        inner: `<rect x="12" y="13" width="38" height="30" rx="3" stroke-dasharray="5 6"/><line x1="54" y1="42" x2="54" y2="62"/><line x1="44" y1="52" x2="64" y2="52"/>` },
       { id: 'tp-capture-scroll', color: N, note: 'Tall dashed page + down arrow = Snagit scrolling capture. Proposal; the key sends a Snagit preset shortcut.',
         inner: `<rect x="14" y="10" width="28" height="52" rx="3" stroke-dasharray="5 6"/><line x1="22" y1="26" x2="34" y2="26"/><line x1="22" y1="36" x2="34" y2="36"/><path d="M54 18 V52"/><path d="M47 45 L54 52 L61 45"/>` },
     ]

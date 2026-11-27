@@ -267,7 +267,7 @@ export interface ActionKey {
 	familyIcon: string
 }
 
-export type SystemKeyId = 'home' | 'snagit' | 'snagit-region' | 'snagit-scroll' | 'lights' | 'km' | 'page-next' | 'page-prev' | 'page-first'
+export type SystemKeyId = 'home' | 'snagit' | 'snagit-scroll' | 'lights' | 'km' | 'page-next' | 'page-prev' | 'page-first'
 
 /** A key that is not a T+ action: the principal's own keys and the app's page keys. */
 export interface SystemKey {
@@ -369,7 +369,6 @@ export const ACTIONS: readonly ActionKey[] = FAMILY_ACTIONS.map((a) => {
 export const SYSTEM_KEYS: Record<SystemKeyId, SystemKey> = {
 	home: { kind: 'system', id: 'home', name: 'Home (your key)', label: 'Home', icon: 'tp-home', source: 'Your key 1: Switch Profile to Stage; picture tp-home' },
 	snagit: { kind: 'system', id: 'snagit', name: 'Snagit (your key)', label: 'Snagit', icon: 'tp-capture', source: 'Copied from Stage R4 C1: Hotkey ⌃⇧C (Snagit); picture tp-capture' },
-	'snagit-region': { kind: 'system', id: 'snagit-region', name: 'Snagit Region (your key)', label: 'Region', icon: 'tp-capture-region', source: 'Hotkey ⌃⇧S, Snagit Image Capture (region select); picture tp-capture-region' },
 	'snagit-scroll': { kind: 'system', id: 'snagit-scroll', name: 'Snagit Scrolling (your key)', label: 'Scrolling', icon: 'tp-capture-scroll', source: 'Hotkey ⌃⌥⇧S: the shortcut you give your Scrolling Capture preset; picture tp-capture-scroll' },
 	lights: { kind: 'system', id: 'lights', name: 'Lights (your key)', label: 'Lights', icon: 'tp-light', source: 'Copied from Stage R4 C2: Open light-toggle.sh; picture tp-light' },
 	km: { kind: 'system', id: 'km', name: '⌘ Keyboard Maestro (your key)', label: '⌘ KM', icon: 'tp-command', source: 'Copied from Stage R4 C3: Switch Profile to KeyboardMaestro; picture tp-command' },
@@ -383,16 +382,15 @@ export const COLS = 8
 
 /**
  * The keys that sit in the same place on every page, as on the principal's Stage profile:
- * Home at R1 C1; Snagit, Snagit Region, Snagit Scrolling, Lights and ⌘ at R4 C1 to C5 (approved 2026-11-27); the page key at R4 C8 (next page, or back to
+ * Home at R1 C1; Snagit, Snagit Scrolling, Lights and ⌘ at R4 C1 to C4 (approved 2026-11-27); the page key at R4 C8 (next page, or back to
  * page 1 on the last page); previous page at R4 C7 on every page after the first.
  */
 export const CHROME: ReadonlyArray<{ row: number; col: number; id: (page: number, pages: number) => SystemKeyId | null }> = [
 	{ row: 0, col: 0, id: () => 'home' },
 	{ row: 3, col: 0, id: () => 'snagit' },
-	{ row: 3, col: 1, id: () => 'snagit-region' },
-	{ row: 3, col: 2, id: () => 'snagit-scroll' },
-	{ row: 3, col: 3, id: () => 'lights' },
-	{ row: 3, col: 4, id: () => 'km' },
+	{ row: 3, col: 1, id: () => 'snagit-scroll' },
+	{ row: 3, col: 2, id: () => 'lights' },
+	{ row: 3, col: 3, id: () => 'km' },
 	{ row: 3, col: 6, id: (page) => (page > 1 ? 'page-prev' : null) },
 	{ row: 3, col: 7, id: (page, pages) => (page < pages ? 'page-next' : 'page-first') },
 ]
@@ -413,19 +411,19 @@ export const PAGES: readonly Page[] = [
 		grid: [
 			['home', 'playpause', 'startcountdown', 'reset', 'previoussection', 'scrollup', 'speedup', 'fontsizeup'],
 			['voicetoggle', 'clock', 'countdownincrease', 'togglenavigation', 'nextsection', 'scrolldown', 'speeddown', 'fontsizedown'],
-			['obsrecord', 'obsstream', 'countdowndecrease', 'detachwindow', 'prevspeedpreset', 'cyclespeedpreset', 'nextspeedpreset', 'openactivefile'],
-			['snagit', 'snagit-region', 'snagit-scroll', 'lights', 'km', 'togglepin', 'togglefullscreen', 'page-next'],
+			['obsrecord', 'obsstream', 'countdowndecrease', 'detachwindow', 'prevspeedpreset', 'cyclespeedpreset', 'nextspeedpreset', 'togglekeepawake'],
+			['snagit', 'snagit-scroll', 'lights', 'km', 'openactivefile', 'togglepin', 'togglefullscreen', 'page-next'],
 		],
 	},
 	{
 		number: 2,
 		title: 'Set-up',
-		purpose: 'Look and behaviour of the script: spacing, opacity, view, mirror, alignment, eyeline, focus, sync, minimap, keep awake, progress, auto-pause',
+		purpose: 'Look and behaviour of the script: spacing, opacity, view, mirror, alignment, eyeline, focus, sync, minimap, progress, auto-pause',
 		grid: [
 			['home', 'lineheightincrease', 'letterspacingup', 'paddingverticalincrease', 'paddinghorizontalincrease', 'opacityup', 'toggleviewmode', EMPTY],
 			['cyclealignment', 'lineheightdecrease', 'letterspacingdown', 'paddingverticaldecrease', 'paddinghorizontaldecrease', 'opacitydown', 'flip-horizontal', 'flip-vertical'],
-			['toggleeyeline', 'togglefocusmode', 'scroll-sync', 'refreshpinned', 'minimap', 'togglekeepawake', 'cycleprogressindicator', 'toggleautopause'],
-			['snagit', 'snagit-region', 'snagit-scroll', 'lights', 'km', EMPTY, 'page-prev', 'page-next'],
+			['toggleeyeline', 'togglefocusmode', 'scroll-sync', 'refreshpinned', 'minimap', EMPTY, 'cycleprogressindicator', 'toggleautopause'],
+			['snagit', 'snagit-scroll', 'lights', 'km', EMPTY, EMPTY, 'page-prev', 'page-next'],
 		],
 	},
 	{
@@ -436,7 +434,7 @@ export const PAGES: readonly Page[] = [
 			['home', EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, 'cycletheme'],
 			['color-dark', 'color-light', 'color-black', 'color-sepia', 'color-green', 'color-amber', EMPTY, EMPTY],
 			['font-system', 'font-sans', 'font-serif', 'font-mono', 'font-readable', 'font-slab', EMPTY, EMPTY],
-			['snagit', 'snagit-region', 'snagit-scroll', 'lights', 'km', EMPTY, 'page-prev', 'page-first'],
+			['snagit', 'snagit-scroll', 'lights', 'km', EMPTY, EMPTY, 'page-prev', 'page-first'],
 		],
 	},
 ]
