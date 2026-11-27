@@ -8,6 +8,7 @@ import { describe, expect, test } from 'bun:test';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { SECRET_SETTING_KEYS, redactSecrets } from './settings-secrets';
+import { pickImportableSettings } from './settings-import';
 
 describe('redactSecrets', () => {
   test('removes every secret key from the copy', () => {
@@ -62,9 +63,16 @@ describe('the phone remote key is a secret (0.12.14)', () => {
 		expect(out.fontSize).toBe(40)
 	})
 	test('every place that applies an imported file or profile strips secrets first', () => {
+		// Since 0.12.18 every apply goes through applyFromOutside -> pickImportableSettings, which
+		// never takes a secret (src/settings-import.test.ts); no other assignment is left.
 		const src = readFileSync(join(import.meta.dir, 'settings.ts'), 'utf8')
 		const applies = src.match(/Object\.assign\(this\.plugin\.settings, (?!DEFAULT_SETTINGS)[^)]*\)/g) ?? []
-		expect(applies.length).toBeGreaterThan(0)
-		for (const call of applies) expect(call).toContain('redactSecrets(')
+		expect(applies).toEqual([])
+		expect(src).toContain('pickImportableSettings(raw, DEFAULT_SETTINGS)')
+		const picked = pickImportableSettings(
+			Object.fromEntries(SECRET_SETTING_KEYS.map((key) => [key, 'from-a-file'])),
+			Object.fromEntries(SECRET_SETTING_KEYS.map((key) => [key, ''])),
+		)
+		expect(picked).toEqual({})
 	})
 })

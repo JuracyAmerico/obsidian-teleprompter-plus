@@ -1484,6 +1484,18 @@ Use this address to connect from external devices.`
 	}
 
 	/**
+	 * Settings from outside the settings tab (an imported file, a profile): they pass the same
+	 * validator as a load from disk before they are saved and take effect. The caller has already
+	 * narrowed them with pickImportableSettings and asked about network changes.
+	 */
+	async applyExternalSettings(changes: Partial<TeleprompterSettings>): Promise<void> {
+		Object.assign(this.settings, changes)
+		this.validateSettings()
+		await this.saveSettings()
+		this.applyAllSettings()
+	}
+
+	/**
 	 * Add new toolbar controls to existing layouts (settings migration)
 	 */
 	private migrateToolbarControls(): void {

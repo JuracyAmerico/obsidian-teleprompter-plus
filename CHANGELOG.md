@@ -10,6 +10,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 - **The Stream Deck and the phone remote now work on a normal install.** The remote server's WebSocket module (`ws`) was never inside `main.js`, and an install from Community plugins gets only `main.js`, `styles.css` and `manifest.json`, so the server could not start and nothing could connect unless `node_modules/ws` had been copied into the plugin folder by hand. `ws` is now bundled into `main.js` and loads only when the server starts. A `node_modules` folder in the plugin folder is no longer read and can be deleted.
 
+### Security
+- **An imported settings file or profile can no longer change network settings without asking.** Applying a profile, or importing a settings or profile file, now takes only settings the plugin defines, with the right type and never a password or key, and runs them through the same checks as the settings saved on disk. If it would open the remote server to the network, move a port, connect to OBS on another computer, start recording or streaming on Play, or send your script to ElevenLabs, a dialog lists each change and nothing is applied unless you confirm. Before, a profile file was stored as it came and applied unchecked.
+
 ## [0.12.17] - 2026-11-27
 
 ### Changed

@@ -9,17 +9,20 @@ export class ConfirmModal extends Modal {
 	private message: string
 	private onConfirm: () => void
 	private onCancel?: () => void
+	private details: string[]
 
 	constructor(
 		app: App,
 		message: string,
 		onConfirm: () => void,
-		onCancel?: () => void
+		onCancel?: () => void,
+		details: string[] = []
 	) {
 		super(app)
 		this.message = message
 		this.onConfirm = onConfirm
 		this.onCancel = onCancel
+		this.details = details
 	}
 
 	onOpen() {
@@ -32,6 +35,12 @@ export class ConfirmModal extends Modal {
 			text: this.message,
 			cls: 'confirm-modal-message'
 		})
+
+		// One line per thing the reader is agreeing to
+		if (this.details.length > 0) {
+			const list = contentEl.createEl('ul', { cls: 'confirm-modal-details' })
+			for (const line of this.details) list.createEl('li', { text: line })
+		}
 
 		// Button container
 		const buttonContainer = contentEl.createDiv({ cls: 'confirm-modal-buttons' })

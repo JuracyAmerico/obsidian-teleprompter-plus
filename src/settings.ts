@@ -6,6 +6,7 @@ import { PromptModal } from './prompt-modal'
 import { resolveControlIcon, type IconStyle } from './icon-vocabulary'
 import { CONTROL_ICONS } from './action-icons'
 import { redactSecrets } from './settings-secrets'
+import { describeNetworkChanges, pickImportableSettings, readImportedProfile, type ImportedProfile } from './settings-import'
 import { showsMobileInterface } from './platform/device'
 import { DESKTOP_ONLY_ENGINES, DESKTOP_ONLY_SETTINGS_TABS, PHONE_OPTIONAL_CONTROLS, forPhone } from './platform/mobile-surface'
 import type { NotePositions } from './position-memory'
@@ -608,6 +609,43 @@ export class TeleprompterSettingTab extends PluginSettingTab {
 		this.plugin = plugin
 	}
 
+	/**
+	 * Applies settings that came from a file or a profile. Only known keys of the right type and no
+	 * secrets get through, the plugin's validator runs on them, and a change to how the plugin uses
+	 * the network is listed for the reader to accept first, as the settings fields warn. Declining
+	 * applies nothing.
+	 */
+	private applyFromOutside(raw: unknown, what: string, onApplied: () => void): void {
+		const changes = pickImportableSettings(raw, DEFAULT_SETTINGS)
+		const apply = () => {
+			void this.plugin.applyExternalSettings(changes).then(() => {
+				onApplied()
+				this.display()
+			})
+		}
+		const network = describeNetworkChanges(this.plugin.settings, changes)
+		if (network.length === 0) {
+			apply()
+			return
+		}
+		new ConfirmModal(
+			this.app,
+			`${what} changes how Teleprompter Plus uses the network. Apply it?`,
+			apply,
+			() => new Notice(`${what} was not applied`),
+			network,
+		).open()
+	}
+
+	/** Applies a built-in or custom profile and marks it active. */
+	private applyProfile(profile: Profile): void {
+		this.applyFromOutside(profile.settings, `The "${profile.name}" profile`, () => {
+			this.plugin.settings.profiles.active = profile.id
+			void this.plugin.saveSettings()
+			new Notice(`Applied "${profile.name}" profile`)
+		})
+	}
+
 	display(): void {
 		const { containerEl } = this
 
@@ -728,15 +766,7 @@ export class TeleprompterSettingTab extends PluginSettingTab {
 			setIcon(chipIcon, profile.icon)
 			chip.createSpan({ text: profile.name })
 
-			chip.addEventListener('click', () => {
-				// Apply profile settings
-				Object.assign(this.plugin.settings, redactSecrets(profile.settings))
-				this.plugin.settings.profiles.active = profile.id
-				void this.plugin.saveSettings()
-				this.plugin.applyAllSettings()
-				new Notice(`Applied "${profile.name}" profile`)
-				this.display()
-			})
+			chip.addEventListener('click', () => this.applyProfile(profile))
 		})
 
 		// Health Check Grid
@@ -836,18 +866,19 @@ export class TeleprompterSettingTab extends PluginSettingTab {
 				const reader = new FileReader()
 				reader.onload = (event) => {
 					try {
-						const imported = JSON.parse(event.target?.result as string) as Record<string, unknown>
-						const validKeys = Object.keys(DEFAULT_SETTINGS) as Array<keyof TeleprompterSettings>
-						const importedFiltered: Partial<TeleprompterSettings> = {}
-						for (const key of validKeys) {
-							if (key in imported) {
-								(importedFiltered as Record<string, unknown>)[key] = imported[key]
+						const imported = JSON.parse(event.target?.result as string) as unknown
+						const customProfiles = (imported as { profiles?: { custom?: unknown } } | null)?.profiles?.custom
+						this.applyFromOutside(imported, 'This settings file', () => {
+							// An exported file carries its custom profiles; each is narrowed like a profile file
+							if (Array.isArray(customProfiles)) {
+								const stamp = Date.now()
+								this.plugin.settings.profiles.custom = customProfiles
+									.map((raw, i) => readImportedProfile(raw, DEFAULT_SETTINGS, `custom-${stamp}-${i}`))
+									.filter((profile): profile is Profile & ImportedProfile<TeleprompterSettings> => profile !== null)
+								void this.plugin.saveSettings()
 							}
-						}
-						Object.assign(this.plugin.settings, redactSecrets(importedFiltered))
-						void this.plugin.saveSettings()
-						new Notice('Settings imported')
-						this.display()
+							new Notice('Settings imported')
+						})
 					} catch {
 						new Notice('Failed to import settings')
 					}
@@ -2301,14 +2332,7 @@ export class TeleprompterSettingTab extends PluginSettingTab {
 			const applyBtn = actions.createEl('button', { cls: 'tp-profile-action' })
 			setIcon(applyBtn, 'check')
 			applyBtn.title = 'Apply profile'
-			applyBtn.addEventListener('click', () => {
-				Object.assign(this.plugin.settings, redactSecrets(profile.settings))
-				this.plugin.settings.profiles.active = profile.id
-				void this.plugin.saveSettings()
-				this.plugin.applyAllSettings()
-				new Notice(`Applied "${profile.name}" profile`)
-				this.display()
-			})
+			applyBtn.addEventListener('click', () => this.applyProfile(profile))
 		})
 
 		// Custom profiles section
@@ -2347,14 +2371,7 @@ export class TeleprompterSettingTab extends PluginSettingTab {
 				const applyBtn = actions.createEl('button', { cls: 'tp-profile-action' })
 				setIcon(applyBtn, 'check')
 				applyBtn.title = 'Apply profile'
-				applyBtn.addEventListener('click', () => {
-					Object.assign(this.plugin.settings, redactSecrets(profile.settings))
-					this.plugin.settings.profiles.active = profile.id
-					void this.plugin.saveSettings()
-					this.plugin.applyAllSettings()
-					new Notice(`Applied "${profile.name}" profile`)
-					this.display()
-				})
+				applyBtn.addEventListener('click', () => this.applyProfile(profile))
 
 				// Delete button
 				const deleteBtn = actions.createEl('button', { cls: 'tp-profile-action danger' })
@@ -2432,17 +2449,12 @@ export class TeleprompterSettingTab extends PluginSettingTab {
 				const reader = new FileReader()
 				reader.onload = (event) => {
 					try {
-						const imported = JSON.parse(event.target?.result as string) as Record<string, unknown>
-						if (imported.name && imported.settings) {
-							const profile: Profile = {
-								id: `custom-${Date.now()}`,
-								name: imported.name as string,
-								icon: (imported.icon as string) || '',
-								description: (imported.description as string) || '',
-								settings: imported.settings,
-								createdAt: Date.now(),
-								isBuiltIn: false,
-							}
+						// Stored narrowed to known settings without secrets; applying it validates again
+						// and asks before any network change (applyProfile)
+						const profile = readImportedProfile(
+							JSON.parse(event.target?.result as string) as unknown, DEFAULT_SETTINGS, `custom-${Date.now()}`,
+						)
+						if (profile) {
 							this.plugin.settings.profiles.custom.push(profile)
 							void this.plugin.saveSettings()
 							new Notice(`Profile "${profile.name}" imported`)
