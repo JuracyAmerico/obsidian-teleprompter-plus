@@ -193,7 +193,9 @@
   width: 250px;
 }
 
-.tp-search-input {
+/* Two classes: Obsidian pads every input[type="text"] at (0,1,1), which beat one class and put the
+   magnifier over the first letter of the placeholder (ISC-213). */
+.tp-search-container .tp-search-input {
   width: 100%;
   padding: 0.5rem 1rem 0.5rem 2.25rem;
   border: 1px solid var(--background-modifier-border);
@@ -204,7 +206,7 @@
   transition: all 0.2s ease;
 }
 
-.tp-search-input:focus {
+.tp-search-container .tp-search-input:focus {
   outline: none;
   border-color: var(--interactive-accent);
   box-shadow: 0 0 0 2px var(--interactive-accent-hover);
